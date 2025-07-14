@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AgroVetor - Inspeção e Planeamento com Firebase</title>
 
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="manifest.json">
+    <!-- [CORREÇÃO] Removida a referência ao manifest.json que não existe e causava um erro 404 na consola -->
     <meta name="theme-color" content="#2e7d32">
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -159,7 +158,7 @@
     .plano-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;}
     .plano-title { font-weight: 600; color: var(--color-primary); } .plano-title i { margin-right: 8px; }
     .plano-status { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; color: white; text-transform: uppercase; }
-    .plano-status.pendente { background-color: var(--color-info); } .plano-status.concluído { background-color: var(--color-success); } .plano-status.atrasado { background-color: var(--color-danger); }
+    .plano-status.pendente { background-color: var(--color-info); } .plano-status.concluido { background-color: var(--color-success); } .plano-status.atrasado { background-color: var(--color-danger); }
     .plano-details { font-size: 14px; color: var(--color-text-light); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
     .plano-details > div { display: flex; align-items: center; gap: 8px; } .plano-details i { color: var(--color-accent); width: 16px; text-align: center; }
     .plano-actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
@@ -776,8 +775,503 @@
             </div>
         </div>
     
-    <!-- Os scripts virão na próxima parte -->
+    <!-- Bibliotecas Externas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
+    <!-- Início do Script da Aplicação -->
+    <script type="module">
+        // FIREBASE: Importe os módulos necessários do Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // FIREBASE: Configuração e inicialização do Firebase
+            const firebaseConfig = {
+                apiKey: "AIzaSyD9795P-askI8CiyTY-F9nnetrVHhPLoFw",
+                authDomain: "agrovetor-6aa9b.firebaseapp.com",
+                projectId: "agrovetor-6aa9b",
+                storageBucket: "agrovetor-6aa9b.appspot.com",
+                messagingSenderId: "847395463108",
+                appId: "1:847395463108:web:e0e2420a76226e77d90e91",
+                measurementId: "G-TS5QZKNYHQ"
+            };
+
+            const firebaseApp = initializeApp(firebaseConfig);
+            const db = getFirestore(firebaseApp);
+            const auth = getAuth(firebaseApp);
+            const storage = getStorage(firebaseApp);
+
+                        const App = {
+                config: {
+                    appName: "Inspeção e Planeamento de Cana com IA",
+                    themeKey: 'canaAppTheme',
+                    inactivityTimeout: 15 * 60 * 1000, // 15 minutos
+                    menuConfig: [
+                        { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
+                        { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
+                        {
+                            label: 'Colheita', icon: 'fas fa-tractor',
+                            submenu: [
+                                { label: 'Planeamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
+                            ]
+                        },
+                        {
+                            label: 'Lançamentos', icon: 'fas fa-pen-to-square',
+                            submenu: [
+                                { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
+                                { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
+                            ]
+                        },
+                        {
+                            label: 'Relatórios', icon: 'fas fa-chart-line',
+                            submenu: [
+                                { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
+                                { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
+                                { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
+                            ]
+                        },
+                        {
+                            label: 'Administrativo', icon: 'fas fa-cogs',
+                            submenu: [
+                                { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
+                                { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
+                                { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
+                                { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
+                                { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
+                            ]
+                        },
+                    ],
+                    roles: {
+                        admin: { dashboard: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
+                        supervisor: { dashboard: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                        tecnico: { dashboard: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
+                        colaborador: { dashboard: true, lancamentoBroca: true, lancamentoPerda: true },
+                        user: { dashboard: true }
+                    }
+                },
+
+                state: {
+                    currentUser: null,
+                    users: [], 
+                    registros: [], 
+                    perdas: [], 
+                    planos: [], 
+                    fazendas: [], 
+                    personnel: [], 
+                    companyLogo: null, 
+                    activeSubmenu: null, 
+                    charts: {},
+                    harvestPlans: [],
+                    activeHarvestPlan: null,
+                    inactivityTimer: null,
+                    unsubscribeListeners: [], // Para limpar os listeners do Firebase ao sair
+                },
+                
+                elements: {
+                    loadingOverlay: document.getElementById('loading-overlay'),
+                    loginScreen: document.getElementById('loginScreen'), 
+                    appScreen: document.getElementById('appScreen'),
+                    loginUser: document.getElementById('loginUser'), 
+                    loginPass: document.getElementById('loginPass'),
+                    btnLogin: document.getElementById('btnLogin'), 
+                    loginMessage: document.getElementById('loginMessage'),
+                    headerTitle: document.querySelector('header h1'),
+                    currentDateTime: document.getElementById('currentDateTime'),
+                    logoutBtn: document.getElementById('logoutBtn'), 
+                    btnToggleMenu: document.getElementById('btnToggleMenu'),
+                    menu: document.getElementById('menu'), 
+                    content: document.getElementById('content'),
+                    alertContainer: document.getElementById('alertContainer'),
+                    userMenu: {
+                        container: document.getElementById('user-menu-container'),
+                        toggle: document.getElementById('user-menu-toggle'),
+                        dropdown: document.getElementById('user-menu-dropdown'),
+                        username: document.getElementById('userMenuUsername'),
+                        changePasswordBtn: document.getElementById('changePasswordBtn'),
+                        themeButtons: document.querySelectorAll('.theme-button')
+                    },
+                    confirmationModal: {
+                        overlay: document.getElementById('confirmationModal'),
+                        title: document.getElementById('confirmationModalTitle'),
+                        message: document.getElementById('confirmationModalMessage'),
+                        confirmBtn: document.getElementById('confirmationModalConfirmBtn'),
+                        cancelBtn: document.getElementById('confirmationModalCancelBtn'),
+                        closeBtn: document.getElementById('confirmationModalCloseBtn'),
+                    },
+                    changePasswordModal: {
+                        overlay: document.getElementById('changePasswordModal'),
+                        closeBtn: document.getElementById('changePasswordModalCloseBtn'),
+                        cancelBtn: document.getElementById('changePasswordModalCancelBtn'),
+                        saveBtn: document.getElementById('changePasswordModalSaveBtn'),
+                        currentPassword: document.getElementById('currentPassword'),
+                        newPassword: document.getElementById('newPassword'),
+                        confirmNewPassword: document.getElementById('confirmNewPassword'),
+                    },
+                    companyConfig: {
+                        logoUploadArea: document.getElementById('logoUploadArea'),
+                        logoInput: document.getElementById('logoInput'),
+                        logoPreview: document.getElementById('logoPreview'),
+                        removeLogoBtn: document.getElementById('removeLogoBtn'),
+                    },
+                    dashboard: {
+                        btnAnalisar: document.getElementById('btnAnalisarDashboard'),
+                        aiCard: document.getElementById('ai-analysis-card'),
+                        aiContent: document.getElementById('ai-analysis-content'),
+                    },
+                    users: {
+                        username: document.getElementById('newUserUsername'), 
+                        password: document.getElementById('newUserPassword'),
+                        role: document.getElementById('newUserRole'), 
+                        permissionsContainer: document.querySelector('#gerenciarUsuarios .permission-grid'),
+                        permissionCheckboxes: document.querySelectorAll('#gerenciarUsuarios .permission-grid input[type="checkbox"]'),
+                        btnCreate: document.getElementById('btnCreateUser'), 
+                        list: document.getElementById('usersList')
+                    },
+                    userEditModal: {
+                        overlay: document.getElementById('userEditModal'),
+                        title: document.getElementById('userEditModalTitle'),
+                        closeBtn: document.getElementById('userEditModalCloseBtn'),
+                        editingUserId: document.getElementById('editingUserId'),
+                        username: document.getElementById('editUserUsername'),
+                        role: document.getElementById('editUserRole'),
+                        permissionGrid: document.getElementById('editUserPermissionGrid'),
+                        btnSaveChanges: document.getElementById('btnSaveUserChanges'),
+                        btnResetPassword: document.getElementById('btnResetPassword'),
+                        btnDeleteUser: document.getElementById('btnDeleteUser'),
+                    },
+                    personnel: {
+                        id: document.getElementById('personnelId'),
+                        matricula: document.getElementById('personnelMatricula'),
+                        name: document.getElementById('personnelName'),
+                        btnSave: document.getElementById('btnSavePersonnel'),
+                        list: document.getElementById('personnelList'),
+                        csvUploadArea: document.getElementById('personnelCsvUploadArea'),
+                        csvFileInput: document.getElementById('personnelCsvInput'),
+                        btnDownloadCsvTemplate: document.getElementById('btnDownloadPersonnelCsvTemplate'),
+                    },
+                    cadastros: {
+                        farmCode: document.getElementById('farmCode'),
+                        farmName: document.getElementById('farmName'),
+                        btnSaveFarm: document.getElementById('btnSaveFarm'),
+                        farmSelect: document.getElementById('farmSelect'),
+                        talhaoManagementContainer: document.getElementById('talhaoManagementContainer'),
+                        selectedFarmName: document.getElementById('selectedFarmName'),
+                        talhaoList: document.getElementById('talhaoList'),
+                        talhaoId: document.getElementById('talhaoId'),
+                        talhaoName: document.getElementById('talhaoName'),
+                        talhaoArea: document.getElementById('talhaoArea'),
+                        talhaoProducao: document.getElementById('talhaoProducao'),
+                        talhaoCorte: document.getElementById('talhaoCorte'),
+                        talhaoVariedade: document.getElementById('talhaoVariedade'),
+                        talhaoDistancia: document.getElementById('talhaoDistancia'),
+                        talhaoUltimaColheita: document.getElementById('talhaoUltimaColheita'),
+                        btnSaveTalhao: document.getElementById('btnSaveTalhao'),
+                        csvUploadArea: document.getElementById('csvUploadArea'),
+                        csvFileInput: document.getElementById('csvFileInput'),
+                        btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
+                    },
+                    planejamento: {
+                        tipo: document.getElementById('planoTipo'), 
+                        fazenda: document.getElementById('planoFazenda'),
+                        talhao: document.getElementById('planoTalhao'), 
+                        data: document.getElementById('planoData'),
+                        responsavel: document.getElementById('planoResponsavel'), 
+                        meta: document.getElementById('planoMeta'),
+                        obs: document.getElementById('planoObs'), 
+                        btnAgendar: document.getElementById('btnAgendarInspecao'),
+                        btnSugerir: document.getElementById('btnSugerirPlano'),
+                        lista: document.getElementById('listaPlanejamento')
+                    },
+                    harvest: {
+                        plansListContainer: document.getElementById('harvest-plans-list-container'),
+                        plansList: document.getElementById('harvest-plans-list'),
+                        planEditor: document.getElementById('harvest-plan-editor'),
+                        btnAddNew: document.getElementById('btnAddNewHarvestPlan'),
+                        maturador: document.getElementById('harvestMaturador'),
+                        maturadorDate: document.getElementById('harvestMaturadorDate'),
+                        btnSavePlan: document.getElementById('btnSaveHarvestPlan'),
+                        btnCancelPlan: document.getElementById('btnCancelHarvestPlan'),
+                        frontName: document.getElementById('harvestFrontName'),
+                        startDate: document.getElementById('harvestStartDate'),
+                        dailyRate: document.getElementById('harvestDailyRate'),
+                        fazenda: document.getElementById('harvestFazenda'),
+                        atr: document.getElementById('harvestAtr'),
+                        talhaoSelectionList: document.getElementById('harvestTalhaoSelectionList'),
+                        btnAddOrUpdate: document.getElementById('btnAddOrUpdateHarvestSequence'),
+                        btnCancelEdit: document.getElementById('btnCancelEditSequence'),
+                        addOrEditTitle: document.getElementById('addOrEditSequenceTitle'),
+                        editingGroupId: document.getElementById('editingGroupId'),
+                        btnOptimize: document.getElementById('btnOptimizeHarvest'),
+                        tableBody: document.querySelector('#harvestPlanTable tbody'),
+                        summary: document.getElementById('harvestSummary'),
+                    },
+                    broca: {
+                        form: document.getElementById('lancamentoBroca'),
+                        codigo: document.getElementById('codigo'), 
+                        fazendaNome: document.getElementById('fazendaNome'),
+                        data: document.getElementById('data'), 
+                        talhao: document.getElementById('talhao'),
+                        varietyDisplay: document.getElementById('varietyDisplay'),
+                        entrenos: document.getElementById('entrenos'), 
+                        base: document.getElementById('brocaBase'),
+                        meio: document.getElementById('brocaMeio'),
+                        topo: document.getElementById('brocaTopo'),
+                        brocado: document.getElementById('brocado'),
+                        resultado: document.getElementById('resultado'), 
+                        btnSalvar: document.getElementById('btnSalvarBrocamento'),
+                        filtroFazenda: document.getElementById('fazendaFiltroBrocamento'), 
+                        tipoRelatorio: document.getElementById('tipoRelatorioBroca'),
+                        filtroInicio: document.getElementById('inicioBrocamento'),
+                        filtroFim: document.getElementById('fimBrocamento'), 
+                        btnPDF: document.getElementById('btnPDFBrocamento'),
+                        btnExcel: document.getElementById('btnExcelBrocamento'),
+                    },
+                    perda: {
+                        form: document.getElementById('lancamentoPerda'),
+                        data: document.getElementById('dataPerda'), 
+                        codigo: document.getElementById('codigoPerda'),
+                        fazendaNome: document.getElementById('fazendaNomePerda'), 
+                        talhao: document.getElementById('talhaoPerda'),
+                        varietyDisplay: document.getElementById('varietyDisplayPerda'),
+                        frente: document.getElementById('frenteServico'), 
+                        turno: document.getElementById('turno'),
+                        frota: document.getElementById('frotaEquipamento'),
+                        matricula: document.getElementById('matriculaOperador'),
+                        operadorNome: document.getElementById('operadorNome'),
+                        canaInteira: document.getElementById('canaInteira'), 
+                        tolete: document.getElementById('tolete'),
+                        toco: document.getElementById('toco'), 
+                        ponta: document.getElementById('ponta'),
+                        estilhaco: document.getElementById('estilhaco'), 
+                        pedaco: document.getElementById('pedaco'),
+                        resultado: document.getElementById('resultadoPerda'), 
+                        btnSalvar: document.getElementById('btnSalvarPerda'),
+                        filtroFazenda: document.getElementById('fazendaFiltroPerda'), 
+                        filtroTalhao: document.getElementById('talhaoFiltroPerda'),
+                        filtroOperador: document.getElementById('operadorFiltroPerda'),
+                        filtroFrente: document.getElementById('frenteFiltroPerda'),
+                        filtroInicio: document.getElementById('inicioPerda'), 
+                        filtroFim: document.getElementById('fimPerda'),
+                        tipoRelatorio: document.getElementById('tipoRelatorioPerda'), 
+                        btnPDF: document.getElementById('btnPDFPerda'),
+                        btnExcel: document.getElementById('btnExcelPerda'),
+                    },
+                    exclusao: { 
+                        lista: document.getElementById('listaExclusao') 
+                    },
+                    relatorioColheita: {
+                        select: document.getElementById('planoRelatorioSelect'),
+                        optionsContainer: document.querySelector('#relatorioColheitaCustom #reportOptionsContainer'),
+                        btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
+                        btnExcel: document.getElementById('btnGerarRelatorioCustomExcel')
+                    },
+                },
+
+                init() {
+                    this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
+                    this.ui.setupEventListeners();
+                    this.auth.checkSession();
+                },
+                
+                auth: {
+                    async checkSession() {
+                        onAuthStateChanged(auth, async (user) => {
+                            if (user) {
+                                const userDoc = await App.data.getUserData(user.uid);
+                                if (userDoc && userDoc.active) {
+                                    App.state.currentUser = { ...user, ...userDoc };
+                                    App.data.listenToAllData();
+                                    App.ui.showAppScreen();
+                                } else {
+                                    this.logout();
+                                    App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
+                                }
+                            } else {
+                                App.ui.showLoginScreen();
+                            }
+                        });
+                    },
+                    async login() {
+                        const email = App.elements.loginUser.value.trim();
+                        const password = App.elements.loginPass.value;
+                        if (!email || !password) {
+                            App.ui.showLoginMessage("Preencha e-mail e senha.");
+                            return;
+                        }
+                        App.ui.setLoading(true);
+                        try {
+                            await signInWithEmailAndPassword(auth, email, password);
+                        } catch (error) {
+                            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                                App.ui.showLoginMessage("E-mail ou senha inválidos.");
+                            } else {
+                                App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
+                            }
+                            console.error("Erro de login:", error.code, error.message);
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    },
+                    async logout() {
+                        App.data.cleanupListeners();
+                        await signOut(auth);
+                        App.state.currentUser = null;
+                        clearTimeout(App.state.inactivityTimer);
+                        App.ui.showLoginScreen();
+                    },
+                    async createUser() {
+                        const els = App.elements.users;
+                        const email = els.username.value.trim();
+                        const password = els.password.value;
+                        const role = els.role.value;
+                        if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
+                        
+                        App.ui.setLoading(true);
+                        try {
+                            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                            const user = userCredential.user;
+                            const permissions = {};
+                            els.permissionCheckboxes.forEach(cb => {
+                                permissions[cb.dataset.permission] = cb.checked;
+                            });
+                            
+                            const userData = {
+                                username: email.split('@')[0],
+                                email: email,
+                                role: role,
+                                active: true,
+                                permissions: permissions
+                            };
+                            await App.data.createUserData(user.uid, userData);
+                            
+                            App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
+                            els.username.value = ''; els.password.value = ''; els.role.value = 'user';
+                            App.ui.updatePermissionsForRole('user');
+                        } catch (error) {
+                            if (error.code === 'auth/email-already-in-use') {
+                                App.ui.showAlert("Este e-mail já está em uso.", "error");
+                            } else if (error.code === 'auth/weak-password') {
+                                App.ui.showAlert("A senha deve ter pelo menos 6 caracteres.", "error");
+                            } else {
+                                App.ui.showAlert("Erro ao criar utilizador.", "error");
+                            }
+                            console.error("Erro ao criar utilizador:", error);
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    },
+                    async deleteUser(userId) {
+                        const userToDelete = App.state.users.find(u => u.id === userId);
+                        if (!userToDelete) return;
+                        
+                        App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
+                            try {
+                                await App.data.deleteDocument('users', userId);
+                                App.ui.showAlert(`Utilizador ${userToDelete.username} excluído do banco de dados.`);
+                                App.ui.closeUserEditModal();
+                            } catch (error) {
+                                App.ui.showAlert("Erro ao excluir utilizador.", "error");
+                            }
+                        });
+                    },
+                    async toggleUserStatus(userId) {
+                        const user = App.state.users.find(u => u.id === userId);
+                        if (!user) return;
+                        const newStatus = !user.active;
+                        await App.data.updateDocument('users', userId, { active: newStatus });
+                        App.ui.showAlert(`Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
+                    },
+                    async resetUserPassword(userId) {
+                        const user = App.state.users.find(u => u.id === userId);
+                        if (!user || !user.email) return;
+
+                        App.ui.showConfirmationModal(`Deseja enviar um e-mail de redefinição de senha para ${user.email}?`, async () => {
+                            try {
+                                await sendPasswordResetEmail(auth, user.email);
+                                App.ui.showAlert(`E-mail de redefinição enviado para ${user.email}.`, 'success');
+                            } catch (error) {
+                                App.ui.showAlert("Erro ao enviar e-mail de redefinição.", "error");
+                                console.error(error);
+                            }
+                        });
+                    },
+                    async saveUserChanges(userId) {
+                        const modalEls = App.elements.userEditModal;
+                        const role = modalEls.role.value;
+                        const permissions = {};
+                        modalEls.permissionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                            permissions[cb.dataset.permission] = cb.checked;
+                        });
+                        
+                        await App.data.updateDocument('users', userId, { role, permissions });
+                        App.ui.showAlert("Alterações guardadas com sucesso!");
+                        App.ui.closeUserEditModal();
+                    }
+                },
+
+                data: {
+                    cleanupListeners() {
+                        App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
+                        App.state.unsubscribeListeners = [];
+                    },
+                    listenToAllData() {
+                        this.cleanupListeners();
+                        
+                        const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans' ];
+                        
+                        collectionsToListen.forEach(collectionName => {
+                            const q = collection(db, collectionName);
+                            const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                                const data = [];
+                                querySnapshot.forEach((doc) => {
+                                    data.push({ id: doc.id, ...doc.data() });
+                                });
+                                App.state[collectionName] = data;
+                                App.ui.renderAllDynamicContent();
+                            }, (error) => {
+                                console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
+                            });
+                            App.state.unsubscribeListeners.push(unsubscribe);
+                        });
+                        
+                        const configDocRef = doc(db, 'config', 'company');
+                        const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
+                            App.state.companyLogo = doc.exists() ? doc.data().logoUrl : null;
+                            App.ui.renderLogoPreview();
+                        });
+                        App.state.unsubscribeListeners.push(unsubscribeConfig);
+                    },
+                    async getDocument(collectionName, docId) {
+                        const docRef = doc(db, collectionName, docId);
+                        const docSnap = await getDoc(docRef);
+                        return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                    },
+                    async addDocument(collectionName, data) {
+                        return await addDoc(collection(db, collectionName), data);
+                    },
+                    async setDocument(collectionName, docId, data) {
+                        return await setDoc(doc(db, collectionName, docId), data);
+                    },
+                    async updateDocument(collectionName, docId, data) {
+                        return await updateDoc(doc(db, collectionName, docId), data);
+                    },
+                    async deleteDocument(collectionName, docId) {
+                        return await deleteDoc(doc(db, collectionName, docId));
+                    },
+                    async getUserData(uid) {
+                        return this.getDocument('users', uid);
+                    },
+                    async createUserData(uid, data) {
+                        return this.setDocument('users', uid, data);
+                    },
+                },
+                
                 ui: {
                     setLoading(isLoading) {
                         App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
@@ -1556,6 +2050,7 @@
                         });
                     }
                 },
+                
                 actions: {
                     resetInactivityTimer() {
                         clearTimeout(App.state.inactivityTimer);
@@ -1636,7 +2131,7 @@
                     },
                     async saveTalhao() {
                         const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
-                        const farmId = farmSelect.value; // Agora o value é o ID do documento
+                        const farmId = farmSelect.value;
                         const farm = App.state.fazendas.find(f => f.id === farmId);
                         if (!farm) { App.ui.showAlert("Selecione uma fazenda.", "error"); return; }
                         
@@ -1742,11 +2237,10 @@
 
                         App.ui.setLoading(true);
                         try {
-                            const storageRef = ref(storage, 'company_assets/logo.png'); // Caminho fixo para o logo
+                            const storageRef = ref(storage, 'company_assets/logo.png');
                             await uploadBytes(storageRef, file);
                             const downloadURL = await getDownloadURL(storageRef);
                             
-                            // Guarda a URL no documento de configuração
                             await App.data.setDocument('config', 'company', { logoUrl: downloadURL });
                             App.ui.showAlert('Logo carregado com sucesso!');
                         } catch (error) {
@@ -1764,7 +2258,6 @@
                                 await App.data.setDocument('config', 'company', { logoUrl: null });
                                 App.ui.showAlert('Logo removido com sucesso!');
                             } catch (error) {
-                                // Ignora erro se o ficheiro não existir
                                 if (error.code !== 'storage/object-not-found') {
                                    App.ui.showAlert('Erro ao remover o logo.', 'error');
                                 } else {
@@ -1877,9 +2370,9 @@
                         }
                         
                         try {
-                            if (planToSave.id) { // Se tem ID, é uma edição
+                            if (planToSave.id) {
                                 await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
-                            } else { // Senão, é um novo plano
+                            } else {
                                 await App.data.addDocument('harvestPlans', planToSave);
                             }
                             App.ui.showAlert(`Plano de colheita "${planToSave.frontName}" guardado com sucesso!`);
@@ -2299,7 +2792,6 @@
                         App.ui.setLoading(true);
 
                         setTimeout(() => {
-                            // Lógica de simulação de IA: Reordena a sequência com base no ATR (maior primeiro)
                             App.state.activeHarvestPlan.sequence.sort((a, b) => (b.atr || 0) - (a.atr || 0));
                             
                             App.ui.setLoading(false);
@@ -2682,549 +3174,12 @@
                         this._generateCSV('relatorio_perda.csv', headers, body);
                     }
                 }
-
-    <!-- Bibliotecas Externas -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-
-    <!-- Início do Script da Aplicação -->
-    <script type="module">
-        // FIREBASE: Importe os módulos necessários do Firebase SDK
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
-
-        document.addEventListener('DOMContentLoaded', () => {
-
-            // FIREBASE: Configuração e inicialização do Firebase
-            const firebaseConfig = {
-                apiKey: "AIzaSyD9795P-askI8CiyTY-F9nnetrVHhPLoFw",
-                authDomain: "agrovetor-6aa9b.firebaseapp.com",
-                projectId: "agrovetor-6aa9b",
-                storageBucket: "agrovetor-6aa9b.appspot.com",
-                messagingSenderId: "847395463108",
-                appId: "1:847395463108:web:e0e2420a76226e77d90e91",
-                measurementId: "G-TS5QZKNYHQ"
             };
-
-            const firebaseApp = initializeApp(firebaseConfig);
-            const db = getFirestore(firebaseApp);
-            const auth = getAuth(firebaseApp);
-            const storage = getStorage(firebaseApp);
-            // FIM DA CONFIGURAÇÃO FIREBASE
-
-            const App = {
-                config: {
-                    appName: "Inspeção e Planeamento de Cana com IA",
-                    themeKey: 'canaAppTheme',
-                    inactivityTimeout: 15 * 60 * 1000, // 15 minutos
-                    menuConfig: [
-                        { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
-                        { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
-                        {
-                            label: 'Colheita', icon: 'fas fa-tractor',
-                            submenu: [
-                                { label: 'Planeamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
-                            ]
-                        },
-                        {
-                            label: 'Lançamentos', icon: 'fas fa-pen-to-square',
-                            submenu: [
-                                { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
-                                { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
-                            ]
-                        },
-                        {
-                            label: 'Relatórios', icon: 'fas fa-chart-line',
-                            submenu: [
-                                { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
-                                { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
-                                { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
-                            ]
-                        },
-                        {
-                            label: 'Administrativo', icon: 'fas fa-cogs',
-                            submenu: [
-                                { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
-                                { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
-                                { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
-                                { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
-                                { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
-                            ]
-                        },
-                    ],
-                    roles: {
-                        admin: { dashboard: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
-                        supervisor: { dashboard: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                        tecnico: { dashboard: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
-                        colaborador: { dashboard: true, lancamentoBroca: true, lancamentoPerda: true },
-                        user: { dashboard: true }
-                    }
-                },
-
-                state: {
-                    currentUser: null,
-                    users: [], 
-                    registros: [], 
-                    perdas: [], 
-                    planos: [], 
-                    fazendas: [], 
-                    personnel: [], 
-                    companyLogo: null, 
-                    activeSubmenu: null, 
-                    charts: {},
-                    harvestPlans: [],
-                    activeHarvestPlan: null,
-                    inactivityTimer: null,
-                    unsubscribeListeners: [], // Para limpar os listeners do Firebase ao sair
-                },
-                
-                elements: {
-                    loadingOverlay: document.getElementById('loading-overlay'),
-                    loginScreen: document.getElementById('loginScreen'), 
-                    appScreen: document.getElementById('appScreen'),
-                    loginUser: document.getElementById('loginUser'), 
-                    loginPass: document.getElementById('loginPass'),
-                    btnLogin: document.getElementById('btnLogin'), 
-                    loginMessage: document.getElementById('loginMessage'),
-                    headerTitle: document.querySelector('header h1'),
-                    currentDateTime: document.getElementById('currentDateTime'),
-                    logoutBtn: document.getElementById('logoutBtn'), 
-                    btnToggleMenu: document.getElementById('btnToggleMenu'),
-                    menu: document.getElementById('menu'), 
-                    content: document.getElementById('content'),
-                    alertContainer: document.getElementById('alertContainer'),
-                    userMenu: {
-                        container: document.getElementById('user-menu-container'),
-                        toggle: document.getElementById('user-menu-toggle'),
-                        dropdown: document.getElementById('user-menu-dropdown'),
-                        username: document.getElementById('userMenuUsername'),
-                        changePasswordBtn: document.getElementById('changePasswordBtn'),
-                        themeButtons: document.querySelectorAll('.theme-button')
-                    },
-                    confirmationModal: {
-                        overlay: document.getElementById('confirmationModal'),
-                        title: document.getElementById('confirmationModalTitle'),
-                        message: document.getElementById('confirmationModalMessage'),
-                        confirmBtn: document.getElementById('confirmationModalConfirmBtn'),
-                        cancelBtn: document.getElementById('confirmationModalCancelBtn'),
-                        closeBtn: document.getElementById('confirmationModalCloseBtn'),
-                    },
-                    changePasswordModal: {
-                        overlay: document.getElementById('changePasswordModal'),
-                        closeBtn: document.getElementById('changePasswordModalCloseBtn'),
-                        cancelBtn: document.getElementById('changePasswordModalCancelBtn'),
-                        saveBtn: document.getElementById('changePasswordModalSaveBtn'),
-                        currentPassword: document.getElementById('currentPassword'),
-                        newPassword: document.getElementById('newPassword'),
-                        confirmNewPassword: document.getElementById('confirmNewPassword'),
-                    },
-                    companyConfig: {
-                        logoUploadArea: document.getElementById('logoUploadArea'),
-                        logoInput: document.getElementById('logoInput'),
-                        logoPreview: document.getElementById('logoPreview'),
-                        removeLogoBtn: document.getElementById('removeLogoBtn'),
-                    },
-                    dashboard: {
-                        btnAnalisar: document.getElementById('btnAnalisarDashboard'),
-                        aiCard: document.getElementById('ai-analysis-card'),
-                        aiContent: document.getElementById('ai-analysis-content'),
-                    },
-                    users: {
-                        username: document.getElementById('newUserUsername'), 
-                        password: document.getElementById('newUserPassword'),
-                        role: document.getElementById('newUserRole'), 
-                        permissionsContainer: document.querySelector('#gerenciarUsuarios .permission-grid'),
-                        permissionCheckboxes: document.querySelectorAll('#gerenciarUsuarios .permission-grid input[type="checkbox"]'),
-                        btnCreate: document.getElementById('btnCreateUser'), 
-                        list: document.getElementById('usersList')
-                    },
-                    userEditModal: {
-                        overlay: document.getElementById('userEditModal'),
-                        title: document.getElementById('userEditModalTitle'),
-                        closeBtn: document.getElementById('userEditModalCloseBtn'),
-                        editingUserId: document.getElementById('editingUserId'),
-                        username: document.getElementById('editUserUsername'),
-                        role: document.getElementById('editUserRole'),
-                        permissionGrid: document.getElementById('editUserPermissionGrid'),
-                        btnSaveChanges: document.getElementById('btnSaveUserChanges'),
-                        btnResetPassword: document.getElementById('btnResetPassword'),
-                        btnDeleteUser: document.getElementById('btnDeleteUser'),
-                    },
-                    personnel: {
-                        id: document.getElementById('personnelId'),
-                        matricula: document.getElementById('personnelMatricula'),
-                        name: document.getElementById('personnelName'),
-                        btnSave: document.getElementById('btnSavePersonnel'),
-                        list: document.getElementById('personnelList'),
-                        csvUploadArea: document.getElementById('personnelCsvUploadArea'),
-                        csvFileInput: document.getElementById('personnelCsvInput'),
-                        btnDownloadCsvTemplate: document.getElementById('btnDownloadPersonnelCsvTemplate'),
-                    },
-                    cadastros: {
-                        farmCode: document.getElementById('farmCode'),
-                        farmName: document.getElementById('farmName'),
-                        btnSaveFarm: document.getElementById('btnSaveFarm'),
-                        farmSelect: document.getElementById('farmSelect'),
-                        talhaoManagementContainer: document.getElementById('talhaoManagementContainer'),
-                        selectedFarmName: document.getElementById('selectedFarmName'),
-                        talhaoList: document.getElementById('talhaoList'),
-                        talhaoId: document.getElementById('talhaoId'),
-                        talhaoName: document.getElementById('talhaoName'),
-                        talhaoArea: document.getElementById('talhaoArea'),
-                        talhaoProducao: document.getElementById('talhaoProducao'),
-                        talhaoCorte: document.getElementById('talhaoCorte'),
-                        talhaoVariedade: document.getElementById('talhaoVariedade'),
-                        talhaoDistancia: document.getElementById('talhaoDistancia'),
-                        talhaoUltimaColheita: document.getElementById('talhaoUltimaColheita'),
-                        btnSaveTalhao: document.getElementById('btnSaveTalhao'),
-                        csvUploadArea: document.getElementById('csvUploadArea'),
-                        csvFileInput: document.getElementById('csvFileInput'),
-                        btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
-                    },
-                    planejamento: {
-                        tipo: document.getElementById('planoTipo'), 
-                        fazenda: document.getElementById('planoFazenda'),
-                        talhao: document.getElementById('planoTalhao'), 
-                        data: document.getElementById('planoData'),
-                        responsavel: document.getElementById('planoResponsavel'), 
-                        meta: document.getElementById('planoMeta'),
-                        obs: document.getElementById('planoObs'), 
-                        btnAgendar: document.getElementById('btnAgendarInspecao'),
-                        btnSugerir: document.getElementById('btnSugerirPlano'),
-                        lista: document.getElementById('listaPlanejamento')
-                    },
-                    harvest: {
-                        plansListContainer: document.getElementById('harvest-plans-list-container'),
-                        plansList: document.getElementById('harvest-plans-list'),
-                        planEditor: document.getElementById('harvest-plan-editor'),
-                        btnAddNew: document.getElementById('btnAddNewHarvestPlan'),
-                        maturador: document.getElementById('harvestMaturador'),
-                        maturadorDate: document.getElementById('harvestMaturadorDate'),
-                        btnSavePlan: document.getElementById('btnSaveHarvestPlan'),
-                        btnCancelPlan: document.getElementById('btnCancelHarvestPlan'),
-                        frontName: document.getElementById('harvestFrontName'),
-                        startDate: document.getElementById('harvestStartDate'),
-                        dailyRate: document.getElementById('harvestDailyRate'),
-                        fazenda: document.getElementById('harvestFazenda'),
-                        atr: document.getElementById('harvestAtr'),
-                        talhaoSelectionList: document.getElementById('harvestTalhaoSelectionList'),
-                        btnAddOrUpdate: document.getElementById('btnAddOrUpdateHarvestSequence'),
-                        btnCancelEdit: document.getElementById('btnCancelEditSequence'),
-                        addOrEditTitle: document.getElementById('addOrEditSequenceTitle'),
-                        editingGroupId: document.getElementById('editingGroupId'),
-                        btnOptimize: document.getElementById('btnOptimizeHarvest'),
-                        tableBody: document.querySelector('#harvestPlanTable tbody'),
-                        summary: document.getElementById('harvestSummary'),
-                    },
-                    broca: {
-                        form: document.getElementById('lancamentoBroca'),
-                        codigo: document.getElementById('codigo'), 
-                        fazendaNome: document.getElementById('fazendaNome'),
-                        data: document.getElementById('data'), 
-                        talhao: document.getElementById('talhao'),
-                        varietyDisplay: document.getElementById('varietyDisplay'),
-                        entrenos: document.getElementById('entrenos'), 
-                        base: document.getElementById('brocaBase'),
-                        meio: document.getElementById('brocaMeio'),
-                        topo: document.getElementById('brocaTopo'),
-                        brocado: document.getElementById('brocado'),
-                        resultado: document.getElementById('resultado'), 
-                        btnSalvar: document.getElementById('btnSalvarBrocamento'),
-                        filtroFazenda: document.getElementById('fazendaFiltroBrocamento'), 
-                        tipoRelatorio: document.getElementById('tipoRelatorioBroca'),
-                        filtroInicio: document.getElementById('inicioBrocamento'),
-                        filtroFim: document.getElementById('fimBrocamento'), 
-                        btnPDF: document.getElementById('btnPDFBrocamento'),
-                        btnExcel: document.getElementById('btnExcelBrocamento'),
-                    },
-                    perda: {
-                        form: document.getElementById('lancamentoPerda'),
-                        data: document.getElementById('dataPerda'), 
-                        codigo: document.getElementById('codigoPerda'),
-                        fazendaNome: document.getElementById('fazendaNomePerda'), 
-                        talhao: document.getElementById('talhaoPerda'),
-                        varietyDisplay: document.getElementById('varietyDisplayPerda'),
-                        frente: document.getElementById('frenteServico'), 
-                        turno: document.getElementById('turno'),
-                        frota: document.getElementById('frotaEquipamento'),
-                        matricula: document.getElementById('matriculaOperador'),
-                        operadorNome: document.getElementById('operadorNome'),
-                        canaInteira: document.getElementById('canaInteira'), 
-                        tolete: document.getElementById('tolete'),
-                        toco: document.getElementById('toco'), 
-                        ponta: document.getElementById('ponta'),
-                        estilhaco: document.getElementById('estilhaco'), 
-                        pedaco: document.getElementById('pedaco'),
-                        resultado: document.getElementById('resultadoPerda'), 
-                        btnSalvar: document.getElementById('btnSalvarPerda'),
-                        filtroFazenda: document.getElementById('fazendaFiltroPerda'), 
-                        filtroTalhao: document.getElementById('talhaoFiltroPerda'),
-                        filtroOperador: document.getElementById('operadorFiltroPerda'),
-                        filtroFrente: document.getElementById('frenteFiltroPerda'),
-                        filtroInicio: document.getElementById('inicioPerda'), 
-                        filtroFim: document.getElementById('fimPerda'),
-                        tipoRelatorio: document.getElementById('tipoRelatorioPerda'), 
-                        btnPDF: document.getElementById('btnPDFPerda'),
-                        btnExcel: document.getElementById('btnExcelPerda'),
-                    },
-                    exclusao: { 
-                        lista: document.getElementById('listaExclusao') 
-                    },
-                    relatorioColheita: {
-                        select: document.getElementById('planoRelatorioSelect'),
-                        optionsContainer: document.querySelector('#relatorioColheitaCustom #reportOptionsContainer'),
-                        btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
-                        btnExcel: document.getElementById('btnGerarRelatorioCustomExcel')
-                    },
-                },
-
-                init() {
-                    this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
-                    this.ui.setupEventListeners();
-                    // FIREBASE: `checkSession` agora usa `onAuthStateChanged` para verificar o estado do login
-                    this.auth.checkSession();
-                },
-                
-                // FIREBASE: Módulo de autenticação completamente reescrito
-                auth: {
-                    async checkSession() {
-                        onAuthStateChanged(auth, async (user) => {
-                            if (user) {
-                                // Utilizador está logado no Firebase Auth. Agora busca os dados dele no Firestore.
-                                const userDoc = await App.data.getUserData(user.uid);
-                                if (userDoc && userDoc.active) {
-                                    App.state.currentUser = { ...user, ...userDoc }; // Combina dados do Auth e Firestore
-                                    App.data.listenToAllData(); // Começa a ouvir os dados em tempo real
-                                    App.ui.showAppScreen();
-                                } else {
-                                    // Utilizador existe no Auth mas não no Firestore ou está inativo
-                                    this.logout();
-                                    App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
-                                }
-                            } else {
-                                // Utilizador não está logado
-                                App.ui.showLoginScreen();
-                            }
-                        });
-                    },
-
-                    async login() {
-                        const email = App.elements.loginUser.value.trim(); // Firebase usa e-mail para login
-                        const password = App.elements.loginPass.value;
-                        if (!email || !password) {
-                            App.ui.showLoginMessage("Preencha e-mail e senha.");
-                            return;
-                        }
-                        App.ui.setLoading(true);
-                        try {
-                            await signInWithEmailAndPassword(auth, email, password);
-                            // O `onAuthStateChanged` em `checkSession` vai cuidar de redirecionar para a tela da app
-                        } catch (error) {
-                            App.ui.showLoginMessage("E-mail ou senha inválidos.");
-                            console.error("Erro de login:", error.code, error.message);
-                        } finally {
-                            App.ui.setLoading(false);
-                        }
-                    },
-
-                    async logout() {
-                        App.data.cleanupListeners(); // Para de ouvir os dados
-                        await signOut(auth);
-                        App.state.currentUser = null;
-                        clearTimeout(App.state.inactivityTimer);
-                        App.ui.showLoginScreen();
-                    },
-
-                    async createUser() {
-                        const els = App.elements.users;
-                        const email = els.username.value.trim(); // Usaremos e-mail como username
-                        const password = els.password.value;
-                        const role = els.role.value;
-
-                        if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
-                        
-                        App.ui.setLoading(true);
-                        try {
-                            // 1. Cria o utilizador no Firebase Auth
-                            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                            const user = userCredential.user;
-
-                            // 2. Coleta permissões
-                            const permissions = {};
-                            els.permissionCheckboxes.forEach(cb => {
-                                permissions[cb.dataset.permission] = cb.checked;
-                            });
-                            
-                            // 3. Cria o documento do utilizador no Firestore
-                            const userData = {
-                                username: email.split('@')[0], // Pega o nome antes do @ como username inicial
-                                email: email,
-                                role: role,
-                                active: true,
-                                permissions: permissions
-                            };
-                            await App.data.createUserData(user.uid, userData);
-                            
-                            App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
-                            els.username.value = ''; els.password.value = ''; els.role.value = 'user';
-                            App.ui.updatePermissionsForRole('user');
-
-                        } catch (error) {
-                            if (error.code === 'auth/email-already-in-use') {
-                                App.ui.showAlert("Este e-mail já está em uso.", "error");
-                            } else if (error.code === 'auth/weak-password') {
-                                App.ui.showAlert("A senha deve ter pelo menos 6 caracteres.", "error");
-                            } else {
-                                App.ui.showAlert("Erro ao criar utilizador.", "error");
-                            }
-                            console.error("Erro ao criar utilizador:", error);
-                        } finally {
-                            App.ui.setLoading(false);
-                        }
-                    },
-
-                    async deleteUser(userId) {
-                        // ATENÇÃO: Excluir um utilizador do Firebase Auth é uma operação sensível
-                        // e requer privilégios de admin, geralmente feito por meio de um backend (Cloud Functions).
-                        // A implementação aqui vai apenas desativar o utilizador no Firestore.
-                        const userToDelete = App.state.users.find(u => u.id === userId);
-                        if (!userToDelete) return;
-                        
-                        App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
-                            try {
-                                // Exclui do Firestore
-                                await App.data.deleteDocument('users', userId);
-                                // A exclusão do Auth() precisa ser feita com uma Cloud Function por segurança.
-                                App.ui.showAlert(`Utilizador ${userToDelete.username} excluído do banco de dados.`);
-                                App.ui.closeUserEditModal();
-                            } catch (error) {
-                                App.ui.showAlert("Erro ao excluir utilizador.", "error");
-                            }
-                        });
-                    },
-
-                    async toggleUserStatus(userId) {
-                        const user = App.state.users.find(u => u.id === userId);
-                        if (!user) return;
-                        const newStatus = !user.active;
-                        await App.data.updateDocument('users', userId, { active: newStatus });
-                        App.ui.showAlert(`Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
-                    },
-                    
-                    async resetUserPassword(userId) {
-                        const user = App.state.users.find(u => u.id === userId);
-                        if (!user || !user.email) return;
-
-                        App.ui.showConfirmationModal(`Deseja enviar um e-mail de redefinição de senha para ${user.email}?`, async () => {
-                            try {
-                                await sendPasswordResetEmail(auth, user.email);
-                                App.ui.showAlert(`E-mail de redefinição enviado para ${user.email}.`, 'success');
-                            } catch (error) {
-                                App.ui.showAlert("Erro ao enviar e-mail de redefinição.", "error");
-                                console.error(error);
-                            }
-                        });
-                    },
-
-                    async saveUserChanges(userId) {
-                        const modalEls = App.elements.userEditModal;
-                        const role = modalEls.role.value;
-                        const permissions = {};
-                        modalEls.permissionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                            permissions[cb.dataset.permission] = cb.checked;
-                        });
-                        
-                        await App.data.updateDocument('users', userId, { role, permissions });
-                        App.ui.showAlert("Alterações guardadas com sucesso!");
-                        App.ui.closeUserEditModal();
-                    }
-                },
-
-                // FIREBASE: Módulo de dados completamente reescrito para usar Firestore
-                data: {
-                    // Limpa todos os listeners para evitar memory leaks ao deslogar
-                    cleanupListeners() {
-                        App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
-                        App.state.unsubscribeListeners = [];
-                    },
-                    
-                    // Inicia todos os listeners de dados
-                    listenToAllData() {
-                        this.cleanupListeners(); // Garante que não há listeners duplicados
-                        
-                        const collectionsToListen = [
-                            'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans'
-                        ];
-                        
-                        collectionsToListen.forEach(collectionName => {
-                            const q = collection(db, collectionName);
-                            const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                                const data = [];
-                                querySnapshot.forEach((doc) => {
-                                    data.push({ id: doc.id, ...doc.data() });
-                                });
-                                App.state[collectionName] = data;
-                                
-                                // Atualiza a UI conforme os dados chegam
-                                App.ui.renderAllDynamicContent();
-                            }, (error) => {
-                                console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
-                            });
-                            App.state.unsubscribeListeners.push(unsubscribe);
-                        });
-                        
-                        // Listener para o logo da empresa (armazenado num documento específico)
-                        const configDocRef = doc(db, 'config', 'company');
-                        const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
-                            App.state.companyLogo = doc.exists() ? doc.data().logoUrl : null;
-                            App.ui.renderLogoPreview();
-                        });
-                        App.state.unsubscribeListeners.push(unsubscribeConfig);
-                    },
-                    
-                    // Funções para manipular documentos individuais
-                    async getDocument(collectionName, docId) {
-                        const docRef = doc(db, collectionName, docId);
-                        const docSnap = await getDoc(docRef);
-                        return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
-                    },
-                    
-                    async addDocument(collectionName, data) {
-                        return await addDoc(collection(db, collectionName), data);
-                    },
-                    
-                    async setDocument(collectionName, docId, data) {
-                        return await setDoc(doc(db, collectionName, docId), data);
-                    },
-
-                    async updateDocument(collectionName, docId, data) {
-                        return await updateDoc(doc(db, collectionName, docId), data);
-                    },
-
-                    async deleteDocument(collectionName, docId) {
-                        return await deleteDoc(doc(db, collectionName, docId));
-                    },
-                    
-                    // Funções específicas para utilizadores
-                    async getUserData(uid) {
-                        return this.getDocument('users', uid);
-                    },
-
-                    async createUserData(uid, data) {
-                        return this.setDocument('users', uid, data);
-                    },
-                },
-            
-                }; // Fim do objeto App
 
             // Inicia a aplicação
             App.init();
 
-        }); // Fim do DOMContentLoaded
+        });
     </script>
 </body>
 </html>
