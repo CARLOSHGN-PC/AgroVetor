@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AgroVetor - Inspeção e Planeamento com Firebase</title>
+    <title>AgroVetor - Inspeção e Planeamento</title>
 
-    <!-- [CORREÇÃO] Removida a referência ao manifest.json que não existe e causava um erro 404 na consola -->
+    <!-- PWA (Progressive Web App) Tags -->
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2e7d32">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -215,6 +217,14 @@
         .card { padding: 16px; }
         .card-header-actions { flex-direction: column; align-items: stretch; }
         .card-header-actions .button-group { justify-content: center; }
+        #cadastros .form-row, #cadastrarPessoas .form-row {
+            flex-direction: column;
+            gap: 0;
+        }
+        #cadastros .form-col, #cadastrarPessoas .form-col {
+            min-width: 100%;
+            margin-bottom: 16px;
+        }
     }
     </style>
 </head>
@@ -435,9 +445,8 @@
                 <h2><i class="fas fa-bug"></i> Lançamento Broca</h2>
                 <div class="form-row">
                     <div class="form-col">
-                        <label for="codigo" class="required">Código da Fazenda:</label>
-                        <input type="number" id="codigo" aria-describedby="fazendaNome" placeholder="Selecione ou digite o código" required />
-                        <div id="fazendaNome" class="info-display"></div>
+                        <label for="codigo" class="required">Fazenda:</label>
+                        <select id="codigo" class="required"></select>
                     </div>
                     <div class="form-col">
                         <label for="data" class="required">Data da Inspeção:</label>
@@ -529,7 +538,7 @@
                 <h2><i class="fas fa-dollar-sign"></i> Lançamento Perda</h2>
                 <div class="form-row">
                     <div class="form-col"><label for="dataPerda" class="required">Data:</label><input type="date" id="dataPerda" required /></div>
-                    <div class="form-col"><label for="codigoPerda" class="required">Código da Fazenda:</label><input type="number" id="codigoPerda" aria-describedby="fazendaNomePerda" placeholder="Selecione ou digite o código" required /><div id="fazendaNomePerda" class="info-display"></div></div>
+                    <div class="form-col"><label for="codigoPerda" class="required">Fazenda:</label><select id="codigoPerda" required></select></div>
                 </div>
                 <div class="form-row">
                     <div class="form-col"><label for="talhaoPerda" class="required">Talhão:</label><input type="text" id="talhaoPerda" placeholder="Ex: T12, T15-A" required /><div id="varietyDisplayPerda" class="info-display"></div></div>
@@ -756,6 +765,7 @@
                     <h2>Alterar Senha</h2>
                     <button id="changePasswordModalCloseBtn" class="modal-close-btn">&times;</button>
                 </div>
+                <!-- [BUGFIX] Adicionado campo para senha atual, necessário para reautenticação segura -->
                 <div class="input-group">
                     <label for="currentPassword">Senha Atual:</label>
                     <input type="password" id="currentPassword" required>
@@ -781,12 +791,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
-    <!-- Início do Script da Aplicação -->
+    <!-- O Bloco 2 (JavaScript) virá a seguir -->
     <script type="module">
-        // FIREBASE: Importe os módulos necessários do Firebase SDK
+                // FIREBASE: Importe os módulos necessários do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
         import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -807,11 +817,11 @@
             const auth = getAuth(firebaseApp);
             const storage = getStorage(firebaseApp);
 
-                        const App = {
+            const App = {
                 config: {
                     appName: "Inspeção e Planeamento de Cana com IA",
                     themeKey: 'canaAppTheme',
-                    inactivityTimeout: 15 * 60 * 1000, // 15 minutos
+                    inactivityTimeout: 5 * 60 * 1000, // [BUGFIX] Alterado para 5 minutos
                     menuConfig: [
                         { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                         { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
@@ -870,7 +880,7 @@
                     harvestPlans: [],
                     activeHarvestPlan: null,
                     inactivityTimer: null,
-                    unsubscribeListeners: [], // Para limpar os listeners do Firebase ao sair
+                    unsubscribeListeners: [],
                 },
                 
                 elements: {
@@ -1014,7 +1024,6 @@
                     broca: {
                         form: document.getElementById('lancamentoBroca'),
                         codigo: document.getElementById('codigo'), 
-                        fazendaNome: document.getElementById('fazendaNome'),
                         data: document.getElementById('data'), 
                         talhao: document.getElementById('talhao'),
                         varietyDisplay: document.getElementById('varietyDisplay'),
@@ -1036,7 +1045,6 @@
                         form: document.getElementById('lancamentoPerda'),
                         data: document.getElementById('dataPerda'), 
                         codigo: document.getElementById('codigoPerda'),
-                        fazendaNome: document.getElementById('fazendaNomePerda'), 
                         talhao: document.getElementById('talhaoPerda'),
                         varietyDisplay: document.getElementById('varietyDisplayPerda'),
                         frente: document.getElementById('frenteServico'), 
@@ -1108,7 +1116,7 @@
                         try {
                             await signInWithEmailAndPassword(auth, email, password);
                         } catch (error) {
-                            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                                 App.ui.showLoginMessage("E-mail ou senha inválidos.");
                             } else {
                                 App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
@@ -1295,6 +1303,7 @@
                         setInterval(() => this.updateDateTime(), 60000);
                         this.renderMenu(); 
                         this.renderAllDynamicContent();
+                        this.showTab('dashboard');
                         App.actions.resetInactivityTimer();
                     },
                     renderAllDynamicContent() {
@@ -1431,8 +1440,6 @@
                         inputs.forEach(input => {
                             if (input.type === 'checkbox' || input.type === 'radio') {
                                 input.checked = false;
-                            } else if (input.type === 'number' && (input.id === 'brocaBase' || input.id === 'brocaMeio' || input.id === 'brocaTopo')) {
-                                input.value = '';
                             } else {
                                 input.value = '';
                             }
@@ -1441,13 +1448,24 @@
                         formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '');
                     },
                     populateFazendaSelects() {
-                        const selects = [App.elements.broca.filtroFazenda, App.elements.perda.filtroFazenda, App.elements.planejamento.fazenda, App.elements.harvest.fazenda, App.elements.cadastros.farmSelect];
+                        const selects = [
+                            App.elements.broca.filtroFazenda, 
+                            App.elements.perda.filtroFazenda, 
+                            App.elements.planejamento.fazenda, 
+                            App.elements.harvest.fazenda, 
+                            App.elements.cadastros.farmSelect,
+                            App.elements.broca.codigo,
+                            App.elements.perda.codigo
+                        ];
                         selects.forEach(select => {
                             if (!select) return;
                             const currentValue = select.value;
                             select.innerHTML = '<option value="">Selecione...</option>';
-                            App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
-                                select.innerHTML += `<option value="${farm.code}">${farm.code} - ${farm.name}</option>`;
+                            if(select.id.includes('Filtro')) {
+                                select.innerHTML = '<option value="">Todas</option>';
+                            }
+                            App.state.fazendas.sort((a, b) => a.name.localeCompare(b.name)).forEach(farm => {
+                                select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
                             });
                             select.value = currentValue;
                         });
@@ -1483,14 +1501,19 @@
                     },
                     renderFarmSelect() {
                         const { farmSelect } = App.elements.cadastros;
-                        farmSelect.innerHTML = '<option value="">Selecione uma fazenda...</option>';
-                        App.state.fazendas.sort((a,b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
-                            farmSelect.innerHTML += `<option value="${farm.code}">${farm.code} - ${farm.name}</option>`;
+                        const currentValue = farmSelect.value;
+                        farmSelect.innerHTML = '<option value="">Selecione uma fazenda para gerir...</option>';
+                        App.state.fazendas.sort((a,b) => a.name.localeCompare(b.name)).forEach(farm => {
+                            farmSelect.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
                         });
+                        farmSelect.value = currentValue;
+                        if(!currentValue) {
+                            App.elements.cadastros.talhaoManagementContainer.style.display = 'none';
+                        }
                     },
-                    renderTalhaoList(farmCode) {
+                    renderTalhaoList(farmId) {
                         const { talhaoList, talhaoManagementContainer, selectedFarmName } = App.elements.cadastros;
-                        const farm = App.state.fazendas.find(f => f.code === farmCode);
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
                         talhaoList.innerHTML = '';
                         if (!farm) {
                             talhaoManagementContainer.style.display = 'none';
@@ -1510,6 +1533,10 @@
                         const tbody = table.querySelector('tbody');
                         farm.talhoes.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                             const row = tbody.insertRow();
+                            const dataColheita = talhao.dataUltimaColheita && !isNaN(new Date(talhao.dataUltimaColheita)) 
+                                ? new Date(talhao.dataUltimaColheita + 'T03:00:00Z').toLocaleDateString('pt-BR') 
+                                : 'N/A';
+
                             row.innerHTML = `
                                 <td data-label="Nome">${talhao.name}</td>
                                 <td data-label="Área">${talhao.area || ''}</td>
@@ -1517,7 +1544,7 @@
                                 <td data-label="Variedade">${talhao.variedade || ''}</td>
                                 <td data-label="Corte">${talhao.corte || ''}</td>
                                 <td data-label="Distância">${talhao.distancia || ''}</td>
-                                <td data-label="Última Colheita">${talhao.dataUltimaColheita ? new Date(talhao.dataUltimaColheita + 'T03:00:00Z').toLocaleDateString('pt-BR') : ''}</td>
+                                <td data-label="Última Colheita">${dataColheita}</td>
                                 <td data-label="Ações">
                                     <div style="display: flex; justify-content: flex-end; gap: 5px;">
                                         <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-talhao" data-id="${talhao.id}"><i class="fas fa-edit"></i></button>
@@ -1528,13 +1555,13 @@
                         });
                         talhaoList.appendChild(table);
                     },
-                    renderHarvestTalhaoSelection(farmCode, plotIdsToCheck = []) {
+                    renderHarvestTalhaoSelection(farmId, plotIdsToCheck = []) {
                         const { talhaoSelectionList, editingGroupId } = App.elements.harvest;
                         talhaoSelectionList.innerHTML = '';
 
                         if (!App.state.activeHarvestPlan) return;
 
-                        const farm = App.state.fazendas.find(f => f.code === farmCode);
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
                         if (!farm || !farm.talhoes || farm.talhoes.length === 0) {
                             talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Nenhum talhão cadastrado nesta fazenda.</p>';
                             return;
@@ -1781,10 +1808,6 @@
                             summary.innerHTML = '<p>Adicione fazendas à sequência para ver o resumo da colheita.</p>';
                         }
                     },
-                    updateFazendaNome(inputEl, outputEl) { 
-                        const farm = App.state.fazendas.find(f => f.code === inputEl.value.trim());
-                        outputEl.textContent = farm ? `${farm.code} - ${farm.name}` : ''; 
-                    },
                     validateFields(ids) { return ids.every(id => { const el = document.getElementById(id); const valid = el.value.trim() !== ''; el.style.borderColor = valid ? 'var(--color-border)' : 'var(--color-danger)'; if (!valid) el.focus(); return valid; }); },
                     updateBrocadoTotal() {
                         const { broca } = App.elements;
@@ -2009,7 +2032,7 @@
                         App.elements.harvest.tableBody.addEventListener('dragover', e => { e.preventDefault(); return false; });
                         App.elements.harvest.tableBody.addEventListener('drop', e => { e.stopPropagation(); if (dragSrcEl !== e.target) { const targetRow = e.target.closest('tr'); if(targetRow) App.actions.reorderHarvestSequence(dragSrcEl.dataset.id, targetRow.dataset.id); } return false; });
                         
-                        App.elements.broca.codigo.addEventListener('input', () => App.ui.updateFazendaNome(App.elements.broca.codigo, App.elements.broca.fazendaNome));
+                        App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
                         App.elements.broca.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('broca'));
                         ['brocaBase', 'brocaMeio', 'brocaTopo', 'entrenos'].forEach(id => {
                             document.getElementById(id).addEventListener('input', () => {
@@ -2018,7 +2041,7 @@
                             });
                         });
                         
-                        App.elements.perda.codigo.addEventListener('input', () => App.ui.updateFazendaNome(App.elements.perda.codigo, App.elements.perda.fazendaNome));
+                        App.elements.perda.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('perda'));
                         App.elements.perda.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('perda'));
                         App.elements.perda.matricula.addEventListener('input', () => App.actions.findOperatorName());
                         ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'].forEach(id => {
@@ -2063,22 +2086,39 @@
                     },
                     async changePassword() {
                         const els = App.elements.changePasswordModal;
+                        const currentPassword = els.currentPassword.value;
                         const newPassword = els.newPassword.value;
                         const confirmNewPassword = els.confirmNewPassword.value;
                         
-                        if (!newPassword || !confirmNewPassword) { App.ui.showAlert("Preencha todos os campos.", "error"); return; }
+                        if (!currentPassword || !newPassword || !confirmNewPassword) { App.ui.showAlert("Preencha todos os campos.", "error"); return; }
                         if (newPassword !== confirmNewPassword) { App.ui.showAlert("As novas senhas não coincidem.", "error"); return; }
                         if (newPassword.length < 6) { App.ui.showAlert("A nova senha deve ter pelo menos 6 caracteres.", "error"); return; }
                         
+                        App.ui.setLoading(true);
                         try {
                             const user = auth.currentUser;
+                            const credential = EmailAuthProvider.credential(user.email, currentPassword);
+                            
+                            // Reautentica o utilizador antes de mudar a senha
+                            await reauthenticateWithCredential(user, credential);
+                            
+                            // Se a reautenticação for bem-sucedida, atualiza a senha
                             await updatePassword(user, newPassword);
+                            
                             App.ui.showAlert("Senha alterada com sucesso!", "success");
                             els.overlay.classList.remove('show');
-                            els.currentPassword.value = ''; els.newPassword.value = ''; els.confirmNewPassword.value = '';
+                            els.currentPassword.value = ''; 
+                            els.newPassword.value = ''; 
+                            els.confirmNewPassword.value = '';
                         } catch (error) {
-                            App.ui.showAlert("Erro ao alterar senha. Pode ser necessário fazer login novamente.", "error");
-                            console.error(error);
+                            if (error.code === 'auth/wrong-password') {
+                                App.ui.showAlert("A senha atual está incorreta.", "error");
+                            } else {
+                                App.ui.showAlert("Erro ao alterar senha. Tente fazer login novamente.", "error");
+                            }
+                            console.error("Erro ao alterar senha:", error);
+                        } finally {
+                            App.ui.setLoading(false);
                         }
                     },
                     getAssignedTalhaoIds(editingGroupId = null) {
@@ -2121,19 +2161,23 @@
                             return;
                         }
 
-                        try {
-                            await App.data.addDocument('fazendas', { code, name, talhoes: [] });
-                            App.ui.showAlert("Fazenda adicionada com sucesso!");
-                            farmCode.value = ''; farmName.value = '';
-                        } catch (error) {
-                            App.ui.showAlert("Erro ao guardar fazenda.", "error");
-                        }
+                        App.ui.showConfirmationModal(`Tem a certeza que deseja guardar a fazenda ${name}?`, async () => {
+                            try {
+                                await App.data.addDocument('fazendas', { code, name, talhoes: [] });
+                                App.ui.showAlert("Fazenda adicionada com sucesso!");
+                                farmCode.value = ''; farmName.value = '';
+                            } catch (error) {
+                                App.ui.showAlert("Erro ao guardar fazenda.", "error");
+                            }
+                        });
                     },
                     async saveTalhao() {
                         const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
                         const farmId = farmSelect.value;
+                        if (!farmId) { App.ui.showAlert("Selecione uma fazenda.", "error"); return; }
+                        
                         const farm = App.state.fazendas.find(f => f.id === farmId);
-                        if (!farm) { App.ui.showAlert("Selecione uma fazenda.", "error"); return; }
+                        if (!farm) { App.ui.showAlert("Fazenda selecionada não encontrada.", "error"); return; }
                         
                         const talhaoData = {
                             id: talhaoId.value ? parseInt(talhaoId.value) : Date.now(),
@@ -2145,24 +2189,28 @@
                             distancia: parseFloat(talhaoDistancia.value) || 0,
                             dataUltimaColheita: talhaoUltimaColheita.value
                         };
-                        if (!talhaoData.name || !talhaoData.area || !talhaoData.producao) { App.ui.showAlert("Nome, Área e Produção do talhão são obrigatórios.", "error"); return; }
+                        if (!talhaoData.name || isNaN(talhaoData.area) || isNaN(talhaoData.producao)) { App.ui.showAlert("Nome, Área e Produção do talhão são obrigatórios e devem ser números válidos.", "error"); return; }
                         
-                        let updatedTalhoes = farm.talhoes ? [...farm.talhoes] : [];
-                        const existingIndex = updatedTalhoes.findIndex(t => t.id === talhaoData.id);
+                        App.ui.showConfirmationModal(`Tem a certeza que deseja guardar o talhão ${talhaoData.name}?`, async () => {
+                            let updatedTalhoes = farm.talhoes ? [...farm.talhoes] : [];
+                            const existingIndex = updatedTalhoes.findIndex(t => t.id === talhaoData.id);
 
-                        if (existingIndex > -1) {
-                            updatedTalhoes[existingIndex] = talhaoData;
-                        } else {
-                            updatedTalhoes.push(talhaoData);
-                        }
-                        
-                        try {
-                            await App.data.updateDocument('fazendas', farm.id, { talhoes: updatedTalhoes });
-                            App.ui.showAlert("Talhão guardado com sucesso!");
-                            [talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita].forEach(el => el.value = '');
-                        } catch(error) {
-                            App.ui.showAlert("Erro ao guardar talhão.", "error");
-                        }
+                            if (existingIndex > -1) {
+                                updatedTalhoes[existingIndex] = talhaoData;
+                            } else {
+                                updatedTalhoes.push(talhaoData);
+                            }
+                            
+                            try {
+                                await App.data.updateDocument('fazendas', farm.id, { talhoes: updatedTalhoes });
+                                App.ui.showAlert("Talhão guardado com sucesso!");
+                                [talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita].forEach(el => el.value = '');
+                                App.elements.cadastros.talhaoName.focus();
+                            } catch(error) {
+                                App.ui.showAlert("Erro ao guardar talhão.", "error");
+                                console.error("Erro ao guardar talhão:", error);
+                            }
+                        });
                     },
                     editTalhao(talhaoId) {
                         const { farmSelect, ...talhaoEls } = App.elements.cadastros;
@@ -2203,17 +2251,19 @@
                         const existingId = id.value;
                         const data = { matricula: matriculaValue, name: nameValue };
                         
-                        try {
-                            if (existingId) {
-                                await App.data.updateDocument('personnel', existingId, data);
-                            } else {
-                                await App.data.addDocument('personnel', data);
+                        App.ui.showConfirmationModal(`Tem a certeza que deseja guardar os dados de ${nameValue}?`, async () => {
+                            try {
+                                if (existingId) {
+                                    await App.data.updateDocument('personnel', existingId, data);
+                                } else {
+                                    await App.data.addDocument('personnel', data);
+                                }
+                                App.ui.showAlert("Pessoa guardada com sucesso!");
+                                id.value = ''; matricula.value = ''; name.value = '';
+                            } catch (e) {
+                                App.ui.showAlert("Erro ao guardar pessoa.", "error");
                             }
-                            App.ui.showAlert("Pessoa guardada com sucesso!");
-                            id.value = ''; matricula.value = ''; name.value = '';
-                        } catch (e) {
-                            App.ui.showAlert("Erro ao guardar pessoa.", "error");
-                        }
+                        });
                     },
                     editPersonnel(personnelId) {
                         const { id, matricula, name } = App.elements.personnel;
@@ -2272,17 +2322,25 @@
                     },
                     async agendarInspecao() {
                         const els = App.elements.planejamento;
-                        const campos = { tipo: els.tipo.value, fazendaCodigo: els.fazenda.value, talhao: els.talhao.value.trim(), dataPrevista: els.data.value, usuarioResponsavel: els.responsavel.value };
+                        const farmId = els.fazenda.value;
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
+                        if (!farm) { App.ui.showAlert("Fazenda inválida.", "error"); return; }
+
+                        const campos = { tipo: els.tipo.value, fazendaCodigo: farm.code, talhao: els.talhao.value.trim(), dataPrevista: els.data.value, usuarioResponsavel: els.responsavel.value };
                         if (Object.values(campos).some(v => !v)) { App.ui.showAlert("Todos os campos obrigatórios devem ser preenchidos.", "error"); return; }
-                        const novoPlano = { ...campos, meta: els.meta.value || null, observacoes: els.obs.value.trim() || null, status: 'Pendente' };
                         
-                        await App.data.addDocument('planos', novoPlano);
-                        App.ui.showAlert("Inspeção agendada com sucesso!");
-                        els.talhao.value = ''; els.data.value = ''; els.meta.value = ''; els.obs.value = '';
+                        App.ui.showConfirmationModal("Tem a certeza que deseja agendar esta inspeção?", async () => {
+                            const novoPlano = { ...campos, meta: els.meta.value || null, observacoes: els.obs.value.trim() || null, status: 'Pendente' };
+                            await App.data.addDocument('planos', novoPlano);
+                            App.ui.showAlert("Inspeção agendada com sucesso!");
+                            els.talhao.value = ''; els.data.value = ''; els.meta.value = ''; els.obs.value = '';
+                        });
                     },
                     async marcarPlanoComoConcluido(id) {
-                        await App.data.updateDocument('planos', id, { status: 'Concluído' });
-                        App.ui.showAlert("Inspeção marcada como concluída!", "success");
+                        App.ui.showConfirmationModal("Marcar esta inspeção como concluída?", async () => {
+                            await App.data.updateDocument('planos', id, { status: 'Concluído' });
+                            App.ui.showAlert("Inspeção marcada como concluída!", "success");
+                        });
                     },
                     excluirPlano(id) {
                         App.ui.showConfirmationModal("Tem a certeza que deseja excluir este planeamento?", async () => {
@@ -2299,14 +2357,14 @@
                     },
                     findVarietyForTalhao(section) {
                         const formElements = App.elements[section];
-                        const farmCode = formElements.codigo.value;
+                        const farmId = formElements.codigo.value;
                         const talhaoName = formElements.talhao.value.trim().toUpperCase();
                         const display = formElements.varietyDisplay;
                         
                         display.textContent = '';
-                        if (!farmCode || !talhaoName) return;
+                        if (!farmId || !talhaoName) return;
 
-                        const farm = App.state.fazendas.find(f => f.code === farmCode);
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
                         const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === talhaoName);
 
                         if (talhao && talhao.variedade) {
@@ -2361,25 +2419,28 @@
                     },
                     async saveHarvestPlan() {
                         if (!App.state.activeHarvestPlan) return;
-                        const planToSave = App.state.activeHarvestPlan;
-                        planToSave.frontName = planToSave.frontName.trim();
                         
-                        if (!planToSave.frontName || !planToSave.startDate || !planToSave.dailyRate) {
-                            App.ui.showAlert('Preencha todos os campos de configuração da frente.', 'error');
-                            return;
-                        }
-                        
-                        try {
-                            if (planToSave.id) {
-                                await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
-                            } else {
-                                await App.data.addDocument('harvestPlans', planToSave);
+                        App.ui.showConfirmationModal("Tem a certeza que deseja guardar este plano de colheita?", async () => {
+                            const planToSave = App.state.activeHarvestPlan;
+                            planToSave.frontName = planToSave.frontName.trim();
+                            
+                            if (!planToSave.frontName || !planToSave.startDate || !planToSave.dailyRate) {
+                                App.ui.showAlert('Preencha todos os campos de configuração da frente.', 'error');
+                                return;
                             }
-                            App.ui.showAlert(`Plano de colheita "${planToSave.frontName}" guardado com sucesso!`);
-                            App.ui.showHarvestPlanList();
-                        } catch(e) {
-                            App.ui.showAlert('Erro ao guardar o plano de colheita.', 'error');
-                        }
+                            
+                            try {
+                                if (planToSave.id) {
+                                    await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
+                                } else {
+                                    await App.data.addDocument('harvestPlans', planToSave);
+                                }
+                                App.ui.showAlert(`Plano de colheita "${planToSave.frontName}" guardado com sucesso!`);
+                                App.ui.showHarvestPlanList();
+                            } catch(e) {
+                                App.ui.showAlert('Erro ao guardar o plano de colheita.', 'error');
+                            }
+                        });
                     },
                     deleteHarvestPlan(planId) {
                         App.ui.showConfirmationModal("Tem a certeza que deseja excluir este plano de colheita?", async () => {
@@ -2551,12 +2612,12 @@
                         
                         App.ui.showConfirmationModal('Tem certeza que deseja guardar esta inspeção de broca?', async () => {
                             const { broca } = App.elements;
-                            const farm = App.state.fazendas.find(f => f.code === broca.codigo.value.trim());
+                            const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
                             if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
                             const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
 
                             const newEntry = {
-                                codigo: broca.codigo.value.trim(), fazenda: farm.name, data: broca.data.value,
+                                codigo: farm.code, fazenda: farm.name, data: broca.data.value,
                                 talhao: broca.talhao.value.trim(), 
                                 corte: talhao ? talhao.corte : null,
                                 entrenos: parseInt(broca.entrenos.value), 
@@ -2578,7 +2639,7 @@
                         
                         App.ui.showConfirmationModal('Tem certeza que deseja guardar este lançamento de perda?', async () => {
                             const { perda } = App.elements;
-                            const farm = App.state.fazendas.find(f => f.code === perda.codigo.value.trim());
+                            const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
                             const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
                             if (!operator) {
                                 App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
@@ -2589,7 +2650,7 @@
                             const newEntry = { 
                                 ...fields, 
                                 data: perda.data.value, 
-                                codigo: perda.codigo.value.trim(), 
+                                codigo: farm ? farm.code : 'N/A', 
                                 fazenda: farm ? farm.name : 'Desconhecida', 
                                 frenteServico: perda.frente.value.trim(), 
                                 turno: perda.turno.value, 
@@ -2641,63 +2702,67 @@
                                  }
                                  
                                  const batch = writeBatch(db);
-                                 const localFazendas = JSON.parse(JSON.stringify(App.state.fazendas));
-                                 let newCount = 0; let updatedCount = 0;
+                                 const fazendasToUpdate = {};
 
                                  for (let i = 1; i < lines.length; i++) {
-                                     const data = lines[i].split(';');
-                                     if (data.length < 2) continue;
-                                     
-                                     const farmCode = data[headerIndexes.farm_code]?.trim();
-                                     if (!farmCode) continue;
+                                    const data = lines[i].split(';');
+                                    if (data.length < 2) continue;
+                                    
+                                    const farmCode = data[headerIndexes.farm_code]?.trim();
+                                    if (!farmCode) continue;
 
-                                     let farm = localFazendas.find(f => f.code === farmCode);
-                                     if (!farm) {
-                                         farm = {
-                                             id: `temp_${Date.now()}_${i}`,
-                                             code: farmCode,
-                                             name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
-                                             talhoes: [],
-                                             isNew: true
-                                         };
-                                         localFazendas.push(farm);
-                                     }
+                                    let farm = App.state.fazendas.find(f => f.code === farmCode);
+                                    let farmId;
+                                    
+                                    if (farm) {
+                                        farmId = farm.id;
+                                        if (!fazendasToUpdate[farmId]) {
+                                            fazendasToUpdate[farmId] = JSON.parse(JSON.stringify(farm));
+                                        }
+                                    } else {
+                                        const newFarmRef = doc(collection(db, 'fazendas'));
+                                        farmId = newFarmRef.id;
+                                        fazendasToUpdate[farmId] = {
+                                            id: farmId,
+                                            code: farmCode,
+                                            name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
+                                            talhoes: []
+                                        };
+                                    }
 
-                                     const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
-                                     if(!talhaoName) continue;
+                                    const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
+                                    if(!talhaoName) continue;
 
-                                     let talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName);
-                                     if (talhao) { 
-                                         talhao.area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || talhao.area;
-                                         talhao.producao = parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || talhao.producao;
-                                         talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
-                                         talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
-                                         talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
-                                         talhao.dataUltimaColheita = data[headerIndexes.talhao_ultima_colheita]?.trim() || talhao.dataUltimaColheita;
-                                         updatedCount++;
-                                     } else { 
-                                         farm.talhoes.push({
-                                             id: Date.now() + i,
-                                             name: talhaoName,
-                                             area: parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0,
-                                             producao: parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || 0,
-                                             variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
-                                             corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
-                                             distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
-                                             dataUltimaColheita: data[headerIndexes.talhao_ultima_colheita]?.trim() || '',
-                                         });
-                                         newCount++;
-                                     }
+                                    let talhao = fazendasToUpdate[farmId].talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                                    if (talhao) { 
+                                        talhao.area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || talhao.area;
+                                        talhao.producao = parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || talhao.producao;
+                                        talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
+                                        talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
+                                        talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
+                                        talhao.dataUltimaColheita = data[headerIndexes.talhao_ultima_colheita]?.trim() || talhao.dataUltimaColheita;
+                                    } else { 
+                                        fazendasToUpdate[farmId].talhoes.push({
+                                            id: Date.now() + i,
+                                            name: talhaoName,
+                                            area: parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0,
+                                            producao: parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || 0,
+                                            variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
+                                            corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
+                                            distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
+                                            dataUltimaColheita: data[headerIndexes.talhao_ultima_colheita]?.trim() || '',
+                                        });
+                                    }
                                  }
                                  
-                                 localFazendas.forEach(farm => {
-                                    const { id, isNew, ...farmData } = farm;
-                                    const docRef = isNew ? doc(collection(db, 'fazendas')) : doc(db, 'fazendas', id);
+                                 for (const farmId in fazendasToUpdate) {
+                                    const { id, ...farmData } = fazendasToUpdate[farmId];
+                                    const docRef = doc(db, 'fazendas', farmId);
                                     batch.set(docRef, farmData, { merge: true });
-                                 });
+                                 }
 
                                  await batch.commit();
-                                 App.ui.showAlert(`${newCount} talhões adicionados e ${updatedCount} atualizados com sucesso!`, 'success');
+                                 App.ui.showAlert(`Importação concluída! Verifique os dados.`, 'success');
 
                              } catch (e) {
                                  App.ui.showAlert('Erro ao processar o ficheiro CSV.', 'error');
@@ -3179,7 +3244,20 @@
             // Inicia a aplicação
             App.init();
 
+            // [PWA] Service Worker Registration
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('./service-worker.js')
+                        .then(registration => {
+                            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                        })
+                        .catch(error => {
+                            console.log('ServiceWorker registration failed: ', error);
+                        });
+                });
+            }
         });
+
     </script>
 </body>
 </html>
