@@ -41,7 +41,6 @@
         --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
-    /* TEMA AZUL */
     body.theme-blue {
         --color-primary: #1976d2;
         --color-primary-dark: #0d47a1;
@@ -49,7 +48,6 @@
         --color-accent: #42a5f5;
     }
 
-    /* TEMA ESCURO */
     body.theme-dark {
         --color-primary: #4caf50;
         --color-primary-dark: #388e3c;
@@ -293,7 +291,6 @@
         <nav class="menu" id="menu" aria-label="Menu Principal" tabindex="-1"></nav>
         
         <main class="content" id="content">
-            <!-- Todas as seções (tab-content) vêm aqui -->
             <section id="dashboard" class="tab-content card" aria-label="Dashboard" tabindex="0" hidden>
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
                     <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
@@ -765,7 +762,6 @@
                     <h2>Alterar Senha</h2>
                     <button id="changePasswordModalCloseBtn" class="modal-close-btn">&times;</button>
                 </div>
-                <!-- [BUGFIX] Adicionado campo para senha atual, necessário para reautenticação segura -->
                 <div class="input-group">
                     <label for="currentPassword">Senha Atual:</label>
                     <input type="password" id="currentPassword" required>
@@ -791,7 +787,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
-    <!-- O Bloco 2 (JavaScript) virá a seguir -->
     <script type="module">
                 // FIREBASE: Importe os módulos necessários do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
@@ -1428,11 +1423,24 @@
                             if (id === 'cadastrarPessoas') this.renderPersonnelList();
                             if (id === 'planejamento') this.renderPlanejamento();
                             if (id === 'planejamentoColheita') this.showHarvestPlanList();
-                            if (id === 'lancamentoBroca') this.clearForm(App.elements.broca.form);
-                            if (id === 'lancamentoPerda') this.clearForm(App.elements.perda.form);
+                            if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
+                            if (id === 'relatorioBroca' || id === 'relatorioPerda') this.setDefaultDatesForReportForms();
                             if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                         }
                         this.closeAllMenus();
+                    },
+                    setDefaultDatesForEntryForms() {
+                        const today = new Date().toISOString().split('T')[0];
+                        App.elements.broca.data.value = today;
+                        App.elements.perda.data.value = today;
+                    },
+                    setDefaultDatesForReportForms() {
+                        const today = new Date().toISOString().split('T')[0];
+                        const futureDate = '2999-12-31';
+                        App.elements.broca.filtroInicio.value = today;
+                        App.elements.broca.filtroFim.value = futureDate;
+                        App.elements.perda.filtroInicio.value = today;
+                        App.elements.perda.filtroFim.value = futureDate;
                     },
                     clearForm(formElement) {
                         if (!formElement) return;
@@ -1517,10 +1525,12 @@
                         talhaoList.innerHTML = '';
                         if (!farm) {
                             talhaoManagementContainer.style.display = 'none';
+                            selectedFarmName.innerHTML = '';
                             return;
                         }
                         talhaoManagementContainer.style.display = 'block';
-                        selectedFarmName.textContent = `${farm.code} - ${farm.name}`;
+                        selectedFarmName.innerHTML = `${farm.code} - ${farm.name} <button id="btnEditFarmName" class="btn-excluir" style="background:var(--color-info); margin-left:10px;"><i class="fas fa-edit"></i></button>`;
+                        document.getElementById('btnEditFarmName').addEventListener('click', () => App.actions.editFarmName(farm.id));
 
                         if (!farm.talhoes || farm.talhoes.length === 0) {
                             talhaoList.innerHTML = '<p>Nenhum talhão cadastrado para esta fazenda.</p>';
@@ -2099,10 +2109,7 @@
                             const user = auth.currentUser;
                             const credential = EmailAuthProvider.credential(user.email, currentPassword);
                             
-                            // Reautentica o utilizador antes de mudar a senha
                             await reauthenticateWithCredential(user, credential);
-                            
-                            // Se a reautenticação for bem-sucedida, atualiza a senha
                             await updatePassword(user, newPassword);
                             
                             App.ui.showAlert("Senha alterada com sucesso!", "success");
@@ -2111,7 +2118,7 @@
                             els.newPassword.value = ''; 
                             els.confirmNewPassword.value = '';
                         } catch (error) {
-                            if (error.code === 'auth/wrong-password') {
+                            if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                                 App.ui.showAlert("A senha atual está incorreta.", "error");
                             } else {
                                 App.ui.showAlert("Erro ao alterar senha. Tente fazer login novamente.", "error");
@@ -2170,6 +2177,18 @@
                                 App.ui.showAlert("Erro ao guardar fazenda.", "error");
                             }
                         });
+                    },
+                    async editFarmName(farmId) {
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
+                        if (!farm) return;
+
+                        const newName = prompt("Digite o novo nome para a fazenda:", farm.name);
+                        if (newName && newName.trim() !== '') {
+                            App.ui.showConfirmationModal(`Tem a certeza que deseja alterar o nome da fazenda para "${newName.toUpperCase()}"?`, async () => {
+                                await App.data.updateDocument('fazendas', farmId, { name: newName.toUpperCase() });
+                                App.ui.showAlert("Nome da fazenda atualizado com sucesso!");
+                            });
+                        }
                     },
                     async saveTalhao() {
                         const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
