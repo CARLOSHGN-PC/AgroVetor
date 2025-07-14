@@ -209,6 +209,9 @@
     .modal-footer button { margin-top: 0; }
     #confirmationModal .modal-content { max-width: 450px; }
     #confirmationModal p { color: var(--color-text-light); line-height: 1.6; }
+    .csv-format-info {
+        word-break: break-all;
+    }
 
     @media (max-width: 768px) {
         header h1 { font-size: 16px; max-width: calc(100% - 180px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -285,6 +288,9 @@
                         </div>
                     </div>
                     <hr>
+                    <button id="installAppBtn" role="menuitem" class="user-menu-item is-action" style="display: none;">
+                        <i class="fas fa-download"></i> Instalar App
+                    </button>
                     <button id="changePasswordBtn" role="menuitem" class="user-menu-item is-action">
                         <i class="fas fa-key"></i> Alterar Senha
                     </button>
@@ -605,7 +611,7 @@
                     </div>
                     <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
                     <button id="btnDownloadCsvTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
-                    <small>Formato esperado: Cód;FAZENDA;TALHÃO;Área;Produção;Variedade;Corte;Distancia;DataUltimaColheita</small>
+                    <small class="csv-format-info">Formato esperado: Cód;FAZENDA;TALHÃO;Área;Produção;Variedade;Corte;Distancia;DataUltimaColheita</small>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
@@ -679,7 +685,7 @@
                     </div>
                     <input type="file" id="personnelCsvInput" accept=".csv" style="display: none;">
                     <button id="btnDownloadPersonnelCsvTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
-                    <small>Formato esperado: Matricula;Nome</small> 
+                    <small class="csv-format-info">Formato esperado: Matricula;Nome</small> 
                 </div>
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
                     <h3><i class="fas fa-user-plus"></i> Adicionar/Editar Pessoa (Manual)</h3>
@@ -823,7 +829,7 @@
                 config: {
                     appName: "Inspeção e Planeamento de Cana com IA",
                     themeKey: 'canaAppTheme',
-                    inactivityTimeout: 5 * 60 * 1000, // [BUGFIX] Alterado para 5 minutos
+                    inactivityTimeout: 5 * 60 * 1000, // 5 minutos
                     menuConfig: [
                         { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                         { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
@@ -883,6 +889,7 @@
                     activeHarvestPlan: null,
                     inactivityTimer: null,
                     unsubscribeListeners: [],
+                    deferredInstallPrompt: null,
                 },
                 
                 elements: {
@@ -1081,6 +1088,7 @@
                         btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                         btnExcel: document.getElementById('btnGerarRelatorioCustomExcel')
                     },
+                    installAppBtn: document.getElementById('installAppBtn'),
                 },
 
                 init() {
@@ -3270,7 +3278,7 @@
             // Inicia a aplicação
             App.init();
 
-            // [PWA] Service Worker Registration
+            // [PWA] Service Worker Registration and Install Prompt
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
                     navigator.serviceWorker.register('./service-worker.js')
@@ -3280,6 +3288,13 @@
                         .catch(error => {
                             console.log('ServiceWorker registration failed: ', error);
                         });
+                });
+
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    App.state.deferredInstallPrompt = e;
+                    App.elements.installAppBtn.style.display = 'flex';
+                    console.log(`'beforeinstallprompt' event was fired.`);
                 });
             }
         });
