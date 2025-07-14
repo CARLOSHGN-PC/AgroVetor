@@ -215,13 +215,20 @@
         .card { padding: 16px; }
         .card-header-actions { flex-direction: column; align-items: stretch; }
         .card-header-actions .button-group { justify-content: center; }
-        #cadastros .form-row, #cadastrarPessoas .form-row {
+        .form-row {
             flex-direction: column;
             gap: 0;
+            margin-bottom: 0;
         }
-        #cadastros .form-col, #cadastrarPessoas .form-col {
+        .form-col {
             min-width: 100%;
             margin-bottom: 16px;
+        }
+        .botoes-relatorio {
+            flex-direction: column;
+        }
+        .botoes-relatorio button {
+            width: 100%;
         }
     }
     </style>
@@ -1437,10 +1444,10 @@
                     setDefaultDatesForReportForms() {
                         const today = new Date().toISOString().split('T')[0];
                         const futureDate = '2999-12-31';
-                        App.elements.broca.filtroInicio.value = today;
-                        App.elements.broca.filtroFim.value = futureDate;
-                        App.elements.perda.filtroInicio.value = today;
-                        App.elements.perda.filtroFim.value = futureDate;
+                        App.elements.relatorioBroca.filtroInicio.value = today;
+                        App.elements.relatorioBroca.filtroFim.value = futureDate;
+                        App.elements.relatorioPerda.filtroInicio.value = today;
+                        App.elements.relatorioPerda.filtroFim.value = futureDate;
                     },
                     clearForm(formElement) {
                         if (!formElement) return;
