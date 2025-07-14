@@ -210,7 +210,8 @@
     #confirmationModal .modal-content { max-width: 450px; }
     #confirmationModal p { color: var(--color-text-light); line-height: 1.6; }
     .csv-format-info {
-        word-break: break-all;
+        word-break: break-all; /* [BUGFIX] Garante que o texto quebra e não sai do ecrã */
+        overflow-wrap: break-word;
     }
 
     @media (max-width: 768px) {
@@ -304,6 +305,7 @@
         <nav class="menu" id="menu" aria-label="Menu Principal" tabindex="-1"></nav>
         
         <main class="content" id="content">
+            <!-- As seções da aplicação (tabs) virão aqui -->
             <section id="dashboard" class="tab-content card" aria-label="Dashboard" tabindex="0" hidden>
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
                     <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
@@ -829,7 +831,7 @@
                 config: {
                     appName: "Inspeção e Planeamento de Cana com IA",
                     themeKey: 'canaAppTheme',
-                    inactivityTimeout: 5 * 60 * 1000, // 5 minutos
+                    inactivityTimeout: 5 * 60 * 1000, // [BUGFIX] Alterado para 5 minutos
                     menuConfig: [
                         { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                         { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
@@ -2095,6 +2097,16 @@
 
                         ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
                             document.addEventListener(event, () => App.actions.resetInactivityTimer());
+                        });
+
+                        App.elements.installAppBtn.addEventListener('click', async () => {
+                            if (App.state.deferredInstallPrompt) {
+                                App.state.deferredInstallPrompt.prompt();
+                                const { outcome } = await App.state.deferredInstallPrompt.userChoice;
+                                console.log(`User response to the install prompt: ${outcome}`);
+                                App.state.deferredInstallPrompt = null;
+                                App.elements.installAppBtn.style.display = 'none';
+                            }
                         });
                     }
                 },
