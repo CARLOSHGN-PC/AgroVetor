@@ -242,7 +242,8 @@
     <div id="alertContainer"></div>
     <div id="loading-overlay">
         <div class="spinner"></div>
-        <p style="color: var(--color-ai); font-weight: 500;">A processar...</p>
+        <!-- [ALTERADO] Adicionado um elemento para mostrar o progresso -->
+        <p id="loading-progress-text" style="color: var(--color-ai); font-weight: 500;">A processar...</p>
     </div>
 
     <div id="loginScreen">
@@ -849,11 +850,11 @@
         const auth = getAuth(firebaseApp);
         const storage = getStorage(firebaseApp);
 
-        // [NOVO] Aplicação secundária do Firebase, usada APENAS para criar novos utilizadores sem deslogar o admin.
+        // Aplicação secundária do Firebase, usada APENAS para criar novos utilizadores sem deslogar o admin.
         const secondaryApp = initializeApp(firebaseConfig, "secondary");
         const secondaryAuth = getAuth(secondaryApp);
 
-        // [NOVO] Habilita a persistência offline
+        // Habilita a persistência offline
         enableIndexedDbPersistence(db)
             .catch((err) => {
                 if (err.code == 'failed-precondition') {
@@ -929,12 +930,12 @@
                 inactivityTimer: null,
                 unsubscribeListeners: [],
                 deferredInstallPrompt: null,
-                // [NOVO] Armazena temporariamente os dados do novo utilizador enquanto o admin confirma a senha
                 newUserCreationData: null
             },
             
             elements: {
                 loadingOverlay: document.getElementById('loading-overlay'),
+                loadingProgressText: document.getElementById('loading-progress-text'), // [NOVO] Referência para o texto de progresso
                 loginScreen: document.getElementById('loginScreen'),
                 appScreen: document.getElementById('appScreen'),
                 loginUser: document.getElementById('loginUser'),
@@ -973,7 +974,6 @@
                     newPassword: document.getElementById('newPassword'),
                     confirmNewPassword: document.getElementById('confirmNewPassword'),
                 },
-                // [NOVO] Elementos do modal de confirmação de senha do admin
                 adminPasswordConfirmModal: {
                     overlay: document.getElementById('adminPasswordConfirmModal'),
                     closeBtn: document.getElementById('adminPasswordConfirmModalCloseBtn'),
@@ -1153,7 +1153,7 @@
                             const userDoc = await App.data.getUserData(user.uid);
                             if (userDoc && userDoc.active) {
                                 App.state.currentUser = { ...user, ...userDoc };
-                                //App.data.listenToAllData();
+                                App.data.listenToAllData();
                                 App.ui.showAppScreen();
                             } else {
                                 this.logout();
@@ -1171,7 +1171,7 @@
                         App.ui.showLoginMessage("Preencha e-mail e senha.");
                         return;
                     }
-                    App.ui.setLoading(true);
+                    App.ui.setLoading(true, "A autenticar...");
                     try {
                         await signInWithEmailAndPassword(auth, email, password);
                     } catch (error) {
@@ -1192,7 +1192,6 @@
                     clearTimeout(App.state.inactivityTimer);
                     App.ui.showLoginScreen();
                 },
-                // [ALTERADO] Função que inicia o processo de criação de utilizador
                 initiateUserCreation() {
                     const els = App.elements.users;
                     const email = els.username.value.trim();
@@ -1205,11 +1204,9 @@
                         permissions[cb.dataset.permission] = cb.checked;
                     });
 
-                    // Armazena os dados do novo utilizador e abre o modal de confirmação
                     App.state.newUserCreationData = { email, password, role, permissions };
                     App.ui.showAdminPasswordConfirmModal();
                 },
-                // [NOVO] Função que realmente cria o utilizador após a confirmação do admin
                 async createUserAfterAdminConfirmation() {
                     const { email, password, role, permissions } = App.state.newUserCreationData;
                     const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
@@ -1219,21 +1216,17 @@
                         return;
                     }
 
-                    App.ui.setLoading(true);
+                    App.ui.setLoading(true, "A criar utilizador...");
                     try {
-                        // 1. Reautenticar o admin para garantir que a ação é legítima
                         const adminUser = auth.currentUser;
                         const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
                         await reauthenticateWithCredential(adminUser, credential);
                         
-                        // 2. Criar o novo utilizador na instância de autenticação secundária para não deslogar o admin
                         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
                         const newUser = userCredential.user;
 
-                        // 3. Imediatamente deslogar o novo utilizador da instância secundária
                         await signOut(secondaryAuth);
 
-                        // 4. Guardar os dados do novo utilizador no Firestore
                         const userData = {
                             username: email.split('@')[0],
                             email: email,
@@ -1273,10 +1266,7 @@
                     
                     App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
                         try {
-                            // Nota: A exclusão da autenticação requer um backend (Firebase Functions) para ser feita de forma segura.
-                            // Aqui, estamos apenas a desativar e a remover do nosso banco de dados.
-                            await App.data.updateDocument('users', userId, { active: false }); // Desativa em vez de apagar
-                            // await App.data.deleteDocument('users', userId); // Se quiser apagar mesmo
+                            await App.data.updateDocument('users', userId, { active: false });
                             App.ui.showAlert(`Utilizador ${userToDelete.username} desativado.`);
                             App.ui.closeUserEditModal();
                         } catch (error) {
@@ -1377,8 +1367,10 @@
             },
             
             ui: {
-                setLoading(isLoading) {
+                // [ALTERADO] Função de carregamento agora aceita texto de progresso
+                setLoading(isLoading, progressText = "A processar...") {
                     App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
+                    App.elements.loadingProgressText.textContent = progressText;
                 },
                 showLoginScreen() {
                     App.elements.loginScreen.style.display = 'flex';
@@ -1968,7 +1960,6 @@
                     closeBtn.addEventListener('click', closeHandler);
                     overlay.classList.add('show');
                 },
-                // [NOVO] Funções para mostrar/fechar o novo modal
                 showAdminPasswordConfirmModal() {
                     App.elements.adminPasswordConfirmModal.overlay.classList.add('show');
                     App.elements.adminPasswordConfirmModal.passwordInput.focus();
@@ -2076,7 +2067,6 @@
                     App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
                     App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                     
-                    // [ALTERADO] O botão agora inicia o processo, não o finaliza.
                     App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                     
                     App.elements.users.list.addEventListener('click', e => {
@@ -2087,7 +2077,6 @@
                         if (action === 'toggle') App.auth.toggleUserStatus(id);
                     });
 
-                    // [NOVO] Eventos para o novo modal de confirmação de senha
                     const adminModal = App.elements.adminPasswordConfirmModal;
                     adminModal.closeBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
                     adminModal.cancelBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
@@ -2202,7 +2191,7 @@
                     this.enableEnterKeyNavigation('#changePasswordModal');
                     this.enableEnterKeyNavigation('#cadastros');
                     this.enableEnterKeyNavigation('#cadastrarPessoas');
-                    this.enableEnterKeyNavigation('#adminPasswordConfirmModal'); // [NOVO]
+                    this.enableEnterKeyNavigation('#adminPasswordConfirmModal');
 
                     ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
                         document.addEventListener(event, () => App.actions.resetInactivityTimer());
@@ -2240,7 +2229,7 @@
                     if (newPassword !== confirmNewPassword) { App.ui.showAlert("As novas senhas não coincidem.", "error"); return; }
                     if (newPassword.length < 6) { App.ui.showAlert("A nova senha deve ter pelo menos 6 caracteres.", "error"); return; }
                     
-                    App.ui.setLoading(true);
+                    App.ui.setLoading(true, "A alterar senha...");
                     try {
                         const user = auth.currentUser;
                         const credential = EmailAuthProvider.credential(user.email, currentPassword);
@@ -2440,7 +2429,7 @@
                     const file = e.target.files[0];
                     if (!file) return;
 
-                    App.ui.setLoading(true);
+                    App.ui.setLoading(true, "A carregar logo...");
                     try {
                         const storageRef = ref(storage, 'company_assets/logo.png');
                         await uploadBytes(storageRef, file);
@@ -2456,7 +2445,7 @@
                 },
                 removeLogo() {
                     App.ui.showConfirmationModal("Tem certeza que deseja remover o logotipo?", async () => {
-                        App.ui.setLoading(true);
+                        App.ui.setLoading(true, "A remover logo...");
                         try {
                             const storageRef = ref(storage, 'company_assets/logo.png');
                             await deleteObject(storageRef);
@@ -2830,18 +2819,26 @@
                         App.ui.showAlert('Registo excluído com sucesso!');
                     });
                 },
+                // [ALTERADO] Função de importação agora é assíncrona e processa em lotes
                 async importFarmsFromCSV(file) {
                      if (!file) return;
                      const reader = new FileReader();
                      reader.onload = async (event) => {
-                         App.ui.setLoading(true);
+                         const CHUNK_SIZE = 400; // Processar 400 linhas de cada vez
+                         const PAUSE_DURATION = 50; // Pausa de 50ms entre os lotes
+                         
                          try {
                              const csv = event.target.result;
                              const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                             const totalLines = lines.length - 1;
 
-                             if (lines.length < 2) {
+                             if (totalLines <= 0) {
                                  App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', 'error'); return;
                              }
+                             
+                             App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
+                             await new Promise(resolve => setTimeout(resolve, 100)); // Pequena pausa para a UI atualizar
+
                              const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
                              const headerIndexes = {
                                  farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
@@ -2853,32 +2850,22 @@
                              };
 
                              if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
-                                 App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', 'error'); return;
+                                 App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', 'error');
+                                 App.ui.setLoading(false);
+                                 return;
                              }
                              
-                             const batch = writeBatch(db);
                              const fazendasToUpdate = {};
-
+                             // Pré-processa todas as linhas para agrupar por fazenda
                              for (let i = 1; i < lines.length; i++) {
                                  const data = lines[i].split(';');
                                  if (data.length < 2) continue;
-                                 
                                  const farmCode = data[headerIndexes.farm_code]?.trim();
                                  if (!farmCode) continue;
 
-                                 let farm = App.state.fazendas.find(f => f.code === farmCode);
-                                 let farmId;
-                                 
-                                 if (farm) {
-                                     farmId = farm.id;
-                                     if (!fazendasToUpdate[farmId]) {
-                                         fazendasToUpdate[farmId] = JSON.parse(JSON.stringify(farm));
-                                     }
-                                 } else {
-                                     const newFarmRef = doc(collection(db, 'fazendas'));
-                                     farmId = newFarmRef.id;
-                                     fazendasToUpdate[farmId] = {
-                                         id: farmId,
+                                 if (!fazendasToUpdate[farmCode]) {
+                                     let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
+                                     fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
                                          code: farmCode,
                                          name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
                                          talhoes: []
@@ -2888,7 +2875,7 @@
                                  const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
                                  if(!talhaoName) continue;
 
-                                 let talhao = fazendasToUpdate[farmId].talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                                 let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
                                  if (talhao) { 
                                      talhao.area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || talhao.area;
                                      talhao.producao = parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || talhao.producao;
@@ -2897,9 +2884,8 @@
                                      talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
                                      talhao.dataUltimaColheita = data[headerIndexes.talhao_ultima_colheita]?.trim() || talhao.dataUltimaColheita;
                                  } else { 
-                                     fazendasToUpdate[farmId].talhoes.push({
-                                         id: Date.now() + i,
-                                         name: talhaoName,
+                                     fazendasToUpdate[farmCode].talhoes.push({
+                                         id: Date.now() + i, name: talhaoName,
                                          area: parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0,
                                          producao: parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || 0,
                                          variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
@@ -2910,20 +2896,32 @@
                                  }
                              }
                              
-                             for (const farmId in fazendasToUpdate) {
-                                 const { id, ...farmData } = fazendasToUpdate[farmId];
-                                 const docRef = doc(db, 'fazendas', farmId);
-                                 batch.set(docRef, farmData, { merge: true });
+                             // Agora, envia os dados em lotes
+                             const farmCodes = Object.keys(fazendasToUpdate);
+                             for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
+                                 const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
+                                 const batch = writeBatch(db);
+                                 
+                                 chunk.forEach(code => {
+                                     const farmData = fazendasToUpdate[code];
+                                     const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
+                                     batch.set(docRef, farmData, { merge: true });
+                                 });
+
+                                 await batch.commit();
+                                 const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
+                                 App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
+                                 await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
                              }
 
-                             await batch.commit();
-                             App.ui.showAlert(`Importação concluída! Verifique os dados.`, 'success');
+                             App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
 
                          } catch (e) {
                              App.ui.showAlert('Erro ao processar o ficheiro CSV.', 'error');
                              console.error(e);
                          } finally {
                              App.ui.setLoading(false);
+                             App.elements.cadastros.csvFileInput.value = '';
                          }
                      };
                      reader.readAsText(file, 'ISO-8859-1');
@@ -2945,44 +2943,66 @@
                      if (!file) return;
                      const reader = new FileReader();
                      reader.onload = async (event) => {
+                         const CHUNK_SIZE = 400;
+                         const PAUSE_DURATION = 50;
                          try {
                              const csv = event.target.result;
                              const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                             if (lines.length < 2) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', 'error'); return; }
+                             const totalLines = lines.length - 1;
+                             if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', 'error'); return; }
+                             
+                             App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
+                             await new Promise(resolve => setTimeout(resolve, 100));
+
                              const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
                              const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
 
                              if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
-                                 App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', 'error'); return;
+                                 App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', 'error');
+                                 App.ui.setLoading(false);
+                                 return;
                              }
 
-                             const batch = writeBatch(db);
-                             let updatedCount = 0; let newCount = 0;
                              const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
+                             
+                             for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
+                                 const chunk = lines.slice(i, i + CHUNK_SIZE);
+                                 const batch = writeBatch(db);
+                                 let updatedCountInChunk = 0;
+                                 let newCountInChunk = 0;
 
-                             for (let i = 1; i < lines.length; i++) {
-                                 const data = lines[i].split(';');
-                                 if (data.length < 2) continue;
-                                 const matricula = data[headerIndexes.matricula]?.trim();
-                                 const name = data[headerIndexes.name]?.trim();
-                                 if (!matricula || !name) continue;
+                                 chunk.forEach(line => {
+                                     const data = line.split(';');
+                                     if (data.length < 2) return;
+                                     const matricula = data[headerIndexes.matricula]?.trim();
+                                     const name = data[headerIndexes.name]?.trim();
+                                     if (!matricula || !name) return;
 
-                                 let person = localPersonnel.find(p => p.matricula === matricula);
-                                 if (person) {
-                                     const personRef = doc(db, 'personnel', person.id);
-                                     batch.update(personRef, { name: name });
-                                     updatedCount++;
-                                 } else {
-                                     const newPersonRef = doc(collection(db, 'personnel'));
-                                     batch.set(newPersonRef, { matricula, name });
-                                     newCount++;
-                                 }
+                                     let person = localPersonnel.find(p => p.matricula === matricula);
+                                     if (person) {
+                                         const personRef = doc(db, 'personnel', person.id);
+                                         batch.update(personRef, { name: name });
+                                         updatedCountInChunk++;
+                                     } else {
+                                         const newPersonRef = doc(collection(db, 'personnel'));
+                                         batch.set(newPersonRef, { matricula, name });
+                                         newCountInChunk++;
+                                     }
+                                 });
+
+                                 await batch.commit();
+                                 const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
+                                 App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
+                                 await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
                              }
-                             await batch.commit();
-                             App.ui.showAlert(`${newCount} pessoas adicionadas e ${updatedCount} atualizadas.`, 'success');
+                             
+                             App.ui.showAlert(`Importação concluída!`, 'success');
                          } catch (e) {
                              App.ui.showAlert('Erro ao processar o ficheiro CSV.', 'error');
                              console.error(e);
+                         } finally {
+                            App.ui.setLoading(false);
+                            App.elements.personnel.csvFileInput.value = '';
                          }
                      };
                      reader.readAsText(file, 'ISO-8859-1');
@@ -3009,7 +3029,7 @@
                         return;
                     }
                     
-                    App.ui.setLoading(true);
+                    App.ui.setLoading(true, "A otimizar com IA...");
 
                     setTimeout(() => {
                         App.state.activeHarvestPlan.sequence.sort((a, b) => (b.atr || 0) - (a.atr || 0));
