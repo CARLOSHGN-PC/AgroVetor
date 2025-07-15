@@ -803,8 +803,8 @@
 
     <script type="module">
                 // FIREBASE: Importe os módulos necessários do Firebase SDK
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+        import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enablePersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
         import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
@@ -826,11 +826,20 @@
             const auth = getAuth(firebaseApp);
             const storage = getStorage(firebaseApp);
 
+            // [BUGFIX] Habilita a persistência offline
+            enablePersistence(db).catch((err) => {
+                if (err.code == 'failed-precondition') {
+                    console.warn('Persistência de dados falhou, múltiplas abas abertas.');
+                } else if (err.code == 'unimplemented') {
+                    console.warn('O navegador atual não suporta persistência de dados offline.');
+                }
+            });
+
             const App = {
                 config: {
                     appName: "Inspeção e Planeamento de Cana com IA",
                     themeKey: 'canaAppTheme',
-                    inactivityTimeout: 5 * 60 * 1000, // [BUGFIX] Alterado para 5 minutos
+                    inactivityTimeout: 5 * 60 * 1000,
                     menuConfig: [
                         { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                         { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
@@ -1144,6 +1153,7 @@
                         clearTimeout(App.state.inactivityTimer);
                         App.ui.showLoginScreen();
                     },
+                    // [BUGFIX] Função para criar utilizador sem deslogar o admin
                     async createUser() {
                         const els = App.elements.users;
                         const email = els.username.value.trim();
@@ -1152,14 +1162,25 @@
                         if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
                         
                         App.ui.setLoading(true);
+                        
+                        // Cria uma instância temporária do Firebase para criar o novo utilizador
+                        const tempAppName = 'temp-app-for-user-creation';
+                        let secondaryApp;
                         try {
-                            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                            secondaryApp = initializeApp(firebaseConfig, tempAppName);
+                            const secondaryAuth = getAuth(secondaryApp);
+                            
+                            // 1. Cria o utilizador no Firebase Auth usando a instância temporária
+                            const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
                             const user = userCredential.user;
+
+                            // 2. Coleta permissões
                             const permissions = {};
                             els.permissionCheckboxes.forEach(cb => {
                                 permissions[cb.dataset.permission] = cb.checked;
                             });
                             
+                            // 3. Cria o documento do utilizador no Firestore (usando a conexão principal)
                             const userData = {
                                 username: email.split('@')[0],
                                 email: email,
@@ -1172,6 +1193,10 @@
                             App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
                             els.username.value = ''; els.password.value = ''; els.role.value = 'user';
                             App.ui.updatePermissionsForRole('user');
+                            
+                            // Desconecta o utilizador da instância temporária
+                            await signOut(secondaryAuth);
+
                         } catch (error) {
                             if (error.code === 'auth/email-already-in-use') {
                                 App.ui.showAlert("Este e-mail já está em uso.", "error");
@@ -1182,6 +1207,10 @@
                             }
                             console.error("Erro ao criar utilizador:", error);
                         } finally {
+                            // Limpa a instância temporária
+                            if (secondaryApp) {
+                                await deleteApp(secondaryApp);
+                            }
                             App.ui.setLoading(false);
                         }
                     },
