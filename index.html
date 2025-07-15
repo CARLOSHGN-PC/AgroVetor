@@ -1153,7 +1153,7 @@
                             const userDoc = await App.data.getUserData(user.uid);
                             if (userDoc && userDoc.active) {
                                 App.state.currentUser = { ...user, ...userDoc };
-                                App.data.listenToAllData();
+                                //App.data.listenToAllData();
                                 App.ui.showAppScreen();
                             } else {
                                 this.logout();
@@ -3425,4 +3425,3 @@
 
 </body>
 </html>
-
