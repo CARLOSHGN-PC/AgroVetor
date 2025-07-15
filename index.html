@@ -803,8 +803,8 @@
 
     <script type="module">
                 // FIREBASE: Importe os módulos necessários do Firebase SDK
-        import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enablePersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
         import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
@@ -825,15 +825,6 @@
             const db = getFirestore(firebaseApp);
             const auth = getAuth(firebaseApp);
             const storage = getStorage(firebaseApp);
-
-            // [BUGFIX] Habilita a persistência offline
-            enablePersistence(db).catch((err) => {
-                if (err.code == 'failed-precondition') {
-                    console.warn('Persistência de dados falhou, múltiplas abas abertas.');
-                } else if (err.code == 'unimplemented') {
-                    console.warn('O navegador atual não suporta persistência de dados offline.');
-                }
-            });
 
             const App = {
                 config: {
@@ -1161,16 +1152,9 @@
                         if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
                         
                         App.ui.setLoading(true);
-                        
-                        const tempAppName = 'temp-app-for-user-creation';
-                        let secondaryApp;
                         try {
-                            secondaryApp = initializeApp(firebaseConfig, tempAppName);
-                            const secondaryAuth = getAuth(secondaryApp);
-                            
-                            const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                             const user = userCredential.user;
-
                             const permissions = {};
                             els.permissionCheckboxes.forEach(cb => {
                                 permissions[cb.dataset.permission] = cb.checked;
@@ -1188,9 +1172,6 @@
                             App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
                             els.username.value = ''; els.password.value = ''; els.role.value = 'user';
                             App.ui.updatePermissionsForRole('user');
-                            
-                            await signOut(secondaryAuth);
-
                         } catch (error) {
                             if (error.code === 'auth/email-already-in-use') {
                                 App.ui.showAlert("Este e-mail já está em uso.", "error");
@@ -1201,9 +1182,6 @@
                             }
                             console.error("Erro ao criar utilizador:", error);
                         } finally {
-                            if (secondaryApp) {
-                                await deleteApp(secondaryApp);
-                            }
                             App.ui.setLoading(false);
                         }
                     },
