@@ -1150,7 +1150,7 @@
                     onAuthStateChanged(auth, async (user) => {
                         if (user) {
                             // [CORRIGIDO] Lógica Offline-First
-                            // Tenta obter os dados do cache primeiro para uma inicialização rápida
+                            // Tenta obter os dados do utilizador PRIMEIRO no cache local
                             const userDoc = await App.data.getUserData(user.uid, { source: 'cache' });
                             if (userDoc && userDoc.active) {
                                 App.state.currentUser = { ...user, ...userDoc };
