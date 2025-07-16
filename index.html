@@ -1528,6 +1528,9 @@
                     const today = new Date().toISOString().split('T')[0];
                     App.elements.broca.data.value = today;
                     App.elements.perda.data.value = today;
+                    // [NOVO] Bloqueia datas futuras
+                    App.elements.broca.data.max = today;
+                    App.elements.perda.data.max = today;
                 },
                 setDefaultDatesForReportForms() {
                     const today = new Date().toISOString().split('T')[0];
@@ -2751,7 +2754,6 @@
                         return 'N/A';
                     }
                 },
-                // [ALTERADO] Melhoria na experiência offline
                 async saveBrocamento() {
                     if (!App.ui.validateFields(['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'])) { App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); return; }
                     
@@ -2759,6 +2761,12 @@
                     const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
                     if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
                     const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
+                    
+                    // [NOVO] Validação de Talhão
+                    if (!talhao) {
+                        App.ui.showAlert(`Talhão "${broca.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
+                        return;
+                    }
 
                     const newEntry = {
                         codigo: farm.code, fazenda: farm.name, data: broca.data.value,
@@ -2775,19 +2783,18 @@
 
                     try {
                         await App.data.addDocument('registros', newEntry);
-                        // A mensagem muda se estiver offline, mas o formulário limpa de qualquer maneira.
+                        App.ui.clearForm(broca.form);
+                        App.ui.setDefaultDatesForEntryForms(); // [NOVO] Reseta a data para o dia atual
                         if (navigator.onLine) {
                             App.ui.showAlert('Inspeção guardada com sucesso!');
                         } else {
                             App.ui.showAlert('Inspeção guardada offline. Sincronizando...', 'info');
                         }
-                        App.ui.clearForm(broca.form);
                         this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
                     } catch(e) {
                         App.ui.showAlert('Erro ao guardar inspeção.', 'error');
                     }
                 },
-                // [ALTERADO] Melhoria na experiência offline
                 async savePerda() {
                     if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) { App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); return; }
                     
@@ -2798,6 +2805,14 @@
                         App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
                         return;
                     }
+                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === perda.talhao.value.trim().toUpperCase());
+
+                    // [NOVO] Validação de Talhão
+                    if (!talhao) {
+                        App.ui.showAlert(`Talhão "${perda.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
+                        return;
+                    }
+
                     const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
                     const total = Object.values(fields).reduce((s, v) => s + v, 0);
                     const newEntry = {
@@ -2818,12 +2833,13 @@
                     
                     try {
                         await App.data.addDocument('perdas', newEntry);
+                        App.ui.clearForm(perda.form);
+                        App.ui.setDefaultDatesForEntryForms(); // [NOVO] Reseta a data para o dia atual
                         if (navigator.onLine) {
                             App.ui.showAlert('Lançamento de perda guardado com sucesso!');
                         } else {
                             App.ui.showAlert('Lançamento de perda guardado offline. Sincronizando...', 'info');
                         }
-                        App.ui.clearForm(perda.form);
                         this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
                     } catch(e) {
                         App.ui.showAlert('Erro ao guardar lançamento de perda.', 'error');
