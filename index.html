@@ -1149,14 +1149,26 @@
                 async checkSession() {
                     onAuthStateChanged(auth, async (user) => {
                         if (user) {
-                            const userDoc = await App.data.getUserData(user.uid);
+                            // [CORRIGIDO] Lógica Offline-First
+                            // Tenta obter os dados do cache primeiro para uma inicialização rápida
+                            const userDoc = await App.data.getUserData(user.uid, { source: 'cache' });
                             if (userDoc && userDoc.active) {
                                 App.state.currentUser = { ...user, ...userDoc };
-                                App.data.listenToAllData();
+                                // Mostra a aplicação imediatamente com dados do cache
                                 App.ui.showAppScreen();
+                                // Inicia a escuta de dados em tempo real (que irá atualizar se houver conexão)
+                                App.data.listenToAllData();
                             } else {
-                                this.logout();
-                                App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
+                                // Se não encontrar no cache, tenta na rede
+                                const userDocServer = await App.data.getUserData(user.uid, { source: 'server' });
+                                if (userDocServer && userDocServer.active) {
+                                    App.state.currentUser = { ...user, ...userDocServer };
+                                    App.ui.showAppScreen();
+                                    App.data.listenToAllData();
+                                } else {
+                                    this.logout();
+                                    App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
+                                }
                             }
                         } else {
                             App.ui.showLoginScreen();
@@ -1340,9 +1352,9 @@
                     });
                     App.state.unsubscribeListeners.push(unsubscribeConfig);
                 },
-                async getDocument(collectionName, docId) {
+                async getDocument(collectionName, docId, options) {
                     const docRef = doc(db, collectionName, docId);
-                    const docSnap = await getDoc(docRef);
+                    const docSnap = await getDoc(docRef, options);
                     return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
                 },
                 async addDocument(collectionName, data) {
@@ -1357,8 +1369,8 @@
                 async deleteDocument(collectionName, docId) {
                     return await deleteDoc(doc(db, collectionName, docId));
                 },
-                async getUserData(uid) {
-                    return this.getDocument('users', uid);
+                async getUserData(uid, options = {}) {
+                    return this.getDocument('users', uid, options);
                 },
                 async createUserData(uid, data) {
                     return this.setDocument('users', uid, data);
@@ -2762,7 +2774,6 @@
                     if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
                     const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
                     
-                    // [NOVO] Validação de Talhão
                     if (!talhao) {
                         App.ui.showAlert(`Talhão "${broca.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
                         return;
@@ -2784,7 +2795,7 @@
                     try {
                         await App.data.addDocument('registros', newEntry);
                         App.ui.clearForm(broca.form);
-                        App.ui.setDefaultDatesForEntryForms(); // [NOVO] Reseta a data para o dia atual
+                        App.ui.setDefaultDatesForEntryForms();
                         if (navigator.onLine) {
                             App.ui.showAlert('Inspeção guardada com sucesso!');
                         } else {
@@ -2807,7 +2818,6 @@
                     }
                     const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === perda.talhao.value.trim().toUpperCase());
 
-                    // [NOVO] Validação de Talhão
                     if (!talhao) {
                         App.ui.showAlert(`Talhão "${perda.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
                         return;
@@ -2834,7 +2844,7 @@
                     try {
                         await App.data.addDocument('perdas', newEntry);
                         App.ui.clearForm(perda.form);
-                        App.ui.setDefaultDatesForEntryForms(); // [NOVO] Reseta a data para o dia atual
+                        App.ui.setDefaultDatesForEntryForms();
                         if (navigator.onLine) {
                             App.ui.showAlert('Lançamento de perda guardado com sucesso!');
                         } else {
