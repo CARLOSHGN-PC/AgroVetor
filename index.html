@@ -242,7 +242,6 @@
     <div id="alertContainer"></div>
     <div id="loading-overlay">
         <div class="spinner"></div>
-        <!-- [ALTERADO] Adicionado um elemento para mostrar o progresso -->
         <p id="loading-progress-text" style="color: var(--color-ai); font-weight: 500;">A processar...</p>
     </div>
 
@@ -833,15 +832,15 @@
 
     document.addEventListener('DOMContentLoaded', () => {
 
-        // FIREBASE: Configuração e inicialização do Firebase
+        // FIREBASE: Configuração e inicialização do Firebase com as SUAS NOVAS CHAVES
         const firebaseConfig = {
-            apiKey: "AIzaSyD9795P-askI8CiyTY-F9nnetrVHhPLoFw",
-            authDomain: "agrovetor-6aa9b.firebaseapp.com",
-            projectId: "agrovetor-6aa9b",
-            storageBucket: "agrovetor-6aa9b.appspot.com",
-            messagingSenderId: "847395463108",
-            appId: "1:847395463108:web:e0e2420a76226e77d90e91",
-            measurementId: "G-TS5QZKNYHQ"
+            apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
+            authDomain: "agrovetor-v2.firebaseapp.com",
+            projectId: "agrovetor-v2",
+            storageBucket: "agrovetor-v2.appspot.com",
+            messagingSenderId: "782518751171",
+            appId: "1:782518751171:web:d501ee31c1db33da4eb776",
+            measurementId: "G-JN4MSW63JR"
         };
 
         // Aplicação principal do Firebase
@@ -935,7 +934,7 @@
             
             elements: {
                 loadingOverlay: document.getElementById('loading-overlay'),
-                loadingProgressText: document.getElementById('loading-progress-text'), // [NOVO] Referência para o texto de progresso
+                loadingProgressText: document.getElementById('loading-progress-text'),
                 loginScreen: document.getElementById('loginScreen'),
                 appScreen: document.getElementById('appScreen'),
                 loginUser: document.getElementById('loginUser'),
@@ -1367,7 +1366,6 @@
             },
             
             ui: {
-                // [ALTERADO] Função de carregamento agora aceita texto de progresso
                 setLoading(isLoading, progressText = "A processar...") {
                     App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
                     App.elements.loadingProgressText.textContent = progressText;
@@ -2819,7 +2817,6 @@
                         App.ui.showAlert('Registo excluído com sucesso!');
                     });
                 },
-                // [ALTERADO] Função de importação agora é assíncrona e processa em lotes
                 async importFarmsFromCSV(file) {
                      if (!file) return;
                      const reader = new FileReader();
