@@ -368,12 +368,12 @@
                         <div class="chart-container"><canvas id="graficoPerda"></canvas></div>
                     </div>
                     <div class="card">
-                        <h3 class="chart-title">Distribuição de Brocamento</h3>
-                        <div class="chart-container"><canvas id="graficoBrocamentoPizza"></canvas></div>
+                        <h3 class="chart-title">Evolução Mensal (Broca vs Perda)</h3>
+                        <div class="chart-container"><canvas id="graficoEvolucaoMensal"></canvas></div>
                     </div>
                     <div class="card">
-                        <h3 class="chart-title">Tipos de Perda</h3>
-                        <div class="chart-container"><canvas id="graficoPerdaRadar"></canvas></div>
+                        <h3 class="chart-title">Inspeções por Responsável</h3>
+                        <div class="chart-container"><canvas id="graficoInspecoesResponsavel"></canvas></div>
                     </div>
                 </div>
             </section>
@@ -3151,7 +3151,7 @@
                     this._createOrUpdateChart('graficoBrocamentoPizza', { type: 'pie', data: { labels, datasets: [{ data: medias, backgroundColor: ['#4caf50', '#2e7d32', '#388e3c', '#66bb6a', '#81c784'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: themeColors.text } }, datalabels: { formatter: (v) => v + '%', color: '#fff' } } }, plugins: [ChartDataLabels] });
                     const dadosPorData = App.state.registros.reduce((acc, reg) => { acc[reg.data] = acc[reg.data] || []; acc[reg.data].push(parseFloat(reg.brocamento.replace(',', '.'))); return acc; }, {});
                     const datas = Object.keys(dadosPorData).sort(); const mediasPorData = datas.map(d => (dadosPorData[d].reduce((a,b)=>a+b,0) / dadosPorData[d].length).toFixed(2));
-                    this._createOrUpdateChart('graficoBrocamentoLinha', { type: 'line', data: { labels: datas, datasets: [{ label: 'Evolução do Brocamento (%)', data: mediasPorData, borderColor: themeColors.accent, tension: 0.1, fill: true, backgroundColor: 'color-mix(in srgb, var(--color-accent) 20%, transparent)' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { labels: { color: themeColors.text } } } } });
+                    this._createOrUpdateChart('graficoEvolucaoMensal', { type: 'line', data: { labels: datas, datasets: [{ label: 'Evolução do Brocamento (%)', data: mediasPorData, borderColor: themeColors.accent, tension: 0.1, fill: true, backgroundColor: 'color-mix(in srgb, var(--color-accent) 20%, transparent)' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { labels: { color: themeColors.text } } } } });
                 },
                 renderPerdaCharts() {
                     const themeColors = this._getThemeColors();
@@ -3169,7 +3169,7 @@
                     this._createOrUpdateChart('graficoPerdaRadar', { type: 'radar', data: { labels: labelsPerda, datasets: [{ label: 'Total por Tipo de Perda', data: dadosPerda, backgroundColor: 'color-mix(in srgb, var(--color-primary-dark) 20%, transparent)', borderColor: themeColors.primaryDark, pointBackgroundColor: themeColors.primaryDark, pointBorderColor: '#fff', pointHoverBackgroundColor: '#fff', pointHoverBorderColor: themeColors.primaryDark }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { pointLabels: { color: themeColors.text }, grid: { color: themeColors.border }, angleLines: { color: themeColors.border } } }, plugins: { legend: { labels: { color: themeColors.text } } } } });
                     const dadosPorData = App.state.perdas.reduce((acc, p) => { acc[p.data] = acc[p.data] || []; acc[p.data].push(p.total); return acc; }, {});
                     const datas = Object.keys(dadosPorData).sort(); const mediasPorData = datas.map(d => (dadosPorData[d].reduce((a,b)=>a+b,0) / dadosPorData[d].length).toFixed(2));
-                    this._createOrUpdateChart('graficoPerdaLinha', { type: 'line', data: { labels: datas, datasets: [{ label: 'Evolução da Perda (Total)', data: mediasPorData, borderColor: themeColors.primaryDark, tension: 0.1, fill: true, backgroundColor: 'color-mix(in srgb, var(--color-primary-dark) 20%, transparent)' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { labels: { color: themeColors.text } } } } });
+                    this._createOrUpdateChart('graficoInspecoesResponsavel', { type: 'line', data: { labels: datas, datasets: [{ label: 'Evolução da Perda (Total)', data: mediasPorData, borderColor: themeColors.primaryDark, tension: 0.1, fill: true, backgroundColor: 'color-mix(in srgb, var(--color-primary-dark) 20%, transparent)' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { labels: { color: themeColors.text } } } } });
                 }
             },
 
