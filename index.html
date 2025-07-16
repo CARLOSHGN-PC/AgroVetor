@@ -837,7 +837,7 @@
             apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
             authDomain: "agrovetor-v2.firebaseapp.com",
             projectId: "agrovetor-v2",
-            storageBucket: "agrovetor-v2.appspot.com",
+            storageBucket: "agrovetor-v2.appspot.com", // <-- CORREÇÃO APLICADA
             messagingSenderId: "782518751171",
             appId: "1:782518751171:web:d501ee31c1db33da4eb776",
             measurementId: "G-JN4MSW63JR"
@@ -1550,6 +1550,7 @@
                     formElement.querySelectorAll('.info-display').forEach(el => el.textContent = '');
                     formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '');
                 },
+                // [ALTERADO] Função atualizada para ordenar por código numérico
                 populateFazendaSelects() {
                     const selects = [
                         App.elements.broca.filtroFazenda,
@@ -1567,7 +1568,8 @@
                         if(select.id.includes('Filtro')) {
                             select.innerHTML = '<option value="">Todas</option>';
                         }
-                        App.state.fazendas.sort((a, b) => a.name.localeCompare(b.name)).forEach(farm => {
+                        // Ordena as fazendas pelo código
+                        App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
                             select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
                         });
                         select.value = currentValue;
@@ -1602,11 +1604,13 @@
                         select.value = currentValue;
                     });
                 },
+                // [ALTERADO] Função atualizada para ordenar por código numérico
                 renderFarmSelect() {
                     const { farmSelect } = App.elements.cadastros;
                     const currentValue = farmSelect.value;
                     farmSelect.innerHTML = '<option value="">Selecione uma fazenda para gerir...</option>';
-                    App.state.fazendas.sort((a,b) => a.name.localeCompare(b.name)).forEach(farm => {
+                    // Ordena as fazendas pelo código
+                    App.state.fazendas.sort((a,b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
                         farmSelect.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
                     });
                     farmSelect.value = currentValue;
