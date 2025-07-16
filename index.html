@@ -146,10 +146,10 @@
     .theme-button#theme-dark { background-color: #2c3e50; }
 
     /* [ATUALIZADO] Estilos dos Gráficos */
-    .chart-container { position: relative; height: 350px; /* Aumentado */ margin-bottom: 20px; }
+    .chart-container { position: relative; height: 100%; min-height: 300px; }
     .chart-title { text-align: center; margin-bottom: 15px; font-weight: 500; color: var(--color-primary); }
-    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); /* Aumentado minmax */ gap: 30px; margin-top: 30px; }
-    .chart-grid .card { display: flex; flex-direction: column; }
+    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px; margin-top: 30px; align-items: stretch; }
+    .chart-grid .card { display: flex; flex-direction: column; height: 450px; } /* Altura fixa para todos os cards */
     .chart-grid .card .chart-container { flex-grow: 1; }
     .btn-expand-chart { position: absolute; top: 12px; right: 12px; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text-light); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; transition: var(--transition); z-index: 10; display: flex; align-items: center; justify-content: center; }
     .btn-expand-chart:hover { background: var(--color-primary-light); color: var(--color-primary); }
@@ -289,6 +289,7 @@
             width: 100%;
         }
         .chart-grid { grid-template-columns: 1fr; } /* Força uma coluna em telas pequenas */
+        .chart-grid .card { height: auto; min-height: 400px; }
     }
     </style>
 </head>
@@ -1012,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', () => {
             unsubscribeListeners: [],
             deferredInstallPrompt: null,
             newUserCreationData: null,
-            expandedChart: null, // [NOVO] Guarda a instância do gráfico expandido
+            expandedChart: null,
         },
         
         elements: {
@@ -1063,7 +1064,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('adminPasswordConfirmModalConfirmBtn'),
                 passwordInput: document.getElementById('adminConfirmPassword')
             },
-            // [NOVO] Elementos do Modal de Gráfico
             chartModal: {
                 overlay: document.getElementById('chartModal'),
                 title: document.getElementById('chartModalTitle'),
