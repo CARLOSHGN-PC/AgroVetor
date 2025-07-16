@@ -1550,7 +1550,6 @@
                     formElement.querySelectorAll('.info-display').forEach(el => el.textContent = '');
                     formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '');
                 },
-                // [ALTERADO] Função atualizada para ordenar por código numérico
                 populateFazendaSelects() {
                     const selects = [
                         App.elements.broca.filtroFazenda,
@@ -1568,7 +1567,7 @@
                         if(select.id.includes('Filtro')) {
                             select.innerHTML = '<option value="">Todas</option>';
                         }
-                        // Ordena as fazendas pelo código
+                        // [CORRIGIDO] Ordena as fazendas pelo código numérico
                         App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
                             select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
                         });
@@ -1604,12 +1603,11 @@
                         select.value = currentValue;
                     });
                 },
-                // [ALTERADO] Função atualizada para ordenar por código numérico
                 renderFarmSelect() {
                     const { farmSelect } = App.elements.cadastros;
                     const currentValue = farmSelect.value;
                     farmSelect.innerHTML = '<option value="">Selecione uma fazenda para gerir...</option>';
-                    // Ordena as fazendas pelo código
+                    // [CORRIGIDO] Ordena as fazendas pelo código numérico
                     App.state.fazendas.sort((a,b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
                         farmSelect.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
                     });
@@ -2753,66 +2751,83 @@
                         return 'N/A';
                     }
                 },
+                // [ALTERADO] Melhoria na experiência offline
                 async saveBrocamento() {
                     if (!App.ui.validateFields(['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'])) { App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); return; }
                     
-                    App.ui.showConfirmationModal('Tem certeza que deseja guardar esta inspeção de broca?', async () => {
-                        const { broca } = App.elements;
-                        const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
-                        if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
-                        const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
+                    const { broca } = App.elements;
+                    const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
+                    if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
+                    const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
 
-                        const newEntry = {
-                            codigo: farm.code, fazenda: farm.name, data: broca.data.value,
-                            talhao: broca.talhao.value.trim(),
-                            corte: talhao ? talhao.corte : null,
-                            entrenos: parseInt(broca.entrenos.value),
-                            base: parseInt(broca.base.value),
-                            meio: parseInt(broca.meio.value),
-                            topo: parseInt(broca.topo.value),
-                            brocado: parseInt(broca.brocado.value),
-                            brocamento: (((parseInt(broca.brocado.value) || 0) / (parseInt(broca.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
-                            usuario: App.state.currentUser.username
-                        };
+                    const newEntry = {
+                        codigo: farm.code, fazenda: farm.name, data: broca.data.value,
+                        talhao: broca.talhao.value.trim(),
+                        corte: talhao ? talhao.corte : null,
+                        entrenos: parseInt(broca.entrenos.value),
+                        base: parseInt(broca.base.value),
+                        meio: parseInt(broca.meio.value),
+                        topo: parseInt(broca.topo.value),
+                        brocado: parseInt(broca.brocado.value),
+                        brocamento: (((parseInt(broca.brocado.value) || 0) / (parseInt(broca.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
+                        usuario: App.state.currentUser.username
+                    };
+
+                    try {
                         await App.data.addDocument('registros', newEntry);
-                        App.ui.showAlert('Inspeção guardada com sucesso!');
+                        // A mensagem muda se estiver offline, mas o formulário limpa de qualquer maneira.
+                        if (navigator.onLine) {
+                            App.ui.showAlert('Inspeção guardada com sucesso!');
+                        } else {
+                            App.ui.showAlert('Inspeção guardada offline. Sincronizando...', 'info');
+                        }
                         App.ui.clearForm(broca.form);
                         this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
-                    });
+                    } catch(e) {
+                        App.ui.showAlert('Erro ao guardar inspeção.', 'error');
+                    }
                 },
+                // [ALTERADO] Melhoria na experiência offline
                 async savePerda() {
                     if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) { App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); return; }
                     
-                    App.ui.showConfirmationModal('Tem certeza que deseja guardar este lançamento de perda?', async () => {
-                        const { perda } = App.elements;
-                        const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
-                        const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
-                        if (!operator) {
-                            App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
-                            return;
-                        }
-                        const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
-                        const total = Object.values(fields).reduce((s, v) => s + v, 0);
-                        const newEntry = {
-                            ...fields,
-                            data: perda.data.value,
-                            codigo: farm ? farm.code : 'N/A',
-                            fazenda: farm ? farm.name : 'Desconhecida',
-                            frenteServico: perda.frente.value.trim(),
-                            turno: perda.turno.value,
-                            talhao: perda.talhao.value.trim(),
-                            frota: perda.frota.value.trim(),
-                            matricula: operator.matricula,
-                            operador: operator.name,
-                            total,
-                            media: (total / 6).toFixed(2).replace('.', ','),
-                            usuario: App.state.currentUser.username
-                        };
+                    const { perda } = App.elements;
+                    const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
+                    const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
+                    if (!operator) {
+                        App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
+                        return;
+                    }
+                    const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
+                    const total = Object.values(fields).reduce((s, v) => s + v, 0);
+                    const newEntry = {
+                        ...fields,
+                        data: perda.data.value,
+                        codigo: farm ? farm.code : 'N/A',
+                        fazenda: farm ? farm.name : 'Desconhecida',
+                        frenteServico: perda.frente.value.trim(),
+                        turno: perda.turno.value,
+                        talhao: perda.talhao.value.trim(),
+                        frota: perda.frota.value.trim(),
+                        matricula: operator.matricula,
+                        operador: operator.name,
+                        total,
+                        media: (total / 6).toFixed(2).replace('.', ','),
+                        usuario: App.state.currentUser.username
+                    };
+                    
+                    try {
                         await App.data.addDocument('perdas', newEntry);
-                        App.ui.showAlert('Lançamento de perda guardado com sucesso!');
+                        if (navigator.onLine) {
+                            App.ui.showAlert('Lançamento de perda guardado com sucesso!');
+                        } else {
+                            App.ui.showAlert('Lançamento de perda guardado offline. Sincronizando...', 'info');
+                        }
                         App.ui.clearForm(perda.form);
                         this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
-                    });
+                    } catch(e) {
+                        App.ui.showAlert('Erro ao guardar lançamento de perda.', 'error');
+                    }
                 },
                 deleteEntry(type, id) {
                     App.ui.showConfirmationModal('Tem a certeza que deseja excluir este registo?', async () => {
@@ -2825,8 +2840,8 @@
                      if (!file) return;
                      const reader = new FileReader();
                      reader.onload = async (event) => {
-                         const CHUNK_SIZE = 400; // Processar 400 linhas de cada vez
-                         const PAUSE_DURATION = 50; // Pausa de 50ms entre os lotes
+                         const CHUNK_SIZE = 400; 
+                         const PAUSE_DURATION = 50;
                          
                          try {
                              const csv = event.target.result;
@@ -2838,7 +2853,7 @@
                              }
                              
                              App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
-                             await new Promise(resolve => setTimeout(resolve, 100)); // Pequena pausa para a UI atualizar
+                             await new Promise(resolve => setTimeout(resolve, 100));
 
                              const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
                              const headerIndexes = {
@@ -2857,7 +2872,6 @@
                              }
                              
                              const fazendasToUpdate = {};
-                             // Pré-processa todas as linhas para agrupar por fazenda
                              for (let i = 1; i < lines.length; i++) {
                                  const data = lines[i].split(';');
                                  if (data.length < 2) continue;
@@ -2897,7 +2911,6 @@
                                  }
                              }
                              
-                             // Agora, envia os dados em lotes
                              const farmCodes = Object.keys(fazendasToUpdate);
                              for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
                                  const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
