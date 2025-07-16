@@ -1,14 +1,15 @@
 // service-worker.js
 
-const CACHE_NAME = 'agrovetor-cache-v3'; // [IMPORTANTE] Versão do cache atualizada para forçar a atualização
+// Define um nome e versão para o cache. Mudar a versão força a atualização do cache.
+const CACHE_NAME = 'agrovetor-cache-v1.3'; 
+
+// Lista de ficheiros essenciais para o funcionamento offline do app.
 const urlsToCache = [
-  '/',
-  '/index.html',
-  // Adicione aqui os caminhos para os seus ficheiros CSS e JS principais, se estiverem separados.
-  // '/styles/main.css',
-  // '/scripts/main.js',
-  'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap',
+  '/', // A raiz do app (index.html)
+  'index.html', // O ficheiro principal
+  'manifest.json', // Manifesto do PWA
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+  'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
@@ -17,70 +18,97 @@ const urlsToCache = [
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
+  '/icons/icon-192x192.png', // Ícone para PWA
+  '/icons/icon-512x512.png'  // Ícone para PWA
 ];
 
-// Evento de instalação: guarda os ficheiros em cache e assume o controlo imediatamente.
+// Evento 'install': é acionado quando o service worker é instalado.
+// Aqui, abrimos o cache e guardamos os ficheiros essenciais.
 self.addEventListener('install', event => {
+  console.log('[Service Worker] A instalar...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Cache aberto e ficheiros guardados');
+        console.log('[Service Worker] A abrir e guardar o cache de ficheiros');
         return cache.addAll(urlsToCache);
       })
+      .catch(error => {
+        console.error('[Service Worker] Falha ao guardar o cache de ficheiros:', error);
+      })
   );
-  // Força o novo service worker a ativar assim que a instalação estiver completa.
-  self.skipWaiting();
 });
 
-// Evento de ativação: limpa caches antigos.
+// Evento 'activate': é acionado quando o service worker é ativado.
+// Aqui, limpamos caches antigos para garantir que a versão mais recente seja usada.
 self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
+  console.log('[Service Worker] A ativar...');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            console.log('A apagar cache antigo:', cacheName);
+          if (cacheName !== CACHE_NAME) {
+            console.log('[Service Worker] A limpar cache antigo:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
-    }).then(() => {
-      // Assume o controlo de todas as páginas abertas imediatamente.
-      console.log('Service worker ativado e a controlar os clientes.');
-      return self.clients.claim();
     })
   );
+  return self.clients.claim();
 });
 
-// Evento de fetch: responde com os dados do cache se estiverem disponíveis (estratégia Cache First).
+// Evento 'fetch': é acionado para cada pedido de rede feito pela página.
+// Implementa a estratégia "Cache-First, then Network".
 self.addEventListener('fetch', event => {
-  // Ignora os pedidos para o Firestore para não interferir com a sincronização offline dele.
+  // Ignora pedidos que não são GET (ex: POST para o Firestore)
+  if (event.request.method !== 'GET') {
+    return;
+  }
+  
+  // Para os pedidos ao Firestore, usa sempre a rede primeiro para ter dados atualizados.
   if (event.request.url.includes('firestore.googleapis.com')) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // Se a rede falhar, não faz nada (o Firestore SDK já gere o modo offline).
+      })
+    );
     return;
   }
 
+  // Para todos os outros pedidos, usa a estratégia Cache-First.
   event.respondWith(
     caches.match(event.request)
-      .then(response => {
-        // Se o recurso estiver no cache, retorna-o.
-        if (response) {
-          return response;
+      .then(cachedResponse => {
+        // 1. Se o recurso estiver no cache, retorna-o imediatamente.
+        if (cachedResponse) {
+          // console.log('[Service Worker] A devolver do cache:', event.request.url);
+          return cachedResponse;
         }
-        // Caso contrário, busca na rede.
-        return fetch(event.request).catch(() => {
-          // Se a busca na rede falhar (estiver offline), pode retornar uma página de fallback se quiser.
-          // Por agora, simplesmente deixamos o erro acontecer.
+
+        // 2. Se não estiver no cache, vai à rede.
+        // console.log('[Service Worker] A ir à rede para:', event.request.url);
+        return fetch(event.request).then(
+          networkResponse => {
+            // 3. Se a resposta da rede for válida, clona-a, guarda no cache e retorna.
+            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+              return networkResponse;
+            }
+
+            // Clona a resposta porque ela só pode ser consumida uma vez.
+            const responseToCache = networkResponse.clone();
+
+            caches.open(CACHE_NAME)
+              .then(cache => {
+                // console.log('[Service Worker] A guardar no cache a nova resposta de:', event.request.url);
+                cache.put(event.request, responseToCache);
+              });
+
+            return networkResponse;
+          }
+        ).catch(error => {
+            console.error('[Service Worker] Erro ao ir à rede. O utilizador está offline e o recurso não está em cache.', error);
+            // Opcional: pode retornar uma página de fallback offline aqui.
         });
       })
   );
-});
-
-// Ouve mensagens da aplicação principal.
-self.addEventListener('message', event => {
-  if (event.data && event.data.action === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
 });
