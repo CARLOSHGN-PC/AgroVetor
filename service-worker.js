@@ -1,6 +1,6 @@
 // service-worker.js
 
-const CACHE_NAME = 'agrovetor-cache-v1';
+const CACHE_NAME = 'agrovetor-cache-v2'; // [IMPORTANTE] Mude a versão do cache para forçar a atualização
 const urlsToCache = [
   '/',
   '/index.html',
@@ -21,31 +21,17 @@ const urlsToCache = [
   '/icons/icon-512x512.png'
 ];
 
-// Evento de instalação: abre o cache e armazena os ficheiros da aplicação.
+// Evento de instalação: guarda os ficheiros em cache e assume o controlo imediatamente.
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Cache aberto');
+        console.log('Cache aberto e ficheiros guardados');
         return cache.addAll(urlsToCache);
       })
   );
-});
-
-// Evento de fetch: responde com os dados do cache se estiverem disponíveis, caso contrário, busca na rede.
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Se o recurso estiver no cache, retorna-o.
-        if (response) {
-          return response;
-        }
-        // Caso contrário, busca na rede.
-        return fetch(event.request);
-      }
-    )
-  );
+  // Força o novo service worker a ativar assim que a instalação estiver completa.
+  self.skipWaiting();
 });
 
 // Evento de ativação: limpa caches antigos.
@@ -56,10 +42,45 @@ self.addEventListener('activate', event => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
+            console.log('A apagar cache antigo:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
+    }).then(() => {
+      // Assume o controlo de todas as páginas abertas imediatamente.
+      console.log('Service worker ativado e a controlar os clientes.');
+      return self.clients.claim();
     })
   );
+});
+
+// Evento de fetch: responde com os dados do cache se estiverem disponíveis (estratégia Cache First).
+self.addEventListener('fetch', event => {
+  // Ignora os pedidos para o Firestore para não interferir com a sincronização offline dele.
+  if (event.request.url.includes('firestore.googleapis.com')) {
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        // Se o recurso estiver no cache, retorna-o.
+        if (response) {
+          return response;
+        }
+        // Caso contrário, busca na rede.
+        return fetch(event.request).catch(() => {
+          // Se a busca na rede falhar (estiver offline), pode retornar uma página de fallback se quiser.
+          // Por agora, simplesmente deixamos o erro acontecer.
+        });
+      })
+  );
+});
+
+// Ouve mensagens da aplicação principal.
+self.addEventListener('message', event => {
+  if (event.data && event.data.action === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
