@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Define um nome e versão para o cache. Mudar a versão força a atualização do cache.
-const CACHE_NAME = 'agrovetor-cache-v1.3'; 
+const CACHE_NAME = 'agrovetor-cache-v1.4'; // Versão incrementada para garantir a atualização
 
 // Lista de ficheiros essenciais para o funcionamento offline do app.
 const urlsToCache = [
@@ -81,12 +81,10 @@ self.addEventListener('fetch', event => {
       .then(cachedResponse => {
         // 1. Se o recurso estiver no cache, retorna-o imediatamente.
         if (cachedResponse) {
-          // console.log('[Service Worker] A devolver do cache:', event.request.url);
           return cachedResponse;
         }
 
         // 2. Se não estiver no cache, vai à rede.
-        // console.log('[Service Worker] A ir à rede para:', event.request.url);
         return fetch(event.request).then(
           networkResponse => {
             // 3. Se a resposta da rede for válida, clona-a, guarda no cache e retorna.
@@ -94,12 +92,10 @@ self.addEventListener('fetch', event => {
               return networkResponse;
             }
 
-            // Clona a resposta porque ela só pode ser consumida uma vez.
             const responseToCache = networkResponse.clone();
 
             caches.open(CACHE_NAME)
               .then(cache => {
-                // console.log('[Service Worker] A guardar no cache a nova resposta de:', event.request.url);
                 cache.put(event.request, responseToCache);
               });
 
@@ -107,7 +103,6 @@ self.addEventListener('fetch', event => {
           }
         ).catch(error => {
             console.error('[Service Worker] Erro ao ir à rede. O utilizador está offline e o recurso não está em cache.', error);
-            // Opcional: pode retornar uma página de fallback offline aqui.
         });
       })
   );
