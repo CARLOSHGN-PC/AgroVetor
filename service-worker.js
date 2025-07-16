@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Define um nome e versão para o cache. Mudar a versão força a atualização do cache.
-const CACHE_NAME = 'agrovetor-cache-v1.4'; // Versão incrementada para garantir a atualização
+const CACHE_NAME = 'agrovetor-cache-v1.5'; // Versão incrementada para garantir a atualização
 
 // Lista de ficheiros essenciais para o funcionamento offline do app.
 const urlsToCache = [
