@@ -1,6 +1,6 @@
 // service-worker.js
 
-const CACHE_NAME = 'agrovetor-cache-v2'; // [IMPORTANTE] Mude a versão do cache para forçar a atualização
+const CACHE_NAME = 'agrovetor-cache-v3'; // [IMPORTANTE] Versão do cache atualizada para forçar a atualização
 const urlsToCache = [
   '/',
   '/index.html',
