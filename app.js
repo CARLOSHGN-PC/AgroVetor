@@ -116,6 +116,9 @@ document.addEventListener('DOMContentLoaded', () => {
             loginPass: document.getElementById('loginPass'),
             btnLogin: document.getElementById('btnLogin'),
             loginMessage: document.getElementById('loginMessage'),
+            loginForm: document.getElementById('loginForm'),
+            offlineUserSelection: document.getElementById('offlineUserSelection'),
+            offlineUserList: document.getElementById('offlineUserList'),
             headerTitle: document.querySelector('header h1'),
             currentDateTime: document.getElementById('currentDateTime'),
             logoutBtn: document.getElementById('logoutBtn'),
@@ -335,24 +338,24 @@ document.addEventListener('DOMContentLoaded', () => {
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        const userDoc = await App.data.getUserData(user.uid, { source: 'cache' }).catch(() => null);
+                        const userDoc = await App.data.getUserData(user.uid);
                         if (userDoc && userDoc.active) {
                             App.state.currentUser = { ...user, ...userDoc };
+                            App.actions.saveUserProfileLocally(App.state.currentUser);
                             App.ui.showAppScreen();
                             App.data.listenToAllData();
                         } else {
-                            const userDocServer = await App.data.getUserData(user.uid, { source: 'server' }).catch(() => null);
-                            if (userDocServer && userDocServer.active) {
-                                App.state.currentUser = { ...user, ...userDocServer };
-                                App.ui.showAppScreen();
-                                App.data.listenToAllData();
-                            } else {
-                                this.logout();
-                                App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
-                            }
+                            this.logout();
+                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
-                        App.ui.showLoginScreen();
+                        // [CORREÇÃO] Se não há usuário logado, verifica se há perfis offline
+                        const localProfiles = App.actions.getLocalUserProfiles();
+                        if (localProfiles.length > 0 && !navigator.onLine) {
+                            App.ui.showOfflineUserSelection(localProfiles);
+                        } else {
+                            App.ui.showLoginScreen();
+                        }
                     }
                 });
             },
@@ -366,6 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A autenticar...");
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
+                    // O onAuthStateChanged vai cuidar do resto
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showLoginMessage("E-mail ou senha inválidos.");
@@ -379,9 +383,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
+            async loginOffline(userId) {
+                const localProfiles = App.actions.getLocalUserProfiles();
+                const userProfile = localProfiles.find(p => p.uid === userId);
+                if (userProfile) {
+                    App.state.currentUser = userProfile;
+                    App.ui.showAppScreen();
+                    App.data.listenToAllData(); // Tenta ouvir os dados, funcionará se a conexão voltar
+                }
+            },
             async logout() {
+                if (navigator.onLine) {
+                    await signOut(auth);
+                }
+                // Limpa o usuário atual independentemente do status da conexão
                 App.data.cleanupListeners();
-                await signOut(auth);
                 App.state.currentUser = null;
                 clearTimeout(App.state.inactivityTimer);
                 App.ui.showLoginScreen();
@@ -461,6 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
                     try {
                         await App.data.updateDocument('users', userId, { active: false });
+                        App.actions.removeUserProfileLocally(userId);
                         App.ui.showAlert(`Utilizador ${userToDelete.username} desativado.`);
                         App.ui.closeUserEditModal();
                     } catch (error) {
@@ -566,6 +583,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loadingProgressText.textContent = progressText;
             },
             showLoginScreen() {
+                App.elements.loginForm.style.display = 'block';
+                App.elements.offlineUserSelection.style.display = 'none';
                 App.elements.loginScreen.style.display = 'flex';
                 App.elements.appScreen.style.display = 'none';
                 App.elements.userMenu.container.style.display = 'none';
@@ -573,6 +592,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginPass.value = '';
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
+            },
+            showOfflineUserSelection(profiles) {
+                App.elements.loginForm.style.display = 'none';
+                App.elements.offlineUserSelection.style.display = 'block';
+                const { offlineUserList } = App.elements;
+                offlineUserList.innerHTML = '';
+                profiles.forEach(profile => {
+                    const btn = document.createElement('button');
+                    btn.className = 'offline-user-btn';
+                    btn.dataset.uid = profile.uid;
+                    btn.innerHTML = `<i class="fas fa-user-circle"></i> ${profile.username || profile.email}`;
+                    btn.addEventListener('click', () => App.auth.loginOffline(profile.uid));
+                    offlineUserList.appendChild(btn);
+                });
+                App.elements.loginScreen.style.display = 'flex';
+                App.elements.appScreen.style.display = 'none';
             },
             showAppScreen() {
                 const { currentUser } = App.state;
@@ -1423,6 +1458,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.auth.logout();
                     }, App.config.inactivityTimeout);
                 }
+            },
+            saveUserProfileLocally(userProfile) {
+                let profiles = this.getLocalUserProfiles();
+                const index = profiles.findIndex(p => p.uid === userProfile.uid);
+                if (index > -1) {
+                    profiles[index] = userProfile;
+                } else {
+                    profiles.push(userProfile);
+                }
+                localStorage.setItem('localUserProfiles', JSON.stringify(profiles));
+            },
+            getLocalUserProfiles() {
+                return JSON.parse(localStorage.getItem('localUserProfiles') || '[]');
+            },
+            removeUserProfileLocally(userId) {
+                let profiles = this.getLocalUserProfiles();
+                profiles = profiles.filter(p => p.uid !== userId);
+                localStorage.setItem('localUserProfiles', JSON.stringify(profiles));
             },
             async changePassword() {
                 const els = App.elements.changePasswordModal;
