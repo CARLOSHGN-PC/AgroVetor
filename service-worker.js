@@ -1,6 +1,6 @@
-const CACHE_NAME = 'agrovetor-cache-v2'; // Versão incrementada para forçar a atualização
+const CACHE_NAME = 'agrovetor-cache-v3'; // Incrementei a versão para forçar a atualização do cache
 const urlsToCache = [
-  './', // Cacheia a raiz
+  './', // [CORREÇÃO] Caminho relativo para a raiz do projeto
   './index.html',
   './app.js',
   './manifest.json',
@@ -10,13 +10,13 @@ const urlsToCache = [
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
-  './icons/icon-192x192.png',
-  './icons/icon-512x512.png'
+  './icons/icon-192x192.png', // [CORREÇÃO] Caminho relativo
+  './icons/icon-512x512.png'  // [CORREÇÃO] Caminho relativo
 ];
 
-// Evento de instalação: abre o cache e armazena os arquivos principais
+// Evento de instalação: força o novo service worker a se tornar ativo
 self.addEventListener('install', event => {
-  self.skipWaiting(); // Força o novo service worker a ativar imediatamente
+  self.skipWaiting(); 
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -43,30 +43,24 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Evento de fetch: intercepta as requisições
+// Evento de fetch: intercepta as requisições com estratégia Stale-While-Revalidate
 self.addEventListener('fetch', event => {
-  // Ignora requisições que não são GET (ex: POST para o Firebase)
   if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
     return;
   }
 
-  // Estratégia: Stale-While-Revalidate
-  // Responde com o cache imediatamente (se disponível) e, em paralelo, busca uma nova versão na rede para atualizar o cache.
   event.respondWith(
     caches.open(CACHE_NAME).then(cache => {
       return cache.match(event.request).then(response => {
         const fetchPromise = fetch(event.request).then(networkResponse => {
-          // Se a resposta da rede for válida, armazena no cache
           if (networkResponse && networkResponse.status === 200) {
             cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
         }).catch(err => {
-            // A rede falhou, mas não há problema se já tivermos uma resposta do cache.
             console.log('Fetch falhou; usando cache se disponível.', err);
         });
 
-        // Retorna a resposta do cache imediatamente se existir, caso contrário, espera a resposta da rede.
         return response || fetchPromise;
       });
     })
