@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // FIREBASE: Configuração e inicialização do Firebase
     const firebaseConfig = {
-        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
+        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY", // Substitua pela sua chave de API
         authDomain: "agrovetor-v2.firebaseapp.com",
         projectId: "agrovetor-v2",
         storageBucket: "agrovetor-v2.appspot.com",
