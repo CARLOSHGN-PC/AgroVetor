@@ -168,7 +168,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 removeLogoBtn: document.getElementById('removeLogoBtn'),
             },
             dashboard: {
-                kpiContainer: document.getElementById('kpi-container'),
+                kpiBrocamento: document.getElementById('kpi-brocamento'),
+                kpiPerda: document.getElementById('kpi-perda'),
+                kpiInspecoes: document.getElementById('kpi-inspecoes'),
+                kpiFazendas: document.getElementById('kpi-fazendas'),
                 btnAnalisar: document.getElementById('btnAnalisarDashboard'),
                 aiCard: document.getElementById('ai-analysis-card'),
                 aiContent: document.getElementById('ai-analysis-content'),
@@ -332,18 +335,13 @@ document.addEventListener('DOMContentLoaded', () => {
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        // Lógica Offline-First
-                        // Tenta obter os dados do utilizador PRIMEIRO no cache local
-                        const userDoc = await App.data.getUserData(user.uid, { source: 'cache' });
+                        const userDoc = await App.data.getUserData(user.uid, { source: 'cache' }).catch(() => null);
                         if (userDoc && userDoc.active) {
                             App.state.currentUser = { ...user, ...userDoc };
-                            // Mostra a aplicação imediatamente com dados do cache
                             App.ui.showAppScreen();
-                            // Inicia a escuta de dados em tempo real (que irá atualizar se houver conexão)
                             App.data.listenToAllData();
                         } else {
-                            // Se não encontrar no cache, tenta na rede
-                            const userDocServer = await App.data.getUserData(user.uid, { source: 'server' });
+                            const userDocServer = await App.data.getUserData(user.uid, { source: 'server' }).catch(() => null);
                             if (userDocServer && userDocServer.active) {
                                 App.state.currentUser = { ...user, ...userDocServer };
                                 App.ui.showAppScreen();
@@ -744,7 +742,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputs.forEach(input => {
                     if (input.type === 'checkbox' || input.type === 'radio') {
                         input.checked = false;
-                    } else {
+                    } else if (input.type !== 'date') { // Não limpa o campo de data
                         input.value = '';
                     }
                 });
@@ -1958,94 +1956,104 @@ document.addEventListener('DOMContentLoaded', () => {
                     return 'N/A';
                 }
             },
-            async saveBrocamento() {
-                if (!App.ui.validateFields(['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'])) { App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); return; }
-                
-                const { broca } = App.elements;
-                const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
-                if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
-                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
-                
-                if (!talhao) {
-                    App.ui.showAlert(`Talhão "${broca.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                    return;
+            saveBrocamento() {
+                if (!App.ui.validateFields(['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'])) { 
+                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); 
+                    return; 
                 }
-
-                const newEntry = {
-                    codigo: farm.code, fazenda: farm.name, data: broca.data.value,
-                    talhao: broca.talhao.value.trim(),
-                    corte: talhao ? talhao.corte : null,
-                    entrenos: parseInt(broca.entrenos.value),
-                    base: parseInt(broca.base.value),
-                    meio: parseInt(broca.meio.value),
-                    topo: parseInt(broca.topo.value),
-                    brocado: parseInt(broca.brocado.value),
-                    brocamento: (((parseInt(broca.brocado.value) || 0) / (parseInt(broca.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
-                    usuario: App.state.currentUser.username
-                };
-
-                try {
-                    await App.data.addDocument('registros', newEntry);
-                    App.ui.clearForm(broca.form);
-                    App.ui.setDefaultDatesForEntryForms();
-                    if (navigator.onLine) {
-                        App.ui.showAlert('Inspeção guardada com sucesso!');
-                    } else {
-                        App.ui.showAlert('Inspeção guardada offline. Sincronizando...', 'info');
+                
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', async () => {
+                    const { broca } = App.elements;
+                    const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
+                    if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
+                    const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
+                    
+                    if (!talhao) {
+                        App.ui.showAlert(`Talhão "${broca.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
+                        return;
                     }
-                    this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
-                } catch(e) {
-                    App.ui.showAlert('Erro ao guardar inspeção.', 'error');
-                }
+
+                    const newEntry = {
+                        codigo: farm.code, fazenda: farm.name, data: broca.data.value,
+                        talhao: broca.talhao.value.trim(),
+                        corte: talhao ? talhao.corte : null,
+                        entrenos: parseInt(broca.entrenos.value),
+                        base: parseInt(broca.base.value),
+                        meio: parseInt(broca.meio.value),
+                        topo: parseInt(broca.topo.value),
+                        brocado: parseInt(broca.brocado.value),
+                        brocamento: (((parseInt(broca.brocado.value) || 0) / (parseInt(broca.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
+                        usuario: App.state.currentUser.username
+                    };
+
+                    try {
+                        await App.data.addDocument('registros', newEntry);
+                        App.ui.clearForm(broca.form);
+                        App.ui.setDefaultDatesForEntryForms();
+                        if (navigator.onLine) {
+                            App.ui.showAlert('Inspeção guardada com sucesso!');
+                        } else {
+                            App.ui.showAlert('Inspeção guardada offline. Será enviada assim que houver conexão.', 'info');
+                        }
+                        this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
+                    } catch(e) {
+                        App.ui.showAlert('Erro ao guardar inspeção.', 'error');
+                    }
+                });
             },
-            async savePerda() {
-                if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) { App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); return; }
-                
-                const { perda } = App.elements;
-                const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
-                const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
-                if (!operator) {
-                    App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
-                    return;
+            savePerda() {
+                if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) { 
+                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); 
+                    return; 
                 }
-                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === perda.talhao.value.trim().toUpperCase());
-
-                if (!talhao) {
-                    App.ui.showAlert(`Talhão "${perda.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                    return;
-                }
-
-                const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
-                const total = Object.values(fields).reduce((s, v) => s + v, 0);
-                const newEntry = {
-                    ...fields,
-                    data: perda.data.value,
-                    codigo: farm ? farm.code : 'N/A',
-                    fazenda: farm ? farm.name : 'Desconhecida',
-                    frenteServico: perda.frente.value.trim(),
-                    turno: perda.turno.value,
-                    talhao: perda.talhao.value.trim(),
-                    frota: perda.frota.value.trim(),
-                    matricula: operator.matricula,
-                    operador: operator.name,
-                    total,
-                    media: (total / 6).toFixed(2).replace('.', ','),
-                    usuario: App.state.currentUser.username
-                };
                 
-                try {
-                    await App.data.addDocument('perdas', newEntry);
-                    App.ui.clearForm(perda.form);
-                    App.ui.setDefaultDatesForEntryForms();
-                    if (navigator.onLine) {
-                        App.ui.showAlert('Lançamento de perda guardado com sucesso!');
-                    } else {
-                        App.ui.showAlert('Lançamento de perda guardado offline. Sincronizando...', 'info');
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', async () => {
+                    const { perda } = App.elements;
+                    const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
+                    const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
+                    if (!operator) {
+                        App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
+                        return;
                     }
-                    this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
-                } catch(e) {
-                    App.ui.showAlert('Erro ao guardar lançamento de perda.', 'error');
-                }
+                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === perda.talhao.value.trim().toUpperCase());
+
+                    if (!talhao) {
+                        App.ui.showAlert(`Talhão "${perda.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
+                        return;
+                    }
+
+                    const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
+                    const total = Object.values(fields).reduce((s, v) => s + v, 0);
+                    const newEntry = {
+                        ...fields,
+                        data: perda.data.value,
+                        codigo: farm ? farm.code : 'N/A',
+                        fazenda: farm ? farm.name : 'Desconhecida',
+                        frenteServico: perda.frente.value.trim(),
+                        turno: perda.turno.value,
+                        talhao: perda.talhao.value.trim(),
+                        frota: perda.frota.value.trim(),
+                        matricula: operator.matricula,
+                        operador: operator.name,
+                        total,
+                        media: (total / 6).toFixed(2).replace('.', ','),
+                        usuario: App.state.currentUser.username
+                    };
+                    
+                    try {
+                        await App.data.addDocument('perdas', newEntry);
+                        App.ui.clearForm(perda.form);
+                        App.ui.setDefaultDatesForEntryForms();
+                        if (navigator.onLine) {
+                            App.ui.showAlert('Lançamento de perda guardado com sucesso!');
+                        } else {
+                            App.ui.showAlert('Lançamento de perda guardado offline. Será enviado assim que houver conexão.', 'info');
+                        }
+                        this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
+                    } catch(e) {
+                        App.ui.showAlert('Erro ao guardar lançamento de perda.', 'error');
+                    }
+                });
             },
             deleteEntry(type, id) {
                 App.ui.showConfirmationModal('Tem a certeza que deseja excluir este registo?', async () => {
@@ -2264,7 +2272,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A otimizar com IA...");
 
                 setTimeout(() => {
-                    // Lógica de otimização simples (exemplo: ordenar por ATR)
                     App.state.activeHarvestPlan.sequence.sort((a, b) => (b.atr || 0) - (a.atr || 0));
                     
                     App.ui.setLoading(false);
@@ -2326,14 +2333,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!originalChart) return;
 
                 const modal = App.elements.chartModal;
-                const originalTitle = document.querySelector(`[data-chart-id="${chartId}"]`).nextElementSibling.textContent;
+                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).nextElementSibling.textContent;
                 
                 modal.title.textContent = originalTitle;
                 modal.overlay.classList.add('show');
                 
-                // Clonar a configuração e renderizar no novo canvas
-                const config = JSON.parse(JSON.stringify(originalChart.config._config)); // Deep copy
-                config.options.maintainAspectRatio = false; // Permitir que o gráfico preencha o container
+                const config = JSON.parse(JSON.stringify(originalChart.config._config));
+                config.options.maintainAspectRatio = false;
                 this._createOrUpdateChart(chartId, config, true);
             },
             closeChartModal() {
@@ -2345,9 +2351,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             renderKpiCards() {
-                const { kpiContainer } = App.elements.dashboard;
-                if (!kpiContainer) return;
-                
+                const { kpiBrocamento, kpiPerda, kpiInspecoes, kpiFazendas } = App.elements.dashboard;
+
                 const totalBrocado = App.state.registros.reduce((sum, reg) => sum + reg.brocado, 0);
                 const totalEntrenos = App.state.registros.reduce((sum, reg) => sum + reg.entrenos, 0);
                 const mediaPonderadaBroca = totalEntrenos > 0 ? ((totalBrocado / totalEntrenos) * 100) : 0;
@@ -2358,24 +2363,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const totalInspecoes = App.state.registros.length + App.state.perdas.length;
                 const totalFazendas = App.state.fazendas.length;
                 
-                const kpis = [
-                    { label: 'Média Brocamento', value: `${mediaPonderadaBroca.toFixed(2)}%`, icon: 'fa-bug', color: 'var(--color-danger)' },
-                    { label: 'Média de Perda', value: `${mediaPerda.toFixed(2)} kg`, icon: 'fa-chart-line', color: 'var(--color-warning)' },
-                    { label: 'Total Inspeções', value: totalInspecoes, icon: 'fa-clipboard-check', color: 'var(--color-info)' },
-                    { label: 'Fazendas Cadastradas', value: totalFazendas, icon: 'fa-tractor', color: 'var(--color-primary)' }
-                ];
-
-                kpiContainer.innerHTML = kpis.map(kpi => `
-                    <div class="kpi-card" style="border-left-color: ${kpi.color};">
-                        <div class="icon" style="background-color: ${kpi.color};">
-                            <i class="fas ${kpi.icon}"></i>
-                        </div>
-                        <div class="text">
-                            <div class="value">${kpi.value}</div>
-                            <div class="label">${kpi.label}</div>
-                        </div>
-                    </div>
-                `).join('');
+                kpiBrocamento.innerHTML = `<div class="icon" style="background-color: var(--color-danger);"><i class="fas fa-bug"></i></div><div class="text"><div class="value">${mediaPonderadaBroca.toFixed(2)}%</div><div class="label">Média Brocamento</div></div>`;
+                kpiPerda.innerHTML = `<div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-chart-line"></i></div><div class="text"><div class="value">${mediaPerda.toFixed(2)} kg</div><div class="label">Média de Perda</div></div>`;
+                kpiInspecoes.innerHTML = `<div class="icon" style="background-color: var(--color-info);"><i class="fas fa-clipboard-check"></i></div><div class="text"><div class="value">${totalInspecoes}</div><div class="label">Total Inspeções</div></div>`;
+                kpiFazendas.innerHTML = `<div class="icon" style="background-color: var(--color-primary);"><i class="fas fa-tractor"></i></div><div class="text"><div class="value">${totalFazendas}</div><div class="label">Fazendas Cadastradas</div></div>`;
             },
             renderTopBrocamentoChart() {
                 const themeColors = this._getThemeColors();
