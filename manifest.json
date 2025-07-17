@@ -1,7 +1,7 @@
 {
   "name": "AgroVetor - Inspeção e Planeamento",
   "short_name": "AgroVetor",
-  "description": "Aplicação para inspeção de cana, planeamento de colheita e análise de dados agrícolas.",
+  "description": "Aplicação para inspeção de cana e planeamento de colheita com funcionalidade offline.",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f5f5f5",
@@ -16,6 +16,18 @@
       "src": "icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
