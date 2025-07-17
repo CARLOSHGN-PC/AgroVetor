@@ -1962,99 +1962,107 @@ document.addEventListener('DOMContentLoaded', () => {
                     return; 
                 }
                 
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', async () => {
-                    const { broca } = App.elements;
-                    const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
-                    if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
-                    const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
-                    
-                    if (!talhao) {
-                        App.ui.showAlert(`Talhão "${broca.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                        return;
-                    }
+                const { broca } = App.elements;
+                const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
+                if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
+                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
+                
+                if (!talhao) {
+                    App.ui.showAlert(`Talhão "${broca.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
+                    return;
+                }
 
-                    const newEntry = {
-                        codigo: farm.code, fazenda: farm.name, data: broca.data.value,
-                        talhao: broca.talhao.value.trim(),
-                        corte: talhao ? talhao.corte : null,
-                        entrenos: parseInt(broca.entrenos.value),
-                        base: parseInt(broca.base.value),
-                        meio: parseInt(broca.meio.value),
-                        topo: parseInt(broca.topo.value),
-                        brocado: parseInt(broca.brocado.value),
-                        brocamento: (((parseInt(broca.brocado.value) || 0) / (parseInt(broca.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
-                        usuario: App.state.currentUser.username
-                    };
+                const newEntry = {
+                    codigo: farm.code, fazenda: farm.name, data: broca.data.value,
+                    talhao: broca.talhao.value.trim(),
+                    corte: talhao ? talhao.corte : null,
+                    entrenos: parseInt(broca.entrenos.value),
+                    base: parseInt(broca.base.value),
+                    meio: parseInt(broca.meio.value),
+                    topo: parseInt(broca.topo.value),
+                    brocado: parseInt(broca.brocado.value),
+                    brocamento: (((parseInt(broca.brocado.value) || 0) / (parseInt(broca.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
+                    usuario: App.state.currentUser.username
+                };
 
-                    try {
-                        await App.data.addDocument('registros', newEntry);
-                        App.ui.clearForm(broca.form);
-                        App.ui.setDefaultDatesForEntryForms();
-                        if (navigator.onLine) {
-                            App.ui.showAlert('Inspeção guardada com sucesso!');
-                        } else {
-                            App.ui.showAlert('Inspeção guardada offline. Será enviada assim que houver conexão.', 'info');
-                        }
-                        this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
-                    } catch(e) {
-                        App.ui.showAlert('Erro ao guardar inspeção.', 'error');
-                    }
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', () => {
+                    App.ui.clearForm(broca.form);
+                    App.ui.setDefaultDatesForEntryForms();
+
+                    App.data.addDocument('registros', newEntry)
+                        .then(() => {
+                            if (navigator.onLine) {
+                                App.ui.showAlert('Inspeção guardada com sucesso!');
+                            } else {
+                                App.ui.showAlert('Inspeção guardada offline. Será enviada quando houver conexão.', 'info');
+                            }
+                            this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
+                        })
+                        .catch((e) => {
+                            App.ui.showAlert('Erro ao guardar inspeção.', 'error');
+                            console.error("Erro ao salvar brocamento:", e);
+                        });
                 });
             },
+            
             savePerda() {
                 if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) { 
                     App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); 
                     return; 
                 }
                 
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', async () => {
-                    const { perda } = App.elements;
-                    const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
-                    const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
-                    if (!operator) {
-                        App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
-                        return;
-                    }
-                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === perda.talhao.value.trim().toUpperCase());
+                const { perda } = App.elements;
+                const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
+                const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
+                if (!operator) {
+                    App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
+                    return;
+                }
+                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === perda.talhao.value.trim().toUpperCase());
 
-                    if (!talhao) {
-                        App.ui.showAlert(`Talhão "${perda.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                        return;
-                    }
+                if (!talhao) {
+                    App.ui.showAlert(`Talhão "${perda.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
+                    return;
+                }
+                
+                const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
+                const total = Object.values(fields).reduce((s, v) => s + v, 0);
+                const newEntry = {
+                    ...fields,
+                    data: perda.data.value,
+                    codigo: farm ? farm.code : 'N/A',
+                    fazenda: farm ? farm.name : 'Desconhecida',
+                    frenteServico: perda.frente.value.trim(),
+                    turno: perda.turno.value,
+                    talhao: perda.talhao.value.trim(),
+                    frota: perda.frota.value.trim(),
+                    matricula: operator.matricula,
+                    operador: operator.name,
+                    total,
+                    media: (total / 6).toFixed(2).replace('.', ','),
+                    usuario: App.state.currentUser.username
+                };
+                
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', () => {
+                    App.ui.clearForm(perda.form);
+                    App.ui.setDefaultDatesForEntryForms();
 
-                    const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
-                    const total = Object.values(fields).reduce((s, v) => s + v, 0);
-                    const newEntry = {
-                        ...fields,
-                        data: perda.data.value,
-                        codigo: farm ? farm.code : 'N/A',
-                        fazenda: farm ? farm.name : 'Desconhecida',
-                        frenteServico: perda.frente.value.trim(),
-                        turno: perda.turno.value,
-                        talhao: perda.talhao.value.trim(),
-                        frota: perda.frota.value.trim(),
-                        matricula: operator.matricula,
-                        operador: operator.name,
-                        total,
-                        media: (total / 6).toFixed(2).replace('.', ','),
-                        usuario: App.state.currentUser.username
-                    };
-                    
-                    try {
-                        await App.data.addDocument('perdas', newEntry);
-                        App.ui.clearForm(perda.form);
-                        App.ui.setDefaultDatesForEntryForms();
-                        if (navigator.onLine) {
-                            App.ui.showAlert('Lançamento de perda guardado com sucesso!');
-                        } else {
-                            App.ui.showAlert('Lançamento de perda guardado offline. Será enviado assim que houver conexão.', 'info');
-                        }
-                        this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
-                    } catch(e) {
-                        App.ui.showAlert('Erro ao guardar lançamento de perda.', 'error');
-                    }
+                    App.data.addDocument('perdas', newEntry)
+                        .then(() => {
+                            if (navigator.onLine) {
+                                App.ui.showAlert('Lançamento de perda guardado com sucesso!');
+                            } else {
+                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviado quando houver conexão.', 'info');
+                            }
+                            this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
+                        })
+                        .catch((e) => {
+                            App.ui.showAlert('Erro ao guardar lançamento de perda.', 'error');
+                            console.error("Erro ao salvar perda:", e);
+                        });
                 });
             },
+            
             deleteEntry(type, id) {
                 App.ui.showConfirmationModal('Tem a certeza que deseja excluir este registo?', async () => {
                     if (type === 'brocamento') { await App.data.deleteDocument('registros', id); }
