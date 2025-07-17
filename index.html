@@ -152,11 +152,12 @@
           grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); 
           gap: 30px; 
           margin-top: 30px; 
+          align-items: stretch; /* [CORREÇÃO] Garante que todos os cards na mesma linha tenham a mesma altura */
       }
       .chart-grid .card { 
           display: flex; 
           flex-direction: column; 
-          height: 450px; /* [CORRIGIDO] Altura fixa para todos os cards de gráfico */
+          /* A altura fixa foi removida para permitir que o 'align-items' funcione corretamente */
       }
       .chart-container { 
           position: relative; 
@@ -308,7 +309,7 @@
           .botoes-relatorio { flex-direction: column; }
           .botoes-relatorio button { width: 100%; }
           .chart-grid { grid-template-columns: 1fr; }
-          .chart-grid .card { height: 400px; } /* Altura ajustada para mobile */
+          .chart-grid .card { height: auto; min-height: 400px; } /* Altura ajustada para mobile */
       }
     </style>
 </head>
