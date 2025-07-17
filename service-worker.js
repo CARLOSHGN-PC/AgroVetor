@@ -1,40 +1,31 @@
-// service-worker.js
-
-const CACHE_NAME = 'agrovetor-cache-v3'; // [IMPORTANTE] Versão do cache atualizada para forçar a atualização
+const CACHE_NAME = 'agrovetor-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  // Adicione aqui os caminhos para os seus ficheiros CSS e JS principais, se estiverem separados.
-  // '/styles/main.css',
-  // '/scripts/main.js',
+  '/app.js',
+  '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png'
 ];
 
-// Evento de instalação: guarda os ficheiros em cache e assume o controlo imediatamente.
+// Evento de instalação: abre o cache e armazena os arquivos principais
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Cache aberto e ficheiros guardados');
+        console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
   );
-  // Força o novo service worker a ativar assim que a instalação estiver completa.
-  self.skipWaiting();
 });
 
-// Evento de ativação: limpa caches antigos.
+// Evento de ativação: limpa caches antigos
 self.addEventListener('activate', event => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
@@ -42,45 +33,46 @@ self.addEventListener('activate', event => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
-            console.log('A apagar cache antigo:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
-    }).then(() => {
-      // Assume o controlo de todas as páginas abertas imediatamente.
-      console.log('Service worker ativado e a controlar os clientes.');
-      return self.clients.claim();
     })
   );
 });
 
-// Evento de fetch: responde com os dados do cache se estiverem disponíveis (estratégia Cache First).
+// Evento de fetch: intercepta as requisições
 self.addEventListener('fetch', event => {
-  // Ignora os pedidos para o Firestore para não interferir com a sincronização offline dele.
-  if (event.request.url.includes('firestore.googleapis.com')) {
+  // Ignora requisições que não são GET (ex: POST para o Firebase)
+  if (event.request.method !== 'GET') {
     return;
   }
 
+  // Estratégia: Network falling back to cache
+  // Tenta buscar na rede primeiro. Se falhar (offline), busca no cache.
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then(response => {
-        // Se o recurso estiver no cache, retorna-o.
-        if (response) {
-          return response;
+        // Se a resposta da rede for válida, clona, armazena no cache e retorna
+        if (response && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME)
+            .then(cache => {
+              cache.put(event.request, responseToCache);
+            });
         }
-        // Caso contrário, busca na rede.
-        return fetch(event.request).catch(() => {
-          // Se a busca na rede falhar (estiver offline), pode retornar uma página de fallback se quiser.
-          // Por agora, simplesmente deixamos o erro acontecer.
-        });
+        return response;
+      })
+      .catch(() => {
+        // Se a rede falhar, tenta encontrar no cache
+        return caches.match(event.request)
+          .then(response => {
+            // Retorna a resposta do cache se encontrada
+            if (response) {
+              return response;
+            }
+            // Se não encontrar nem na rede nem no cache, pode retornar uma página de fallback (opcional)
+          });
       })
   );
-});
-
-// Ouve mensagens da aplicação principal.
-self.addEventListener('message', event => {
-  if (event.data && event.data.action === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
 });
