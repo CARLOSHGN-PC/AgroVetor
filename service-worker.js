@@ -1,25 +1,26 @@
-const CACHE_NAME = 'agrovetor-cache-v1';
+const CACHE_NAME = 'agrovetor-cache-v2'; // Versão incrementada para forçar a atualização
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/manifest.json',
+  './', // Cacheia a raiz
+  './index.html',
+  './app.js',
+  './manifest.json',
   'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
+  './icons/icon-192x192.png',
+  './icons/icon-512x512.png'
 ];
 
 // Evento de instalação: abre o cache e armazena os arquivos principais
 self.addEventListener('install', event => {
+  self.skipWaiting(); // Força o novo service worker a ativar imediatamente
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache');
+        console.log('Cache aberto e arquivos principais armazenados');
         return cache.addAll(urlsToCache);
       })
   );
@@ -33,6 +34,7 @@ self.addEventListener('activate', event => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
+            console.log('Deletando cache antigo:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -44,35 +46,29 @@ self.addEventListener('activate', event => {
 // Evento de fetch: intercepta as requisições
 self.addEventListener('fetch', event => {
   // Ignora requisições que não são GET (ex: POST para o Firebase)
-  if (event.request.method !== 'GET') {
+  if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
     return;
   }
 
-  // Estratégia: Network falling back to cache
-  // Tenta buscar na rede primeiro. Se falhar (offline), busca no cache.
+  // Estratégia: Stale-While-Revalidate
+  // Responde com o cache imediatamente (se disponível) e, em paralelo, busca uma nova versão na rede para atualizar o cache.
   event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        // Se a resposta da rede for válida, clona, armazena no cache e retorna
-        if (response && response.status === 200) {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-        }
-        return response;
-      })
-      .catch(() => {
-        // Se a rede falhar, tenta encontrar no cache
-        return caches.match(event.request)
-          .then(response => {
-            // Retorna a resposta do cache se encontrada
-            if (response) {
-              return response;
-            }
-            // Se não encontrar nem na rede nem no cache, pode retornar uma página de fallback (opcional)
-          });
-      })
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.match(event.request).then(response => {
+        const fetchPromise = fetch(event.request).then(networkResponse => {
+          // Se a resposta da rede for válida, armazena no cache
+          if (networkResponse && networkResponse.status === 200) {
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        }).catch(err => {
+            // A rede falhou, mas não há problema se já tivermos uma resposta do cache.
+            console.log('Fetch falhou; usando cache se disponível.', err);
+        });
+
+        // Retorna a resposta do cache imediatamente se existir, caso contrário, espera a resposta da rede.
+        return response || fetchPromise;
+      });
+    })
   );
 });
