@@ -201,6 +201,7 @@
           position: relative; 
           flex-grow: 1;
           width: 100%;
+          min-height: 300px; /* Garante altura mínima para gráficos */
       }
       .chart-title { 
           text-align: center; 
@@ -293,29 +294,6 @@
       #chartModal .modal-content { max-width: 90vw; height: 85vh; display: flex; flex-direction: column; }
       #expandedChartContainer { flex-grow: 1; position: relative; }
 
-      /* Estilos para seleção de usuário offline */
-      #offlineUserSelection { display: none; /* Começa escondido */ }
-      .offline-user-btn {
-          width: 100%;
-          padding: 16px;
-          margin-top: 10px;
-          background: var(--color-bg);
-          color: var(--color-text);
-          border: 1px solid var(--color-border);
-          border-radius: var(--border-radius);
-          font-weight: 500;
-          font-size: 16px;
-          cursor: pointer;
-          transition: var(--transition);
-          display: flex;
-          align-items: center;
-          gap: 12px;
-      }
-      .offline-user-btn:hover {
-          background-color: var(--color-primary-light);
-          border-color: var(--color-accent);
-      }
-
       @media (max-width: 1200px) {
         .chart-card {
             grid-column: span 1;
@@ -358,13 +336,6 @@
                 </div>
                 <button id="btnLogin" aria-label="Botão de login"><i class="fas fa-sign-in-alt"></i> LOGIN</button>
                 <div id="loginMessage" role="alert" aria-live="assertive"></div>
-            </div>
-            
-            <!-- [NOVO] Container para seleção de usuário offline -->
-            <div id="offlineUserSelection" style="display: none;">
-                <h2><i class="fas fa-wifi-slash"></i> Acesso Offline</h2>
-                <p style="color: var(--color-text-light); margin-bottom: 20px;">Selecione seu perfil para continuar.</p>
-                <div id="offlineUserList"></div>
             </div>
         </div>
     </div>
