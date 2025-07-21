@@ -92,14 +92,15 @@ try {
       await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      const columnWidths = [140, 60, 60, 80, 40, 60, 40, 40, 40, 50, 60]; // Larguras definidas
+      // Larguras de coluna definidas manualmente para preencher a página A4 Paisagem (largura útil ~782pts)
+      const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 60]; 
 
       if (!isModelB) { // Modelo A
         const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
         await doc.table({ headers, rows }, {
             prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
             prepareRow: () => doc.font('Helvetica').fontSize(8),
-            columnsSize: columnWidths
+            columnsSize: columnWidths,
         });
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -122,7 +123,7 @@ try {
           const rows = farmData.map(r => [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
           
           await doc.table({
-            headers: headers.slice(1),
+            headers: headers.slice(1), // Remove a primeira coluna 'Fazenda'
             rows,
           }, { 
               prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
@@ -160,8 +161,7 @@ try {
       doc.moveDown(3);
       doc.font('Helvetica-Bold').fontSize(10);
       doc.text(
-        `TOTAL GERAL:  BASE ${grandTotalBase} | MEIO ${grandTotalMeio} | TOPO ${grandTotalTopo} | ENTRENÓS ${grandTotalEntrenos} | BROCADO ${grandTotalBrocado} | PONDERADO ${totalPercent}`,
-        { align: 'left' }
+        `TOTAL GERAL:  BASE ${grandTotalBase} | MEIO ${grandTotalMeio} | TOPO ${grandTotalTopo} | ENTRENÓS ${grandTotalEntrenos} | BROCADO ${grandTotalBrocado} | PONDERADO ${totalPercent}`
       );
 
       doc.end();
