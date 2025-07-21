@@ -3,7 +3,7 @@
 const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
-const PDFDocument = require('pdfkit-table');
+const PDFDocument = require('pdfkit'); // Usando a base do PDFKit para controle manual
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
@@ -59,7 +59,7 @@ try {
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center', valign: 'center' });
     doc.fontSize(10).font('Helvetica').text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, doc.page.width - doc.page.margins.right - 150, 45, { align: 'right', width: 150 });
-    doc.y = 80;
+    return 80; // Retorna a posição Y inicial para o conteúdo
   };
 
   // --- ROTA DE BROCAMENTO PDF (LÓGICA REFEITA) ---
@@ -94,32 +94,47 @@ try {
       const isModelB = filters.tipoRelatorio === 'B';
       const title = 'Relatório de Inspeção de Broca';
       
-      await generatePdfHeader(doc, title);
+      let currentY = await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 70]; 
+      const columnPositions = [doc.page.margins.left];
+      for(let i = 0; i < columnWidths.length; i++) {
+        columnPositions.push(columnPositions[i] + columnWidths[i]);
+      }
 
-      const tableOptions = {
-        x: doc.page.margins.left,
-        width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
-        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
-        prepareRow: () => doc.font('Helvetica').fontSize(8),
-        prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8)
+      const rowHeight = 15;
+      const textPadding = 5;
+
+      const drawRow = (rowData, y, isHeader = false, isFooter = false) => {
+        if (isHeader || isFooter) {
+            doc.font('Helvetica-Bold').fontSize(8);
+            doc.rect(columnPositions[0], y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            doc.fillColor('black');
+        } else {
+            doc.font('Helvetica').fontSize(8);
+        }
+        rowData.forEach((cell, i) => {
+            doc.text(cell, columnPositions[i] + textPadding, y + 4, { width: columnWidths[i] - (textPadding * 2), align: 'left'});
+        });
+        return y + rowHeight;
+      };
+
+      const checkPageBreak = async (y) => {
+        if (y > doc.page.height - doc.page.margins.bottom - rowHeight) {
+            doc.addPage();
+            return await generatePdfHeader(doc, title);
+        }
+        return y;
       };
       
       if (!isModelB) { // Modelo A
-        const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
-        
-        const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
-        const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
-        const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
-        const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
-        const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
-        const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
-        
-        const footers = [['TOTAL GERAL', '', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent]];
-        
-        await doc.table({ headers, rows, footers }, { ...tableOptions, columnsSize: columnWidths });
+        currentY = drawRow(headers, currentY, true);
+        for(const r of enrichedData) {
+            currentY = await checkPageBreak(currentY);
+            if(doc.y > currentY) currentY = doc.y; // Se a quebra de página ocorreu, atualiza Y
+            currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY);
+        }
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
           const key = `${reg.codigo} - ${reg.fazenda}`;
@@ -129,16 +144,20 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
-          if (doc.y > doc.page.height - 150) {
-              doc.addPage();
-              await generatePdfHeader(doc, title);
-          }
-
+          currentY = await checkPageBreak(currentY);
+          doc.y = currentY;
           doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, { continued: false });
-          doc.moveDown(0.5);
+          currentY = doc.y + 5;
+
+          currentY = await checkPageBreak(currentY);
+          currentY = drawRow(headers.slice(1), currentY, true);
 
           const farmData = groupedData[fazendaKey];
-          const rows = farmData.map(r => [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
+          for(const r of farmData) {
+              currentY = await checkPageBreak(currentY);
+              if(doc.y > currentY) currentY = doc.y;
+              currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY);
+          }
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
           const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
@@ -147,38 +166,25 @@ try {
           const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
-          const footers = [['SUBTOTAL', '', '', '', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent]];
-
-          await doc.table({
-            headers: headers.slice(1),
-            rows,
-            footers
-          }, { 
-              ...tableOptions,
-              columnsSize: columnWidths.slice(1)
-          });
-          doc.moveDown();
+          const subtotalRow = ['', '', '', 'SUBTOTAL', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
+          currentY = drawRow(subtotalRow, currentY, false, true);
+          currentY += 10; // Espaço extra após o subtotal
         }
-
-        const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
-        const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
-        const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
-        const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
-        const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
-        const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
-
-        if (doc.y > doc.page.height - 100) {
-            doc.addPage();
-            await generatePdfHeader(doc, title);
-        }
-
-        doc.moveDown(2);
-        doc.font('Helvetica-Bold').fontSize(10);
-        doc.text(
-          `TOTAL GERAL:  BASE ${grandTotalBase} | MEIO ${grandTotalMeio} | TOPO ${grandTotalTopo} | ENTRENÓS ${grandTotalEntrenos} | BROCADO ${grandTotalBrocado} | PONDERADO ${totalPercent}`
-        );
       }
       
+      const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
+      const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
+      const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
+      const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
+      const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
+      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
+
+      currentY = await checkPageBreak(currentY);
+      doc.y = currentY;
+
+      const totalRowData = ['', '', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+      drawRow(totalRowData, currentY, false, true);
+
       doc.end();
     } catch (error) { 
         console.error("Erro no PDF de Brocamento:", error);
