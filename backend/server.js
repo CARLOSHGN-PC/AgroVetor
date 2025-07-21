@@ -60,7 +60,7 @@ try {
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
     doc.fontSize(10).font('Helvetica').text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
-    return doc.y; // Retorna a posição Y inicial para o conteúdo
+    return doc.y;
   };
 
   // --- ROTA DE BROCAMENTO PDF (LÓGICA REFEITA) ---
@@ -99,7 +99,7 @@ try {
       let currentY = await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 70]; 
+      const columnWidths = [160, 65, 60, 90, 40, 60, 50, 50, 50, 60, 75]; 
       
       const rowHeight = 18;
       const textPadding = 5;
@@ -115,7 +115,7 @@ try {
         }
         let currentX = startX;
         rowData.forEach((cell, i) => {
-            doc.text(cell, currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+            doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
             currentX += customWidths[i];
         });
         return y + rowHeight;
@@ -146,7 +146,7 @@ try {
         for (const fazendaKey of Object.keys(groupedData).sort()) {
           currentY = await checkPageBreak(currentY, 40);
           doc.y = currentY;
-          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, { align: 'left' }); // CORRIGIDO PARA ESQUERDA
+          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(currentY);
