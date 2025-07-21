@@ -1,4 +1,4 @@
-// server.js - Backend com Geração de PDF Refeita para Precisão Absoluta
+// server.js - Backend com Geração de PDF Manual para Precisão Absoluta
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -57,9 +57,10 @@ try {
       console.error("Não foi possível carregar o logotipo:", error.message);
     }
     
-    doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center', valign: 'center' });
-    doc.fontSize(10).font('Helvetica').text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, doc.page.width - doc.page.margins.right - 150, 45, { align: 'right', width: 150 });
-    return 80; // Retorna a posição Y inicial para o conteúdo
+    doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
+    doc.fontSize(10).font('Helvetica').text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
+    doc.moveDown(2);
+    return doc.y; // Retorna a posição Y inicial para o conteúdo
   };
 
   // --- ROTA DE BROCAMENTO PDF (LÓGICA REFEITA) ---
@@ -74,6 +75,7 @@ try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
       if (data.length === 0) {
+        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca');
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
         doc.end();
         return;
@@ -98,30 +100,29 @@ try {
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 70]; 
-      const columnPositions = [doc.page.margins.left];
-      for(let i = 0; i < columnWidths.length; i++) {
-        columnPositions.push(columnPositions[i] + columnWidths[i]);
-      }
-
-      const rowHeight = 15;
+      
+      const rowHeight = 18;
       const textPadding = 5;
 
-      const drawRow = (rowData, y, isHeader = false, isFooter = false) => {
+      const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths = columnWidths) => {
+        const startX = doc.page.margins.left;
         if (isHeader || isFooter) {
             doc.font('Helvetica-Bold').fontSize(8);
-            doc.rect(columnPositions[0], y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
             doc.fillColor('black');
         } else {
             doc.font('Helvetica').fontSize(8);
         }
+        let currentX = startX;
         rowData.forEach((cell, i) => {
-            doc.text(cell, columnPositions[i] + textPadding, y + 4, { width: columnWidths[i] - (textPadding * 2), align: 'left'});
+            doc.text(cell, currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+            currentX += customWidths[i];
         });
         return y + rowHeight;
       };
-
-      const checkPageBreak = async (y) => {
-        if (y > doc.page.height - doc.page.margins.bottom - rowHeight) {
+      
+      const checkPageBreak = async (y, neededSpace = rowHeight) => {
+        if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
             doc.addPage();
             return await generatePdfHeader(doc, title);
         }
@@ -129,11 +130,10 @@ try {
       };
       
       if (!isModelB) { // Modelo A
-        currentY = drawRow(headers, currentY, true);
+        currentY = drawRow(headers, currentY, true, false, columnWidths);
         for(const r of enrichedData) {
             currentY = await checkPageBreak(currentY);
-            if(doc.y > currentY) currentY = doc.y; // Se a quebra de página ocorreu, atualiza Y
-            currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY);
+            currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidths);
         }
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -144,19 +144,18 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
-          currentY = await checkPageBreak(currentY);
+          currentY = await checkPageBreak(currentY, 40); // Espaço para o título da fazenda
           doc.y = currentY;
-          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, { continued: false });
+          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, { align: 'right' });
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(currentY);
-          currentY = drawRow(headers.slice(1), currentY, true);
+          currentY = drawRow(headers.slice(1), currentY, true, false, columnWidths.slice(1));
 
           const farmData = groupedData[fazendaKey];
           for(const r of farmData) {
               currentY = await checkPageBreak(currentY);
-              if(doc.y > currentY) currentY = doc.y;
-              currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY);
+              currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidths.slice(1));
           }
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -167,8 +166,8 @@ try {
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
           const subtotalRow = ['', '', '', 'SUBTOTAL', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
-          currentY = drawRow(subtotalRow, currentY, false, true);
-          currentY += 10; // Espaço extra após o subtotal
+          currentY = drawRow(subtotalRow, currentY, false, true, columnWidths.slice(1));
+          currentY += 10;
         }
       }
       
@@ -179,11 +178,11 @@ try {
       const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
       const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-      currentY = await checkPageBreak(currentY);
+      currentY = await checkPageBreak(currentY, 40);
       doc.y = currentY;
-
+      
       const totalRowData = ['', '', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-      drawRow(totalRowData, currentY, false, true);
+      drawRow(totalRowData, currentY, false, true, columnWidths);
 
       doc.end();
     } catch (error) { 
@@ -225,6 +224,7 @@ try {
       const filters = req.query;
       const data = await getFilteredData('perdas', filters);
       if (data.length === 0) {
+        await generatePdfHeader(doc, 'Relatório de Perda');
         doc.text('Nenhum dado encontrado.');
         doc.end();
         return;
@@ -244,9 +244,8 @@ try {
         rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total]);
       }
       
-      await doc.table({ headers, rows }, {
-          x: doc.page.margins.left,
-          width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+      const { table } = require('pdfkit-table');
+      await table(doc, { headers, rows }, {
           prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') 
       });
       doc.end();
