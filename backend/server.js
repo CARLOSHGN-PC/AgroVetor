@@ -1,4 +1,4 @@
-// server.js - Backend com Correção de Travamento (Crash Fix)
+// server.js - Backend com Geração de PDF Refeita para Precisão Absoluta
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -66,7 +66,6 @@ try {
   app.get('/reports/brocamento/pdf', async (req, res) => {
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
     
-    // Prepara o stream de resposta ANTES de qualquer operação assíncrona
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename=relatorio_brocamento.pdf');
     doc.pipe(res);
@@ -77,7 +76,7 @@ try {
       if (data.length === 0) {
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
         doc.end();
-        return; // Encerra a execução
+        return;
       }
       
       const fazendasSnapshot = await db.collection('fazendas').get();
@@ -98,26 +97,29 @@ try {
       await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 72]; 
+      const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 70]; 
+
+      const tableOptions = {
+        x: doc.page.margins.left,
+        width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+        prepareRow: () => doc.font('Helvetica').fontSize(8),
+        prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8)
+      };
       
       if (!isModelB) { // Modelo A
         const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
+        
         const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
         const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
         const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
         const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
         const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
         const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
+        
         const footers = [['TOTAL GERAL', '', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent]];
         
-        await doc.table({ headers, rows, footers }, {
-            x: doc.page.margins.left,
-            width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
-            prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
-            prepareRow: () => doc.font('Helvetica').fontSize(8),
-            prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8),
-            columnsSize: columnWidths,
-        });
+        await doc.table({ headers, rows, footers }, { ...tableOptions, columnsSize: columnWidths });
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
           const key = `${reg.codigo} - ${reg.fazenda}`;
@@ -152,11 +154,7 @@ try {
             rows,
             footers
           }, { 
-              x: doc.page.margins.left,
-              width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
-              prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
-              prepareRow: () => doc.font('Helvetica').fontSize(8),
-              prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8),
+              ...tableOptions,
               columnsSize: columnWidths.slice(1)
           });
           doc.moveDown();
@@ -174,7 +172,7 @@ try {
             await generatePdfHeader(doc, title);
         }
 
-        doc.moveDown(3);
+        doc.moveDown(2);
         doc.font('Helvetica-Bold').fontSize(10);
         doc.text(
           `TOTAL GERAL:  BASE ${grandTotalBase} | MEIO ${grandTotalMeio} | TOPO ${grandTotalTopo} | ENTRENÓS ${grandTotalEntrenos} | BROCADO ${grandTotalBrocado} | PONDERADO ${totalPercent}`
