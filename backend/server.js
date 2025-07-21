@@ -1,4 +1,4 @@
-// server.js - Backend com Correção Definitiva de Alinhamento de Layout
+// server.js - Backend com Correção Definitiva de Layout e Totais
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -92,7 +92,8 @@ try {
       await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 60]; 
+      // Larguras de coluna definidas manualmente para preencher a página A4 Paisagem (largura útil ~782pts)
+      const columnWidths = [160, 60, 60, 80, 40, 60, 50, 50, 50, 60, 72]; 
 
       if (!isModelB) { // Modelo A
         const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
