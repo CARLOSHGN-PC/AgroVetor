@@ -2626,9 +2626,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
             generateBrocamentoPDF() {
                 const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return;
-                }
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
@@ -2642,9 +2640,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
             generateBrocamentoCSV() {
                 const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return;
-                }
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
@@ -2658,9 +2654,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
             generatePerdaPDF() {
                 const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return;
-                }
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
@@ -2677,9 +2671,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
             generatePerdaCSV() {
                 const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return;
-                }
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
