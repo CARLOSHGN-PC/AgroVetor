@@ -2591,7 +2591,9 @@ document.addEventListener('DOMContentLoaded', () => {
         reports: {
             // Função auxiliar para chamar a API e baixar o arquivo
             _fetchAndDownloadReport(endpoint, filters, filename) {
-                const params = new URLSearchParams(filters);
+                // Remove chaves com valores vazios ou nulos para não poluir a URL
+                const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
+                const params = new URLSearchParams(cleanFilters);
                 
                 // *** AQUI ESTÁ A SUA URL DO SERVIDOR RENDER ***
                 const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
@@ -2601,6 +2603,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetch(apiUrl)
                     .then(response => {
                         if (!response.ok) {
+                            // Tenta ler a mensagem de erro do backend
                             return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
                         }
                         return response.blob();
@@ -2632,11 +2635,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
-                const selectedOption = filtroFazenda.options[filtroFazenda.selectedIndex];
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
-                    fazendaCodigo: selectedOption ? selectedOption.text.split(' - ')[0] : ''
+                    fazendaCodigo: farm ? farm.code : '' // *** CORREÇÃO AQUI ***
                 };
                 this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
             },
@@ -2647,11 +2651,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
-                const selectedOption = filtroFazenda.options[filtroFazenda.selectedIndex];
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
-                    fazendaCodigo: selectedOption ? selectedOption.text.split(' - ')[0] : ''
+                    fazendaCodigo: farm ? farm.code : '' // *** CORREÇÃO AQUI ***
                 };
                 this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
             },
@@ -2662,11 +2667,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
-                const selectedOption = filtroFazenda.options[filtroFazenda.selectedIndex];
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
-                    fazendaCodigo: selectedOption ? selectedOption.text.split(' - ')[0] : '',
+                    fazendaCodigo: farm ? farm.code : '', // *** CORREÇÃO AQUI ***
                     talhao: filtroTalhao.value,
                     matricula: filtroOperador.value,
                     frenteServico: filtroFrente.value,
@@ -2681,11 +2687,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
-                const selectedOption = filtroFazenda.options[filtroFazenda.selectedIndex];
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
-                    fazendaCodigo: selectedOption ? selectedOption.text.split(' - ')[0] : '',
+                    fazendaCodigo: farm ? farm.code : '', // *** CORREÇÃO AQUI ***
                     talhao: filtroTalhao.value,
                     matricula: filtroOperador.value,
                     frenteServico: filtroFrente.value,
