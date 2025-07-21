@@ -1,4 +1,4 @@
-// server.js - Backend com Relatórios Corrigidos e Melhorados (Versão Completa)
+// server.js - Backend com Relatórios Corrigidos e Melhorados (Versão Final)
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -62,8 +62,7 @@ try {
     doc.moveDown(3);
   };
 
-  // --- ROTAS DE RELATÓRIO DE BROCAMENTO ---
-
+  // --- ROTA DE BROCAMENTO PDF (LÓGICA ATUALIZADA) ---
   app.get('/reports/brocamento/pdf', async (req, res) => {
     try {
       const filters = req.query;
@@ -120,7 +119,7 @@ try {
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
           await doc.table({
-            headers: headers.slice(1), // Remove a primeira coluna 'Fazenda'
+            headers: headers.slice(1),
             rows,
             footers: [['', '', '', 'Subtotal', subTotalEntrenos, '', '', '', subTotalBrocado, subTotalPercent]]
           }, { 
@@ -136,7 +135,7 @@ try {
       const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
       const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-      doc.moveDown();
+      doc.moveDown(2);
       doc.fontSize(12).font('Helvetica-Bold').text('Resumo Geral do Período');
       const summaryTable = {
           headers: ['Total Entrenós', 'Total Brocado', 'Brocamento Ponderado (%)'],
