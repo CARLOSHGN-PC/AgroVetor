@@ -92,12 +92,14 @@ try {
       await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      
+      const columnWidths = [140, 60, 60, 80, 40, 60, 40, 40, 40, 50, 60]; // Larguras definidas
+
       if (!isModelB) { // Modelo A
         const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
         await doc.table({ headers, rows }, {
             prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
             prepareRow: () => doc.font('Helvetica').fontSize(8),
+            columnsSize: columnWidths
         });
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -125,20 +127,30 @@ try {
           }, { 
               prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
               prepareRow: () => doc.font('Helvetica').fontSize(8),
+              columnsSize: columnWidths.slice(1)
           });
 
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
           const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
+          const subTotalBase = farmData.reduce((sum, r) => sum + r.base, 0);
+          const subTotalMeio = farmData.reduce((sum, r) => sum + r.meio, 0);
+          const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
-          doc.font('Helvetica-Bold').fontSize(8).text(`Subtotal: Entrenós: ${subTotalEntrenos} | Brocado: ${subTotalBrocado} | Brocamento Ponderado: ${subTotalPercent}`, { align: 'right' });
+          doc.font('Helvetica-Bold').fontSize(8).text(
+            `SUBTOTAL:  BASE ${subTotalBase} | MEIO ${subTotalMeio} | TOPO ${subTotalTopo} | ENTRENÓS ${subTotalEntrenos} | BROCADO ${subTotalBrocado} | PONDERADO ${subTotalPercent}`,
+            { align: 'right' }
+          );
           doc.moveDown(2);
         }
       }
       
       const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
       const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
-      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalBrocado) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
+      const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
+      const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
+      const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
+      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
       if (doc.y > doc.page.height - 100) {
           doc.addPage();
@@ -147,9 +159,10 @@ try {
 
       doc.moveDown(3);
       doc.font('Helvetica-Bold').fontSize(10);
-      doc.text(`Total Geral Entrenós: ${grandTotalEntrenos}`);
-      doc.text(`Total Geral Brocado: ${grandTotalBrocado}`);
-      doc.text(`Brocamento Ponderado Total: ${totalPercent}`);
+      doc.text(
+        `TOTAL GERAL:  BASE ${grandTotalBase} | MEIO ${grandTotalMeio} | TOPO ${grandTotalTopo} | ENTRENÓS ${grandTotalEntrenos} | BROCADO ${grandTotalBrocado} | PONDERADO ${totalPercent}`,
+        { align: 'left' }
+      );
 
       doc.end();
     } catch (error) { 
@@ -158,8 +171,7 @@ try {
     }
   });
 
-  // --- OUTRAS ROTAS (SEM ALTERAÇÃO) ---
-
+  // --- OUTRAS ROTAS ---
   app.get('/reports/brocamento/csv', async (req, res) => {
     try {
       const data = await getFilteredData('registros', req.query);
