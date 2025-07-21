@@ -2589,13 +2589,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // NOVA SEÇÃO DE RELATÓRIOS - APONTANDO PARA O BACKEND
         // ===================================================================
         reports: {
-            // Função auxiliar para chamar a API e baixar o arquivo
             _fetchAndDownloadReport(endpoint, filters, filename) {
-                // Remove chaves com valores vazios ou nulos para não poluir a URL
                 const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                 const params = new URLSearchParams(cleanFilters);
-                
-                // *** AQUI ESTÁ A SUA URL DO SERVIDOR RENDER ***
                 const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
     
                 App.ui.setLoading(true, "A gerar relatório no servidor...");
@@ -2603,7 +2599,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetch(apiUrl)
                     .then(response => {
                         if (!response.ok) {
-                            // Tenta ler a mensagem de erro do backend
                             return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
                         }
                         return response.blob();
@@ -2630,33 +2625,33 @@ document.addEventListener('DOMContentLoaded', () => {
             },
     
             generateBrocamentoPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda } = App.elements.broca;
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return;
                 }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '' // *** CORREÇÃO AQUI ***
+                    fazendaCodigo: farm ? farm.code : '',
+                    tipoRelatorio: tipoRelatorio.value
                 };
                 this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
             },
     
             generateBrocamentoCSV() {
-                const { filtroInicio, filtroFim, filtroFazenda } = App.elements.broca;
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return;
                 }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '' // *** CORREÇÃO AQUI ***
+                    fazendaCodigo: farm ? farm.code : '',
+                    tipoRelatorio: tipoRelatorio.value
                 };
                 this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
             },
@@ -2664,15 +2659,14 @@ document.addEventListener('DOMContentLoaded', () => {
             generatePerdaPDF() {
                 const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
                 if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return;
                 }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '', // *** CORREÇÃO AQUI ***
+                    fazendaCodigo: farm ? farm.code : '',
                     talhao: filtroTalhao.value,
                     matricula: filtroOperador.value,
                     frenteServico: filtroFrente.value,
@@ -2684,15 +2678,14 @@ document.addEventListener('DOMContentLoaded', () => {
             generatePerdaCSV() {
                 const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
                 if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return;
                 }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '', // *** CORREÇÃO AQUI ***
+                    fazendaCodigo: farm ? farm.code : '',
                     talhao: filtroTalhao.value,
                     matricula: filtroOperador.value,
                     frenteServico: filtroFrente.value,
@@ -2701,7 +2694,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
     
-            // Esta função permanece no frontend por enquanto.
             generateCustomHarvestReport(format) {
                 const { jsPDF } = window.jspdf;
                 const { select, optionsContainer } = App.elements.relatorioColheita;
@@ -2786,11 +2778,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         styles: { fontSize: 7 },
                         columnStyles: { 2: { cellWidth: 35 } }
                     });
-                    // A função _createPdfWithHeaderFooter foi removida, então a lógica precisa ser adicionada aqui se necessário
                     doc.save(`${reportTitle.toLowerCase().replace(/\s/g, '_')}.pdf`);
                     App.ui.showAlert('Relatório PDF gerado com sucesso!');
                 } else if (format === 'csv') {
-                    // A função _generateCSV foi removida, então a lógica precisa ser adicionada aqui se necessário
                     let csvContent = "\uFEFF" + fullHeaders.map(h => `"${h}"`).join(';') + '\n';
                     csvContent += body.map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(';')).join('\n');
                     const encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
