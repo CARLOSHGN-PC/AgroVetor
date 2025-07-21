@@ -1,4 +1,4 @@
-// server.js - Backend com Relatórios Corrigidos e Melhorados (Versão Final)
+// server.js - Backend com Correção Definitiva de Layout do PDF
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -62,7 +62,7 @@ try {
     doc.moveDown(3);
   };
 
-  // --- ROTA DE BROCAMENTO PDF (LÓGICA ATUALIZADA) ---
+  // --- ROTA DE BROCAMENTO PDF (LÓGICA CORRIGIDA) ---
   app.get('/reports/brocamento/pdf', async (req, res) => {
     try {
       const filters = req.query;
@@ -108,6 +108,13 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
+          // *** LÓGICA DE CONTROLE DE PÁGINA ***
+          // Se o conteúdo restante for ultrapassar a margem inferior, cria uma nova página
+          if (doc.y > doc.page.height - 150) { // 150 é uma margem de segurança
+              doc.addPage();
+              await generatePdfHeader(doc, title);
+          }
+
           doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, { continued: false });
           doc.moveDown(0.5);
 
@@ -133,7 +140,13 @@ try {
       
       const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
       const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
-      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
+      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalBrocado) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
+
+      // *** LÓGICA DE CONTROLE DE PÁGINA PARA O RESUMO FINAL ***
+      if (doc.y > doc.page.height - 100) {
+          doc.addPage();
+          await generatePdfHeader(doc, title);
+      }
 
       doc.moveDown(2);
       doc.fontSize(12).font('Helvetica-Bold').text('Resumo Geral do Período');
@@ -150,27 +163,7 @@ try {
     }
   });
 
-  app.get('/reports/brocamento/csv', async (req, res) => {
-    try {
-      const data = await getFilteredData('registros', req.query);
-      if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
-      
-      const filePath = path.join(os.tmpdir(), `brocamento_${Date.now()}.csv`);
-      const csvWriter = createObjectCsvWriter({
-        path: filePath,
-        header: [
-            {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'},
-            {id: 'corte', title: 'Corte'}, {id: 'entrenos', title: 'Entrenós'}, {id: 'brocado', title: 'Brocado'},
-            {id: 'brocamento', title: 'Brocamento (%)'}
-        ]
-      });
-      const records = data.map(r => ({ ...r, fazenda: `${r.codigo} - ${r.fazenda}` }));
-      await csvWriter.writeRecords(records);
-      res.download(filePath);
-    } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
-  });
-
-  // --- ROTAS DE RELATÓRIO DE PERDA ---
+  // --- ROTAS DE RELATÓRIO DE PERDA (SEM ALTERAÇÃO, MAS INCLUÍDAS PARA COMPLETUDE) ---
 
   app.get('/reports/perda/pdf', async (req, res) => {
     try {
@@ -227,6 +220,26 @@ try {
       }
       
       const csvWriter = createObjectCsvWriter({ path: filePath, header });
+      await csvWriter.writeRecords(records);
+      res.download(filePath);
+    } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
+  });
+  
+  app.get('/reports/brocamento/csv', async (req, res) => {
+    try {
+      const data = await getFilteredData('registros', req.query);
+      if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+      
+      const filePath = path.join(os.tmpdir(), `brocamento_${Date.now()}.csv`);
+      const csvWriter = createObjectCsvWriter({
+        path: filePath,
+        header: [
+            {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'},
+            {id: 'corte', title: 'Corte'}, {id: 'entrenos', title: 'Entrenós'}, {id: 'brocado', title: 'Brocado'},
+            {id: 'brocamento', title: 'Brocamento (%)'}
+        ]
+      });
+      const records = data.map(r => ({ ...r, fazenda: `${r.codigo} - ${r.fazenda}` }));
       await csvWriter.writeRecords(records);
       res.download(filePath);
     } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
