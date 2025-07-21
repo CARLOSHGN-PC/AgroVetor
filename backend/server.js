@@ -1,9 +1,9 @@
-// server.js - Backend com Geração de PDF Refeita para Precisão Absoluta
+// server.js - Backend com Correção de Travamento (Crash Fix)
 
 const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
-const PDFDocument = require('pdfkit'); // Usando a base do PDFKit para controle manual
+const PDFDocument = require('pdfkit-table');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
@@ -60,20 +60,30 @@ try {
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center', valign: 'center' });
     doc.fontSize(10).font('Helvetica').text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, doc.page.width - doc.page.margins.right - 150, 45, { align: 'right', width: 150 });
     doc.y = 80;
-    return doc.y; // Retorna a posição Y inicial para o conteúdo
   };
 
   // --- ROTA DE BROCAMENTO PDF (LÓGICA REFEITA) ---
   app.get('/reports/brocamento/pdf', async (req, res) => {
+    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+    
+    // Prepara o stream de resposta ANTES de qualquer operação assíncrona
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=relatorio_brocamento.pdf');
+    doc.pipe(res);
+
     try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
-      if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
+      if (data.length === 0) {
+        doc.text('Nenhum dado encontrado para os filtros selecionados.');
+        doc.end();
+        return; // Encerra a execução
+      }
       
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
-      fazendasSnapshot.forEach(doc => {
-        fazendasData[doc.data().code] = doc.data();
+      fazendasSnapshot.forEach(docSnap => {
+        fazendasData[docSnap.data().code] = docSnap.data();
       });
 
       const enrichedData = data.map(reg => {
@@ -85,53 +95,28 @@ try {
       const isModelB = filters.tipoRelatorio === 'B';
       const title = 'Relatório de Inspeção de Broca';
       
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename=relatorio_brocamento.pdf');
-      const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
-      doc.pipe(res);
-
-      let currentY = await generatePdfHeader(doc, title);
+      await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      const columnPositions = [30, 185, 250, 315, 398, 440, 505, 555, 605, 655, 715, 780]; // Posições X de cada coluna
-      const rowHeight = 15;
-      const headerY = currentY;
-
-      // Função para desenhar uma linha da tabela manualmente
-      const drawRow = (dataRow, y, isHeader = false) => {
-        if (isHeader) {
-            doc.font('Helvetica-Bold').fontSize(8);
-            doc.rect(columnPositions[0], y, doc.page.width - 60, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
-            doc.fillColor('black');
-        } else {
-            doc.font('Helvetica').fontSize(8);
-        }
-        dataRow.forEach((cell, i) => {
-            doc.text(cell, columnPositions[i] + 5, y + 4, { width: columnPositions[i+1] - columnPositions[i] - 10, align: 'left'});
-        });
-        return y + rowHeight;
-      };
-
-      // Função para verificar se precisa de uma nova página
-      const checkPageBreak = async (y) => {
-        if (y > doc.page.height - 60) { // 60 = margem inferior + espaço para totais
-            doc.addPage();
-            return await generatePdfHeader(doc, title);
-        }
-        return y;
-      };
+      const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 72]; 
       
       if (!isModelB) { // Modelo A
-        currentY = await checkPageBreak(currentY);
-        currentY = drawRow(headers, currentY, true);
-        enrichedData.forEach(r => {
-            currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY);
-            currentY = checkPageBreak(currentY).then(newY => {
-                if (newY !== currentY) { // Se houve quebra de página
-                    currentY = drawRow(headers, newY, true); // Desenha o cabeçalho novamente
-                }
-                return newY;
-            });
+        const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
+        const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
+        const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
+        const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
+        const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
+        const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
+        const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
+        const footers = [['TOTAL GERAL', '', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent]];
+        
+        await doc.table({ headers, rows, footers }, {
+            x: doc.page.margins.left,
+            width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+            prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+            prepareRow: () => doc.font('Helvetica').fontSize(8),
+            prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8),
+            columnsSize: columnWidths,
         });
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -142,24 +127,16 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
-          currentY = await checkPageBreak(currentY);
-          doc.y = currentY;
-          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, { continued: false });
-          currentY = doc.y + 5;
+          if (doc.y > doc.page.height - 150) {
+              doc.addPage();
+              await generatePdfHeader(doc, title);
+          }
 
-          currentY = await checkPageBreak(currentY);
-          currentY = drawRow(headers.slice(1), currentY, true);
+          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, { continued: false });
+          doc.moveDown(0.5);
 
           const farmData = groupedData[fazendaKey];
-          farmData.forEach(r => {
-              currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY);
-              currentY = checkPageBreak(currentY).then(newY => {
-                if (newY !== currentY) {
-                    currentY = drawRow(headers.slice(1), newY, true);
-                }
-                return newY;
-              });
-          });
+          const rows = farmData.map(r => [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
           const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
@@ -168,34 +145,48 @@ try {
           const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
-          doc.font('Helvetica-Bold').fontSize(8).text(
-            `SUBTOTAL:  BASE ${subTotalBase} | MEIO ${subTotalMeio} | TOPO ${subTotalTopo} | ENTRENÓS ${subTotalEntrenos} | BROCADO ${subTotalBrocado} | PONDERADO ${subTotalPercent}`,
-            doc.page.margins.left, currentY + 5, { align: 'right' }
-          );
-          currentY += 25;
+          const footers = [['SUBTOTAL', '', '', '', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent]];
+
+          await doc.table({
+            headers: headers.slice(1),
+            rows,
+            footers
+          }, { 
+              x: doc.page.margins.left,
+              width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+              prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+              prepareRow: () => doc.font('Helvetica').fontSize(8),
+              prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8),
+              columnsSize: columnWidths.slice(1)
+          });
+          doc.moveDown();
         }
+
+        const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
+        const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
+        const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
+        const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
+        const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
+        const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
+
+        if (doc.y > doc.page.height - 100) {
+            doc.addPage();
+            await generatePdfHeader(doc, title);
+        }
+
+        doc.moveDown(3);
+        doc.font('Helvetica-Bold').fontSize(10);
+        doc.text(
+          `TOTAL GERAL:  BASE ${grandTotalBase} | MEIO ${grandTotalMeio} | TOPO ${grandTotalTopo} | ENTRENÓS ${grandTotalEntrenos} | BROCADO ${grandTotalBrocado} | PONDERADO ${totalPercent}`
+        );
       }
       
-      const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
-      const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
-      const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
-      const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
-      const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
-      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
-
-      currentY = await checkPageBreak(currentY);
-      doc.y = currentY;
-
-      doc.moveDown(3);
-      doc.font('Helvetica-Bold').fontSize(10);
-      doc.text(
-        `TOTAL GERAL:  BASE ${grandTotalBase} | MEIO ${grandTotalMeio} | TOPO ${grandTotalTopo} | ENTRENÓS ${grandTotalEntrenos} | BROCADO ${grandTotalBrocado} | PONDERADO ${totalPercent}`
-      );
-
       doc.end();
     } catch (error) { 
         console.error("Erro no PDF de Brocamento:", error);
-        res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
+        if (!res.headersSent) {
+            res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
+        }
     }
   });
 
@@ -221,18 +212,23 @@ try {
   });
 
   app.get('/reports/perda/pdf', async (req, res) => {
+    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
+    doc.pipe(res);
+
     try {
       const filters = req.query;
       const data = await getFilteredData('perdas', filters);
-      if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+      if (data.length === 0) {
+        doc.text('Nenhum dado encontrado.');
+        doc.end();
+        return;
+      }
 
       const isDetailed = filters.tipoRelatorio === 'B';
       const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
       
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
-      const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
-      doc.pipe(res);
       await generatePdfHeader(doc, title);
 
       let headers, rows;
@@ -250,7 +246,13 @@ try {
           prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') 
       });
       doc.end();
-    } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
+    } catch (error) { 
+        console.error("Erro no PDF de Perda:", error);
+        if (!res.headersSent) {
+            doc.text(`Erro ao gerar relatório: ${error.message}`);
+            doc.end();
+        }
+    }
   });
 
   app.get('/reports/perda/csv', async (req, res) => {
