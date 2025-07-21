@@ -92,16 +92,25 @@ try {
       await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      // Larguras de coluna definidas manualmente para preencher a página A4 Paisagem (largura útil ~782pts)
-      const columnWidths = [160, 60, 60, 80, 40, 60, 50, 50, 50, 60, 72]; 
+      const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 72]; 
+      
+      const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
+      const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
+      const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
+      const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
+      const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
+      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
       if (!isModelB) { // Modelo A
         const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
-        await doc.table({ headers, rows }, {
-            x: doc.page.margins.left, // *** FORÇA O ALINHAMENTO À ESQUERDA ***
+        const footers = [['TOTAL GERAL', '', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent]];
+        
+        await doc.table({ headers, rows, footers }, {
+            x: doc.page.margins.left,
             width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
             prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
             prepareRow: () => doc.font('Helvetica').fontSize(8),
+            prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8),
             columnsSize: columnWidths,
         });
       } else { // Modelo B
@@ -124,17 +133,6 @@ try {
           const farmData = groupedData[fazendaKey];
           const rows = farmData.map(r => [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
           
-          await doc.table({
-            headers: headers.slice(1),
-            rows,
-          }, { 
-              x: doc.page.margins.left, // *** FORÇA O ALINHAMENTO À ESQUERDA ***
-              width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
-              prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
-              prepareRow: () => doc.font('Helvetica').fontSize(8),
-              columnsSize: columnWidths.slice(1)
-          });
-
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
           const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
           const subTotalBase = farmData.reduce((sum, r) => sum + r.base, 0);
@@ -142,32 +140,35 @@ try {
           const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
-          doc.font('Helvetica-Bold').fontSize(8).text(
-            `SUBTOTAL:  BASE ${subTotalBase} | MEIO ${subTotalMeio} | TOPO ${subTotalTopo} | ENTRENÓS ${subTotalEntrenos} | BROCADO ${subTotalBrocado} | PONDERADO ${subTotalPercent}`,
-            { align: 'right' }
-          );
-          doc.moveDown(2);
+          const footers = [['SUBTOTAL', '', '', '', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent]];
+
+          await doc.table({
+            headers: headers.slice(1),
+            rows,
+            footers
+          }, { 
+              x: doc.page.margins.left,
+              width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+              prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+              prepareRow: () => doc.font('Helvetica').fontSize(8),
+              prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8),
+              columnsSize: columnWidths.slice(1)
+          });
+          doc.moveDown();
         }
+
+        if (doc.y > doc.page.height - 100) {
+            doc.addPage();
+            await generatePdfHeader(doc, title);
+        }
+
+        doc.moveDown(3);
+        doc.font('Helvetica-Bold').fontSize(10);
+        doc.text(
+          `TOTAL GERAL:  BASE ${grandTotalBase} | MEIO ${grandTotalMeio} | TOPO ${grandTotalTopo} | ENTRENÓS ${grandTotalEntrenos} | BROCADO ${grandTotalBrocado} | PONDERADO ${totalPercent}`
+        );
       }
       
-      const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
-      const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
-      const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
-      const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
-      const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
-      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
-
-      if (doc.y > doc.page.height - 100) {
-          doc.addPage();
-          await generatePdfHeader(doc, title);
-      }
-
-      doc.moveDown(3);
-      doc.font('Helvetica-Bold').fontSize(10);
-      doc.text(
-        `TOTAL GERAL:  BASE ${grandTotalBase} | MEIO ${grandTotalMeio} | TOPO ${grandTotalTopo} | ENTRENÓS ${grandTotalEntrenos} | BROCADO ${grandTotalBrocado} | PONDERADO ${totalPercent}`
-      );
-
       doc.end();
     } catch (error) { 
         console.error("Erro no PDF de Brocamento:", error);
