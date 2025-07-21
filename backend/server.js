@@ -1,4 +1,4 @@
-// server.js - Backend com Correção Definitiva de Layout do PDF
+// server.js - Backend com Correção Definitiva de Layout e Totais
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -108,9 +108,7 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
-          // *** LÓGICA DE CONTROLE DE PÁGINA ***
-          // Se o conteúdo restante for ultrapassar a margem inferior, cria uma nova página
-          if (doc.y > doc.page.height - 150) { // 150 é uma margem de segurança
+          if (doc.y > doc.page.height - 150) {
               doc.addPage();
               await generatePdfHeader(doc, title);
           }
@@ -121,20 +119,20 @@ try {
           const farmData = groupedData[fazendaKey];
           const rows = farmData.map(r => [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
           
-          const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
-          const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
-          const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
-
           await doc.table({
             headers: headers.slice(1),
             rows,
-            footers: [['', '', '', 'Subtotal', subTotalEntrenos, '', '', '', subTotalBrocado, subTotalPercent]]
           }, { 
               prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
               prepareRow: () => doc.font('Helvetica').fontSize(8),
-              prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8),
           });
-          doc.moveDown();
+
+          const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
+          const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
+          const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
+          
+          doc.font('Helvetica-Bold').fontSize(8).text(`Subtotal: Entrenós: ${subTotalEntrenos} | Brocado: ${subTotalBrocado} | Brocamento Ponderado: ${subTotalPercent}`, { align: 'right' });
+          doc.moveDown(2);
         }
       }
       
@@ -142,19 +140,16 @@ try {
       const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
       const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalBrocado) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-      // *** LÓGICA DE CONTROLE DE PÁGINA PARA O RESUMO FINAL ***
       if (doc.y > doc.page.height - 100) {
           doc.addPage();
           await generatePdfHeader(doc, title);
       }
 
-      doc.moveDown(2);
-      doc.fontSize(12).font('Helvetica-Bold').text('Resumo Geral do Período');
-      const summaryTable = {
-          headers: ['Total Entrenós', 'Total Brocado', 'Brocamento Ponderado (%)'],
-          rows: [[grandTotalEntrenos, grandTotalBrocado, totalPercent]]
-      };
-      await doc.table(summaryTable, { width: 400 });
+      doc.moveDown(3);
+      doc.font('Helvetica-Bold').fontSize(10);
+      doc.text(`Total Geral Entrenós: ${grandTotalEntrenos}`);
+      doc.text(`Total Geral Brocado: ${grandTotalBrocado}`);
+      doc.text(`Brocamento Ponderado Total: ${totalPercent}`);
 
       doc.end();
     } catch (error) { 
@@ -163,7 +158,27 @@ try {
     }
   });
 
-  // --- ROTAS DE RELATÓRIO DE PERDA (SEM ALTERAÇÃO, MAS INCLUÍDAS PARA COMPLETUDE) ---
+  // --- OUTRAS ROTAS (SEM ALTERAÇÃO) ---
+
+  app.get('/reports/brocamento/csv', async (req, res) => {
+    try {
+      const data = await getFilteredData('registros', req.query);
+      if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+      
+      const filePath = path.join(os.tmpdir(), `brocamento_${Date.now()}.csv`);
+      const csvWriter = createObjectCsvWriter({
+        path: filePath,
+        header: [
+            {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'},
+            {id: 'corte', title: 'Corte'}, {id: 'entrenos', title: 'Entrenós'}, {id: 'brocado', title: 'Brocado'},
+            {id: 'brocamento', title: 'Brocamento (%)'}
+        ]
+      });
+      const records = data.map(r => ({ ...r, fazenda: `${r.codigo} - ${r.fazenda}` }));
+      await csvWriter.writeRecords(records);
+      res.download(filePath);
+    } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
+  });
 
   app.get('/reports/perda/pdf', async (req, res) => {
     try {
@@ -220,26 +235,6 @@ try {
       }
       
       const csvWriter = createObjectCsvWriter({ path: filePath, header });
-      await csvWriter.writeRecords(records);
-      res.download(filePath);
-    } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
-  });
-  
-  app.get('/reports/brocamento/csv', async (req, res) => {
-    try {
-      const data = await getFilteredData('registros', req.query);
-      if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
-      
-      const filePath = path.join(os.tmpdir(), `brocamento_${Date.now()}.csv`);
-      const csvWriter = createObjectCsvWriter({
-        path: filePath,
-        header: [
-            {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'},
-            {id: 'corte', title: 'Corte'}, {id: 'entrenos', title: 'Entrenós'}, {id: 'brocado', title: 'Brocado'},
-            {id: 'brocamento', title: 'Brocamento (%)'}
-        ]
-      });
-      const records = data.map(r => ({ ...r, fazenda: `${r.codigo} - ${r.fazenda}` }));
       await csvWriter.writeRecords(records);
       res.download(filePath);
     } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
