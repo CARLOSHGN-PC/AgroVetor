@@ -1,4 +1,4 @@
-// server.js - Backend com Correção Definitiva de Layout e Totais
+// server.js - Backend com Correção Definitiva de Alinhamento de Layout
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -51,14 +51,14 @@ try {
         const logoUrl = configDoc.data().logoUrl;
         const response = await axios.get(logoUrl, { responseType: 'arraybuffer' });
         const logoBuffer = Buffer.from(response.data, 'binary');
-        doc.image(logoBuffer, 30, 25, { width: 100 });
+        doc.image(logoBuffer, doc.page.margins.left, 25, { width: 100 });
       }
     } catch (error) {
       console.error("Não foi possível carregar o logotipo:", error.message);
     }
     
-    doc.fontSize(18).text(title, 30, 40, { align: 'center' });
-    doc.fontSize(10).text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, doc.page.width - 180, 45, { align: 'right', width: 150 });
+    doc.fontSize(18).text(title, { align: 'center', valign: 'center' });
+    doc.fontSize(10).text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, doc.page.width - doc.page.margins.right - 150, 45, { align: 'right', width: 150 });
     doc.y = 80; // Define uma posição inicial fixa após o cabeçalho
   };
 
@@ -97,7 +97,8 @@ try {
       if (!isModelB) { // Modelo A
         const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
         await doc.table({ headers, rows }, {
-            width: doc.page.width - 60, // Usa a largura total da página menos as margens
+            x: doc.page.margins.left, // *** FORÇA O ALINHAMENTO À ESQUERDA ***
+            width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
             prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
             prepareRow: () => doc.font('Helvetica').fontSize(8),
             columnsSize: columnWidths,
@@ -126,7 +127,8 @@ try {
             headers: headers.slice(1),
             rows,
           }, { 
-              width: doc.page.width - 60,
+              x: doc.page.margins.left, // *** FORÇA O ALINHAMENTO À ESQUERDA ***
+              width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
               prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
               prepareRow: () => doc.font('Helvetica').fontSize(8),
               columnsSize: columnWidths.slice(1)
@@ -217,7 +219,11 @@ try {
         rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total]);
       }
       
-      await doc.table({ headers, rows }, { prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') });
+      await doc.table({ headers, rows }, {
+          x: doc.page.margins.left,
+          width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+          prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') 
+      });
       doc.end();
     } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
   });
