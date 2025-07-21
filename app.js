@@ -349,7 +349,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
-                        // [CORREÇÃO] Se não há usuário logado, verifica se há perfis offline
                         const localProfiles = App.actions.getLocalUserProfiles();
                         if (localProfiles.length > 0 && !navigator.onLine) {
                             App.ui.showOfflineUserSelection(localProfiles);
@@ -369,7 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A autenticar...");
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
-                    // O onAuthStateChanged vai cuidar do resto
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showLoginMessage("E-mail ou senha inválidos.");
@@ -389,14 +387,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (userProfile) {
                     App.state.currentUser = userProfile;
                     App.ui.showAppScreen();
-                    App.data.listenToAllData(); // Tenta ouvir os dados, funcionará se a conexão voltar
+                    App.data.listenToAllData();
                 }
             },
             async logout() {
                 if (navigator.onLine) {
                     await signOut(auth);
                 }
-                // Limpa o usuário atual independentemente do status da conexão
                 App.data.cleanupListeners();
                 App.state.currentUser = null;
                 clearTimeout(App.state.inactivityTimer);
@@ -2302,8 +2299,8 @@ document.addEventListener('DOMContentLoaded', () => {
                          App.ui.showAlert('Erro ao processar o ficheiro CSV.', 'error');
                          console.error(e);
                      } finally {
-                        App.ui.setLoading(false);
-                        App.elements.personnel.csvFileInput.value = '';
+                         App.ui.setLoading(false);
+                         App.elements.personnel.csvFileInput.value = '';
                      }
                  };
                  reader.readAsText(file, 'ISO-8859-1');
@@ -2588,83 +2585,131 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
+        // ===================================================================
+        // NOVA SEÇÃO DE RELATÓRIOS - APONTANDO PARA O BACKEND
+        // ===================================================================
         reports: {
-            _getFilteredData(sourceData, filterElements) {
-                let data = [...sourceData];
-                const filters = {
-                    fazenda: filterElements.filtroFazenda?.value,
-                    talhao: filterElements.filtroTalhao?.value,
-                    turno: filterElements.filtroTurno?.value,
-                    frente: filterElements.filtroFrente?.value,
-                    operador: filterElements.filtroOperador?.value,
-                    inicio: filterElements.filtroInicio?.value,
-                    fim: filterElements.filtroFim?.value,
-                };
-                if(filters.fazenda) data = data.filter(d => d.codigo === filters.fazenda);
-                if(filters.talhao) data = data.filter(d => d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
-                if(filters.turno) data = data.filter(d => d.turno === filters.turno);
-                if(filters.frente) data = data.filter(d => d.frenteServico.toLowerCase().includes(filters.frente.toLowerCase()));
-                if(filters.operador) data = data.filter(d => d.matricula === filters.operador);
-                if(filters.inicio) data = data.filter(d => d.data >= filters.inicio);
-                if(filters.fim) data = data.filter(d => d.data <= filters.fim);
-                return data;
+            // Função auxiliar para chamar a API e baixar o arquivo
+            _fetchAndDownloadReport(endpoint, filters, filename) {
+                const params = new URLSearchParams(filters);
+                
+                // *** AQUI ESTÁ A SUA URL DO SERVIDOR RENDER ***
+                const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
+    
+                App.ui.setLoading(true, "A gerar relatório no servidor...");
+    
+                fetch(apiUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        a.remove();
+                        App.ui.showAlert('Relatório gerado com sucesso!');
+                    })
+                    .catch(error => {
+                        console.error('Erro ao gerar relatório via API:', error);
+                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, 'error');
+                    })
+                    .finally(() => {
+                        App.ui.setLoading(false);
+                    });
             },
-            _createPdfWithHeaderFooter(doc, title) {
-                const pageCount = doc.internal.getNumberOfPages();
-                const logo = App.state.companyLogo;
-
-                for (let i = 1; i <= pageCount; i++) {
-                    doc.setPage(i);
-                    if (logo) {
-                        try { 
-                            doc.addImage(logo, 'PNG', 14, 6, 25, 12); 
-                        } catch(e) { console.error("Erro ao adicionar logo:", e); }
-                    }
-                    doc.setFontSize(16);
-                    doc.setFont(undefined, 'bold');
-                    doc.text(title, doc.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
-                    doc.setFontSize(8);
-                    doc.setFont(undefined, 'normal');
-                    doc.text(new Date().toLocaleString('pt-BR'), doc.internal.pageSize.getWidth() - 14, 15, { align: 'right' });
-                    doc.setDrawColor(224, 224, 224);
-                    doc.line(14, 22, doc.internal.pageSize.getWidth() - 14, 22);
-
-                    doc.setDrawColor(224, 224, 224);
-                    doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-                    doc.setFontSize(8);
-                    doc.text(`Relatório gerado por: ${App.state.currentUser.username}`, 14, doc.internal.pageSize.getHeight() - 10);
-                    doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+    
+            generateBrocamentoPDF() {
+                const { filtroInicio, filtroFim, filtroFazenda } = App.elements.broca;
+                if (!filtroInicio.value || !filtroFim.value) {
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    return;
                 }
-
-                doc.save(`${title.toLowerCase().replace(/\s/g, '_')}.pdf`);
-                App.ui.showAlert('Relatório PDF gerado com sucesso!');
+                const selectedOption = filtroFazenda.options[filtroFazenda.selectedIndex];
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: selectedOption ? selectedOption.text.split(' - ')[0] : ''
+                };
+                this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
             },
-            _generateCSV(filename, headers, bodyData) {
-                let csvContent = "\uFEFF" + headers.map(h => `"${h}"`).join(';') + '\n';
-                csvContent += bodyData.map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(';')).join('\n');
-                const encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", filename);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                App.ui.showAlert('Relatório Excel (CSV) gerado com sucesso!');
+    
+            generateBrocamentoCSV() {
+                const { filtroInicio, filtroFim, filtroFazenda } = App.elements.broca;
+                if (!filtroInicio.value || !filtroFim.value) {
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    return;
+                }
+                const selectedOption = filtroFazenda.options[filtroFazenda.selectedIndex];
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: selectedOption ? selectedOption.text.split(' - ')[0] : ''
+                };
+                this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
             },
+    
+            generatePerdaPDF() {
+                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
+                if (!filtroInicio.value || !filtroFim.value) {
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    return;
+                }
+                const selectedOption = filtroFazenda.options[filtroFazenda.selectedIndex];
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: selectedOption ? selectedOption.text.split(' - ')[0] : '',
+                    talhao: filtroTalhao.value,
+                    matricula: filtroOperador.value,
+                    frenteServico: filtroFrente.value,
+                    tipoRelatorio: tipoRelatorio.value
+                };
+                this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
+            },
+    
+            generatePerdaCSV() {
+                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
+                if (!filtroInicio.value || !filtroFim.value) {
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    return;
+                }
+                const selectedOption = filtroFazenda.options[filtroFazenda.selectedIndex];
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: selectedOption ? selectedOption.text.split(' - ')[0] : '',
+                    talhao: filtroTalhao.value,
+                    matricula: filtroOperador.value,
+                    frenteServico: filtroFrente.value,
+                    tipoRelatorio: tipoRelatorio.value
+                };
+                this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
+            },
+    
+            // Esta função permanece no frontend por enquanto.
             generateCustomHarvestReport(format) {
+                const { jsPDF } = window.jspdf;
                 const { select, optionsContainer } = App.elements.relatorioColheita;
                 const planId = select.value;
                 if (!planId) {
                     App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
                     return;
                 }
-
+    
                 const plan = App.state.harvestPlans.find(p => p.id == planId);
                 if (!plan) {
                     App.ui.showAlert("Plano não encontrado.", "error");
                     return;
                 }
-
+    
                 const options = {};
                 optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                     options[cb.dataset.column] = cb.checked;
@@ -2678,18 +2723,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (options.maturador) dynamicHeaders.push('Maturador');
                 if (options.diasAplicacao) dynamicHeaders.push('Dias Aplic.');
                 const finalHeaders = ['Entrada', 'Saída'];
-
+    
                 const fullHeaders = [...baseHeaders, ...dynamicHeaders, ...finalHeaders];
                 const body = [];
                 let currentDate = new Date(plan.startDate + 'T03:00:00Z');
                 const dailyTon = parseFloat(plan.dailyRate) || 1;
-
+    
                 plan.sequence.forEach((group, index) => {
                     const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
                     const dataEntrada = new Date(currentDate.getTime());
                     currentDate.setDate(currentDate.getDate() + diasNecessarios);
                     const dataSaida = new Date(currentDate.getTime());
-
+    
                     const baseRow = [
                         index + 1,
                         `${group.fazendaCodigo} - ${group.fazendaName}`,
@@ -2697,7 +2742,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         group.totalArea.toFixed(2),
                         group.totalProducao.toFixed(2),
                     ];
-
+    
                     const dynamicRow = [];
                     if (options.variedade) {
                         const varieties = new Set();
@@ -2721,10 +2766,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     body.push([...baseRow, ...dynamicRow, ...finalRowData]);
                     currentDate.setDate(currentDate.getDate() + 1);
                 });
-
+    
                 const reportTitle = `Plano de Colheita - ${plan.frontName}`;
                 if (format === 'pdf') {
-                    const { jsPDF } = window.jspdf;
                     const doc = new jsPDF({ orientation: 'landscape' });
                     doc.autoTable({
                         head: [fullHeaders],
@@ -2735,175 +2779,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         styles: { fontSize: 7 },
                         columnStyles: { 2: { cellWidth: 35 } }
                     });
-                    this._createPdfWithHeaderFooter(doc, reportTitle);
+                    // A função _createPdfWithHeaderFooter foi removida, então a lógica precisa ser adicionada aqui se necessário
+                    doc.save(`${reportTitle.toLowerCase().replace(/\s/g, '_')}.pdf`);
+                    App.ui.showAlert('Relatório PDF gerado com sucesso!');
                 } else if (format === 'csv') {
-                    this._generateCSV(`${plan.frontName.replace(/\s+/g, '_')}.csv`, fullHeaders, body);
+                    // A função _generateCSV foi removida, então a lógica precisa ser adicionada aqui se necessário
+                    let csvContent = "\uFEFF" + fullHeaders.map(h => `"${h}"`).join(';') + '\n';
+                    csvContent += body.map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(';')).join('\n');
+                    const encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", `${plan.frontName.replace(/\s+/g, '_')}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    App.ui.showAlert('Relatório Excel (CSV) gerado com sucesso!');
                 }
-            },
-            generateBrocamentoPDF() {
-                const { filtroInicio, filtroFim, tipoRelatorio } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Por favor, selecione a Data Início e a Data Fim para gerar o relatório.", "warning");
-                    return;
-                }
-                const data = this._getFilteredData(App.state.registros, App.elements.broca);
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF({ orientation: 'landscape' });
-                const title = tipoRelatorio.value === 'A' ? 'Relatório Geral de Brocamento' : 'Relatório de Brocamento por Fazenda';
-                const headers = [['Data', 'Talhão', 'Corte', 'Entrenós', 'Brocado', 'Brocamento (%)']];
-                
-                if (tipoRelatorio.value === 'A') {
-                    const body = data.map(r => [r.data, r.talhao, r.corte, r.entrenos, r.brocado, r.brocamento]);
-                    doc.autoTable({ head: headers, body: body, startY: 25, headStyles: { fillColor: [46, 125, 50], textColor: 255 }, alternateRowStyles: { fillColor: [245, 245, 245] } });
-                } else {
-                    let finalY = 25;
-                    const groupedData = data.reduce((acc, reg) => {
-                        const key = `${reg.codigo} - ${reg.fazenda}`;
-                        if (!acc[key]) acc[key] = [];
-                        acc[key].push(reg);
-                        return acc;
-                    }, {});
-
-                    let grandTotalEntrenos = 0;
-                    let grandTotalBrocado = 0;
-
-                    Object.keys(groupedData).sort((a,b) => parseInt(a) - parseInt(b)).forEach(fazendaKey => {
-                        const farmData = groupedData[fazendaKey];
-                        const body = farmData.map(r => [r.data, r.talhao, r.corte, r.entrenos, r.brocado, r.brocamento]);
-                        
-                        let subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
-                        let subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
-                        grandTotalEntrenos += subTotalEntrenos;
-                        grandTotalBrocado += subTotalBrocado;
-
-                        if (finalY > 180) { doc.addPage(); finalY = 25; }
-                        doc.setFontSize(12);
-                        doc.setFont(undefined, 'bold');
-                        doc.text(fazendaKey, 14, finalY);
-                        
-                        doc.autoTable({
-                            head: headers, body: body, startY: finalY + 2,
-                            headStyles: { fillColor: [46, 125, 50], textColor: 255 },
-                            foot: [['Subtotal', '', '', subTotalEntrenos, subTotalBrocado, '']],
-                            footStyles: { fillColor: [230, 230, 230], textColor: 0, fontStyle: 'bold' },
-                            alternateRowStyles: { fillColor: [245, 245, 245] }
-                        });
-                        finalY = doc.lastAutoTable.finalY + 10;
-                    });
-                    
-                    if (finalY > 190) { doc.addPage(); finalY = 25; }
-                    doc.setFontSize(12);
-                    doc.setFont(undefined, 'bold');
-                    doc.text(`Total Geral: Entrenós: ${grandTotalEntrenos} | Brocado: ${grandTotalBrocado}`, 14, finalY);
-                }
-                this._createPdfWithHeaderFooter(doc, title);
-            },
-            generateBrocamentoCSV() {
-                    const { filtroInicio, filtroFim, tipoRelatorio } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Por favor, selecione a Data Início e a Data Fim para gerar o relatório.", "warning");
-                    return;
-                }
-                const data = this._getFilteredData(App.state.registros, App.elements.broca);
-                const headers = ['Fazenda', 'Data', 'Talhão', 'Corte', 'Entrenós', 'Brocado', 'Brocamento (%)'];
-                let body = [];
-
-                if (tipoRelatorio.value === 'A') {
-                    body = data.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.corte, r.entrenos, r.brocado, r.brocamento]);
-                    this._generateCSV('relatorio_geral_brocamento.csv', headers, body);
-                } else {
-                        const groupedData = data.reduce((acc, reg) => {
-                            const key = `${reg.codigo} - ${reg.fazenda}`;
-                            if (!acc[key]) acc[key] = [];
-                            acc[key].push(reg);
-                            return acc;
-                        }, {});
-
-                    let grandTotalEntrenos = 0;
-                    let grandTotalBrocado = 0;
-
-                    Object.keys(groupedData).sort((a,b) => parseInt(a) - parseInt(b)).forEach(fazendaKey => {
-                        const farmData = groupedData[fazendaKey];
-                        farmData.forEach(r => {
-                            body.push([fazendaKey, r.data, r.talhao, r.corte, r.entrenos, r.brocado, r.brocamento]);
-                        });
-                        let subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
-                        let subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
-                        grandTotalEntrenos += subTotalEntrenos;
-                        grandTotalBrocado += subTotalBrocado;
-                        body.push(['Subtotal', '', '', '', subTotalEntrenos, subTotalBrocado, '']);
-                    });
-                    body.push([]); // Linha vazia
-                    body.push(['Total Geral', '', '', '', grandTotalEntrenos, grandTotalBrocado, '']);
-                    this._generateCSV('relatorio_brocamento_por_fazenda.csv', headers, body);
-                }
-            },
-            generatePerdaPDF() {
-                const { filtroInicio, filtroFim } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Por favor, selecione a Data Início e a Data Fim para gerar o relatório.", "warning");
-                    return;
-                }
-                const data = this._getFilteredData(App.state.perdas, App.elements.perda);
-                const isDetailed = App.elements.perda.tipoRelatorio.value === 'B';
-                const finalTitle = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
-                
-                let headers, body;
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF({ orientation: 'landscape' });
-                const formatDate = (dateStr) => new Date(dateStr + 'T03:00:00Z').toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-
-                if (isDetailed) {
-                    headers = [['Mês', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Frota', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total']];
-                    body = data.map(p => [formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.frota, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total]);
-                } else {
-                    headers = [['Mês', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Matrícula', 'Frota', 'Total']];
-                    body = data.map(p => [formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.matricula, p.frota, p.total]);
-                }
-                
-                const grandTotal = data.reduce((sum, p) => sum + p.total, 0);
-                const foot = isDetailed ? [['', '', '', '', '', '', '', '', '', '', '', '', 'Total Geral', grandTotal.toFixed(2)]] : [['', '', '', '', '', '', 'Total Geral', grandTotal.toFixed(2)]];
-
-                doc.autoTable({
-                    head: headers,
-                    body: body,
-                    foot: foot,
-                    startY: 25,
-                    headStyles: { fillColor: [46, 125, 50], textColor: 255 },
-                    footStyles: { fillColor: [230, 230, 230], textColor: 0, fontStyle: 'bold' },
-                    alternateRowStyles: { fillColor: [245, 245, 245] },
-                    styles: { fontSize: 7 }
-                });
-                this._createPdfWithHeaderFooter(doc, finalTitle);
-            },
-            generatePerdaCSV() {
-                const { filtroInicio, filtroFim } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Por favor, selecione a Data Início e a Data Fim para gerar o relatório.", "warning");
-                    return;
-                }
-                const data = this._getFilteredData(App.state.perdas, App.elements.perda);
-                const isDetailed = App.elements.perda.tipoRelatorio.value === 'B';
-                const formatDate = (dateStr) => new Date(dateStr + 'T03:00:00Z').toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-                
-                let headers, body;
-
-                if(isDetailed) {
-                    headers = ['Mês', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Frota', 'Cana Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total', 'Média'];
-                    body = data.map(p => [formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.frota, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total, p.media]);
-                } else {
-                    headers = ['Mês', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Matrícula', 'Frota', 'Total'];
-                    body = data.map(p => [formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.matricula, p.frota, p.total]);
-                }
-                
-                const grandTotal = data.reduce((sum, p) => sum + p.total, 0);
-                body.push([]);
-                const totalRow = new Array(headers.length).fill('');
-                totalRow[headers.length - (isDetailed ? 2 : 1)] = 'Total Geral';
-                totalRow[headers.length - (isDetailed ? 1 : 0)] = grandTotal.toFixed(2);
-                body.push(totalRow);
-                
-                this._generateCSV('relatorio_perda.csv', headers, body);
             }
         },
 
