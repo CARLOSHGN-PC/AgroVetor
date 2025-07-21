@@ -57,12 +57,12 @@ try {
       console.error("Não foi possível carregar o logotipo:", error.message);
     }
     
-    doc.fontSize(18).text(title, { align: 'center', valign: 'center' });
-    doc.fontSize(10).text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, doc.page.width - 180, 30, { align: 'right', width: 150 });
-    doc.moveDown(3);
+    doc.fontSize(18).text(title, 30, 40, { align: 'center' });
+    doc.fontSize(10).text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, doc.page.width - 180, 45, { align: 'right', width: 150 });
+    doc.y = 80; // Define uma posição inicial fixa após o cabeçalho
   };
 
-  // --- ROTA DE BROCAMENTO PDF (LÓGICA CORRIGIDA) ---
+  // --- ROTA DE BROCAMENTO PDF (LÓGICA REFEITA) ---
   app.get('/reports/brocamento/pdf', async (req, res) => {
     try {
       const filters = req.query;
@@ -92,12 +92,12 @@ try {
       await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      // Larguras de coluna definidas manualmente para preencher a página A4 Paisagem (largura útil ~782pts)
       const columnWidths = [152, 60, 60, 80, 40, 60, 50, 50, 50, 60, 60]; 
 
       if (!isModelB) { // Modelo A
         const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
         await doc.table({ headers, rows }, {
+            width: doc.page.width - 60, // Usa a largura total da página menos as margens
             prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
             prepareRow: () => doc.font('Helvetica').fontSize(8),
             columnsSize: columnWidths,
@@ -123,9 +123,10 @@ try {
           const rows = farmData.map(r => [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
           
           await doc.table({
-            headers: headers.slice(1), // Remove a primeira coluna 'Fazenda'
+            headers: headers.slice(1),
             rows,
           }, { 
+              width: doc.page.width - 60,
               prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
               prepareRow: () => doc.font('Helvetica').fontSize(8),
               columnsSize: columnWidths.slice(1)
