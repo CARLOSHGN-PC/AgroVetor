@@ -1,4 +1,4 @@
-// server.js - Backend com Relatórios Corrigidos e Melhorados
+// server.js - Backend com Relatórios Corrigidos e Melhorados (Versão Completa)
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -41,7 +41,7 @@ try {
     if (filters.talhao) data = data.filter(d => d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
     if (filters.frenteServico) data = data.filter(d => d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
     
-    return data;
+    return data.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
   const generatePdfHeader = async (doc, title) => {
@@ -62,21 +62,20 @@ try {
     doc.moveDown(3);
   };
 
-  // --- ROTA DE BROCAMENTO PDF (LÓGICA ATUALIZADA) ---
+  // --- ROTAS DE RELATÓRIO DE BROCAMENTO ---
+
   app.get('/reports/brocamento/pdf', async (req, res) => {
     try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
       if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
       
-      // Busca os dados das fazendas para pegar a variedade
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
       fazendasSnapshot.forEach(doc => {
         fazendasData[doc.data().code] = doc.data();
       });
 
-      // Adiciona a variedade aos dados do relatório
       const enrichedData = data.map(reg => {
           const farm = fazendasData[reg.codigo];
           const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === reg.talhao.toUpperCase());
@@ -95,9 +94,6 @@ try {
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       
-      let grandTotalEntrenos = 0;
-      let grandTotalBrocado = 0;
-
       if (!isModelB) { // Modelo A
         const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
         await doc.table({ headers, rows }, {
@@ -117,14 +113,14 @@ try {
           doc.moveDown(0.5);
 
           const farmData = groupedData[fazendaKey];
-          const rows = farmData.map(r => ['', r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
+          const rows = farmData.map(r => [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
           const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
           await doc.table({
-            headers: headers.slice(1), // Remove a primeira coluna 'Fazenda' do cabeçalho da tabela interna
+            headers: headers.slice(1), // Remove a primeira coluna 'Fazenda'
             rows,
             footers: [['', '', '', 'Subtotal', subTotalEntrenos, '', '', '', subTotalBrocado, subTotalPercent]]
           }, { 
@@ -136,13 +132,11 @@ try {
         }
       }
       
-      // Calcula os totais gerais
-      grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
-      grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
+      const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
+      const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
       const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-      // Adiciona o Resumo Geral no final
-      doc.moveDown(2);
+      doc.moveDown();
       doc.fontSize(12).font('Helvetica-Bold').text('Resumo Geral do Período');
       const summaryTable = {
           headers: ['Total Entrenós', 'Total Brocado', 'Brocamento Ponderado (%)'],
@@ -157,7 +151,87 @@ try {
     }
   });
 
-  // ... (outras rotas permanecem iguais, você pode atualizá-las depois com a mesma lógica)
+  app.get('/reports/brocamento/csv', async (req, res) => {
+    try {
+      const data = await getFilteredData('registros', req.query);
+      if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+      
+      const filePath = path.join(os.tmpdir(), `brocamento_${Date.now()}.csv`);
+      const csvWriter = createObjectCsvWriter({
+        path: filePath,
+        header: [
+            {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'},
+            {id: 'corte', title: 'Corte'}, {id: 'entrenos', title: 'Entrenós'}, {id: 'brocado', title: 'Brocado'},
+            {id: 'brocamento', title: 'Brocamento (%)'}
+        ]
+      });
+      const records = data.map(r => ({ ...r, fazenda: `${r.codigo} - ${r.fazenda}` }));
+      await csvWriter.writeRecords(records);
+      res.download(filePath);
+    } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
+  });
+
+  // --- ROTAS DE RELATÓRIO DE PERDA ---
+
+  app.get('/reports/perda/pdf', async (req, res) => {
+    try {
+      const filters = req.query;
+      const data = await getFilteredData('perdas', filters);
+      if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+      const isDetailed = filters.tipoRelatorio === 'B';
+      const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
+      const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
+      doc.pipe(res);
+      await generatePdfHeader(doc, title);
+
+      let headers, rows;
+      if (isDetailed) {
+        headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
+        rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total]);
+      } else {
+        headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
+        rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total]);
+      }
+      
+      await doc.table({ headers, rows }, { prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') });
+      doc.end();
+    } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
+  });
+
+  app.get('/reports/perda/csv', async (req, res) => {
+    try {
+      const filters = req.query;
+      const data = await getFilteredData('perdas', filters);
+      if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+      const isDetailed = filters.tipoRelatorio === 'B';
+      const filePath = path.join(os.tmpdir(), `perda_${Date.now()}.csv`);
+      let header, records;
+
+      if (isDetailed) {
+        header = [
+          {id: 'data', title: 'Data'}, {id: 'fazenda', title: 'Fazenda'}, {id: 'talhao', title: 'Talhão'}, {id: 'frenteServico', title: 'Frente'},
+          {id: 'turno', title: 'Turno'}, {id: 'operador', title: 'Operador'}, {id: 'canaInteira', title: 'C.Inteira'}, {id: 'tolete', title: 'Tolete'},
+          {id: 'toco', title: 'Toco'}, {id: 'ponta', title: 'Ponta'}, {id: 'estilhaco', title: 'Estilhaço'}, {id: 'pedaco', title: 'Pedaço'}, {id: 'total', title: 'Total'}
+        ];
+        records = data.map(p => ({ ...p, fazenda: `${p.codigo} - ${p.fazenda}` }));
+      } else {
+        header = [
+          {id: 'data', title: 'Data'}, {id: 'fazenda', title: 'Fazenda'}, {id: 'talhao', title: 'Talhão'}, {id: 'frenteServico', title: 'Frente'},
+          {id: 'turno', title: 'Turno'}, {id: 'operador', title: 'Operador'}, {id: 'total', title: 'Total'}
+        ];
+        records = data.map(p => ({ data: p.data, fazenda: `${p.codigo} - ${p.fazenda}`, talhao: p.talhao, frenteServico: p.frenteServico, turno: p.turno, operador: p.operador, total: p.total }));
+      }
+      
+      const csvWriter = createObjectCsvWriter({ path: filePath, header });
+      await csvWriter.writeRecords(records);
+      res.download(filePath);
+    } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
+  });
 
 } catch (error) {
   console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
