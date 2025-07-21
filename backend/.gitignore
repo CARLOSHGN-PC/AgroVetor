@@ -1,0 +1,11 @@
+# Dependências do Node.js
+node_modules
+
+# Arquivos de ambiente local (NUNCA ENVIE PARA O GITHUB)
+.env
+serviceAccountKey.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
