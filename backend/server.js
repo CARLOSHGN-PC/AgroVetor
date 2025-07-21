@@ -146,7 +146,7 @@ try {
         for (const fazendaKey of Object.keys(groupedData).sort()) {
           currentY = await checkPageBreak(currentY, 40);
           doc.y = currentY;
-          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
+          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, { align: 'left' }); // CORRIGIDO PARA ESQUERDA
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(currentY);
@@ -181,6 +181,7 @@ try {
       currentY = await checkPageBreak(currentY, 40);
       doc.y = currentY;
       
+      // CORREÇÃO: Usa um array vazio para as primeiras colunas para alinhar os totais
       const totalRowData = ['', '', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
       drawRow(totalRowData, currentY, false, true, columnWidths);
 
