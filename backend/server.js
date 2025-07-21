@@ -181,7 +181,6 @@ try {
       currentY = await checkPageBreak(currentY, 40);
       doc.y = currentY;
       
-      // CORREÇÃO: Usa um array vazio para as primeiras colunas para alinhar os totais
       const totalRowData = ['', '', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
       drawRow(totalRowData, currentY, false, true, columnWidths);
 
