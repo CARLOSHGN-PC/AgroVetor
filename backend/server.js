@@ -1,4 +1,4 @@
-// server.js - Backend com Relatórios Melhorados
+// server.js - Backend com Relatórios Corrigidos e Melhorados
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -7,7 +7,7 @@ const PDFDocument = require('pdfkit-table');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
-const axios = require('axios'); // Nova dependência para buscar a imagem do logo
+const axios = require('axios');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -44,7 +44,6 @@ try {
     return data;
   };
 
-  // Nova função para buscar o logo e desenhar o cabeçalho do PDF
   const generatePdfHeader = async (doc, title) => {
     try {
       const configDoc = await db.collection('config').doc('company').get();
@@ -59,21 +58,33 @@ try {
     }
     
     doc.fontSize(18).text(title, { align: 'center', valign: 'center' });
-    doc.fontSize(10).text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
-    doc.moveDown(2); // Espaço extra após o cabeçalho
+    doc.fontSize(10).text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, doc.page.width - 180, 30, { align: 'right', width: 150 });
+    doc.moveDown(3);
   };
 
-
-  // --- ROTAS DE RELATÓRIO DE BROCAMENTO ---
-
+  // --- ROTA DE BROCAMENTO PDF (LÓGICA ATUALIZADA) ---
   app.get('/reports/brocamento/pdf', async (req, res) => {
     try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
       if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
+      
+      // Busca os dados das fazendas para pegar a variedade
+      const fazendasSnapshot = await db.collection('fazendas').get();
+      const fazendasData = {};
+      fazendasSnapshot.forEach(doc => {
+        fazendasData[doc.data().code] = doc.data();
+      });
+
+      // Adiciona a variedade aos dados do relatório
+      const enrichedData = data.map(reg => {
+          const farm = fazendasData[reg.codigo];
+          const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === reg.talhao.toUpperCase());
+          return { ...reg, variedade: talhao?.variedade || 'N/A' };
+      });
 
       const isModelB = filters.tipoRelatorio === 'B';
-      const title = isModelB ? 'Relatório de Brocamento por Fazenda' : 'Relatório Geral de Brocamento';
+      const title = 'Relatório de Inspeção de Broca';
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'attachment; filename=relatorio_brocamento.pdf');
@@ -82,22 +93,19 @@ try {
 
       await generatePdfHeader(doc, title);
 
-      const headers = ['Data', 'Talhão', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', 'Brocamento (%)'];
+      const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       
-      // Totais gerais
       let grandTotalEntrenos = 0;
       let grandTotalBrocado = 0;
 
       if (!isModelB) { // Modelo A
-        const rows = data.map(r => [r.data, r.talhao, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
-        grandTotalEntrenos = data.reduce((sum, r) => sum + r.entrenos, 0);
-        grandTotalBrocado = data.reduce((sum, r) => sum + r.brocado, 0);
-        
-        const table = { headers, rows };
-        await doc.table(table, { prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') });
-
+        const rows = enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
+        await doc.table({ headers, rows }, {
+            prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+            prepareRow: () => doc.font('Helvetica').fontSize(8),
+        });
       } else { // Modelo B
-        const groupedData = data.reduce((acc, reg) => {
+        const groupedData = enrichedData.reduce((acc, reg) => {
           const key = `${reg.codigo} - ${reg.fazenda}`;
           if (!acc[key]) acc[key] = [];
           acc[key].push(reg);
@@ -109,22 +117,17 @@ try {
           doc.moveDown(0.5);
 
           const farmData = groupedData[fazendaKey];
-          const rows = farmData.map(r => [r.data, r.talhao, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
+          const rows = farmData.map(r => ['', r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento]);
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
           const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
-          grandTotalEntrenos += subTotalEntrenos;
-          grandTotalBrocado += subTotalBrocado;
-          const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2) + '%' : '0.00%';
+          const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-          const table = {
-            headers,
+          await doc.table({
+            headers: headers.slice(1), // Remove a primeira coluna 'Fazenda' do cabeçalho da tabela interna
             rows,
-            footers: [
-                ['', '', 'Subtotal', subTotalEntrenos, '', '', '', subTotalBrocado, subTotalPercent]
-            ]
-          };
-          await doc.table(table, { 
+            footers: [['', '', '', 'Subtotal', subTotalEntrenos, '', '', '', subTotalBrocado, subTotalPercent]]
+          }, { 
               prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
               prepareRow: () => doc.font('Helvetica').fontSize(8),
               prepareFooter: () => doc.font('Helvetica-Bold').fontSize(8),
@@ -132,20 +135,21 @@ try {
           doc.moveDown();
         }
       }
+      
+      // Calcula os totais gerais
+      grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
+      grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
+      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-      // Adiciona o Total Geral no final do documento
-      doc.moveDown();
+      // Adiciona o Resumo Geral no final
+      doc.moveDown(2);
       doc.fontSize(12).font('Helvetica-Bold').text('Resumo Geral do Período');
-      const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2) + '%' : '0.00%';
       const summaryTable = {
           headers: ['Total Entrenós', 'Total Brocado', 'Brocamento Ponderado (%)'],
-          rows: [
-              [grandTotalEntrenos, grandTotalBrocado, totalPercent]
-          ]
+          rows: [[grandTotalEntrenos, grandTotalBrocado, totalPercent]]
       };
       await doc.table(summaryTable, { width: 400 });
 
-      // Finaliza o PDF
       doc.end();
     } catch (error) { 
         console.error("Erro no PDF de Brocamento:", error);
@@ -153,7 +157,7 @@ try {
     }
   });
 
-  // ... (outras rotas permanecem iguais por enquanto)
+  // ... (outras rotas permanecem iguais, você pode atualizá-las depois com a mesma lógica)
 
 } catch (error) {
   console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
