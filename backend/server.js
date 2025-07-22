@@ -73,9 +73,10 @@ try {
     return data.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
-  const generatePdfHeader = async (doc, title) => {
+  const generatePdfHeader = async (doc, title, generatedBy = 'N/A') => {
     try {
       const configDoc = await db.collection('config').doc('company').get();
+      // Verifica se existe o campo 'logoBase64' e o utiliza
       if (configDoc.exists && configDoc.data().logoBase64) {
         const logoBase64 = configDoc.data().logoBase64;
         doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 }); 
@@ -85,9 +86,12 @@ try {
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
+    // Mantido o "Gerado por" no cabeçalho, conforme a versão que você pediu para restaurar
+    doc.fontSize(10).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
     return doc.y;
   };
+
 
   app.get('/reports/brocamento/pdf', async (req, res) => {
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
@@ -100,7 +104,8 @@ try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
       if (data.length === 0) {
-        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca');
+        // Passando o nome do usuário para generatePdfHeader
+        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', filters.generatedBy);
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
         doc.end();
         return;
@@ -121,7 +126,8 @@ try {
       const isModelB = filters.tipoRelatorio === 'B';
       const title = 'Relatório de Inspeção de Broca';
       
-      let currentY = await generatePdfHeader(doc, title); 
+      // Passando o nome do usuário para generatePdfHeader
+      let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
@@ -149,9 +155,10 @@ try {
       };
       
       const checkPageBreak = async (y, neededSpace = rowHeight) => {
-        if (y > doc.page.height - doc.page.margins.bottom - neededSpace) { 
+        if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
             doc.addPage();
-            return await generatePdfHeader(doc, title); 
+            // Passando o nome do usuário para generatePdfHeader
+            return await generatePdfHeader(doc, title, filters.generatedBy);
         }
         return y;
       };
@@ -216,7 +223,7 @@ try {
         drawRow(totalRowDataB, currentY, false, true, columnWidthsB);
       }
 
-      doc.end(); // Finaliza o documento no final do try
+      doc.end();
     } catch (error) { 
         console.error("Erro no PDF de Brocamento:", error);
         if (!res.headersSent) {
@@ -253,43 +260,121 @@ try {
     res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
     doc.pipe(res);
 
-    const filters = req.query;
-    const generatedBy = filters.generatedBy || 'N/A'; 
-
-    // [CORREÇÃO]: Adiciona o evento para desenhar o rodapé em cada página
-    doc.on('pageAdded', () => {
-      addPdfFooter(doc, generatedBy);
-    });
-
     try {
+      const filters = req.query;
       const data = await getFilteredData('perdas', filters);
-      if (data.length === 0) {
-        await generatePdfHeader(doc, 'Relatório de Perda');
-        doc.text('Nenhum dado encontrado.');
-        // [CORREÇÃO]: Garante que o rodapé seja adicionado mesmo em documentos vazios
-        addPdfFooter(doc, generatedBy); 
-      } else {
-        const isDetailed = filters.tipoRelatorio === 'B';
-        const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
-        
-        await generatePdfHeader(doc, title); 
-        // [CORREÇÃO]: Adiciona o rodapé para a primeira página após o cabeçalho
-        addPdfFooter(doc, generatedBy); 
+      // Captura o nome do usuário para o cabeçalho
+      const generatedBy = filters.generatedBy || 'N/A';
 
-        let headers, rows;
-        if (isDetailed) {
-          headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
-          rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total]);
-        } else {
-          headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-          rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total]);
-        }
-        
+      if (data.length === 0) {
+        // Passando o nome do usuário para generatePdfHeader
+        await generatePdfHeader(doc, 'Relatório de Perda', generatedBy);
+        doc.text('Nenhum dado encontrado.');
+        doc.end();
+        return;
+      }
+
+      const isDetailed = filters.tipoRelatorio === 'B';
+      const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
+      
+      // Passando o nome do usuário para generatePdfHeader
+      await generatePdfHeader(doc, title, generatedBy);
+
+      let headers, rows;
+      // [NOVO MODELO]: Modelo Detalhado (Tipo B)
+      if (isDetailed) {
+        headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Int.', 'Tol.', 'Toco', 'Ponta', 'Est.', 'Ped.', 'Total'];
+        rows = data.map(p => [
+          p.data, 
+          `${p.codigo} - ${p.fazenda}`, 
+          p.talhao, 
+          p.frenteServico, 
+          p.turno, 
+          p.operador, 
+          p.canaInteira, 
+          p.tolete, 
+          p.toco, 
+          p.ponta, 
+          p.estilhaco, 
+          p.pedaco, 
+          p.total
+        ]);
         const { table } = require('pdfkit-table');
-        await table(doc, { 
-            headers, 
+        await table(doc, {
+            headers,
             rows,
-            prepareHeader: () => doc.font('Helvetica-Bold'), 
+            // [NOVO ESTILO]: Larguras de coluna para o modelo detalhado
+            columnStyles: {
+                0: { width: 50 },  // Data
+                1: { width: 80 },  // Fazenda
+                2: { width: 60 },  // Talhão
+                3: { width: 60 },  // Frente
+                4: { width: 35 },  // Turno
+                5: { width: 70 },  // Operador
+                6: { width: 40 },  // Cana Inteira
+                7: { width: 35 },  // Tolete
+                8: { width: 35 },  // Toco
+                9: { width: 35 },  // Ponta
+                10: { width: 35 }, // Estilhaço
+                11: { width: 35 }, // Pedaço
+                12: { width: 40 }  // Total
+            },
+            // [NOVO ESTILO]: Tamanho de fonte e cores para o modelo detalhado
+            styles: { 
+                fontSize: 8,
+                overflow: 'linebreak' // Garante que o texto quebre linha se for muito longo
+            },
+            headStyles: { 
+                fillColor: [46, 125, 50], // Cor primária verde
+                textColor: 255, // Texto branco
+                font: 'Helvetica-Bold'
+            },
+            alternateRowStyles: { 
+                fillColor: [245, 245, 245] // Cinza claro para linhas alternadas
+            },
+            prepareHeader: () => doc.font('Helvetica-Bold'),
+            prepareRow: () => doc.font('Helvetica'),
+        });
+      } else {
+        // [NOVO MODELO]: Modelo Resumido (Tipo A)
+        headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
+        rows = data.map(p => [
+          p.data, 
+          `${p.codigo} - ${p.fazenda}`, 
+          p.talhao, 
+          p.frenteServico, 
+          p.turno, 
+          p.operador, 
+          p.total
+        ]);
+        const { table } = require('pdfkit-table');
+        await table(doc, {
+            headers,
+            rows,
+            // [NOVO ESTILO]: Larguras de coluna para o modelo resumido
+            columnStyles: {
+                0: { width: 60 },   // Data
+                1: { width: 100 },  // Fazenda
+                2: { width: 80 },   // Talhão
+                3: { width: 80 },   // Frente
+                4: { width: 40 },   // Turno
+                5: { width: 100 },  // Operador
+                6: { width: 50 }    // Total
+            },
+            // [NOVO ESTILO]: Tamanho de fonte e cores para o modelo resumido
+            styles: { 
+                fontSize: 9, 
+                overflow: 'linebreak'
+            },
+            headStyles: { 
+                fillColor: [46, 125, 50], 
+                textColor: 255, 
+                font: 'Helvetica-Bold'
+            },
+            alternateRowStyles: { 
+                fillColor: [245, 245, 245] 
+            },
+            prepareHeader: () => doc.font('Helvetica-Bold'),
             prepareRow: () => doc.font('Helvetica'),
         });
       }
