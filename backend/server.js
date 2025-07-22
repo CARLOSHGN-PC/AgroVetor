@@ -128,10 +128,10 @@ try {
       let currentY = await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      // [ALTERAÇÃO]: Larguras das colunas ajustadas para o Modelo A
-      const columnWidthsA = [120, 50, 50, 80, 40, 50, 35, 35, 35, 45, 50]; 
-      // [ALTERAÇÃO]: Larguras das colunas ajustadas para o Modelo B
-      const columnWidthsB = [60, 60, 120, 70, 60, 40, 40, 40, 60, 60];
+      // [REVERTIDO]: Larguras das colunas para o Modelo A voltaram aos valores originais
+      const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
+      // [REVERTIDO]: Larguras das colunas para o Modelo B voltaram aos valores originais
+      const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
       const rowHeight = 18;
       const textPadding = 5;
@@ -274,11 +274,9 @@ try {
 
       let headers, rows;
       if (isDetailed) {
-        // [ALTERAÇÃO]: Larguras das colunas ajustadas para o Modelo Detalhado
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
         rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total]);
       } else {
-        // [ALTERAÇÃO]: Larguras das colunas ajustadas para o Modelo Resumido
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
         rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total]);
       }
@@ -287,27 +285,10 @@ try {
       await table(doc, { 
           headers, 
           rows,
-          // [ALTERAÇÃO]: Adicionado columnStyles para o relatório de perda para ajustar larguras
-          // Estes valores são um ponto de partida e podem precisar de ajustes finos
-          columnStyles: {
-              0: { width: 60 }, // Data
-              1: { width: isDetailed ? 90 : 120 }, // Fazenda
-              2: { width: isDetailed ? 70 : 80 }, // Talhão
-              3: { width: isDetailed ? 70 : 80 }, // Frente
-              4: { width: 40 }, // Turno
-              5: { width: isDetailed ? 80 : 100 }, // Operador
-              6: { width: 50 }, // Cana Inteira (apenas detalhado)
-              7: { width: 40 }, // Tolete (apenas detalhado)
-              8: { width: 40 }, // Toco (apenas detalhado)
-              9: { width: 40 }, // Ponta (apenas detalhado)
-              10: { width: 50 }, // Estilhaço (apenas detalhado)
-              11: { width: 50 }, // Pedaço (apenas detalhado)
-              12: { width: 40 }, // Total (apenas detalhado)
-          },
+          // [REVERTIDO]: Removido columnStyles para o relatório de perda.
           prepareHeader: () => doc.font('Helvetica-Bold'), 
           prepareRow: () => doc.font('Helvetica'),
-          // [ALTERAÇÃO]: Reduzir o tamanho da fonte para caber mais
-          styles: { fontSize: 7 } 
+          // [REVERTIDO]: Removido o ajuste de fontSize, voltando ao padrão da biblioteca.
       });
       doc.end();
     } catch (error) { 
