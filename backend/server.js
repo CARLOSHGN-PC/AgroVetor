@@ -8,7 +8,6 @@ const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
-// [ALTERAÇÃO 1]: Importar o multer para lidar com uploads de ficheiros
 const multer = require('multer');
 
 const app = express();
@@ -17,7 +16,6 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// [ALTERAÇÃO 2]: Configurar o multer para guardar o ficheiro temporariamente em memória
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
@@ -25,11 +23,11 @@ try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   admin.initializeApp({ 
     credential: admin.credential.cert(serviceAccount),
-    // [ALTERAÇÃO 3]: Adicionar a URL do bucket do Storage à configuração do Firebase Admin
+    // [ALTERAÇÃO]: VERIFIQUE E COLE AQUI O NOME CORRETO DO SEU BUCKET!
+    // Copie o nome do bucket da página do Firebase Storage.
     storageBucket: "agrovetor-v2.appspot.com" 
   });
   const db = admin.firestore();
-  // [ALTERAÇÃO 4]: Obter uma referência para o bucket do Storage
   const bucket = admin.storage().bucket();
   console.log('Firebase Admin SDK inicializado com sucesso.');
 
@@ -37,7 +35,7 @@ try {
     res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
   });
 
-  // [ALTERAÇÃO 5]: NOVA ROTA PARA UPLOAD DO LOGO
+  // ROTA PARA UPLOAD DO LOGO
   app.post('/upload-logo', upload.single('logo'), async (req, res) => {
     if (!req.file) {
       return res.status(400).send('Nenhum ficheiro enviado.');
@@ -52,30 +50,26 @@ try {
       });
 
       blobStream.on('error', (err) => {
-        console.error("Erro no blobStream:", err);
+        console.error("Erro no blobStream ao tentar fazer upload para o Storage:", err);
         res.status(500).send({ message: 'Erro ao fazer upload da imagem.' });
       });
 
       blobStream.on('finish', async () => {
-        // Tornar o ficheiro público para que possa ser acedido via URL
         await blob.makePublic();
         const publicUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
-
-        // Guardar a URL no Firestore
         await db.collection('config').doc('company').set({ logoUrl: publicUrl }, { merge: true });
-
         res.status(200).send({ message: 'Logo carregado com sucesso!', url: publicUrl });
       });
 
       blobStream.end(req.file.buffer);
     } catch (error) {
-      console.error("Erro geral no upload do logo:", error);
+      console.error("Erro geral na rota /upload-logo:", error);
       res.status(500).send({ message: `Erro no servidor: ${error.message}` });
     }
   });
 
 
-  // --- FUNÇÕES AUXILIARES ---
+  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS (sem alterações) ---
 
   const getFilteredData = async (collectionName, filters) => {
     let query = db.collection(collectionName);
@@ -113,7 +107,6 @@ try {
     return doc.y;
   };
 
-  // --- ROTA DE BROCAMENTO PDF (LÓGICA REFEITA) ---
   app.get('/reports/brocamento/pdf', async (req, res) => {
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
     
@@ -250,7 +243,6 @@ try {
     }
   });
 
-  // --- OUTRAS ROTAS ---
   app.get('/reports/brocamento/csv', async (req, res) => {
     try {
       const data = await getFilteredData('registros', req.query);
