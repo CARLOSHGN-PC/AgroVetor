@@ -99,24 +99,27 @@ try {
       let currentY = await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      // [ALTERAÇÃO 1]: Ajustado a largura das colunas para melhor visualização
       const columnWidths = [165, 65, 60, 100, 40, 60, 45, 45, 45, 60, 75]; 
       
-      const rowHeight = 18;
+      // [ALTERAÇÃO 1]: Aumentei a altura da linha para acomodar a fonte maior.
+      const rowHeight = 20;
       const textPadding = 5;
 
       const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths = columnWidths) => {
         const startX = doc.page.margins.left;
+        // [ALTERAÇÃO 2]: Aumentei o tamanho da fonte para 9.
+        const fontSize = 9;
         if (isHeader || isFooter) {
-            doc.font('Helvetica-Bold').fontSize(8);
+            doc.font('Helvetica-Bold').fontSize(fontSize);
             doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
             doc.fillColor('black');
         } else {
-            doc.font('Helvetica').fontSize(8);
+            doc.font('Helvetica').fontSize(fontSize);
         }
         let currentX = startX;
         rowData.forEach((cell, i) => {
-            doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+            // [ALTERAÇÃO 3]: Ajustei o posicionamento vertical do texto para centralizar na nova altura da linha.
+            doc.text(String(cell), currentX + textPadding, y + 6, { width: customWidths[i] - (textPadding * 2), align: 'left'});
             currentX += customWidths[i];
         });
         return y + rowHeight;
@@ -182,13 +185,10 @@ try {
       currentY = await checkPageBreak(currentY, 40);
       doc.y = currentY;
       
-      // [ALTERAÇÃO 2]: Lógica do Total Geral separada para cada modelo de relatório.
       if (!isModelB) {
         const totalRowData = ['', '', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(totalRowData, currentY, false, true, columnWidths);
       } else {
-        // [ALTERAÇÃO 3]: Corrigido o alinhamento do Total Geral para o Modelo B.
-        // Agora ele tem 3 células vazias para alinhar com o Subtotal.
         const totalRowDataB = ['', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(totalRowDataB, currentY, false, true, columnWidths.slice(1));
       }
