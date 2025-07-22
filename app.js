@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
+// Removido: import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const firebaseApp = initializeApp(firebaseConfig);
     const db = getFirestore(firebaseApp);
     const auth = getAuth(firebaseApp);
-    const storage = getStorage(firebaseApp);
+    // Removido: const storage = getStorage(firebaseApp);
 
     // Aplicação secundária do Firebase, usada APENAS para criar novos utilizadores sem deslogar o admin.
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
             planos: [],
             fazendas: [],
             personnel: [],
-            companyLogo: null,
+            companyLogo: null, // Agora armazenará a string Base64
             activeSubmenu: null,
             charts: {},
             harvestPlans: [],
@@ -544,7 +544,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const configDocRef = doc(db, 'config', 'company');
                 const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
-                    App.state.companyLogo = doc.exists() ? doc.data().logoUrl : null;
+                    // Agora, companyLogo armazena a string Base64 diretamente
+                    App.state.companyLogo = doc.exists() ? doc.data().logoBase64 : null; 
                     App.ui.renderLogoPreview();
                 });
                 App.state.unsubscribeListeners.push(unsubscribeConfig);
@@ -992,6 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             renderLogoPreview() {
                 const { logoPreview, removeLogoBtn } = App.elements.companyConfig;
+                // Agora, companyLogo é a string Base64
                 if (App.state.companyLogo) {
                     logoPreview.src = App.state.companyLogo;
                     logoPreview.style.display = 'block';
@@ -1680,7 +1682,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Pessoa excluída com sucesso.', 'info');
                 });
             },
-            // [ALTERAÇÃO 1]: Função de upload de logo modificada para usar o backend.
+            // [ALTERAÇÃO]: Função de upload de logo modificada para usar Base64 no Firestore.
             async handleLogoUpload(e) {
                 const file = e.target.files[0];
                 const input = e.target;
@@ -1692,64 +1694,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const MAX_SIZE_MB = 5;
+                const MAX_SIZE_MB = 1; // Reduzido para 1MB para armazenamento no Firestore
                 if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-                    App.ui.showAlert(`O ficheiro é muito grande. O tamanho máximo é de ${MAX_SIZE_MB}MB.`, 'error');
+                    App.ui.showAlert(`O ficheiro é muito grande. O tamanho máximo é de ${MAX_SIZE_MB}MB para armazenamento direto.`, 'error');
                     input.value = '';
                     return;
                 }
 
                 App.ui.setLoading(true, "A carregar logo...");
 
-                // Criar FormData para enviar o ficheiro
-                const formData = new FormData();
-                formData.append('logo', file);
-
-                try {
-                    // Enviar para o backend
-                    const response = await fetch('https://agrovetor-backend.onrender.com/upload-logo', {
-                        method: 'POST',
-                        body: formData,
-                    });
-
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(result.message || 'Erro no servidor');
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    const base64String = event.target.result; // Data URL (Base64)
+                    try {
+                        // Salvar a string Base64 diretamente no Firestore
+                        await App.data.setDocument('config', 'company', { logoBase64: base64String });
+                        App.ui.showAlert('Logo carregado com sucesso!');
+                    } catch (error) {
+                        console.error("Erro ao carregar o logo para o Firestore:", error);
+                        App.ui.showAlert(`Erro ao carregar o logo: ${error.message}`, 'error');
+                    } finally {
+                        App.ui.setLoading(false);
+                        input.value = ''; // Limpa o input file
                     }
-                    
-                    // O backend já atualiza o Firestore, então o listener onSnapshot irá atualizar a UI.
-                    App.ui.showAlert('Logo carregado com sucesso!');
-
-                } catch (error) {
-                    console.error("Erro ao fazer upload do logo via backend:", error);
-                    App.ui.showAlert(`Erro ao carregar o logo: ${error.message}`, 'error');
-                } finally {
+                };
+                reader.onerror = (error) => {
                     App.ui.setLoading(false);
-                    input.value = '';
-                }
+                    App.ui.showAlert('Erro ao ler o ficheiro.', 'error');
+                    console.error("Erro FileReader:", error);
+                };
+                reader.readAsDataURL(file); // Lê o ficheiro como Data URL (Base64)
             },
+            // [ALTERAÇÃO]: Função de remover logo modificada para limpar a string Base64 no Firestore.
             removeLogo() {
                 App.ui.showConfirmationModal("Tem a certeza que deseja remover o logotipo?", async () => {
                     App.ui.setLoading(true, "A remover logo...");
                     try {
-                        const storageRef = ref(storage, 'company_assets/logo.png');
-                        await deleteObject(storageRef);
-                        await App.data.setDocument('config', 'company', { logoUrl: null });
+                        // Remove a referência Base64 do Firestore
+                        await App.data.setDocument('config', 'company', { logoBase64: null });
                         App.ui.showAlert('Logo removido com sucesso!');
                     } catch (error) {
-                        if (error.code === 'storage/object-not-found') {
-                            console.warn("Logo não encontrado no Storage, limpando referência no Firestore.");
-                            await App.data.setDocument('config', 'company', { logoUrl: null });
-                            App.ui.showAlert('Referência do logo removida com sucesso!');
-                        } else {
-                            console.error("Erro ao remover logo:", error);
-                            let errorMessage = 'Erro ao remover o logo.';
-                            if (error.code === 'storage/unauthorized') {
-                                errorMessage = 'Você não tem permissão para remover o logo.';
-                            }
-                            App.ui.showAlert(errorMessage, 'error');
-                        }
+                        console.error("Erro ao remover logo do Firestore:", error);
+                        App.ui.showAlert(`Erro ao remover o logo: ${error.message}`, 'error');
                     } finally {
                         App.ui.setLoading(false);
                         App.elements.companyConfig.logoInput.value = '';
