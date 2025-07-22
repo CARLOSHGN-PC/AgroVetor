@@ -1680,38 +1680,75 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Pessoa excluída com sucesso.', 'info');
                 });
             },
+            // [ALTERAÇÃO 1]: Função de upload de logo refatorada com validações e melhor feedback de erro.
             async handleLogoUpload(e) {
                 const file = e.target.files[0];
+                const input = e.target;
                 if (!file) return;
+
+                // Validação de tipo de ficheiro
+                if (!file.type.startsWith('image/')) {
+                    App.ui.showAlert('Por favor, selecione um ficheiro de imagem (PNG, JPG, etc.).', 'error');
+                    input.value = ''; // Limpa o input
+                    return;
+                }
+
+                // Validação de tamanho do ficheiro (ex: 5MB)
+                const MAX_SIZE_MB = 5;
+                if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+                    App.ui.showAlert(`O ficheiro é muito grande. O tamanho máximo é de ${MAX_SIZE_MB}MB.`, 'error');
+                    input.value = ''; // Limpa o input
+                    return;
+                }
 
                 App.ui.setLoading(true, "A carregar logo...");
                 try {
                     const storageRef = ref(storage, 'company_assets/logo.png');
+                    // O uploadBytes faz o upload ou substitui o ficheiro existente na mesma referência.
                     await uploadBytes(storageRef, file);
                     const downloadURL = await getDownloadURL(storageRef);
                     
                     await App.data.setDocument('config', 'company', { logoUrl: downloadURL });
                     App.ui.showAlert('Logo carregado com sucesso!');
                 } catch (error) {
-                    App.ui.showAlert('Erro ao carregar o logo.', 'error');
+                    console.error("Erro detalhado no upload do logo:", error);
+                    let errorMessage = 'Erro ao carregar o logo.';
+                    if (error.code === 'storage/unauthorized') {
+                        errorMessage = 'Você não tem permissão para carregar o logo. Verifique as regras do Firebase Storage.';
+                    } else if (error.code === 'storage/canceled') {
+                        errorMessage = 'O upload foi cancelado.';
+                    }
+                    App.ui.showAlert(errorMessage, 'error');
                 } finally {
                     App.ui.setLoading(false);
+                    input.value = ''; // Limpa o input após a tentativa
                 }
             },
+            // [ALTERAÇÃO 2]: Função de remover logo refatorada para maior clareza.
             removeLogo() {
-                App.ui.showConfirmationModal("Tem certeza que deseja remover o logotipo?", async () => {
+                App.ui.showConfirmationModal("Tem a certeza que deseja remover o logotipo?", async () => {
                     App.ui.setLoading(true, "A remover logo...");
                     try {
                         const storageRef = ref(storage, 'company_assets/logo.png');
+                        // Tenta apagar o objeto no Storage.
                         await deleteObject(storageRef);
+                        // Se bem sucedido ou se o objeto já não existia, atualiza o Firestore.
                         await App.data.setDocument('config', 'company', { logoUrl: null });
                         App.ui.showAlert('Logo removido com sucesso!');
                     } catch (error) {
-                        if (error.code !== 'storage/object-not-found') {
-                           App.ui.showAlert('Erro ao remover o logo.', 'error');
-                        } else {
+                        // Se o erro for "objeto não encontrado", significa que o logo já não estava no Storage.
+                        // Nesse caso, ainda queremos garantir que a referência no Firestore seja limpa.
+                        if (error.code === 'storage/object-not-found') {
+                            console.warn("Logo não encontrado no Storage, limpando referência no Firestore.");
                             await App.data.setDocument('config', 'company', { logoUrl: null });
-                            App.ui.showAlert('Logo removido com sucesso!');
+                            App.ui.showAlert('Referência do logo removida com sucesso!');
+                        } else {
+                            console.error("Erro ao remover logo:", error);
+                            let errorMessage = 'Erro ao remover o logo.';
+                            if (error.code === 'storage/unauthorized') {
+                                errorMessage = 'Você não tem permissão para remover o logo.';
+                            }
+                            App.ui.showAlert(errorMessage, 'error');
                         }
                     } finally {
                         App.ui.setLoading(false);
@@ -2593,9 +2630,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                 const params = new URLSearchParams(cleanFilters);
                 const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
-    
+        
                 App.ui.setLoading(true, "A gerar relatório no servidor...");
-    
+        
                 fetch(apiUrl)
                     .then(response => {
                         if (!response.ok) {
@@ -2623,7 +2660,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.setLoading(false);
                     });
             },
-    
+        
             generateBrocamentoPDF() {
                 const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
@@ -2637,7 +2674,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
             },
-    
+        
             generateBrocamentoCSV() {
                 const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
@@ -2651,7 +2688,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
             },
-    
+        
             generatePerdaPDF() {
                 const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
@@ -2668,7 +2705,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
             },
-    
+        
             generatePerdaCSV() {
                 const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
@@ -2685,7 +2722,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
-    
+        
             generateCustomHarvestReport(format) {
                 const { jsPDF } = window.jspdf;
                 const { select, optionsContainer } = App.elements.relatorioColheita;
@@ -2694,13 +2731,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
                     return;
                 }
-    
+        
                 const plan = App.state.harvestPlans.find(p => p.id == planId);
                 if (!plan) {
                     App.ui.showAlert("Plano não encontrado.", "error");
                     return;
                 }
-    
+        
                 const options = {};
                 optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                     options[cb.dataset.column] = cb.checked;
@@ -2714,18 +2751,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (options.maturador) dynamicHeaders.push('Maturador');
                 if (options.diasAplicacao) dynamicHeaders.push('Dias Aplic.');
                 const finalHeaders = ['Entrada', 'Saída'];
-    
+        
                 const fullHeaders = [...baseHeaders, ...dynamicHeaders, ...finalHeaders];
                 const body = [];
                 let currentDate = new Date(plan.startDate + 'T03:00:00Z');
                 const dailyTon = parseFloat(plan.dailyRate) || 1;
-    
+        
                 plan.sequence.forEach((group, index) => {
                     const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
                     const dataEntrada = new Date(currentDate.getTime());
                     currentDate.setDate(currentDate.getDate() + diasNecessarios);
                     const dataSaida = new Date(currentDate.getTime());
-    
+        
                     const baseRow = [
                         index + 1,
                         `${group.fazendaCodigo} - ${group.fazendaName}`,
@@ -2733,7 +2770,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         group.totalArea.toFixed(2),
                         group.totalProducao.toFixed(2),
                     ];
-    
+        
                     const dynamicRow = [];
                     if (options.variedade) {
                         const varieties = new Set();
@@ -2757,7 +2794,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     body.push([...baseRow, ...dynamicRow, ...finalRowData]);
                     currentDate.setDate(currentDate.getDate() + 1);
                 });
-    
+        
                 const reportTitle = `Plano de Colheita - ${plan.frontName}`;
                 if (format === 'pdf') {
                     const doc = new jsPDF({ orientation: 'landscape' });
