@@ -99,16 +99,15 @@ try {
       let currentY = await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      const columnWidths = [165, 65, 60, 100, 40, 60, 45, 45, 45, 60, 75]; 
+      // [ALTERAÇÃO 1]: Larguras das colunas redistribuídas para ocupar a página e evitar quebra de linha.
+      const columnWidths = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
       
-      // [ALTERAÇÃO 1]: Aumentei a altura da linha para acomodar a fonte maior.
-      const rowHeight = 20;
+      const rowHeight = 18;
       const textPadding = 5;
 
       const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths = columnWidths) => {
         const startX = doc.page.margins.left;
-        // [ALTERAÇÃO 2]: Aumentei o tamanho da fonte para 9.
-        const fontSize = 9;
+        const fontSize = 8;
         if (isHeader || isFooter) {
             doc.font('Helvetica-Bold').fontSize(fontSize);
             doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
@@ -118,8 +117,7 @@ try {
         }
         let currentX = startX;
         rowData.forEach((cell, i) => {
-            // [ALTERAÇÃO 3]: Ajustei o posicionamento vertical do texto para centralizar na nova altura da linha.
-            doc.text(String(cell), currentX + textPadding, y + 6, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+            doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
             currentX += customWidths[i];
         });
         return y + rowHeight;
@@ -169,7 +167,8 @@ try {
           const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
-          const subtotalRow = ['', '', '', 'SUBTOTAL', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
+          // [ALTERAÇÃO 2]: Alterado para "Sub Total" em uma linha.
+          const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
           currentY = drawRow(subtotalRow, currentY, false, true, columnWidths.slice(1));
           currentY += 10;
         }
@@ -186,10 +185,12 @@ try {
       doc.y = currentY;
       
       if (!isModelB) {
-        const totalRowData = ['', '', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+        // [ALTERAÇÃO 3]: Alterado para "Total Geral" em uma linha.
+        const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(totalRowData, currentY, false, true, columnWidths);
       } else {
-        const totalRowDataB = ['', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+        // [ALTERAÇÃO 3]: Alterado para "Total Geral" em uma linha.
+        const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(totalRowDataB, currentY, false, true, columnWidths.slice(1));
       }
 
