@@ -8,68 +8,53 @@ const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
-const multer = require('multer');
+// Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
 
 const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Aumenta o limite para receber strings Base64 grandes
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+// Removido: const storage = multer.memoryStorage();
+// Removido: const upload = multer({ storage: storage });
 
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   admin.initializeApp({ 
     credential: admin.credential.cert(serviceAccount),
-    // [ALTERAÇÃO]: VERIFIQUE E COLE AQUI O NOME CORRETO DO SEU BUCKET!
-    // Copie o nome do bucket da página do Firebase Storage.
+    // O storageBucket não é mais usado diretamente pelo backend para upload/download de logo,
+    // mas pode ser mantido se outras partes da sua aplicação o utilizarem.
     storageBucket: "agrovetor-v2.appspot.com" 
   });
   const db = admin.firestore();
-  const bucket = admin.storage().bucket();
+  // Removido: const bucket = admin.storage().bucket();
   console.log('Firebase Admin SDK inicializado com sucesso.');
 
   app.get('/', (req, res) => {
     res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
   });
 
-  // ROTA PARA UPLOAD DO LOGO
-  app.post('/upload-logo', upload.single('logo'), async (req, res) => {
-    if (!req.file) {
-      return res.status(400).send('Nenhum ficheiro enviado.');
+  // ROTA PARA UPLOAD DO LOGO (agora recebe Base64 diretamente)
+  app.post('/upload-logo', async (req, res) => {
+    const { logoBase64 } = req.body; // Espera a string Base64 no corpo da requisição
+
+    if (!logoBase64) {
+      return res.status(400).send({ message: 'Nenhum dado de imagem Base64 enviado.' });
     }
 
     try {
-      const blob = bucket.file('company_assets/logo.png');
-      const blobStream = blob.createWriteStream({
-        metadata: {
-          contentType: req.file.mimetype,
-        },
-      });
-
-      blobStream.on('error', (err) => {
-        console.error("Erro no blobStream ao tentar fazer upload para o Storage:", err);
-        res.status(500).send({ message: 'Erro ao fazer upload da imagem.' });
-      });
-
-      blobStream.on('finish', async () => {
-        await blob.makePublic();
-        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
-        await db.collection('config').doc('company').set({ logoUrl: publicUrl }, { merge: true });
-        res.status(200).send({ message: 'Logo carregado com sucesso!', url: publicUrl });
-      });
-
-      blobStream.end(req.file.buffer);
+      // Salvar a string Base64 diretamente no Firestore
+      await db.collection('config').doc('company').set({ logoBase64: logoBase64 }, { merge: true });
+      res.status(200).send({ message: 'Logo carregado com sucesso!' });
     } catch (error) {
-      console.error("Erro geral na rota /upload-logo:", error);
-      res.status(500).send({ message: `Erro no servidor: ${error.message}` });
+      console.error("Erro ao salvar logo Base64 no Firestore:", error);
+      res.status(500).send({ message: `Erro no servidor ao carregar logo: ${error.message}` });
     }
   });
 
 
-  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS (sem alterações) ---
+  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS (com alterações para o logo) ---
 
   const getFilteredData = async (collectionName, filters) => {
     let query = db.collection(collectionName);
@@ -88,17 +73,19 @@ try {
     return data.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
+  // [ALTERAÇÃO]: generatePdfHeader agora carrega o logo Base64 do Firestore
   const generatePdfHeader = async (doc, title) => {
     try {
       const configDoc = await db.collection('config').doc('company').get();
-      if (configDoc.exists && configDoc.data().logoUrl) {
-        const logoUrl = configDoc.data().logoUrl;
-        const response = await axios.get(logoUrl, { responseType: 'arraybuffer' });
-        const logoBuffer = Buffer.from(response.data, 'binary');
-        doc.image(logoBuffer, doc.page.margins.left, 25, { width: 100 });
+      // Verifica se existe o campo 'logoBase64' e o utiliza
+      if (configDoc.exists && configDoc.data().logoBase64) {
+        const logoBase64 = configDoc.data().logoBase64;
+        // Adiciona a imagem Base64 ao PDF
+        // PDFKit pode usar Data URLs diretamente
+        doc.image(logoBase64, doc.page.margins.left, 25, { width: 100 });
       }
     } catch (error) {
-      console.error("Não foi possível carregar o logotipo:", error.message);
+      console.error("Não foi possível carregar o logotipo Base64:", error.message);
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
