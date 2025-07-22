@@ -2,7 +2,7 @@
 
 const express = require('express');
 const admin = require('firebase-admin');
-const cors = require('cors');
+const cors = require('require');
 const PDFDocument = require('pdfkit');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
@@ -89,12 +89,12 @@ try {
     return doc.y;
   };
 
-  // [ALTERAÇÃO]: Função para adicionar o rodapé
+  // [ALTERAÇÃO]: Função para adicionar o rodapé - Posição e alinhamento ajustados
   const addPdfFooter = (doc, generatedBy) => {
     const bottomMargin = doc.page.margins.bottom;
     const pageHeight = doc.page.height;
-    // Ajusta a posição Y para o rodapé, garantindo que não sobreponha a margem inferior
-    const footerY = pageHeight - bottomMargin + 5; // Ajustado para 5pt acima da margem
+    // Posição Y para o rodapé, um pouco acima da margem inferior
+    const footerY = pageHeight - bottomMargin + 5; 
 
     doc.fontSize(8).font('Helvetica');
 
@@ -103,15 +103,15 @@ try {
       `Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`,
       doc.page.margins.left,
       footerY,
-      { align: 'left', width: (doc.page.width - doc.page.margins.left - doc.page.margins.right) / 2 } // Ocupa metade da largura para o texto esquerdo
+      { align: 'left', width: doc.page.width / 2 - doc.page.margins.left } // Ocupa a metade esquerda da página
     );
 
     // Numeração da página alinhada à direita
     doc.text(
-      `Página ${doc.page.number}`, // Removido 'de ${doc.bufferedPageRange().count}' pois não está disponível durante a geração
-      (doc.page.width / 2) + doc.page.margins.left, // Começa na metade da página
+      `Página ${doc.page.number}`, 
+      doc.page.width / 2, // Começa na metade da página
       footerY,
-      { align: 'right', width: (doc.page.width - doc.page.margins.left - doc.page.margins.right) / 2 } // Ocupa a outra metade da largura
+      { align: 'right', width: doc.page.width / 2 - doc.page.margins.right } // Ocupa a metade direita da página
     );
   };
 
