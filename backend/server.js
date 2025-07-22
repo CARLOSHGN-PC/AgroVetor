@@ -1,13 +1,15 @@
-// server.js - Backend com Geração de PDF Manual para Precisão Absoluta
+// server.js - Backend com Geração de PDF e Upload de Logo
 
 const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
-const PDFDocument = require('pdfkit'); // Usando a base do PDFKit para controle manual
+const PDFDocument = require('pdfkit');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
+// [ALTERAÇÃO 1]: Importar o multer para lidar com uploads de ficheiros
+const multer = require('multer');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -15,15 +17,63 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// [ALTERAÇÃO 2]: Configurar o multer para guardar o ficheiro temporariamente em memória
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  admin.initializeApp({ 
+    credential: admin.credential.cert(serviceAccount),
+    // [ALTERAÇÃO 3]: Adicionar a URL do bucket do Storage à configuração do Firebase Admin
+    storageBucket: "agrovetor-v2.appspot.com" 
+  });
   const db = admin.firestore();
+  // [ALTERAÇÃO 4]: Obter uma referência para o bucket do Storage
+  const bucket = admin.storage().bucket();
   console.log('Firebase Admin SDK inicializado com sucesso.');
 
   app.get('/', (req, res) => {
     res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
   });
+
+  // [ALTERAÇÃO 5]: NOVA ROTA PARA UPLOAD DO LOGO
+  app.post('/upload-logo', upload.single('logo'), async (req, res) => {
+    if (!req.file) {
+      return res.status(400).send('Nenhum ficheiro enviado.');
+    }
+
+    try {
+      const blob = bucket.file('company_assets/logo.png');
+      const blobStream = blob.createWriteStream({
+        metadata: {
+          contentType: req.file.mimetype,
+        },
+      });
+
+      blobStream.on('error', (err) => {
+        console.error("Erro no blobStream:", err);
+        res.status(500).send({ message: 'Erro ao fazer upload da imagem.' });
+      });
+
+      blobStream.on('finish', async () => {
+        // Tornar o ficheiro público para que possa ser acedido via URL
+        await blob.makePublic();
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
+
+        // Guardar a URL no Firestore
+        await db.collection('config').doc('company').set({ logoUrl: publicUrl }, { merge: true });
+
+        res.status(200).send({ message: 'Logo carregado com sucesso!', url: publicUrl });
+      });
+
+      blobStream.end(req.file.buffer);
+    } catch (error) {
+      console.error("Erro geral no upload do logo:", error);
+      res.status(500).send({ message: `Erro no servidor: ${error.message}` });
+    }
+  });
+
 
   // --- FUNÇÕES AUXILIARES ---
 
@@ -100,15 +150,12 @@ try {
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
-      
-      // [ALTERAÇÃO 1]: Criei um array de larguras específico para o Modelo B.
-      // A soma dessas larguras é igual à soma das larguras do Modelo A, garantindo que a tabela ocupe toda a página.
       const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
       const rowHeight = 18;
       const textPadding = 5;
 
-      const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths) => { // Agora recebe as larguras como parâmetro
+      const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths) => {
         const startX = doc.page.margins.left;
         const fontSize = 8;
         if (isHeader || isFooter) {
@@ -155,7 +202,6 @@ try {
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(currentY);
-          // [ALTERAÇÃO 2]: Usando as larguras específicas do Modelo B para desenhar o cabeçalho e as linhas.
           currentY = drawRow(headers.slice(1), currentY, true, false, columnWidthsB);
 
           const farmData = groupedData[fazendaKey];
@@ -192,7 +238,6 @@ try {
         drawRow(totalRowData, currentY, false, true, columnWidthsA);
       } else {
         const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        // [ALTERAÇÃO 3]: Usando as larguras do Modelo B também para a linha de Total Geral.
         drawRow(totalRowDataB, currentY, false, true, columnWidthsB);
       }
 
