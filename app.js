@@ -1680,64 +1680,64 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Pessoa excluída com sucesso.', 'info');
                 });
             },
-            // [ALTERAÇÃO 1]: Função de upload de logo refatorada com validações e melhor feedback de erro.
+            // [ALTERAÇÃO 1]: Função de upload de logo modificada para usar o backend.
             async handleLogoUpload(e) {
                 const file = e.target.files[0];
                 const input = e.target;
                 if (!file) return;
 
-                // Validação de tipo de ficheiro
                 if (!file.type.startsWith('image/')) {
                     App.ui.showAlert('Por favor, selecione um ficheiro de imagem (PNG, JPG, etc.).', 'error');
-                    input.value = ''; // Limpa o input
+                    input.value = '';
                     return;
                 }
 
-                // Validação de tamanho do ficheiro (ex: 5MB)
                 const MAX_SIZE_MB = 5;
                 if (file.size > MAX_SIZE_MB * 1024 * 1024) {
                     App.ui.showAlert(`O ficheiro é muito grande. O tamanho máximo é de ${MAX_SIZE_MB}MB.`, 'error');
-                    input.value = ''; // Limpa o input
+                    input.value = '';
                     return;
                 }
 
                 App.ui.setLoading(true, "A carregar logo...");
+
+                // Criar FormData para enviar o ficheiro
+                const formData = new FormData();
+                formData.append('logo', file);
+
                 try {
-                    const storageRef = ref(storage, 'company_assets/logo.png');
-                    // O uploadBytes faz o upload ou substitui o ficheiro existente na mesma referência.
-                    await uploadBytes(storageRef, file);
-                    const downloadURL = await getDownloadURL(storageRef);
-                    
-                    await App.data.setDocument('config', 'company', { logoUrl: downloadURL });
-                    App.ui.showAlert('Logo carregado com sucesso!');
-                } catch (error) {
-                    console.error("Erro detalhado no upload do logo:", error);
-                    let errorMessage = 'Erro ao carregar o logo.';
-                    if (error.code === 'storage/unauthorized') {
-                        errorMessage = 'Você não tem permissão para carregar o logo. Verifique as regras do Firebase Storage.';
-                    } else if (error.code === 'storage/canceled') {
-                        errorMessage = 'O upload foi cancelado.';
+                    // Enviar para o backend
+                    const response = await fetch('https://agrovetor-backend.onrender.com/upload-logo', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Erro no servidor');
                     }
-                    App.ui.showAlert(errorMessage, 'error');
+                    
+                    // O backend já atualiza o Firestore, então o listener onSnapshot irá atualizar a UI.
+                    App.ui.showAlert('Logo carregado com sucesso!');
+
+                } catch (error) {
+                    console.error("Erro ao fazer upload do logo via backend:", error);
+                    App.ui.showAlert(`Erro ao carregar o logo: ${error.message}`, 'error');
                 } finally {
                     App.ui.setLoading(false);
-                    input.value = ''; // Limpa o input após a tentativa
+                    input.value = '';
                 }
             },
-            // [ALTERAÇÃO 2]: Função de remover logo refatorada para maior clareza.
             removeLogo() {
                 App.ui.showConfirmationModal("Tem a certeza que deseja remover o logotipo?", async () => {
                     App.ui.setLoading(true, "A remover logo...");
                     try {
                         const storageRef = ref(storage, 'company_assets/logo.png');
-                        // Tenta apagar o objeto no Storage.
                         await deleteObject(storageRef);
-                        // Se bem sucedido ou se o objeto já não existia, atualiza o Firestore.
                         await App.data.setDocument('config', 'company', { logoUrl: null });
                         App.ui.showAlert('Logo removido com sucesso!');
                     } catch (error) {
-                        // Se o erro for "objeto não encontrado", significa que o logo já não estava no Storage.
-                        // Nesse caso, ainda queremos garantir que a referência no Firestore seja limpa.
                         if (error.code === 'storage/object-not-found') {
                             console.warn("Logo não encontrado no Storage, limpando referência no Firestore.");
                             await App.data.setDocument('config', 'company', { logoUrl: null });
