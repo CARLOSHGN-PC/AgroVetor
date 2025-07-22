@@ -99,8 +99,8 @@ try {
       let currentY = await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      // [ALTERAÇÃO 1]: Ajuste nas larguras das colunas para melhor encaixe do texto e para utilizar todo o espaço da página.
-      const columnWidths = [160, 65, 65, 96, 45, 65, 50, 50, 50, 60, 75]; 
+      // [ALTERAÇÃO 1]: Ajustado a largura das colunas para melhor visualização
+      const columnWidths = [165, 65, 60, 100, 40, 60, 45, 45, 45, 60, 75]; 
       
       const rowHeight = 18;
       const textPadding = 5;
@@ -182,21 +182,16 @@ try {
       currentY = await checkPageBreak(currentY, 40);
       doc.y = currentY;
       
-      // [ALTERAÇÃO 2]: Corrigido o alinhamento da linha "TOTAL GERAL".
-      // A linha agora tem 4 células vazias no início para alinhar o texto 'TOTAL GERAL'
-      // exatamente abaixo da coluna 'Corte', assim como a linha de 'SUBTOTAL'.
-      // Isso corrige o deslocamento para a direita que estava a ocorrer.
-      const totalRowData = [
-        '', '', '', '', // Alinha com as 4 primeiras colunas (Fazenda, Data, Talhão, Variedade)
-        'TOTAL GERAL',      // Coluna 'Corte'
-        grandTotalEntrenos, // Coluna 'Entrenós'
-        grandTotalBase,     // Coluna 'Base'
-        grandTotalMeio,     // Coluna 'Meio'
-        grandTotalTopo,     // Coluna 'Topo'
-        grandTotalBrocado,  // Coluna 'Brocado'
-        totalPercent      // Coluna '% Broca'
-      ];
-      drawRow(totalRowData, currentY, false, true, columnWidths);
+      // [ALTERAÇÃO 2]: Lógica do Total Geral separada para cada modelo de relatório.
+      if (!isModelB) {
+        const totalRowData = ['', '', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+        drawRow(totalRowData, currentY, false, true, columnWidths);
+      } else {
+        // [ALTERAÇÃO 3]: Corrigido o alinhamento do Total Geral para o Modelo B.
+        // Agora ele tem 3 células vazias para alinhar com o Subtotal.
+        const totalRowDataB = ['', '', '', 'TOTAL GERAL', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+        drawRow(totalRowDataB, currentY, false, true, columnWidths.slice(1));
+      }
 
       doc.end();
     } catch (error) { 
