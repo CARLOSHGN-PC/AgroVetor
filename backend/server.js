@@ -8,7 +8,7 @@ const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
-// Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
+// Removido: const multer = require('multer'); // Não é mais necessário para upload de Base6ão
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -73,16 +73,13 @@ try {
     return data.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
-  // [ALTERAÇÃO]: generatePdfHeader agora carrega o logo Base64 do Firestore, com tamanho e posição ajustados
-  const generatePdfHeader = async (doc, title) => {
+  // [ALTERAÇÃO]: generatePdfHeader agora recebe o nome do usuário que gerou o relatório
+  const generatePdfHeader = async (doc, title, generatedBy = 'N/A') => {
     try {
       const configDoc = await db.collection('config').doc('company').get();
       // Verifica se existe o campo 'logoBase64' e o utiliza
       if (configDoc.exists && configDoc.data().logoBase64) {
         const logoBase64 = configDoc.data().logoBase64;
-        // Adiciona a imagem Base64 ao PDF.
-        // O segundo parâmetro (15) move a imagem para cima (era 25).
-        // A largura (width: 40) foi diminuída (era 60).
         doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 }); 
       }
     } catch (error) {
@@ -90,7 +87,8 @@ try {
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
-    doc.fontSize(10).font('Helvetica').text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
+    // [ALTERAÇÃO]: Adicionado o nome do usuário que gerou o relatório
+    doc.fontSize(10).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
     return doc.y;
   };
@@ -106,7 +104,8 @@ try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
       if (data.length === 0) {
-        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca');
+        // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
+        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', filters.generatedBy);
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
         doc.end();
         return;
@@ -127,7 +126,8 @@ try {
       const isModelB = filters.tipoRelatorio === 'B';
       const title = 'Relatório de Inspeção de Broca';
       
-      let currentY = await generatePdfHeader(doc, title);
+      // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
+      let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
@@ -157,7 +157,8 @@ try {
       const checkPageBreak = async (y, neededSpace = rowHeight) => {
         if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
             doc.addPage();
-            return await generatePdfHeader(doc, title);
+            // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
+            return await generatePdfHeader(doc, title, filters.generatedBy);
         }
         return y;
       };
@@ -261,7 +262,8 @@ try {
       const filters = req.query;
       const data = await getFilteredData('perdas', filters);
       if (data.length === 0) {
-        await generatePdfHeader(doc, 'Relatório de Perda');
+        // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
+        await generatePdfHeader(doc, 'Relatório de Perda', filters.generatedBy);
         doc.text('Nenhum dado encontrado.');
         doc.end();
         return;
@@ -270,7 +272,8 @@ try {
       const isDetailed = filters.tipoRelatorio === 'B';
       const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
       
-      await generatePdfHeader(doc, title);
+      // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
+      await generatePdfHeader(doc, title, filters.generatedBy);
 
       let headers, rows;
       if (isDetailed) {
