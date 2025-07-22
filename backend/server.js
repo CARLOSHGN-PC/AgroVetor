@@ -89,8 +89,11 @@ try {
     return doc.y;
   };
 
-  // [CORREÇÃO]: Função para adicionar o rodapé
+  // [CORREÇÃO]: Função para adicionar o rodapé - mais robusta
   const addPdfFooter = (doc, generatedBy) => {
+    // Salva o estado atual do documento (fontes, cores, etc.)
+    doc.save(); 
+
     const bottomMargin = doc.page.margins.bottom;
     const pageHeight = doc.page.height;
     // Posição Y para o rodapé, um pouco acima da margem inferior
@@ -120,6 +123,9 @@ try {
       footerY,
       { align: 'right', width: (doc.page.width - doc.page.margins.left - doc.page.margins.right) / 2 } 
     );
+
+    // Restaura o estado anterior do documento
+    doc.restore(); 
   };
 
 
@@ -144,6 +150,8 @@ try {
       if (data.length === 0) {
         await generatePdfHeader(doc, 'Relatório de Inspeção de Broca');
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
+        // [CORREÇÃO]: Garante que o rodapé seja adicionado mesmo em documentos vazios
+        addPdfFooter(doc, generatedBy); 
       } else {
         const fazendasSnapshot = await db.collection('fazendas').get();
         const fazendasData = {};
@@ -161,6 +169,8 @@ try {
         const title = 'Relatório de Inspeção de Broca';
         
         let currentY = await generatePdfHeader(doc, title); 
+        // [CORREÇÃO]: Adiciona o rodapé para a primeira página após o cabeçalho
+        addPdfFooter(doc, generatedBy); 
 
         const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
         const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
@@ -187,7 +197,6 @@ try {
           return y + rowHeight;
         };
         
-        // [CORREÇÃO]: Revertendo o ajuste de neededSpace para o padrão, o rodapé é desenhado *após* o conteúdo.
         const checkPageBreak = async (y, neededSpace = rowHeight) => {
           if (y > doc.page.height - doc.page.margins.bottom - neededSpace) { 
               doc.addPage();
@@ -259,7 +268,6 @@ try {
       doc.end(); // Finaliza o documento no final do try
     } catch (error) { 
         console.error("Erro no PDF de Brocamento:", error);
-        // Se ocorrer um erro após o pipe, apenas finalize o documento para não travar a conexão
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
@@ -292,7 +300,7 @@ try {
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
-    doc.pipe(res); // Inicia o stream do PDF para a resposta
+    doc.pipe(res);
 
     const filters = req.query;
     const generatedBy = filters.generatedBy || 'N/A'; 
@@ -307,11 +315,15 @@ try {
       if (data.length === 0) {
         await generatePdfHeader(doc, 'Relatório de Perda');
         doc.text('Nenhum dado encontrado.');
+        // [CORREÇÃO]: Garante que o rodapé seja adicionado mesmo em documentos vazios
+        addPdfFooter(doc, generatedBy); 
       } else {
         const isDetailed = filters.tipoRelatorio === 'B';
         const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
         
         await generatePdfHeader(doc, title); 
+        // [CORREÇÃO]: Adiciona o rodapé para a primeira página após o cabeçalho
+        addPdfFooter(doc, generatedBy); 
 
         let headers, rows;
         if (isDetailed) {
@@ -333,7 +345,6 @@ try {
       doc.end(); // Finaliza o documento no final do try
     } catch (error) { 
         console.error("Erro no PDF de Perda:", error);
-        // Se ocorrer um erro após o pipe, apenas finalize o documento para não travar a conexão
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
