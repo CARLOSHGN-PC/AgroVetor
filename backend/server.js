@@ -8,7 +8,7 @@ const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
-// Removido: const multer = require('multer'); // Não é mais necessário para upload de Base6ão
+// Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -73,8 +73,8 @@ try {
     return data.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
-  // [ALTERAÇÃO]: generatePdfHeader agora recebe o nome do usuário que gerou o relatório
-  const generatePdfHeader = async (doc, title, generatedBy = 'N/A') => {
+  // [ALTERAÇÃO]: generatePdfHeader agora não inclui mais a linha "Gerado por"
+  const generatePdfHeader = async (doc, title) => {
     try {
       const configDoc = await db.collection('config').doc('company').get();
       // Verifica se existe o campo 'logoBase64' e o utiliza
@@ -87,11 +87,30 @@ try {
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
-    // [ALTERAÇÃO]: Adicionado o nome do usuário que gerou o relatório
-    doc.fontSize(10).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
     return doc.y;
   };
+
+  // [NOVO]: Função para adicionar o rodapé
+  const addPdfFooter = (doc, generatedBy) => {
+    const bottomMargin = doc.page.margins.bottom;
+    const pageHeight = doc.page.height;
+    const footerY = pageHeight - bottomMargin + 10; // Posição Y para o rodapé
+
+    doc.fontSize(8).font('Helvetica').text(
+      `Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`,
+      doc.page.margins.left,
+      footerY,
+      { align: 'left', width: doc.page.width - doc.page.margins.left - doc.page.margins.right }
+    );
+    doc.text(
+      `Página ${doc.page.number} de ${doc.bufferedPageRange().count}`,
+      doc.page.margins.left,
+      footerY,
+      { align: 'right', width: doc.page.width - doc.page.margins.left - doc.page.margins.right }
+    );
+  };
+
 
   app.get('/reports/brocamento/pdf', async (req, res) => {
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
@@ -103,9 +122,15 @@ try {
     try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
+      const generatedBy = filters.generatedBy || 'N/A'; // Captura o nome do usuário
+
+      // Adiciona o evento para desenhar o rodapé em cada página
+      doc.on('pageAdded', () => {
+        addPdfFooter(doc, generatedBy);
+      });
+
       if (data.length === 0) {
-        // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
-        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', filters.generatedBy);
+        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca');
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
         doc.end();
         return;
@@ -126,8 +151,7 @@ try {
       const isModelB = filters.tipoRelatorio === 'B';
       const title = 'Relatório de Inspeção de Broca';
       
-      // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
-      let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
+      let currentY = await generatePdfHeader(doc, title); // Não passa mais generatedBy aqui
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
@@ -157,8 +181,7 @@ try {
       const checkPageBreak = async (y, neededSpace = rowHeight) => {
         if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
             doc.addPage();
-            // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
-            return await generatePdfHeader(doc, title, filters.generatedBy);
+            return await generatePdfHeader(doc, title); // Não passa mais generatedBy aqui
         }
         return y;
       };
@@ -223,6 +246,7 @@ try {
         drawRow(totalRowDataB, currentY, false, true, columnWidthsB);
       }
 
+      // Finaliza o documento, o evento 'pageAdded' cuidará do rodapé em todas as páginas
       doc.end();
     } catch (error) { 
         console.error("Erro no PDF de Brocamento:", error);
@@ -261,9 +285,15 @@ try {
     try {
       const filters = req.query;
       const data = await getFilteredData('perdas', filters);
+      const generatedBy = filters.generatedBy || 'N/A'; // Captura o nome do usuário
+
+      // Adiciona o evento para desenhar o rodapé em cada página
+      doc.on('pageAdded', () => {
+        addPdfFooter(doc, generatedBy);
+      });
+
       if (data.length === 0) {
-        // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
-        await generatePdfHeader(doc, 'Relatório de Perda', filters.generatedBy);
+        await generatePdfHeader(doc, 'Relatório de Perda');
         doc.text('Nenhum dado encontrado.');
         doc.end();
         return;
@@ -272,8 +302,7 @@ try {
       const isDetailed = filters.tipoRelatorio === 'B';
       const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
       
-      // [ALTERAÇÃO]: Passando o nome do usuário para generatePdfHeader
-      await generatePdfHeader(doc, title, filters.generatedBy);
+      await generatePdfHeader(doc, title); // Não passa mais generatedBy aqui
 
       let headers, rows;
       if (isDetailed) {
