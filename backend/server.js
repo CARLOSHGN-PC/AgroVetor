@@ -99,13 +99,16 @@ try {
       let currentY = await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      // [ALTERAÇÃO 1]: Larguras das colunas redistribuídas para ocupar a página e evitar quebra de linha.
-      const columnWidths = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
+      const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
       
+      // [ALTERAÇÃO 1]: Criei um array de larguras específico para o Modelo B.
+      // A soma dessas larguras é igual à soma das larguras do Modelo A, garantindo que a tabela ocupe toda a página.
+      const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
+
       const rowHeight = 18;
       const textPadding = 5;
 
-      const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths = columnWidths) => {
+      const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths) => { // Agora recebe as larguras como parâmetro
         const startX = doc.page.margins.left;
         const fontSize = 8;
         if (isHeader || isFooter) {
@@ -132,10 +135,10 @@ try {
       };
       
       if (!isModelB) { // Modelo A
-        currentY = drawRow(headers, currentY, true, false, columnWidths);
+        currentY = drawRow(headers, currentY, true, false, columnWidthsA);
         for(const r of enrichedData) {
             currentY = await checkPageBreak(currentY);
-            currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidths);
+            currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
         }
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -152,12 +155,13 @@ try {
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(currentY);
-          currentY = drawRow(headers.slice(1), currentY, true, false, columnWidths.slice(1));
+          // [ALTERAÇÃO 2]: Usando as larguras específicas do Modelo B para desenhar o cabeçalho e as linhas.
+          currentY = drawRow(headers.slice(1), currentY, true, false, columnWidthsB);
 
           const farmData = groupedData[fazendaKey];
           for(const r of farmData) {
               currentY = await checkPageBreak(currentY);
-              currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidths.slice(1));
+              currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
           }
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -167,9 +171,8 @@ try {
           const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
-          // [ALTERAÇÃO 2]: Alterado para "Sub Total" em uma linha.
           const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
-          currentY = drawRow(subtotalRow, currentY, false, true, columnWidths.slice(1));
+          currentY = drawRow(subtotalRow, currentY, false, true, columnWidthsB);
           currentY += 10;
         }
       }
@@ -185,13 +188,12 @@ try {
       doc.y = currentY;
       
       if (!isModelB) {
-        // [ALTERAÇÃO 3]: Alterado para "Total Geral" em uma linha.
         const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(totalRowData, currentY, false, true, columnWidths);
+        drawRow(totalRowData, currentY, false, true, columnWidthsA);
       } else {
-        // [ALTERAÇÃO 3]: Alterado para "Total Geral" em uma linha.
         const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(totalRowDataB, currentY, false, true, columnWidths.slice(1));
+        // [ALTERAÇÃO 3]: Usando as larguras do Modelo B também para a linha de Total Geral.
+        drawRow(totalRowDataB, currentY, false, true, columnWidthsB);
       }
 
       doc.end();
