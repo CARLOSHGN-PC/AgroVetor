@@ -56,37 +56,51 @@ try {
 
   // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS (com alterações para o logo) ---
 
-  // [CORREÇÃO]: getFilteredData agora filtra mais em memória para evitar problemas de índice
+  // [DEBUG]: Adicionado console.log para rastrear a filtragem de dados
   const getFilteredData = async (collectionName, filters) => {
+    console.log(`[getFilteredData] Iniciando busca para coleção: ${collectionName} com filtros:`, filters);
     let queryRef = db.collection(collectionName);
     
     // Aplica filtros de data diretamente na query do Firestore
     if (filters.inicio) {
       queryRef = queryRef.where('data', '>=', filters.inicio);
+      console.log(`[getFilteredData] Aplicando filtro Firestore: data >= ${filters.inicio}`);
     }
     if (filters.fim) {
       queryRef = queryRef.where('data', '<=', filters.fim);
+      console.log(`[getFilteredData] Aplicando filtro Firestore: data <= ${filters.fim}`);
     }
     
     const snapshot = await queryRef.get();
     let data = [];
     snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
+    console.log(`[getFilteredData] Dados brutos do Firestore (${data.length} registros):`, data.map(d => d.id));
 
     // Aplica outros filtros em memória (no backend Node.js)
     if (filters.fazendaCodigo) {
+      const initialLength = data.length;
       data = data.filter(d => d.codigo === filters.fazendaCodigo);
+      console.log(`[getFilteredData] Filtrado por fazendaCodigo (${filters.fazendaCodigo}): ${data.length} registros (antes: ${initialLength})`);
     }
     if (filters.matricula) {
+      const initialLength = data.length;
       data = data.filter(d => d.matricula === filters.matricula);
+      console.log(`[getFilteredData] Filtrado por matricula (${filters.matricula}): ${data.length} registros (antes: ${initialLength})`);
     }
     if (filters.talhao) {
+      const initialLength = data.length;
       data = data.filter(d => d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
+      console.log(`[getFilteredData] Filtrado por talhao (${filters.talhao}): ${data.length} registros (antes: ${initialLength})`);
     }
     if (filters.frenteServico) {
+      const initialLength = data.length;
       data = data.filter(d => d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
+      console.log(`[getFilteredData] Filtrado por frenteServico (${filters.frenteServico}): ${data.length} registros (antes: ${initialLength})`);
     }
     
-    return data.sort((a, b) => new Date(a.data) - new Date(b.data));
+    data.sort((a, b) => new Date(a.data) - new Date(b.data));
+    console.log(`[getFilteredData] Retornando ${data.length} registros finais.`);
+    return data;
   };
 
   const generatePdfHeader = async (doc, title, generatedBy = 'N/A') => {
@@ -101,7 +115,6 @@ try {
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
-    // Mantido o "Gerado por" no cabeçalho, conforme a versão que você pediu para restaurar
     doc.fontSize(10).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
     return doc.y;
@@ -109,15 +122,12 @@ try {
 
   // Função para adicionar o rodapé
   const addPdfFooter = (doc, generatedBy) => {
-    // Salva o estado atual do documento (fontes, cores, etc.)
     doc.save(); 
 
     const bottomMargin = doc.page.margins.bottom;
     const pageHeight = doc.page.height;
-    // Posição Y para o rodapé, um pouco acima da margem inferior
     const footerY = pageHeight - bottomMargin + 10; 
 
-    // Desenha uma linha horizontal fina acima do texto do rodapé
     doc.lineCap('butt')
        .lineWidth(0.5)
        .moveTo(doc.page.margins.left, footerY - 5)
@@ -126,7 +136,6 @@ try {
 
     doc.fontSize(8).font('Helvetica');
 
-    // Texto "Gerado por" alinhado à esquerda
     doc.text(
       `Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`,
       doc.page.margins.left,
@@ -134,7 +143,6 @@ try {
       { align: 'left', width: (doc.page.width - doc.page.margins.left - doc.page.margins.right) / 2 } 
     );
 
-    // Numeração da página alinhada à direita
     doc.text(
       `Página ${doc.page.number}`, 
       (doc.page.width / 2) + doc.page.margins.left, 
@@ -142,17 +150,17 @@ try {
       { align: 'right', width: (doc.page.width - doc.page.margins.left - doc.page.margins.right) / 2 } 
     );
 
-    // Restaura o estado anterior do documento
     doc.restore(); 
   };
 
 
   app.get('/reports/brocamento/pdf', async (req, res) => {
+    console.log('[brocamento/pdf] Requisição recebida.');
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename=relatorio_brocamento.pdf');
-    doc.pipe(res); // Inicia o stream do PDF para a resposta
+    doc.pipe(res); 
 
     const filters = req.query;
     const generatedBy = filters.generatedBy || 'N/A'; 
@@ -164,9 +172,10 @@ try {
 
     try {
       const data = await getFilteredData('registros', filters);
+      console.log(`[brocamento/pdf] Dados obtidos para relatório: ${data.length} registros.`);
       
       if (data.length === 0) {
-        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', generatedBy); // Passa generatedBy
+        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', generatedBy); 
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
       } else {
         const fazendasSnapshot = await db.collection('fazendas').get();
@@ -184,7 +193,7 @@ try {
         const isModelB = filters.tipoRelatorio === 'B';
         const title = 'Relatório de Inspeção de Broca';
         
-        let currentY = await generatePdfHeader(doc, title, generatedBy); // Passa generatedBy
+        let currentY = await generatePdfHeader(doc, title, generatedBy); 
         
         const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
         const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
@@ -214,7 +223,7 @@ try {
         const checkPageBreak = async (y, neededSpace = rowHeight) => {
           if (y > doc.page.height - doc.page.margins.bottom - neededSpace) { 
               doc.addPage();
-              return await generatePdfHeader(doc, title, generatedBy); // Passa generatedBy
+              return await generatePdfHeader(doc, title, generatedBy); 
           }
           return y;
         };
@@ -311,6 +320,7 @@ try {
   });
 
   app.get('/reports/perda/pdf', async (req, res) => {
+    console.log('[perda/pdf] Requisição recebida.');
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
@@ -326,6 +336,8 @@ try {
 
     try {
       const data = await getFilteredData('perdas', filters);
+      console.log(`[perda/pdf] Dados obtidos para relatório: ${data.length} registros.`);
+
       if (data.length === 0) {
         await generatePdfHeader(doc, 'Relatório de Perda', generatedBy); 
         doc.text('Nenhum dado encontrado.');
