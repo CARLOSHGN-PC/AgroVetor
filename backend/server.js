@@ -73,15 +73,17 @@ try {
     return data.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
-  // [ALTERAÇÃO]: generatePdfHeader agora carrega o logo Base64 do Firestore e com tamanho reduzido
+  // [ALTERAÇÃO]: generatePdfHeader agora carrega o logo Base64 do Firestore, com tamanho e posição ajustados
   const generatePdfHeader = async (doc, title) => {
     try {
       const configDoc = await db.collection('config').doc('company').get();
       // Verifica se existe o campo 'logoBase64' e o utiliza
       if (configDoc.exists && configDoc.data().logoBase64) {
         const logoBase64 = configDoc.data().logoBase64;
-        // Adiciona a imagem Base64 ao PDF com largura reduzida (ex: 60)
-        doc.image(logoBase64, doc.page.margins.left, 25, { width: 60 }); // Reduzido de 100 para 60
+        // Adiciona a imagem Base64 ao PDF.
+        // O segundo parâmetro (15) move a imagem para cima (era 25).
+        // A largura (width: 40) foi diminuída (era 60).
+        doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 }); 
       }
     } catch (error) {
       console.error("Não foi possível carregar o logotipo Base64:", error.message);
@@ -128,9 +130,7 @@ try {
       let currentY = await generatePdfHeader(doc, title);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      // [REVERTIDO]: Larguras das colunas para o Modelo A voltaram aos valores originais
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
-      // [REVERTIDO]: Larguras das colunas para o Modelo B voltaram aos valores originais
       const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
       const rowHeight = 18;
@@ -285,10 +285,8 @@ try {
       await table(doc, { 
           headers, 
           rows,
-          // [REVERTIDO]: Removido columnStyles para o relatório de perda.
           prepareHeader: () => doc.font('Helvetica-Bold'), 
           prepareRow: () => doc.font('Helvetica'),
-          // [REVERTIDO]: Removido o ajuste de fontSize, voltando ao padrão da biblioteca.
       });
       doc.end();
     } catch (error) { 
