@@ -2612,8 +2612,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // NOVA SEÇÃO DE RELATÓRIOS - APONTANDO PARA O BACKEND
         // ===================================================================
         reports: {
+            // [ALTERAÇÃO]: Adicionado 'username' aos filtros enviados para o backend
             _fetchAndDownloadReport(endpoint, filters, filename) {
                 const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
+                // Adiciona o nome de usuário do App.state.currentUser aos filtros
+                cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
+
                 const params = new URLSearchParams(cleanFilters);
                 const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
         
