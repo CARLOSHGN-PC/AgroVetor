@@ -188,26 +188,27 @@ try {
       if (data.length === 0) {
         await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', generatedBy); 
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
-        doc.end(); // Finaliza o documento aqui se não houver dados
-        return;
       } else {
         const fazendasSnapshot = await db.collection('fazendas').get();
         const fazendasData = {};
         fazendasSnapshot.forEach(docSnap => {
           fazendasData[docSnap.data().code] = docSnap.data();
         });
+        console.log('[brocamento/pdf] Fazendas Data carregada.');
 
         const enrichedData = data.map(reg => {
             const farm = fazendasData[reg.codigo];
             const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === reg.talhao.toUpperCase());
             return { ...reg, variedade: talhao?.variedade || 'N/A' };
         });
+        console.log(`[brocamento/pdf] Dados enriquecidos: ${enrichedData.length} registros.`);
 
         const isModelB = filters.tipoRelatorio === 'B';
         const title = 'Relatório de Inspeção de Broca';
         
         let currentY = await generatePdfHeader(doc, title, generatedBy); 
-        
+        console.log('[brocamento/pdf] Cabeçalho gerado. currentY:', currentY);
+
         const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
         const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
         const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
@@ -242,20 +243,25 @@ try {
         };
         
         if (!isModelB) { // Modelo A
+          console.log('[brocamento/pdf] Gerando Modelo A. Headers:', headers);
           currentY = drawRow(headers, currentY, true, false, columnWidthsA);
           for(const r of enrichedData) {
+              console.log('[brocamento/pdf] Desenhando linha de dados (Modelo A):', r.id);
               currentY = await checkPageBreak(currentY);
               currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
           }
         } else { // Modelo B
+          console.log('[brocamento/pdf] Gerando Modelo B.');
           const groupedData = enrichedData.reduce((acc, reg) => {
             const key = `${reg.codigo} - ${reg.fazenda}`;
             if (!acc[key]) acc[key] = [];
             acc[key].push(reg);
             return acc;
           }, {});
+          console.log('[brocamento/pdf] Dados agrupados para Modelo B.');
 
           for (const fazendaKey of Object.keys(groupedData).sort()) {
+            console.log('[brocamento/pdf] Processando fazenda:', fazendaKey);
             currentY = await checkPageBreak(currentY, 40);
             doc.y = currentY;
             doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
@@ -266,6 +272,7 @@ try {
 
             const farmData = groupedData[fazendaKey];
             for(const r of farmData) {
+                console.log('[brocamento/pdf] Desenhando linha de dados (Modelo B):', r.id);
                 currentY = await checkPageBreak(currentY);
                 currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
             }
@@ -278,6 +285,7 @@ try {
             const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
             
             const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
+            console.log('[brocamento/pdf] Desenhando subtotal para fazenda:', fazendaKey);
             currentY = drawRow(subtotalRow, currentY, false, true, columnWidthsB);
             currentY += 10;
           }
@@ -295,15 +303,18 @@ try {
         
         if (!isModelB) {
           const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+          console.log('[brocamento/pdf] Desenhando total geral (Modelo A).');
           drawRow(totalRowData, currentY, false, true, columnWidthsA);
         } else {
           const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+          console.log('[brocamento/pdf] Desenhando total geral (Modelo B).');
           drawRow(totalRowDataB, currentY, false, true, columnWidthsB);
         }
       }
+      console.log('[brocamento/pdf] Finalizando documento.');
       doc.end(); // Finaliza o documento no final do try
     } catch (error) { 
-        console.error("Erro no PDF de Brocamento:", error);
+        console.error("[brocamento/pdf] ERRO CRÍTICO ao gerar PDF:", error);
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
@@ -354,13 +365,12 @@ try {
       if (data.length === 0) {
         await generatePdfHeader(doc, 'Relatório de Perda', generatedBy); 
         doc.text('Nenhum dado encontrado.');
-        doc.end(); // Finaliza o documento aqui se não houver dados
-        return;
       } else {
         const isDetailed = filters.tipoRelatorio === 'B';
         const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
         
         await generatePdfHeader(doc, title, generatedBy); 
+        console.log('[perda/pdf] Cabeçalho gerado. currentY após cabeçalho.');
 
         let headers, rows;
         // [NOVO MODELO]: Modelo Detalhado (Tipo B)
@@ -381,6 +391,9 @@ try {
             p.pedaco, 
             p.total
           ]);
+          console.log('[perda/pdf] Gerando Modelo Detalhado. Headers:', headers);
+          console.log('[perda/pdf] Primeiras 5 linhas (rows):', JSON.stringify(rows.slice(0, 5)));
+
           const { table } = require('pdfkit-table');
           await table(doc, {
               headers,
@@ -417,6 +430,7 @@ try {
               prepareHeader: () => doc.font('Helvetica-Bold'),
               prepareRow: () => doc.font('Helvetica'),
           });
+          console.log('[perda/pdf] Tabela detalhada gerada.');
         } else {
           // [NOVO MODELO]: Modelo Resumido (Tipo A)
           headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
@@ -429,6 +443,9 @@ try {
             p.operador, 
             p.total
           ]);
+          console.log('[perda/pdf] Gerando Modelo Resumido. Headers:', headers);
+          console.log('[perda/pdf] Primeiras 5 linhas (rows):', JSON.stringify(rows.slice(0, 5)));
+
           const { table } = require('pdfkit-table');
           await table(doc, {
               headers,
@@ -459,11 +476,13 @@ try {
               prepareHeader: () => doc.font('Helvetica-Bold'),
               prepareRow: () => doc.font('Helvetica'),
           });
+          console.log('[perda/pdf] Tabela resumida gerada.');
         }
       }
+      console.log('[perda/pdf] Finalizando documento.');
       doc.end(); // Finaliza o documento no final do try
     } catch (error) { 
-        console.error("Erro no PDF de Perda:", error);
+        console.error("[perda/pdf] ERRO CRÍTICO ao gerar PDF:", error);
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
@@ -474,8 +493,7 @@ try {
 
   app.get('/reports/perda/csv', async (req, res) => {
     try {
-      const filters = req.query;
-      const data = await getFilteredData('perdas', filters);
+      const data = await getFilteredData('perdas', req.query);
       if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
 
       const isDetailed = filters.tipoRelatorio === 'B';
