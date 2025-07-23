@@ -7,7 +7,7 @@ const PDFDocument = require('pdfkit');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
-const axios = require('axios');
+const axios = require = require('axios');
 // Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
 
 const app = express();
@@ -86,38 +86,10 @@ try {
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
-    // Adicionado o nome do usuário para generatePdfHeader
+    // Adicionado o nome do usuário que gerou o relatório
     doc.fontSize(10).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
     return doc.y;
-  };
-
-  // Função auxiliar para desenhar linhas da tabela
-  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18) => {
-    const startX = doc.page.margins.left;
-    const fontSize = 8;
-    if (isHeader || isFooter) {
-        doc.font('Helvetica-Bold').fontSize(fontSize);
-        doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
-        doc.fillColor('black');
-    } else {
-        doc.font('Helvetica').fontSize(fontSize);
-    }
-    let currentX = startX;
-    rowData.forEach((cell, i) => {
-        doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
-        currentX += customWidths[i];
-    });
-    return y + rowHeight;
-  };
-
-  // Função auxiliar para verificar quebra de página
-  const checkPageBreak = async (doc, y, title, generatedBy, neededSpace = 40) => {
-    if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
-        doc.addPage();
-        return await generatePdfHeader(doc, title, generatedBy);
-    }
-    return y;
   };
 
 
@@ -157,16 +129,45 @@ try {
       // Passando o nome do usuário para generatePdfHeader
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
-      const headersA = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
+      const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
-      const headersB = ['Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
+      const rowHeight = 18;
+      const textPadding = 5;
+
+      const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths) => {
+        const startX = doc.page.margins.left;
+        const fontSize = 8;
+        if (isHeader || isFooter) {
+            doc.font('Helvetica-Bold').fontSize(fontSize);
+            doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            doc.fillColor('black');
+        } else {
+            doc.font('Helvetica').fontSize(fontSize);
+        }
+        let currentX = startX;
+        rowData.forEach((cell, i) => {
+            doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+            currentX += customWidths[i];
+        });
+        return y + rowHeight;
+      };
+      
+      const checkPageBreak = async (y, neededSpace = rowHeight) => {
+        if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
+            doc.addPage();
+            // Passando o nome do usuário para generatePdfHeader
+            return await generatePdfHeader(doc, title, filters.generatedBy);
+        }
+        return y;
+      };
+      
       if (!isModelB) { // Modelo A
-        currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA);
+        currentY = drawRow(headers, currentY, true, false, columnWidthsA);
         for(const r of enrichedData) {
-            currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-            currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
+            currentY = await checkPageBreak(currentY);
+            currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
         }
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -177,18 +178,18 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+          currentY = await checkPageBreak(currentY, 40);
           doc.y = currentY;
           doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
           currentY = doc.y + 5;
 
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-          currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB);
+          currentY = await checkPageBreak(currentY);
+          currentY = drawRow(headers.slice(1), currentY, true, false, columnWidthsB);
 
           const farmData = groupedData[fazendaKey];
           for(const r of farmData) {
-              currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-              currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
+              currentY = await checkPageBreak(currentY);
+              currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
           }
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -199,7 +200,7 @@ try {
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
           const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
-          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB);
+          currentY = drawRow(subtotalRow, currentY, false, true, columnWidthsB);
           currentY += 10;
         }
       }
@@ -211,15 +212,15 @@ try {
       const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
       const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-      currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+      currentY = await checkPageBreak(currentY, 40);
       doc.y = currentY;
       
       if (!isModelB) {
         const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA);
+        drawRow(totalRowData, currentY, false, true, columnWidthsA);
       } else {
         const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB);
+        drawRow(totalRowDataB, currentY, false, true, columnWidthsB);
       }
 
       doc.end();
