@@ -159,8 +159,15 @@ try {
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
-      const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
+      // Ajuste as larguras das colunas para A4 paisagem (297mm x 210mm, margens de 30mm)
+      // Largura disponível: 297 - 30 - 30 = 237mm
+      // Converte mm para pontos (1mm = 2.83465 pontos)
+      const availableWidth = (297 - 60) * 2.83465; // ~671 pontos
+      
+      // Larguras ajustadas para o Modelo A (total 671)
+      const columnWidthsA = [110, 60, 70, 80, 50, 60, 45, 45, 45, 55, 51]; // Total: 671
+      // Larguras ajustadas para o Modelo B (total 671) - sem a coluna Fazenda
+      const columnWidthsB = [75, 80, 100, 50, 60, 45, 45, 45, 55, 116]; // Total: 671
 
       const rowHeight = 18;
       
@@ -200,7 +207,7 @@ try {
           const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
-          const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
+          const subtotalRow = ['', '', '', '', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
           currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, rowHeight);
           currentY += 10;
         }
@@ -217,10 +224,10 @@ try {
       doc.y = currentY;
       
       if (!isModelB) {
-        const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+        const totalRowData = ['', '', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, rowHeight);
       } else {
-        const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+        const totalRowDataB = ['', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, rowHeight);
       }
 
@@ -269,7 +276,7 @@ try {
       const data = await getFilteredData('perdas', filters);
       if (data.length === 0) {
         await generatePdfHeader(doc, 'Relatório de Perda', filters.generatedBy);
-        doc.text('Nenhum dado encontrado.');
+        doc.text('Nenhum dado encontrado para os filtros selecionados.');
         doc.end();
         return;
       }
@@ -283,12 +290,13 @@ try {
       const textPadding = 5;
 
       let headers, columnWidths;
+      // Largura disponível: ~671 pontos
       if (isDetailed) {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
-        columnWidths = [60, 100, 70, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50]; // Ajustado para A4 landscape
+        columnWidths = [60, 90, 60, 60, 40, 80, 50, 50, 40, 40, 50, 50, 51]; // Total: 671
       } else {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-        columnWidths = [80, 150, 100, 100, 60, 150, 80]; // Ajustado para A4 landscape
+        columnWidths = [80, 140, 90, 90, 50, 140, 81]; // Total: 671
       }
       
       currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
@@ -335,7 +343,7 @@ try {
 
       let totalRowData;
       if (isDetailed) {
-        totalRowData = ['', '', '', '', '', 'Total Geral', '', '', '', '', '', '', String(grandTotal.toFixed(2))];
+        totalRowData = ['', '', '', '', '', '', '', '', '', '', '', 'Total Geral', String(grandTotal.toFixed(2))];
       } else {
         totalRowData = ['', '', '', '', '', 'Total Geral', String(grandTotal.toFixed(2))];
       }
@@ -445,10 +453,11 @@ try {
       if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador' });
       if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias Aplic.' });
 
-      const allHeaders = [...baseHeaders, ...optionalHeaders];
+      // Garante que 'entrada' e 'saida' estão sempre no final
+      const allHeaders = [...baseHeaders.filter(h => h.id !== 'entrada' && h.id !== 'saida'), ...optionalHeaders, { id: 'entrada', title: 'Entrada' }, { id: 'saida', title: 'Saída' }];
       const headersText = allHeaders.map(h => h.title);
 
-      // Definir larguras das colunas
+      // Definir larguras das colunas para A4 paisagem (~671 pontos)
       const columnWidths = {
           seq: 25,
           fazenda: 90,
@@ -464,12 +473,20 @@ try {
           saida: 55
       };
 
+      // Calcular as larguras finais baseadas nos cabeçalhos selecionados
       const finalColumnWidths = allHeaders.map(h => columnWidths[h.id]);
+
+      // Ajustar larguras proporcionalmente se o total exceder o disponível
+      const totalCurrentWidth = finalColumnWidths.reduce((sum, width) => sum + width, 0);
+      const scaleFactor = availableWidth / totalCurrentWidth;
+
+      const scaledColumnWidths = finalColumnWidths.map(width => width * scaleFactor);
+
 
       const rowHeight = 18;
       const textPadding = 5;
 
-      currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths, textPadding, rowHeight);
+      currentY = drawRow(doc, headersText, currentY, true, false, scaledColumnWidths, textPadding, rowHeight);
 
       let grandTotalProducao = 0;
       let grandTotalArea = 0;
@@ -541,9 +558,9 @@ try {
         let diasAplicacao = 'N/A';
         if (group.maturadorDate) {
             try {
-                const today = new Date(); 
                 const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                const diffTime = today.getTime() - applicationDate.getTime();
+                // Calcula a diferença em relação à data de entrada do grupo no plano, não à data atual
+                const diffTime = dataEntrada.getTime() - applicationDate.getTime();
                 if (diffTime >= 0) { 
                     diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 }
@@ -570,7 +587,7 @@ try {
         const rowData = allHeaders.map(h => rowDataMap[h.id]);
 
         currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
-        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight);
+        currentY = drawRow(doc, rowData, currentY, false, false, scaledColumnWidths, textPadding, rowHeight);
       }
 
       // Totais Gerais
@@ -582,7 +599,7 @@ try {
       totalHeaders[allHeaders.findIndex(h => h.id === 'area')] = String(grandTotalArea.toFixed(2)); 
       totalHeaders[allHeaders.findIndex(h => h.id === 'producao')] = String(grandTotalProducao.toFixed(2)); 
 
-      drawRow(doc, totalHeaders, currentY, false, true, finalColumnWidths, textPadding, rowHeight);
+      drawRow(doc, totalHeaders, currentY, false, true, scaledColumnWidths, textPadding, rowHeight);
 
       doc.end();
     } catch (error) {
@@ -718,9 +735,9 @@ try {
         let diasAplicacao = 'N/A';
         if (group.maturadorDate) {
             try {
-                const today = new Date(); 
                 const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                const diffTime = today.getTime() - applicationDate.getTime();
+                // Calcula a diferença em relação à data de entrada do grupo no plano, não à data atual
+                const diffTime = dataEntrada.getTime() - applicationDate.getTime();
                 if (diffTime >= 0) { 
                     diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 }
