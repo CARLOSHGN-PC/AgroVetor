@@ -781,7 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
                 formElement.querySelectorAll('.info-display').forEach(el => el.textContent = '');
-                formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '';
+                formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '');
             },
             populateFazendaSelects() {
                 const selects = [
@@ -1092,15 +1092,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const dataSaida = new Date(currentDate.getTime());
                     
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, startDate);
-                    const diasAplicacao = App.actions.calculateMaturadorDays(group); 
+                    const diasAplicacao = App.actions.calculateMaturadorDays(group);
 
                     const row = tableBody.insertRow();
                     row.draggable = true;
                     row.dataset.id = group.id;
                     
-                    // Ajustando o cabeçalho "Seq." para evitar quebra de linha
                     row.innerHTML = `
-                        <td data-label="Seq.">${index + 1}.</td> 
+                        <td data-label="Seq.">${index + 1}</td>
                         <td data-label="Fazenda">${group.fazendaCodigo} - ${group.fazendaName}</td>
                         <td data-label="Talhões" class="talhao-list-cell">${group.plots.map(p => p.talhaoName).join(', ')}</td>
                         <td data-label="Área (ha)">${group.totalArea.toFixed(2)}</td>
@@ -1423,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
                 
                 const customReportEls = App.elements.relatorioColheita;
-                // Chamar a função de geração de relatório do backend
+                // [ALTERAÇÃO]: Chamar a função de geração de relatório do backend
                 customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
                 
@@ -1845,28 +1844,27 @@ document.addEventListener('DOMContentLoaded', () => {
             async saveHarvestPlan() {
                 if (!App.state.activeHarvestPlan) return;
                 
-                // Removendo a confirmação aqui para permitir salvamento automático
-                const planToSave = App.state.activeHarvestPlan;
-                planToSave.frontName = planToSave.frontName.trim();
-                
-                if (!planToSave.frontName || !planToSave.startDate || !planToSave.dailyRate) {
-                    App.ui.showAlert('Preencha todos os campos de configuração da frente.', "error");
-                    return;
-                }
-                
-                try {
-                    if (planToSave.id) {
-                        await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
-                    } else {
-                        const docRef = await App.data.addDocument('harvestPlans', planToSave);
-                        App.state.activeHarvestPlan.id = docRef.id; // Atualiza o ID para futuros salvamentos
+                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este plano de colheita?", async () => {
+                    const planToSave = App.state.activeHarvestPlan;
+                    planToSave.frontName = planToSave.frontName.trim();
+                    
+                    if (!planToSave.frontName || !planToSave.startDate || !planToSave.dailyRate) {
+                        App.ui.showAlert('Preencha todos os campos de configuração da frente.', "error");
+                        return;
                     }
-                    App.ui.showAlert(`Plano de colheita "${planToSave.frontName}" guardado com sucesso!`);
-                    // Não redireciona para a lista automaticamente após cada salvamento de sequência
-                } catch(e) {
-                    App.ui.showAlert('Erro ao guardar o plano de colheita.', "error");
-                    console.error("Erro ao guardar o plano de colheita:", e);
-                }
+                    
+                    try {
+                        if (planToSave.id) {
+                            await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
+                        } else {
+                            await App.data.addDocument('harvestPlans', planToSave);
+                        }
+                        App.ui.showAlert(`Plano de colheita "${planToSave.frontName}" guardado com sucesso!`);
+                        App.ui.showHarvestPlanList();
+                    } catch(e) {
+                        App.ui.showAlert('Erro ao guardar o plano de colheita.', "error");
+                    }
+                });
             },
             deleteHarvestPlan(planId) {
                 App.ui.showConfirmationModal("Tem a certeza que deseja excluir este plano de colheita?", async () => {
@@ -1874,7 +1872,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Plano de colheita excluído.', 'info');
                 });
             },
-            async addOrUpdateHarvestSequence() { // Adicionado 'async'
+            addOrUpdateHarvestSequence() {
                 if (!App.state.activeHarvestPlan) { App.ui.showAlert("Primeiro crie ou edite um plano.", "warning"); return; }
                 const { fazenda: fazendaSelect, atr: atrInput, editingGroupId, maturador, maturadorDate } = App.elements.harvest;
                 const farmId = fazendaSelect.value;
@@ -1927,7 +1925,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 App.ui.renderHarvestSequence();
                 this.cancelEditSequence();
-                await this.saveHarvestPlan(); // Salva o plano no Firestore após adicionar/atualizar
             },
             editHarvestSequenceGroup(groupId) {
                 if (!App.state.activeHarvestPlan) return;
@@ -1965,14 +1962,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnAddOrUpdate.innerHTML = `<i class="fas fa-plus"></i> Adicionar à Sequência`;
                 btnCancelEdit.style.display = 'none';
             },
-            async removeHarvestSequence(groupId) { // Adicionado 'async'
+            removeHarvestSequence(groupId) {
                 if (!App.state.activeHarvestPlan) return;
                 
-                App.ui.showConfirmationModal("Tem a certeza que deseja remover este grupo da sequência?", async () => { // Adicionado 'async' aqui
+                App.ui.showConfirmationModal("Tem a certeza que deseja remover este grupo da sequência?", () => {
                     App.state.activeHarvestPlan.sequence = App.state.activeHarvestPlan.sequence.filter(g => g.id != groupId);
                     App.ui.renderHarvestSequence();
                     App.actions.cancelEditSequence();
-                    await this.saveHarvestPlan(); // Salva o plano no Firestore após remover
                     App.ui.showAlert('Grupo removido da sequência.', 'info');
                 });
             },
@@ -1985,10 +1981,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (newATR !== null && !isNaN(parseFloat(newATR))) {
                     group.atr = parseFloat(newATR);
                     App.ui.renderHarvestSequence();
-                    this.saveHarvestPlan(); // Salva o plano no Firestore após editar ATR
                 }
             },
-            async reorderHarvestSequence(draggedId, targetId) { // Adicionado 'async'
+            reorderHarvestSequence(draggedId, targetId) {
                 if (!App.state.activeHarvestPlan) return;
                 const sequence = App.state.activeHarvestPlan.sequence;
                 const fromIndex = sequence.findIndex(item => item.id == draggedId);
@@ -1997,7 +1992,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const item = sequence.splice(fromIndex, 1)[0];
                 sequence.splice(toIndex, 0, item);
                 App.ui.renderHarvestSequence();
-                await this.saveHarvestPlan(); // Salva o plano no Firestore após reordenar
             },
             calculateAverageAge(group, startDate) {
                 let totalAgeInDays = 0;
@@ -2133,7 +2127,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (navigator.onLine) {
                                 App.ui.showAlert('Lançamento de perda guardado com sucesso!');
                             } else {
-                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
+                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviado quando houver conexão.', 'info');
                             }
                             this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
                         })
@@ -2712,15 +2706,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
                     fazendaCodigo: farm ? farm.code : '',
-                    talhao: filtroTalhao.value,
-                    matricula: filtroOperador.value,
-                    frenteServico: filtroFrente.value,
                     tipoRelatorio: tipoRelatorio.value
                 };
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
         
-            // generateCustomHarvestReport agora chama o backend
+            // [ALTERAÇÃO]: generateCustomHarvestReport agora chama o backend
             generateCustomHarvestReport(format) {
                 const { select, optionsContainer } = App.elements.relatorioColheita;
                 const planId = select.value;
