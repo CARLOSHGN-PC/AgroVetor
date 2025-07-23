@@ -98,7 +98,8 @@ try {
     let currentX = startX;
     rowData.forEach((cell, i) => {
         // Garante que o valor é uma string antes de passar para doc.text
-        doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+        // Adicionado o breakWord para forçar a quebra de palavras longas
+        doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left', continued: false, lineBreak: true, wordBreak: 'break-all' });
         currentX += customWidths[i];
     });
     return y + rowHeight;
@@ -353,6 +354,7 @@ try {
         } else {
             doc.end(); // Garante que o stream seja fechado
         }
+        return; // Retorna para evitar mais processamento em caso de erro
     }
   });
 
@@ -422,6 +424,15 @@ try {
 
       const harvestPlan = harvestPlanDoc.data();
 
+      // Se a sequência estiver vazia, não há dados para o relatório
+      if (!harvestPlan.sequence || harvestPlan.sequence.length === 0) {
+        await generatePdfHeader(doc, `Relatório de Colheita - ${harvestPlan.frontName}`, generatedBy);
+        doc.text('Nenhum dado de sequência encontrado para este plano de colheita.');
+        doc.end();
+        return;
+      }
+
+
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
       fazendasSnapshot.forEach(docSnap => {
@@ -435,13 +446,13 @@ try {
       // Definindo todos os cabeçalhos possíveis e suas larguras fixas
       // Largura total disponível: 297mm - 60mm (margens) = 237mm = ~671 pontos
       const allPossibleHeadersConfig = [
-        { id: 'seq', title: 'Seq.', width: 25 },
+        { id: 'seq', title: 'Seq.', width: 30 }, // Ajustado para 'Seq.' e largura aumentada
         { id: 'fazenda', title: 'Fazenda', width: 90 },
         { id: 'talhoes', title: 'Talhões', width: 110 },
         { id: 'area', title: 'Área (ha)', width: 55 },
         { id: 'producao', title: 'Prod. (ton)', width: 55 },
         { id: 'variedade', title: 'Variedade', width: 75 },
-        { id: 'idade', title: 'Idade Média (meses)', width: 45 },
+        { id: 'idade', title: 'Idade M. (mês)', width: 45 }, // Abreviado para "Idade M. (mês)"
         { id: 'atr', title: 'ATR', width: 35 },
         { id: 'maturador', title: 'Maturador', width: 75 },
         { id: 'diasAplicacao', title: 'Dias Aplic.', width: 55 },
@@ -609,6 +620,7 @@ try {
         } else {
             doc.end(); // Garante que o stream seja fechado
         }
+        return; // Retorna para evitar mais processamento em caso de erro
     }
   });
 
@@ -623,6 +635,11 @@ try {
       if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
 
       const harvestPlan = harvestPlanDoc.data();
+      // Se a sequência estiver vazia, não há dados para o relatório
+      if (!harvestPlan.sequence || harvestPlan.sequence.length === 0) {
+        return res.status(404).send('Nenhum dado de sequência encontrado para este plano de colheita.');
+      }
+
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
       fazendasSnapshot.forEach(docSnap => {
@@ -634,13 +651,13 @@ try {
       
       // Define todos os cabeçalhos possíveis
       const allPossibleHeadersConfig = [
-        { id: 'seq', title: 'Seq.' },
+        { id: 'seq', title: 'Seq.' }, // Ajustado para "Seq."
         { id: 'fazenda', title: 'Fazenda' },
         { id: 'talhoes', title: 'Talhões' },
         { id: 'area', title: 'Área (ha)' },
         { id: 'producao', title: 'Prod. (ton)' },
         { id: 'variedade', title: 'Variedade' },
-        { id: 'idade', title: 'Idade Média (meses)' },
+        { id: 'idade', title: 'Idade M. (mês)' }, // Abreviado para "Idade M. (mês)"
         { id: 'atr', title: 'ATR' },
         { id: 'maturador', title: 'Maturador Aplicado' },
         { id: 'diasAplicacao', title: 'Dias desde Aplicação' },
