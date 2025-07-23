@@ -1092,7 +1092,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const dataSaida = new Date(currentDate.getTime());
                     
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, startDate);
-                    const diasAplicacao = App.actions.calculateMaturadorDays(group);
+                    const diasAplicacao = App.actions.calculateMaturadorDays(group, dataEntrada); // Passa dataEntrada aqui
 
                     const row = tableBody.insertRow();
                     row.draggable = true;
@@ -2016,15 +2016,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return 'N/A';
             },
-            calculateMaturadorDays(group) {
-                if (!group.maturadorDate) {
+            // [ALTERAÇÃO]: A função calculateMaturadorDays agora recebe a data de entrada do grupo
+            calculateMaturadorDays(group, groupEntryDate) {
+                if (!group.maturadorDate || !groupEntryDate) {
                     return 'N/A';
                 }
                 try {
-                    const today = new Date();
                     const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                    const diffTime = today - applicationDate;
-                    if (diffTime < 0) return 0;
+                    // Calcula a diferença em relação à data de entrada do grupo no plano
+                    const diffTime = groupEntryDate.getTime() - applicationDate.getTime();
+                    if (diffTime < 0) return 0; // Se a aplicação for no futuro, ou no mesmo dia, retorna 0 dias
                     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                     return diffDays;
                 } catch (e) {
@@ -2706,6 +2707,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
                     fazendaCodigo: farm ? farm.code : '',
+                    talhao: filtroTalhao.value,
+                    matricula: filtroOperador.value,
+                    frenteServico: filtroFrente.value,
                     tipoRelatorio: tipoRelatorio.value
                 };
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
