@@ -8,7 +8,8 @@ const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
-// Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
+// [CORREÇÃO]: Importa a função principal do pdfkit-table
+const createPdfTable = require('pdfkit-table'); 
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -16,19 +17,13 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Aumenta o limite para receber strings Base64 grandes
 
-// Removido: const storage = multer.memoryStorage();
-// Removido: const upload = multer({ storage: storage });
-
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   admin.initializeApp({ 
     credential: admin.credential.cert(serviceAccount),
-    // O storageBucket não é mais usado diretamente pelo backend para upload/download de logo,
-    // mas pode ser mantido se outras partes da sua aplicação o utilizarem.
     storageBucket: "agrovetor-v2.appspot.com" 
   });
   const db = admin.firestore();
-  // Removido: const bucket = admin.storage().bucket();
   console.log('Firebase Admin SDK inicializado com sucesso.');
 
   app.get('/', (req, res) => {
@@ -37,14 +32,13 @@ try {
 
   // ROTA PARA UPLOAD DO LOGO (agora recebe Base64 diretamente)
   app.post('/upload-logo', async (req, res) => {
-    const { logoBase64 } = req.body; // Espera a string Base64 no corpo da requisição
+    const { logoBase64 } = req.body; 
 
     if (!logoBase64) {
       return res.status(400).send({ message: 'Nenhum dado de imagem Base64 enviado.' });
     }
 
     try {
-      // Salvar a string Base64 diretamente no Firestore
       await db.collection('config').doc('company').set({ logoBase64: logoBase64 }, { merge: true });
       res.status(200).send({ message: 'Logo carregado com sucesso!' });
     } catch (error) {
@@ -56,12 +50,10 @@ try {
 
   // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS (com alterações para o logo) ---
 
-  // [DEBUG]: Adicionado console.log extensivo para rastrear a filtragem de dados
   const getFilteredData = async (collectionName, filters) => {
     console.log(`[getFilteredData - ${collectionName}] Iniciando busca com filtros:`, filters);
     let queryRef = db.collection(collectionName);
     
-    // Aplica filtros de data diretamente na query do Firestore
     if (filters.inicio) {
       queryRef = queryRef.where('data', '>=', filters.inicio);
       console.log(`[getFilteredData - ${collectionName}] Aplicando filtro Firestore: data >= ${filters.inicio}`);
@@ -77,15 +69,14 @@ try {
         snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
         console.log(`[getFilteredData - ${collectionName}] Dados brutos do Firestore (${data.length} registros). Exemplo de ID: ${data.length > 0 ? data[0].id : 'N/A'}`);
         if (data.length > 0) {
-            console.log(`[getFilteredData - ${collectionName}] Exemplo de registro (data, codigo, talhao):`, data[0].data, data[0].codigo, data[0].talhao);
+            console.log(`[getFilteredData - ${collectionName}] Exemplo de registro (data, codigo, talhao, matricula, frenteServico):`, data[0].data, data[0].codigo, data[0].talhao, data[0].matricula, data[0].frenteServico);
         }
     } catch (firestoreError) {
         console.error(`[getFilteredData - ${collectionName}] ERRO na consulta ao Firestore:`, firestoreError.code, firestoreError.message);
         console.error(`[getFilteredData - ${collectionName}] Se for "failed-precondition", verifique os índices no console do Firebase.`);
-        return []; // Retorna vazio se a consulta ao Firestore falhar
+        return []; 
     }
 
-    // Aplica outros filtros em memória (no backend Node.js)
     let currentDataLength = data.length;
 
     if (filters.fazendaCodigo) {
@@ -164,49 +155,6 @@ try {
     doc.restore(); 
   };
 
-  // [NOVO] Funções auxiliares para o relatório de colheita (portadas do frontend)
-  const calculateAverageAge = (group, startDate, allFazendas) => {
-    let totalAgeInDays = 0;
-    let plotsWithDate = 0;
-    const farm = allFazendas.find(f => f.code === group.fazendaCodigo);
-    if (!farm) return 'N/A';
-
-    group.plots.forEach(plot => {
-        const talhao = farm.talhoes.find(t => t.id === plot.talhaoId);
-        if (talhao && talhao.dataUltimaColheita && startDate) {
-            const dataInicioPlano = new Date(startDate + 'T03:00:00Z');
-            const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
-            if (!isNaN(dataInicioPlano) && !isNaN(dataUltima)) {
-                totalAgeInDays += Math.abs(dataInicioPlano - dataUltima);
-                plotsWithDate++;
-            }
-        }
-    });
-
-    if (plotsWithDate > 0) {
-        const avgDiffTime = totalAgeInDays / plotsWithDate;
-        const avgDiffDays = Math.ceil(avgDiffTime / (1000 * 60 * 60 * 24));
-        return (avgDiffDays / 30).toFixed(1);
-    }
-    return 'N/A';
-  };
-
-  const calculateMaturadorDays = (group) => {
-    if (!group.maturadorDate) {
-        return 'N/A';
-    }
-    try {
-        const today = new Date();
-        const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-        const diffTime = today - applicationDate;
-        if (diffTime < 0) return 0;
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
-    } catch (e) {
-        return 'N/A';
-    }
-  };
-
 
   app.get('/reports/brocamento/pdf', async (req, res) => {
     console.log('[brocamento/pdf] Requisição recebida.');
@@ -219,7 +167,6 @@ try {
     const filters = req.query;
     const generatedBy = filters.generatedBy || 'N/A'; 
 
-    // Adiciona o evento para desenhar o rodapé em cada página
     doc.on('pageAdded', () => {
       addPdfFooter(doc, generatedBy);
     });
@@ -354,13 +301,13 @@ try {
         }
       }
       console.log('[brocamento/pdf] Finalizando documento.');
-      doc.end(); // Finaliza o documento no final do try
+      doc.end(); 
     } catch (error) { 
         console.error("[brocamento/pdf] ERRO CRÍTICO ao gerar PDF:", error);
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
-            doc.end(); // Garante que o stream seja fechado
+            doc.end(); 
         }
     }
   });
@@ -395,7 +342,6 @@ try {
     const filters = req.query;
     const generatedBy = filters.generatedBy || 'N/A'; 
 
-    // Adiciona o evento para desenhar o rodapé em cada página
     doc.on('pageAdded', () => {
       addPdfFooter(doc, generatedBy);
     });
@@ -414,7 +360,10 @@ try {
         await generatePdfHeader(doc, title, generatedBy); 
 
         let headers, rows;
-        // [NOVO MODELO]: Modelo Detalhado (Tipo B)
+        // [CORREÇÃO]: A função table espera um array de arrays para headers quando não é um array de objetos
+        // Ajustando para o formato esperado [ ['Header1', 'Header2'], ['SubHeader1', 'SubHeader2'] ]
+        // ou simplesmente [ ['Header1'], ['Header2'] ] para cabeçalhos simples.
+        // Aqui, headers já é um array de strings, então passamos como [headers]
         if (isDetailed) {
           headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Int.', 'Tol.', 'Toco', 'Ponta', 'Est.', 'Ped.', 'Total'];
           rows = data.map(p => [
@@ -433,13 +382,11 @@ try {
             p.total
           ]);
           console.log('[perda/pdf] Gerando Modelo Detalhado. Headers:', headers);
-          console.log('[perda/pdf] Primeiras 5 linhas (rows):', JSON.stringify(rows.slice(0, 5)));
+          console.log('[perda/pdf] Primeiras 5 linhas de dados (rows):', JSON.stringify(rows.slice(0, 5)));
 
-          const { table } = require('pdfkit-table');
-          await table(doc, {
-              headers,
+          await createPdfTable(doc, { // [CORREÇÃO]: Usando createPdfTable
+              headers: [headers], // [CORREÇÃO]: Passando headers como um array de array
               rows,
-              // [NOVO ESTILO]: Larguras de coluna para o modelo detalhado
               columnStyles: {
                   0: { width: 50 },  // Data
                   1: { width: 80 },  // Fazenda
@@ -455,25 +402,23 @@ try {
                   11: { width: 35 }, // Pedaço
                   12: { width: 40 }  // Total
               },
-              // [NOVO ESTILO]: Tamanho de fonte e cores para o modelo detalhado
               styles: { 
                   fontSize: 8,
-                  overflow: 'linebreak' // Garante que o texto quebre linha se for muito longo
+                  overflow: 'linebreak' 
               },
               headStyles: { 
-                  fillColor: [46, 125, 50], // Cor primária verde
-                  textColor: 255, // Texto branco
+                  fillColor: [46, 125, 50], 
+                  textColor: 255, 
                   font: 'Helvetica-Bold'
               },
               alternateRowStyles: { 
-                  fillColor: [245, 245, 245] // Cinza claro para linhas alternadas
+                  fillColor: [245, 245, 245] 
               },
               prepareHeader: () => doc.font('Helvetica-Bold'),
               prepareRow: () => doc.font('Helvetica'),
           });
           console.log('[perda/pdf] Tabela detalhada gerada.');
         } else {
-          // [NOVO MODELO]: Modelo Resumido (Tipo A)
           headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
           rows = data.map(p => [
             p.data, 
@@ -485,13 +430,11 @@ try {
             p.total
           ]);
           console.log('[perda/pdf] Gerando Modelo Resumido. Headers:', headers);
-          console.log('[perda/pdf] Primeiras 5 linhas (rows):', JSON.stringify(rows.slice(0, 5)));
+          console.log('[perda/pdf] Primeiras 5 linhas de dados (rows):', JSON.stringify(rows.slice(0, 5)));
 
-          const { table } = require('pdfkit-table');
-          await table(doc, {
-              headers,
+          await createPdfTable(doc, { // [CORREÇÃO]: Usando createPdfTable
+              headers: [headers], // [CORREÇÃO]: Passando headers como um array de array
               rows,
-              // [NOVO ESTILO]: Larguras de coluna para o modelo resumido
               columnStyles: {
                   0: { width: 60 },   // Data
                   1: { width: 100 },  // Fazenda
@@ -501,7 +444,6 @@ try {
                   5: { width: 100 },  // Operador
                   6: { width: 50 }    // Total
               },
-              // [NOVO ESTILO]: Tamanho de fonte e cores para o modelo resumido
               styles: { 
                   fontSize: 9, 
                   overflow: 'linebreak'
@@ -521,21 +463,20 @@ try {
         }
       }
       console.log('[perda/pdf] Finalizando documento.');
-      doc.end(); // Finaliza o documento no final do try
+      doc.end(); 
     } catch (error) { 
         console.error("[perda/pdf] ERRO CRÍTICO ao gerar PDF:", error);
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
-            doc.end(); // Garante que o stream seja fechado
+            doc.end(); 
         }
     }
   });
 
   app.get('/reports/perda/csv', async (req, res) => {
     try {
-      const filters = req.query;
-      const data = await getFilteredData('perdas', filters);
+      const data = await getFilteredData('perdas', req.query);
       if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
 
       const isDetailed = filters.tipoRelatorio === 'B';
@@ -574,7 +515,11 @@ try {
     const filters = req.query;
     const generatedBy = filters.generatedBy || 'N/A';
     const planId = filters.planId;
-    const selectedColumns = JSON.parse(filters.selectedColumns || '{}'); // Parseia as colunas selecionadas
+    const selectedColumns = JSON.parse(filters.selectedColumns || '{}'); 
+    console.log('[colheita/pdf] Filters:', filters);
+    console.log('[colheita/pdf] planId:', planId);
+    console.log('[colheita/pdf] selectedColumns:', selectedColumns);
+
 
     doc.on('pageAdded', () => {
       addPdfFooter(doc, generatedBy);
@@ -582,26 +527,31 @@ try {
 
     try {
       if (!planId) {
+        console.log('[colheita/pdf] Erro: planId não fornecido.');
         await generatePdfHeader(doc, 'Relatório de Colheita Customizado', generatedBy);
         doc.text('ID do plano de colheita não fornecido.');
         doc.end();
         return;
       }
 
-      const plan = await db.collection('harvestPlans').doc(planId).get();
-      if (!plan.exists) {
+      const planDoc = await db.collection('harvestPlans').doc(planId).get();
+      if (!planDoc.exists) {
+        console.log('[colheita/pdf] Erro: Plano de colheita não encontrado.');
         await generatePdfHeader(doc, 'Relatório de Colheita Customizado', generatedBy);
         doc.text('Plano de colheita não encontrado.');
         doc.end();
         return;
       }
 
-      const harvestPlanData = plan.data();
+      const harvestPlanData = planDoc.data();
+      console.log('[colheita/pdf] Dados do plano de colheita:', JSON.stringify(harvestPlanData));
+
       const allFazendasSnapshot = await db.collection('fazendas').get();
       const allFazendasData = {};
       allFazendasSnapshot.forEach(docSnap => {
           allFazendasData[docSnap.id] = docSnap.data();
       });
+      console.log('[colheita/pdf] Dados de todas as fazendas carregados.');
 
       const title = `Plano de Colheita - ${harvestPlanData.frontName}`;
       await generatePdfHeader(doc, title, generatedBy);
@@ -623,82 +573,82 @@ try {
       let currentDate = harvestPlanData.startDate ? new Date(harvestPlanData.startDate + 'T03:00:00Z') : new Date();
       const dailyTon = parseFloat(harvestPlanData.dailyRate) || 1;
 
-      harvestPlanData.sequence.forEach((group, index) => {
-          const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
-          const dataEntrada = new Date(currentDate.getTime());
-          currentDate.setDate(currentDate.getDate() + diasNecessarios);
-          const dataSaida = new Date(currentDate.getTime());
+      if (!harvestPlanData.sequence || harvestPlanData.sequence.length === 0) {
+        console.log('[colheita/pdf] Plano de colheita sem sequência definida.');
+        doc.text('Este plano de colheita não possui sequência definida.');
+      } else {
+        harvestPlanData.sequence.forEach((group, index) => {
+            const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
+            const dataEntrada = new Date(currentDate.getTime());
+            currentDate.setDate(currentDate.getDate() + diasNecessarios);
+            const dataSaida = new Date(currentDate.getTime());
 
-          const baseRow = [
-              index + 1,
-              `${group.fazendaCodigo} - ${group.fazendaName}`,
-              group.plots.map(p => p.talhaoName).join(', '),
-              group.totalArea.toFixed(2),
-              group.totalProducao.toFixed(2),
-          ];
+            const baseRow = [
+                index + 1,
+                `${group.fazendaCodigo} - ${group.fazendaName}`,
+                group.plots.map(p => p.talhaoName).join(', '),
+                group.totalArea.toFixed(2),
+                group.totalProducao.toFixed(2),
+            ];
 
-          const dynamicRow = [];
-          if (selectedColumns.variedade) {
-              const varieties = new Set();
-              const farm = allFazendasData[Object.keys(allFazendasData).find(id => allFazendasData[id].code === group.fazendaCodigo)];
-              if (farm && farm.talhoes) {
-                  group.plots.forEach(plot => {
-                      const talhao = farm.talhoes.find(t => t.id === plot.talhaoId);
-                      if (talhao?.variedade) varieties.add(talhao.variedade);
-                  });
-              }
-              dynamicRow.push(Array.from(varieties).join(', '));
-          }
-          if (selectedColumns.idade) dynamicRow.push(calculateAverageAge(group, harvestPlanData.startDate, Object.values(allFazendasData)));
-          if (selectedColumns.atr) dynamicRow.push(group.atr || 'N/A');
-          if (selectedColumns.maturador) dynamicRow.push(group.maturador || 'N/A');
-          if (selectedColumns.diasAplicacao) dynamicRow.push(calculateMaturadorDays(group));
-          
-          const finalRowData = [
-              dataEntrada.toLocaleDateString('pt-BR'),
-              dataSaida.toLocaleDateString('pt-BR')
-          ];
-          
-          body.push([...baseRow, ...dynamicRow, ...finalRowData]);
-          currentDate.setDate(currentDate.getDate() + 1);
-      });
-      console.log('[colheita/pdf] Corpo da tabela gerado. Total de linhas:', body.length);
-      console.log('[colheita/pdf] Exemplo de linha:', JSON.stringify(body[0]));
+            const dynamicRow = [];
+            if (selectedColumns.variedade) {
+                const farm = Object.values(allFazendasData).find(f => f.code === group.fazendaCodigo);
+                let varieties = new Set();
+                if (farm && farm.talhoes) {
+                    group.plots.forEach(plot => {
+                        const talhao = farm.talhoes.find(t => t.id === plot.talhaoId);
+                        if (talhao?.variedade) varieties.add(talhao.variedade);
+                    });
+                }
+                dynamicRow.push(Array.from(varieties).join(', '));
+            }
+            if (selectedColumns.idade) dynamicRow.push(calculateAverageAge(group, harvestPlanData.startDate, Object.values(allFazendasData)));
+            if (selectedColumns.atr) dynamicRow.push(group.atr || 'N/A');
+            if (selectedColumns.maturador) dynamicRow.push(group.maturador || 'N/A');
+            if (selectedColumns.diasAplicacao) dynamicRow.push(calculateMaturadorDays(group));
+            
+            const finalRowData = [
+                dataEntrada.toLocaleDateString('pt-BR'),
+                dataSaida.toLocaleDateString('pt-BR')
+            ];
+            
+            body.push([...baseRow, ...dynamicRow, ...finalRowData]);
+            currentDate.setDate(currentDate.getDate() + 1);
+        });
+        console.log('[colheita/pdf] Corpo da tabela gerado. Total de linhas:', body.length);
+        if (body.length > 0) {
+            console.log('[colheita/pdf] Exemplo de linha:', JSON.stringify(body[0]));
+        }
 
-      const { table } = require('pdfkit-table');
-      await table(doc, {
-          headers: [fullHeaders],
-          rows: body,
-          // [NOVO ESTILO]: Estilos para o relatório de colheita
-          styles: { 
-              fontSize: 8, 
-              overflow: 'linebreak' 
-          },
-          headStyles: { 
-              fillColor: [46, 125, 50], 
-              textColor: 255, 
-              font: 'Helvetica-Bold'
-          },
-          alternateRowStyles: { 
-              fillColor: [245, 245, 245] 
-          },
-          // Ajusta a largura das colunas dinamicamente.
-          // Isso é um ponto de partida, pode precisar de ajustes finos.
-          columnStyles: {
-              0: { width: 30 }, // Seq.
-              1: { width: 80 }, // Fazenda
-              2: { width: 100 }, // Talhões
-              3: { width: 50 }, // Área
-              4: { width: 50 }, // Produção
-              // As larguras das colunas dinâmicas (variedade, idade, atr, etc.)
-              // e das colunas finais (entrada, saída) serão ajustadas automaticamente
-              // por pdfkit-table, mas você pode definir larguras fixas se necessário.
-          },
-          prepareHeader: () => doc.font('Helvetica-Bold'),
-          prepareRow: () => doc.font('Helvetica'),
-      });
+        await createPdfTable(doc, { // [CORREÇÃO]: Usando createPdfTable
+            headers: [fullHeaders], // [CORREÇÃO]: Passando fullHeaders como um array de array
+            rows: body,
+            styles: { 
+                fontSize: 8, 
+                overflow: 'linebreak' 
+            },
+            headStyles: { 
+                fillColor: [46, 125, 50], 
+                textColor: 255, 
+                font: 'Helvetica-Bold'
+            },
+            alternateRowStyles: { 
+                fillColor: [245, 245, 245] 
+            },
+            columnStyles: {
+                0: { width: 30 }, // Seq.
+                1: { width: 80 }, // Fazenda
+                2: { width: 100 }, // Talhões
+                3: { width: 50 }, // Área
+                4: { width: 50 }, // Produção
+            },
+            prepareHeader: () => doc.font('Helvetica-Bold'),
+            prepareRow: () => doc.font('Helvetica'),
+        });
 
-      console.log('[colheita/pdf] Tabela de colheita gerada.');
+        console.log('[colheita/pdf] Tabela de colheita gerada.');
+      }
       doc.end();
     } catch (error) {
       console.error("[colheita/pdf] ERRO CRÍTICO ao gerar PDF:", error);
@@ -717,22 +667,32 @@ try {
       const filters = req.query;
       const planId = filters.planId;
       const selectedColumns = JSON.parse(filters.selectedColumns || '{}');
+      console.log('[colheita/csv] Filters:', filters);
+      console.log('[colheita/csv] planId:', planId);
+      console.log('[colheita/csv] selectedColumns:', selectedColumns);
+
 
       if (!planId) {
+        console.log('[colheita/csv] Erro: planId não fornecido.');
         return res.status(400).send('ID do plano de colheita não fornecido.');
       }
 
-      const plan = await db.collection('harvestPlans').doc(planId).get();
-      if (!plan.exists) {
+      const planDoc = await db.collection('harvestPlans').doc(planId).get();
+      if (!planDoc.exists) {
+        console.log('[colheita/csv] Erro: Plano de colheita não encontrado.');
         return res.status(404).send('Plano de colheita não encontrado.');
       }
 
-      const harvestPlanData = plan.data();
+      const harvestPlanData = planDoc.data();
+      console.log('[colheita/csv] Dados do plano de colheita:', JSON.stringify(harvestPlanData));
+
       const allFazendasSnapshot = await db.collection('fazendas').get();
       const allFazendasData = {};
       allFazendasSnapshot.forEach(docSnap => {
           allFazendasData[docSnap.id] = docSnap.data();
       });
+      console.log('[colheita/csv] Dados de todas as fazendas carregados.');
+
 
       // Construir cabeçalhos dinamicamente para CSV
       const baseHeaders = ['Seq.', 'Fazenda', 'Talhões', 'Área (ha)', 'Prod. (ton)'];
@@ -751,6 +711,18 @@ try {
       let currentDate = harvestPlanData.startDate ? new Date(harvestPlanData.startDate + 'T03:00:00Z') : new Date();
       const dailyTon = parseFloat(harvestPlanData.dailyRate) || 1;
 
+      if (!harvestPlanData.sequence || harvestPlanData.sequence.length === 0) {
+        console.log('[colheita/csv] Plano de colheita sem sequência definida.');
+        const filePath = path.join(os.tmpdir(), `relatorio_colheita_custom_${Date.now()}.csv`);
+        const csvWriter = createObjectCsvWriter({
+          path: filePath,
+          header: fullHeaders.map(h => ({ id: h, title: h })) 
+        });
+        await csvWriter.writeRecords([]); 
+        res.download(filePath);
+        return;
+      }
+
       harvestPlanData.sequence.forEach((group, index) => {
           const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
           const dataEntrada = new Date(currentDate.getTime());
@@ -766,8 +738,8 @@ try {
           };
 
           if (selectedColumns.variedade) {
-              const varieties = new Set();
-              const farm = allFazendasData[Object.keys(allFazendasData).find(id => allFazendasData[id].code === group.fazendaCodigo)];
+              const farm = Object.values(allFazendasData).find(f => f.code === group.fazendaCodigo);
+              let varieties = new Set();
               if (farm && farm.talhoes) {
                   group.plots.forEach(plot => {
                       const talhao = farm.talhoes.find(t => t.id === plot.talhaoId);
@@ -788,11 +760,15 @@ try {
           currentDate.setDate(currentDate.getDate() + 1);
       });
       console.log('[colheita/csv] Registros CSV gerados. Total:', records.length);
+      if (records.length > 0) {
+          console.log('[colheita/csv] Exemplo de registro CSV:', JSON.stringify(records[0]));
+      }
+
 
       const filePath = path.join(os.tmpdir(), `relatorio_colheita_custom_${Date.now()}.csv`);
       const csvWriter = createObjectCsvWriter({
         path: filePath,
-        header: fullHeaders.map(h => ({ id: h, title: h })) // Mapeia para o formato de cabeçalho do csv-writer
+        header: fullHeaders.map(h => ({ id: h, title: h })) 
       });
       await csvWriter.writeRecords(records);
       res.download(filePath);
