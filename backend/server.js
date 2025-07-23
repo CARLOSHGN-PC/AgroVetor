@@ -427,47 +427,62 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      const baseHeaders = [
-        { id: 'seq', title: 'Seq.' },
-        { id: 'fazenda', title: 'Fazenda' },
-        { id: 'talhoes', title: 'Talhões' },
-        { id: 'area', title: 'Área (ha)' },
-        { id: 'producao', title: 'Prod. (ton)' },
-        { id: 'entrada', title: 'Entrada' },
-        { id: 'saida', title: 'Saída' }
+      // Define todos os cabeçalhos possíveis com suas larguras ideais
+      const allPossibleHeadersConfig = [
+          { id: 'seq', title: 'Seq.', width: 30 },
+          { id: 'fazenda', title: 'Fazenda', width: 100 },
+          { id: 'talhoes', title: 'Talhões', width: 120 },
+          { id: 'area', title: 'Área (ha)', width: 50 },
+          { id: 'producao', title: 'Prod. (ton)', width: 50 },
+          { id: 'variedade', title: 'Variedade', width: 80 },
+          { id: 'idade', title: 'Idade (m)', width: 40 },
+          { id: 'atr', title: 'ATR', width: 35 },
+          { id: 'maturador', title: 'Maturador', width: 80 },
+          { id: 'diasAplicacao', title: 'Dias Aplic.', width: 50 },
+          { id: 'entrada', title: 'Entrada', width: 55 }, // Sempre no final
+          { id: 'saida', title: 'Saída', width: 55 }    // Sempre no final
       ];
 
-      const optionalHeaders = [];
-      if (selectedCols.variedade) optionalHeaders.push({ id: 'variedade', title: 'Variedade' });
-      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade (m)' });
-      if (selectedCols.atr) optionalHeaders.push({ id: 'atr', title: 'ATR' });
-      if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador' });
-      if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias Aplic.' });
+      // Filtra e ordena os cabeçalhos
+      let finalHeaders = [];
+      let finalColumnWidths = [];
+      const tempOptionalHeaders = [];
 
-      const allHeaders = [...baseHeaders, ...optionalHeaders];
-      const headersText = allHeaders.map(h => h.title);
+      // Adiciona os cabeçalhos fixos iniciais
+      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
+      initialFixedHeaders.forEach(id => {
+          const header = allPossibleHeadersConfig.find(h => h.id === id);
+          if (header) {
+              finalHeaders.push(header);
+              finalColumnWidths.push(header.width);
+          }
+      });
 
-      // Definir larguras das colunas
-      const columnWidths = [
-          30,  // Seq.
-          100, // Fazenda
-          120, // Talhões
-          60,  // Área (ha)
-          60,  // Prod. (ton)
-          60,  // Entrada
-          60   // Saída
-      ];
+      // Adiciona os cabeçalhos opcionais selecionados
+      allPossibleHeadersConfig.forEach(header => {
+          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && header.id !== 'entrada' && header.id !== 'saida') {
+              tempOptionalHeaders.push(header);
+          }
+      });
+      finalHeaders.push(...tempOptionalHeaders);
+      finalColumnWidths.push(...tempOptionalHeaders.map(h => h.width));
 
-      if (selectedCols.variedade) columnWidths.push(80);
-      if (selectedCols.idade) columnWidths.push(50);
-      if (selectedCols.atr) columnWidths.push(40);
-      if (selectedCols.maturador) columnWidths.push(80);
-      if (selectedCols.diasAplicacao) columnWidths.push(60);
+      // Adiciona os cabeçalhos fixos finais (Entrada e Saída)
+      const finalFixedHeaders = ['entrada', 'saida'];
+      finalFixedHeaders.forEach(id => {
+          const header = allPossibleHeadersConfig.find(h => h.id === id);
+          if (header) {
+              finalHeaders.push(header);
+              finalColumnWidths.push(header.width);
+          }
+      });
+
+      const headersText = finalHeaders.map(h => h.title);
 
       const rowHeight = 18;
       const textPadding = 5;
 
-      currentY = drawRow(doc, headersText, currentY, true, false, columnWidths);
+      currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths);
 
       let grandTotalProducao = 0;
       let grandTotalArea = 0;
@@ -521,24 +536,25 @@ try {
             }
         }
 
-        const rowData = [
-            i + 1,
-            `${group.fazendaCodigo} - ${group.fazendaName}`,
-            group.plots.map(p => p.talhaoName).join(', '),
-            group.totalArea.toFixed(2),
-            group.totalProducao.toFixed(2),
-            dataEntrada.toLocaleDateString('pt-BR'),
-            dataSaida.toLocaleDateString('pt-BR')
-        ];
-
-        if (selectedCols.variedade) rowData.push(Array.from(allVarieties).join(', ') || 'N/A');
-        if (selectedCols.idade) rowData.push(idadeMediaMeses);
-        if (selectedCols.atr) rowData.push(group.atr || 'N/A');
-        if (selectedCols.maturador) rowData.push(group.maturador || 'N/A');
-        if (selectedCols.diasAplicacao) rowData.push(diasAplicacao);
+        const rowDataMap = {
+            seq: i + 1,
+            fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
+            talhoes: group.plots.map(p => p.talhaoName).join(', '),
+            area: group.totalArea.toFixed(2),
+            producao: group.totalProducao.toFixed(2),
+            variedade: Array.from(allVarieties).join(', ') || 'N/A',
+            idade: idadeMediaMeses,
+            atr: group.atr || 'N/A',
+            maturador: group.maturador || 'N/A',
+            diasAplicacao: diasAplicacao,
+            entrada: dataEntrada.toLocaleDateString('pt-BR'),
+            saida: dataSaida.toLocaleDateString('pt-BR')
+        };
+        
+        const rowData = finalHeaders.map(h => rowDataMap[h.id]);
 
         currentY = await checkPageBreak(doc, currentY, title, generatedBy);
-        currentY = drawRow(doc, rowData, currentY, false, false, columnWidths);
+        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths);
       }
 
       // Totais Gerais
@@ -546,33 +562,22 @@ try {
       doc.y = currentY;
       
       const totalRowData = [];
-      let totalColSpan = 0;
-      for (let i = 0; i < baseHeaders.length; i++) {
-        if (baseHeaders[i].id === 'area') {
-            totalRowData.push(grandTotalArea.toFixed(2));
-        } else if (baseHeaders[i].id === 'producao') {
-            totalRowData.push(grandTotalProducao.toFixed(2));
-        } else if (baseHeaders[i].id === 'seq') {
-            totalRowData.push(''); // Vazio
-        } else if (baseHeaders[i].id === 'fazenda') {
-            totalRowData.push('Total Geral');
-        } else {
-            totalRowData.push(''); // Preencher com vazio para outras colunas base
-        }
-      }
+      let totalGeneralAdded = false;
 
-      // Adiciona vazios para colunas opcionais no total
-      for (let i = 0; i < optionalHeaders.length; i++) {
-          totalRowData.push('');
-      }
+      finalHeaders.forEach(header => {
+          if (header.id === 'seq' && !totalGeneralAdded) {
+              totalRowData.push('Total Geral');
+              totalGeneralAdded = true;
+          } else if (header.id === 'area') {
+              totalRowData.push(grandTotalArea.toFixed(2));
+          } else if (header.id === 'producao') {
+              totalRowData.push(grandTotalProducao.toFixed(2));
+          } else {
+              totalRowData.push(''); // Preenche com vazio para outras colunas
+          }
+      });
 
-      // Ajusta a primeira célula para "Total Geral" e as demais para vazias até chegar nas colunas de soma
-      const totalHeaders = ['Total Geral', ...Array(headersText.length - 1).fill('')];
-      totalHeaders[headersText.indexOf('Área (ha)')] = grandTotalArea.toFixed(2);
-      totalHeaders[headersText.indexOf('Prod. (ton)')] = grandTotalProducao.toFixed(2);
-
-
-      drawRow(doc, totalHeaders, currentY, false, true, columnWidths);
+      drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths);
 
       doc.end();
     } catch (error) {
@@ -605,24 +610,51 @@ try {
 
       const filePath = path.join(os.tmpdir(), `colheita_${Date.now()}.csv`);
       
-      const baseHeaders = [
+      // Define todos os cabeçalhos possíveis
+      const allPossibleHeadersConfig = [
         { id: 'seq', title: 'Seq.' },
         { id: 'fazenda', title: 'Fazenda' },
         { id: 'talhoes', title: 'Talhões' },
         { id: 'area', title: 'Área (ha)' },
         { id: 'producao', title: 'Prod. (ton)' },
-        { id: 'entrada', title: 'Entrada' },
-        { id: 'saida', title: 'Saída' }
+        { id: 'variedade', title: 'Variedade' },
+        { id: 'idade', title: 'Idade Média (meses)' },
+        { id: 'atr', title: 'ATR' },
+        { id: 'maturador', title: 'Maturador Aplicado' },
+        { id: 'diasAplicacao', title: 'Dias desde Aplicação' },
+        { id: 'entrada', title: 'Entrada' }, // Sempre no final
+        { id: 'saida', title: 'Saída' }    // Sempre no final
       ];
 
-      const optionalHeaders = [];
-      if (selectedCols.variedade) optionalHeaders.push({ id: 'variedade', title: 'Variedade' });
-      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade Média (meses)' });
-      if (selectedCols.atr) optionalHeaders.push({ id: 'atr', title: 'ATR' });
-      if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador Aplicado' });
-      if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias desde Aplicação' });
+      // Filtra e ordena os cabeçalhos para o CSV
+      let finalHeaders = [];
+      const tempOptionalHeaders = [];
 
-      const allHeaders = [...baseHeaders, ...optionalHeaders];
+      // Adiciona os cabeçalhos fixos iniciais
+      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
+      initialFixedHeaders.forEach(id => {
+          const header = allPossibleHeadersConfig.find(h => h.id === id);
+          if (header) {
+              finalHeaders.push(header);
+          }
+      });
+
+      // Adiciona os cabeçalhos opcionais selecionados
+      allPossibleHeadersConfig.forEach(header => {
+          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && header.id !== 'entrada' && header.id !== 'saida') {
+              tempOptionalHeaders.push(header);
+          }
+      });
+      finalHeaders.push(...tempOptionalHeaders);
+
+      // Adiciona os cabeçalhos fixos finais (Entrada e Saída)
+      const finalFixedHeaders = ['entrada', 'saida'];
+      finalFixedHeaders.forEach(id => {
+          const header = allPossibleHeadersConfig.find(h => h.id === id);
+          if (header) {
+              finalHeaders.push(header);
+          }
+      });
 
       const records = [];
       let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
@@ -671,26 +703,29 @@ try {
             }
         }
 
-        const record = {
-            seq: index + 1,
-            fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
-            talhoes: group.plots.map(p => p.talhaoName).join(', '),
-            area: group.totalArea.toFixed(2),
-            producao: group.totalProducao.toFixed(2),
-            entrada: dataEntrada.toLocaleDateString('pt-BR'),
-            saida: dataSaida.toLocaleDateString('pt-BR')
-        };
-
-        if (selectedCols.variedade) record.variedade = Array.from(allVarieties).join(', ') || 'N/A';
-        if (selectedCols.idade) record.idade = idadeMediaMeses;
-        if (selectedCols.atr) record.atr = group.atr || 'N/A';
-        if (selectedCols.maturador) record.maturador = group.maturador || 'N/A';
-        if (selectedCols.diasAplicacao) record.diasAplicacao = diasAplicacao;
-
+        const record = {};
+        // Popula o registro na ordem correta dos cabeçalhos finais
+        finalHeaders.forEach(header => {
+            switch(header.id) {
+                case 'seq': record.seq = index + 1; break;
+                case 'fazenda': record.fazenda = `${group.fazendaCodigo} - ${group.fazendaName}`; break;
+                case 'talhoes': record.talhoes = group.plots.map(p => p.talhaoName).join(', '); break;
+                case 'area': record.area = group.totalArea.toFixed(2); break;
+                case 'producao': record.producao = group.totalProducao.toFixed(2); break;
+                case 'variedade': record.variedade = Array.from(allVarieties).join(', ') || 'N/A'; break;
+                case 'idade': record.idade = idadeMediaMeses; break;
+                case 'atr': record.atr = group.atr || 'N/A'; break;
+                case 'maturador': record.maturador = group.maturador || 'N/A'; break;
+                case 'diasAplicacao': record.diasAplicacao = diasAplicacao; break;
+                case 'entrada': record.entrada = dataEntrada.toLocaleDateString('pt-BR'); break;
+                case 'saida': record.saida = dataSaida.toLocaleDateString('pt-BR'); break;
+                default: record[header.id] = ''; // Fallback for any unexpected header
+            }
+        });
         records.push(record);
       });
 
-      const csvWriter = createObjectCsvWriter({ path: filePath, header: allHeaders });
+      const csvWriter = createObjectCsvWriter({ path: filePath, header: finalHeaders });
       await csvWriter.writeRecords(records);
       res.download(filePath);
     } catch (error) {
