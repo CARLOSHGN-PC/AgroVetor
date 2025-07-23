@@ -1092,7 +1092,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const dataSaida = new Date(currentDate.getTime());
                     
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, startDate);
-                    const diasAplicacao = App.actions.calculateMaturadorDays(group, dataEntrada); // Passa dataEntrada aqui
+                    // Revertendo para a chamada original da função calculateMaturadorDays
+                    const diasAplicacao = App.actions.calculateMaturadorDays(group); 
 
                     const row = tableBody.insertRow();
                     row.draggable = true;
@@ -1422,7 +1423,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
                 
                 const customReportEls = App.elements.relatorioColheita;
-                // [ALTERAÇÃO]: Chamar a função de geração de relatório do backend
+                // Chamar a função de geração de relatório do backend
                 customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
                 
@@ -2016,16 +2017,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return 'N/A';
             },
-            // [ALTERAÇÃO]: A função calculateMaturadorDays agora recebe a data de entrada do grupo
-            calculateMaturadorDays(group, groupEntryDate) {
-                if (!group.maturadorDate || !groupEntryDate) {
+            // Revertendo a função calculateMaturadorDays para a versão original
+            calculateMaturadorDays(group) {
+                if (!group.maturadorDate) {
                     return 'N/A';
                 }
                 try {
+                    const today = new Date();
                     const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                    // Calcula a diferença em relação à data de entrada do grupo no plano
-                    const diffTime = groupEntryDate.getTime() - applicationDate.getTime();
-                    if (diffTime < 0) return 0; // Se a aplicação for no futuro, ou no mesmo dia, retorna 0 dias
+                    const diffTime = today - applicationDate;
+                    if (diffTime < 0) return 0;
                     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                     return diffDays;
                 } catch (e) {
@@ -2715,7 +2716,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
         
-            // [ALTERAÇÃO]: generateCustomHarvestReport agora chama o backend
+            // generateCustomHarvestReport agora chama o backend
             generateCustomHarvestReport(format) {
                 const { select, optionsContainer } = App.elements.relatorioColheita;
                 const planId = select.value;
