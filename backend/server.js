@@ -93,6 +93,7 @@ try {
   };
 
   // Função auxiliar para desenhar linhas da tabela
+  // Adicionado `columnHeaders` para que a função saiba o ID da coluna e aplique a lógica de quebra de linha corretamente.
   const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeaders = []) => {
     const startX = doc.page.margins.left;
     const fontSize = 8;
@@ -107,12 +108,15 @@ try {
     let maxRowHeight = rowHeight;
 
     rowData.forEach((cell, i) => {
-        const columnId = columnHeaders[i] ? columnHeaders[i].id : null;
+        const columnId = columnHeaders[i] ? columnHeaders[i].id : null; // Obter o ID da coluna
         const cellWidth = customWidths[i] - (textPadding * 2);
         const textOptions = { width: cellWidth, align: 'left', continued: false };
 
         // Permitir quebra de linha para a coluna 'talhoes' e para números
-        if (columnId === 'talhoes' || !isNaN(parseFloat(String(cell)))) {
+        // Verificar se o conteúdo da célula é um número ou uma string que pode ser um número
+        const isNumericContent = !isNaN(parseFloat(String(cell))) && isFinite(String(cell));
+
+        if (columnId === 'talhoes' || isNumericContent) {
             textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
         } else {
             textOptions.lineBreak = false; // Evita quebra de linha para outros textos (títulos e nomes)
@@ -443,102 +447,86 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      // Define todos os cabeçalhos possíveis com suas larguras ideais
-      // Ajuste de larguras para evitar quebra de linha nos títulos e permitir quebra nos números/talhões
+      // Define todos os cabeçalhos possíveis com suas larguras mínimas ideais
       const allPossibleHeadersConfig = [
-          { id: 'seq', title: 'Seq.', width: 30 },
-          { id: 'fazenda', title: 'Fazenda', width: 100 },
-          { id: 'talhoes', title: 'Talhões', width: 120 }, // Mantido para quebra de linha no conteúdo
-          { id: 'area', title: 'Área (ha)', width: 50 },
-          { id: 'producao', title: 'Prod. (ton)', width: 50 },
-          { id: 'variedade', title: 'Variedade', width: 80 },
-          { id: 'idade', title: 'Idade (m)', width: 45 }, // Ajustado
-          { id: 'atr', title: 'ATR', width: 40 }, // Ajustado
-          { id: 'maturador', title: 'Maturador', width: 80 },
-          { id: 'diasAplicacao', title: 'Dias Aplic.', width: 55 }, // Ajustado
-          { id: 'entrada', title: 'Entrada', width: 60 }, // Sempre no final, ajustado
-          { id: 'saida', title: 'Saída', width: 60 }    // Sempre no final, ajustado
+          { id: 'seq', title: 'Seq.', minWidth: 30 },
+          { id: 'fazenda', title: 'Fazenda', minWidth: 80 }, // Ajustado
+          { id: 'talhoes', title: 'Talhões', minWidth: 100 }, // Ajustado, permite quebra
+          { id: 'area', title: 'Área (ha)', minWidth: 50 },
+          { id: 'producao', title: 'Prod. (ton)', minWidth: 50 },
+          { id: 'variedade', title: 'Variedade', minWidth: 70 }, // Ajustado
+          { id: 'idade', title: 'Idade (m)', minWidth: 45 }, 
+          { id: 'atr', title: 'ATR', minWidth: 40 }, 
+          { id: 'maturador', title: 'Maturador', minWidth: 70 }, // Ajustado
+          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 55 }, 
+          { id: 'entrada', title: 'Entrada', minWidth: 60 }, 
+          { id: 'saida', title: 'Saída', minWidth: 60 }    
       ];
 
-      // Filtra e ordena os cabeçalhos
+      // Filtra os cabeçalhos selecionados
       let finalHeaders = [];
-      let finalColumnWidths = [];
-      const tempOptionalHeaders = [];
-
-      // Adiciona os cabeçalhos fixos iniciais
       const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
+      const finalFixedHeaders = ['entrada', 'saida'];
+
       initialFixedHeaders.forEach(id => {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) {
-              finalHeaders.push(header);
-              finalColumnWidths.push(header.width);
-          }
+          if (header) finalHeaders.push(header);
       });
 
-      // Adiciona os cabeçalhos opcionais selecionados
       allPossibleHeadersConfig.forEach(header => {
-          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && header.id !== 'entrada' && header.id !== 'saida') {
-              tempOptionalHeaders.push(header);
+          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && !finalFixedHeaders.includes(header.id)) {
+              finalHeaders.push(header);
           }
       });
-      finalHeaders.push(...tempOptionalHeaders);
-      finalColumnWidths.push(...tempOptionalHeaders.map(h => h.width));
 
-      // Adiciona os cabeçalhos fixos finais (Entrada e Saída)
-      const finalFixedHeaders = ['entrada', 'saida'];
       finalFixedHeaders.forEach(id => {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) {
-              finalHeaders.push(header);
-              finalColumnWidths.push(header.width);
-          }
+          if (header) finalHeaders.push(header);
       });
 
       const headersText = finalHeaders.map(h => h.title);
 
+      // Calcular larguras das colunas dinamicamente
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      let totalMinWidth = 0;
+      let flexibleColumnsCount = 0;
+
+      finalHeaders.forEach(header => {
+          totalMinWidth += header.minWidth;
+          // Considerar 'fazenda', 'talhoes', 'variedade', 'maturador' como colunas flexíveis
+          if (['fazenda', 'talhoes', 'variedade', 'maturador'].includes(header.id)) {
+              flexibleColumnsCount++;
+          }
+      });
+
+      let remainingWidth = pageWidth - totalMinWidth;
+      let flexibleColumnExtraWidth = flexibleColumnsCount > 0 ? remainingWidth / flexibleColumnsCount : 0;
+
+      let finalColumnWidths = finalHeaders.map(header => {
+          let width = header.minWidth;
+          if (['fazenda', 'talhoes', 'variedade', 'maturador'].includes(header.id)) {
+              width += flexibleColumnExtraWidth;
+          }
+          return width;
+      });
+
+      // Ajuste final para garantir que a soma das larguras seja exatamente `pageWidth`
+      const currentTotalWidth = finalColumnWidths.reduce((sum, w) => sum + w, 0);
+      const difference = pageWidth - currentTotalWidth;
+      // Distribui a diferença (pequenos erros de arredondamento) na primeira coluna flexível
+      if (difference !== 0 && flexibleColumnsCount > 0) {
+          const firstFlexibleIndex = finalHeaders.findIndex(h => ['fazenda', 'talhoes', 'variedade', 'maturador'].includes(h.id));
+          if (firstFlexibleIndex !== -1) {
+              finalColumnWidths[firstFlexibleIndex] += difference;
+          }
+      }
+
+
       const rowHeight = 18;
       const textPadding = 5;
 
-      // Modificação na função drawRow para lidar com quebra de linha no conteúdo
-      const drawRowDynamic = (docInstance, rowData, yPos, isHeader = false, isFooter = false, widths, padding = 5) => {
-        const startX = docInstance.page.margins.left;
-        const fontSize = 8;
-        if (isHeader || isFooter) {
-            docInstance.font('Helvetica-Bold').fontSize(fontSize);
-            docInstance.rect(startX, yPos, docInstance.page.width - docInstance.page.margins.left - docInstance.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
-            docInstance.fillColor('black');
-        } else {
-            docInstance.font('Helvetica').fontSize(fontSize);
-        }
-        let currentX = startX;
-        let maxRowHeight = rowHeight;
-
-        rowData.forEach((cell, i) => {
-            const columnId = finalHeaders[i].id; // Obter o ID da coluna atual
-            const cellWidth = widths[i] - (padding * 2);
-            const textOptions = { width: cellWidth, align: 'left', continued: false };
-
-            // Permitir quebra de linha para a coluna 'talhoes' e para números
-            // Verificar se o conteúdo da célula é um número ou uma string que pode ser um número
-            const isNumericContent = !isNaN(parseFloat(String(cell))) && isFinite(String(cell));
-
-            if (columnId === 'talhoes' || isNumericContent) {
-                textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
-            } else {
-                textOptions.lineBreak = false; // Evita quebra de linha para outros textos (títulos e nomes)
-            }
-            
-            const textHeight = docInstance.heightOfString(String(cell), textOptions);
-            maxRowHeight = Math.max(maxRowHeight, textHeight + padding * 2);
-
-            docInstance.text(String(cell), currentX + padding, yPos + padding, textOptions);
-            currentX += widths[i];
-        });
-        return yPos + maxRowHeight; // Retorna a altura máxima da linha para o próximo Y
-      };
-
-
-      currentY = drawRowDynamic(doc, headersText, currentY, true, false, finalColumnWidths, textPadding); // Passar textPadding
+      // Desenhar cabeçalho da tabela
+      currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths, textPadding, rowHeight, finalHeaders);
 
       let grandTotalProducao = 0;
       let grandTotalArea = 0;
@@ -610,7 +598,7 @@ try {
         const rowData = finalHeaders.map(h => rowDataMap[h.id]);
 
         currentY = await checkPageBreak(doc, currentY, title, generatedBy);
-        currentY = drawRowDynamic(doc, rowData, currentY, false, false, finalColumnWidths, textPadding); // Usar drawRowDynamic
+        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); // Passar finalHeaders
       }
 
       // Totais Gerais
@@ -618,12 +606,12 @@ try {
       doc.y = currentY;
       
       const totalRowData = [];
-      let totalGeneralAdded = false;
+      let totalGeneralTextAdded = false;
 
-      finalHeaders.forEach(header => {
-          if (header.id === 'seq' && !totalGeneralAdded) {
+      finalHeaders.forEach((header, index) => {
+          if (index === 0 && !totalGeneralTextAdded) { // Primeira coluna para "Total Geral"
               totalRowData.push('Total Geral');
-              totalGeneralAdded = true;
+              totalGeneralTextAdded = true;
           } else if (header.id === 'area') {
               totalRowData.push(grandTotalArea.toFixed(2));
           } else if (header.id === 'producao') {
@@ -633,7 +621,7 @@ try {
           }
       });
 
-      drawRowDynamic(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding); // Usar drawRowDynamic
+      drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders); // Passar finalHeaders
 
       doc.end();
     } catch (error) {
