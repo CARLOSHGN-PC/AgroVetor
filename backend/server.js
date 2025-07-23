@@ -98,7 +98,8 @@ try {
     let currentX = startX;
     rowData.forEach((cell, i) => {
         // Garante que o valor é uma string antes de passar para doc.text
-        doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+        // Adicionado o breakWord para forçar a quebra de palavras longas
+        doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left', continued: false, lineBreak: true, wordBreak: 'break-all' });
         currentX += customWidths[i];
     });
     return y + rowHeight;
@@ -201,6 +202,7 @@ try {
           const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
+          // Re-adicionando a linha de subtotal para o Modelo B
           const subtotalRow = ['', '', '', '', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
           currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, rowHeight);
           currentY += 10;
@@ -218,9 +220,11 @@ try {
       doc.y = currentY;
       
       if (!isModelB) {
+        // Re-adicionando a linha de total geral para o Modelo A
         const totalRowData = ['', '', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, rowHeight);
       } else {
+        // Re-adicionando a linha de total geral para o Modelo B
         const totalRowDataB = ['', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, rowHeight);
       }
@@ -233,6 +237,7 @@ try {
         } else {
             doc.end(); // Garante que o stream seja fechado
         }
+        return;
     }
   });
 
@@ -353,6 +358,7 @@ try {
         } else {
             doc.end(); // Garante que o stream seja fechado
         }
+        return;
     }
   });
 
@@ -421,6 +427,19 @@ try {
       }
 
       const harvestPlan = harvestPlanDoc.data();
+      // DEBUG: Log do plano de colheita recebido
+      console.log('Harvest Plan recebido no backend:', JSON.stringify(harvestPlan, null, 2));
+
+
+      // Se a sequência estiver vazia, não há dados para o relatório
+      if (!harvestPlan.sequence || harvestPlan.sequence.length === 0) {
+        console.log('Sequência do plano de colheita vazia.');
+        await generatePdfHeader(doc, `Relatório de Colheita - ${harvestPlan.frontName}`, generatedBy);
+        doc.text('Nenhum dado de sequência encontrado para este plano de colheita.');
+        doc.end();
+        return;
+      }
+
 
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
@@ -433,14 +452,15 @@ try {
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
       // Definindo todos os cabeçalhos possíveis e suas larguras fixas
+      // Largura total disponível: 297mm - 60mm (margens) = 237mm = ~671 pontos
       const allPossibleHeadersConfig = [
-        { id: 'seq', title: 'Seq.', width: 25 },
+        { id: 'seq', title: 'Seq.', width: 30 }, // Ajustado para 'Seq.' e largura aumentada
         { id: 'fazenda', title: 'Fazenda', width: 90 },
         { id: 'talhoes', title: 'Talhões', width: 110 },
         { id: 'area', title: 'Área (ha)', width: 55 },
         { id: 'producao', title: 'Prod. (ton)', width: 55 },
         { id: 'variedade', title: 'Variedade', width: 75 },
-        { id: 'idade', title: 'Idade Média (meses)', width: 45 },
+        { id: 'idade', title: 'Idade M. (mês)', width: 45 }, // Abreviado para "Idade M. (mês)"
         { id: 'atr', title: 'ATR', width: 35 },
         { id: 'maturador', title: 'Maturador', width: 75 },
         { id: 'diasAplicacao', title: 'Dias Aplic.', width: 55 },
@@ -476,7 +496,6 @@ try {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
           if (header) {
               finalHeaders.push(header);
-              finalColumnWidths.push(header.width);
           }
       });
       
@@ -494,7 +513,9 @@ try {
 
       for (let i = 0; i < harvestPlan.sequence.length; i++) {
         const group = harvestPlan.sequence[i];
-        
+        // DEBUG: Log do grupo da sequência
+        console.log(`Processando grupo ${i + 1}:`, JSON.stringify(group, null, 2));
+
         grandTotalProducao += group.totalProducao;
         grandTotalArea += group.totalArea;
 
@@ -569,7 +590,7 @@ try {
         }
 
         const rowDataMap = {
-            seq: String(i + 1), 
+            seq: String(i + 1) + '.', // Adicionado o ponto aqui
             fazenda: String(`${group.fazendaCodigo} - ${group.fazendaName}`), 
             talhoes: String(group.plots.map(p => p.talhaoName).join(', ')), 
             area: String(group.totalArea.toFixed(2)), 
@@ -608,6 +629,7 @@ try {
         } else {
             doc.end(); // Garante que o stream seja fechado
         }
+        return;
     }
   });
 
@@ -622,6 +644,11 @@ try {
       if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
 
       const harvestPlan = harvestPlanDoc.data();
+      // Se a sequência estiver vazia, não há dados para o relatório
+      if (!harvestPlan.sequence || harvestPlan.sequence.length === 0) {
+        return res.status(404).send('Nenhum dado de sequência encontrado para este plano de colheita.');
+      }
+
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
       fazendasSnapshot.forEach(docSnap => {
@@ -633,13 +660,13 @@ try {
       
       // Define todos os cabeçalhos possíveis
       const allPossibleHeadersConfig = [
-        { id: 'seq', title: 'Seq.' },
+        { id: 'seq', title: 'Seq.' }, // Ajustado para "Seq."
         { id: 'fazenda', title: 'Fazenda' },
         { id: 'talhoes', title: 'Talhões' },
         { id: 'area', title: 'Área (ha)' },
         { id: 'producao', title: 'Prod. (ton)' },
         { id: 'variedade', title: 'Variedade' },
-        { id: 'idade', title: 'Idade Média (meses)' },
+        { id: 'idade', title: 'Idade M. (mês)' }, // Abreviado para "Idade M. (mês)"
         { id: 'atr', title: 'ATR' },
         { id: 'maturador', title: 'Maturador Aplicado' },
         { id: 'diasAplicacao', title: 'Dias desde Aplicação' },
