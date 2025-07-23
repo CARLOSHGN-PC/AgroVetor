@@ -399,6 +399,9 @@ try {
       const { planId, selectedColumns, generatedBy } = req.query;
       const selectedCols = JSON.parse(selectedColumns || '{}');
 
+      console.log('PDF Colheita: planId', planId); // Adicionado para depuração
+      console.log('PDF Colheita: selectedColumns', selectedCols); // Adicionado para depuração
+
       if (!planId) {
         console.error('Erro: Nenhum planId fornecido para o relatório de colheita.');
         await generatePdfHeader(doc, 'Relatório Customizado de Colheita', generatedBy);
@@ -417,6 +420,16 @@ try {
       }
 
       const harvestPlan = harvestPlanDoc.data();
+      console.log('PDF Colheita: harvestPlan', harvestPlan); // Adicionado para depuração
+      console.log('PDF Colheita: harvestPlan.sequence length', harvestPlan.sequence ? harvestPlan.sequence.length : 0); // Adicionado para depuração
+
+      // Verifica se a sequência de colheita está vazia
+      if (!harvestPlan.sequence || harvestPlan.sequence.length === 0) {
+        await generatePdfHeader(doc, `Relatório de Colheita - ${harvestPlan.frontName}`, generatedBy);
+        doc.text('Este plano de colheita não possui nenhuma sequência de fazendas/talhões configurada.');
+        doc.end();
+        return;
+      }
 
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
@@ -568,6 +581,7 @@ try {
         };
         
         const rowData = allHeaders.map(h => rowDataMap[h.id]);
+        console.log('PDF Colheita: rowData for group', i, rowData); // Adicionado para depuração
 
         currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
         currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight);
@@ -600,12 +614,23 @@ try {
       const { planId, selectedColumns } = req.query;
       const selectedCols = JSON.parse(selectedColumns || '{}');
 
+      console.log('CSV Colheita: planId', planId); // Adicionado para depuração
+      console.log('CSV Colheita: selectedColumns', selectedCols); // Adicionado para depuração
+
       if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
 
       const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
       if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
 
       const harvestPlan = harvestPlanDoc.data();
+      console.log('CSV Colheita: harvestPlan', harvestPlan); // Adicionado para depuração
+      console.log('CSV Colheita: harvestPlan.sequence length', harvestPlan.sequence ? harvestPlan.sequence.length : 0); // Adicionado para depuração
+
+      // Verifica se a sequência de colheita está vazia
+      if (!harvestPlan.sequence || harvestPlan.sequence.length === 0) {
+        return res.status(404).send('Este plano de colheita não possui nenhuma sequência de fazendas/talhões configurada.');
+      }
+
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
       fazendasSnapshot.forEach(docSnap => {
