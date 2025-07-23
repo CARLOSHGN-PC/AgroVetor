@@ -115,11 +115,11 @@ try {
   // Função para parsear data DD/MM/YYYY para YYYY-MM-DD
   const parseDateDDMMYYYY = (dateString) => {
       if (!dateString) return null;
-      const parts = dateString.split('/');
+      const parts = String(dateString).split('/'); // Garante que é string
       if (parts.length === 3) {
           return `${parts[2]}-${parts[1]}-${parts[0]}`;
       }
-      return dateString; // Retorna como está se não for DD/MM/YYYY, esperando que new Date() trate
+      return dateString; 
   };
 
 
@@ -484,39 +484,45 @@ try {
         
         const farm = fazendasData[group.fazendaCodigo];
 
+        // Criar um mapa de talhões para busca eficiente por ID ou nome
+        const talhaoMap = new Map();
+        if (farm && farm.talhoes) {
+            farm.talhoes.forEach(t => {
+                talhaoMap.set(t.id, t); // Mapeia por ID (número)
+                talhaoMap.set(String(t.id), t); // Mapeia por ID (string, para segurança)
+                talhaoMap.set(t.name.toUpperCase().trim(), t); // Mapeia por nome (maiúsculas e sem espaços extras)
+            });
+        }
+
         group.plots.forEach(plot => {
-            if (farm && farm.talhoes) {
-                let talhao = null;
-                // Tenta encontrar por ID primeiro, se plot.talhaoId for um número ou string numérica
-                if (typeof plot.talhaoId === 'number' || (typeof plot.talhaoId === 'string' && !isNaN(parseInt(plot.talhaoId)))) {
-                    const searchId = typeof plot.talhaoId === 'string' ? parseInt(plot.talhaoId) : plot.talhaoId;
-                    talhao = farm.talhoes.find(t => t.id === searchId);
-                }
+            let talhao = null;
+            // Tenta encontrar por ID (número ou string)
+            if (talhaoMap.has(plot.talhaoId)) {
+                talhao = talhaoMap.get(plot.talhaoId);
+            } else if (talhaoMap.has(String(plot.talhaoId))) { // Explicitamente tenta versão string
+                talhao = talhaoMap.get(String(plot.talhaoId));
+            }
+            // Se não encontrou por ID, tenta por nome (normalizado)
+            if (!talhao && plot.talhaoName) {
+                talhao = talhaoMap.get(plot.talhaoName.toUpperCase().trim());
+            }
 
-                // Se não encontrou por ID ou ID não é numérico, tenta por nome
-                if (!talhao) {
-                    talhao = farm.talhoes.find(t => t.name.toUpperCase() === plot.talhaoName.toUpperCase());
+            if (talhao) {
+                if (talhao.dataUltimaColheita) {
+                    const formattedDate = parseDateDDMMYYYY(String(talhao.dataUltimaColheita)); // Garante que é string
+                    const dataUltima = new Date(formattedDate + 'T03:00:00Z'); 
+                    if (!isNaN(dataUltima.getTime())) { // Verifica se a data é válida
+                        totalAgeInDays += Math.abs(dataEntrada.getTime() - dataUltima.getTime());
+                        plotsWithDate++;
+                    } else {
+                        console.warn(`WARN: dataUltimaColheita inválida ou formato inesperado para talhão ${talhao.name} (ID: ${talhao.id}): ${talhao.dataUltimaColheita}`);
+                    }
                 }
-
-                if (talhao) {
-                    if (talhao.dataUltimaColheita) {
-                        const formattedDate = parseDateDDMMYYYY(talhao.dataUltimaColheita);
-                        const dataUltima = new Date(formattedDate + 'T03:00:00Z'); 
-                        if (!isNaN(dataUltima.getTime())) { // Verifica se a data é válida
-                            totalAgeInDays += Math.abs(dataEntrada.getTime() - dataUltima.getTime());
-                            plotsWithDate++;
-                        } else {
-                            console.warn(`WARN: dataUltimaColheita inválida ou formato inesperado para talhão ${talhao.name} (ID: ${talhao.id}): ${talhao.dataUltimaColheita}`);
-                        }
-                    }
-                    if (talhao.variedade) {
-                        allVarieties.add(talhao.variedade);
-                    }
-                } else {
-                    console.warn(`WARN: Talhão "${plot.talhaoName}" (ID: ${plot.talhaoId}) na Fazenda ${group.fazendaCodigo} NÃO ENCONTRADO.`);
+                if (talhao.variedade) {
+                    allVarieties.add(talhao.variedade);
                 }
             } else {
-                console.warn(`WARN: Fazenda ${group.fazendaCodigo} ou seus talhões não encontrados para o grupo.`);
+                console.warn(`WARN: Talhão "${plot.talhaoName}" (ID: ${plot.talhaoId}) na Fazenda ${group.fazendaCodigo} NÃO ENCONTRADO NO CADASTRO DE FAZENDAS. Usando valores padrão.`);
             }
         });
 
@@ -537,18 +543,18 @@ try {
         }
 
         const rowDataMap = {
-            seq: i + 1,
-            fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
-            talhoes: group.plots.map(p => p.talhaoName).join(', '),
-            area: group.totalArea.toFixed(2),
-            producao: group.totalProducao.toFixed(2),
-            variedade: Array.from(allVarieties).join(', ') || 'N/A',
-            idade: idadeMediaMeses,
-            atr: group.atr || 'N/A',
-            maturador: group.maturador || 'N/A',
-            diasAplicacao: diasAplicacao,
-            entrada: dataEntrada.toLocaleDateString('pt-BR'),
-            saida: dataSaida.toLocaleDateString('pt-BR')
+            seq: String(i + 1), // Converte para string
+            fazenda: String(`${group.fazendaCodigo} - ${group.fazendaName}`), // Converte para string
+            talhoes: String(group.plots.map(p => p.talhaoName).join(', ')), // Converte para string
+            area: String(group.totalArea.toFixed(2)), // Converte para string
+            producao: String(group.totalProducao.toFixed(2)), // Converte para string
+            variedade: String(Array.from(allVarieties).join(', ') || 'N/A'), // Converte para string
+            idade: String(idadeMediaMeses), // Converte para string
+            atr: String(group.atr || 'N/A'), // Converte para string
+            maturador: String(group.maturador || 'N/A'), // Converte para string
+            diasAplicacao: String(diasAplicacao), // Converte para string
+            entrada: String(dataEntrada.toLocaleDateString('pt-BR')), // Converte para string
+            saida: String(dataSaida.toLocaleDateString('pt-BR')) // Converte para string
         };
         
         const rowData = allHeaders.map(h => rowDataMap[h.id]);
@@ -563,8 +569,8 @@ try {
       
       const totalHeaders = Array(headersText.length).fill('');
       totalHeaders[allHeaders.findIndex(h => h.id === 'fazenda')] = 'Total Geral';
-      totalHeaders[allHeaders.findIndex(h => h.id === 'area')] = grandTotalArea.toFixed(2);
-      totalHeaders[allHeaders.findIndex(h => h.id === 'producao')] = grandTotalProducao.toFixed(2);
+      totalHeaders[allHeaders.findIndex(h => h.id === 'area')] = String(grandTotalArea.toFixed(2)); // Converte para string
+      totalHeaders[allHeaders.findIndex(h => h.id === 'producao')] = String(grandTotalProducao.toFixed(2)); // Converte para string
 
       drawRow(doc, totalHeaders, currentY, false, true, finalColumnWidths, textPadding, rowHeight);
 
@@ -659,30 +665,40 @@ try {
         let totalAgeInDays = 0;
         let plotsWithDate = 0;
         const allVarieties = new Set();
-        group.plots.forEach(plot => {
-            const farm = fazendasData[group.fazendaCodigo];
-            if (farm && farm.talhoes) {
-                let talhao = null;
-                if (typeof plot.talhaoId === 'number' || (typeof plot.talhaoId === 'string' && !isNaN(parseInt(plot.talhaoId)))) {
-                    const searchId = typeof plot.talhaoId === 'string' ? parseInt(plot.talhaoId) : plot.talhaoId;
-                    talhao = farm.talhoes.find(t => t.id === searchId);
-                }
-                if (!talhao) {
-                    talhao = farm.talhoes.find(t => t.name.toUpperCase() === plot.talhaoName.toUpperCase());
-                }
+        
+        const farm = fazendasData[group.fazendaCodigo];
 
-                if (talhao) {
-                    if (talhao.dataUltimaColheita) {
-                        const formattedDate = parseDateDDMMYYYY(talhao.dataUltimaColheita);
-                        const dataUltima = new Date(formattedDate + 'T03:00:00Z');
-                        if (!isNaN(dataUltima.getTime())) {
-                            totalAgeInDays += Math.abs(dataEntrada.getTime() - dataUltima.getTime());
-                            plotsWithDate++;
-                        }
+        const talhaoMap = new Map();
+        if (farm && farm.talhoes) {
+            farm.talhoes.forEach(t => {
+                talhaoMap.set(t.id, t);
+                talhaoMap.set(String(t.id), t); 
+                talhaoMap.set(t.name.toUpperCase().trim(), t);
+            });
+        }
+
+        group.plots.forEach(plot => {
+            let talhao = null;
+            if (talhaoMap.has(plot.talhaoId)) {
+                talhao = talhaoMap.get(plot.talhaoId);
+            } else if (talhaoMap.has(String(plot.talhaoId))) {
+                talhao = talhaoMap.get(String(plot.talhaoId));
+            }
+            if (!talhao && plot.talhaoName) {
+                talhao = talhaoMap.get(plot.talhaoName.toUpperCase().trim());
+            }
+
+            if (talhao) {
+                if (talhao.dataUltimaColheita) {
+                    const formattedDate = parseDateDDMMYYYY(String(talhao.dataUltimaColheita));
+                    const dataUltima = new Date(formattedDate + 'T03:00:00Z');
+                    if (!isNaN(dataUltima.getTime())) {
+                        totalAgeInDays += Math.abs(dataEntrada.getTime() - dataUltima.getTime());
+                        plotsWithDate++;
                     }
-                    if (talhao.variedade) {
-                        allVarieties.add(talhao.variedade);
-                    }
+                }
+                if (talhao.variedade) {
+                    allVarieties.add(talhao.variedade);
                 }
             }
         });
