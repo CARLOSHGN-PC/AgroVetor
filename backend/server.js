@@ -7,7 +7,9 @@ const PDFDocument = require('pdfkit');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
-const axios = require('axios'); // Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
+const axios = require('axios');
+// Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
+// Removido: const { table } = require('pdfkit-table'); // Removido esta linha
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -459,66 +461,86 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      const baseHeaders = [
-        { id: 'seq', title: 'Seq.' },
-        { id: 'fazenda', title: 'Fazenda' },
-        { id: 'talhoes', title: 'Talhões' },
-        { id: 'area', title: 'Área (ha)' },
-        { id: 'producao', title: 'Prod. (ton)' },
-        { id: 'entrada', title: 'Entrada' },
-        { id: 'saida', title: 'Saída' }
+      // Define todos os cabeçalhos possíveis com suas larguras mínimas ideais
+      const allPossibleHeadersConfig = [
+          { id: 'seq', title: 'Seq.', minWidth: 30 },
+          { id: 'fazenda', title: 'Fazenda', minWidth: 80 }, 
+          { id: 'talhoes', title: 'Talhões', minWidth: 100 }, 
+          { id: 'area', title: 'Área (ha)', minWidth: 50 },
+          { id: 'producao', title: 'Prod. (ton)', minWidth: 50 },
+          { id: 'variedade', title: 'Variedade', minWidth: 70 }, 
+          { id: 'idade', title: 'Idade (m)', minWidth: 45 }, 
+          { id: 'atr', title: 'ATR', minWidth: 40 }, 
+          { id: 'maturador', title: 'Maturador', minWidth: 70 }, 
+          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 55 }, 
+          { id: 'entrada', title: 'Entrada', minWidth: 60 }, 
+          { id: 'saida', title: 'Saída', minWidth: 60 }    
       ];
 
-      const optionalHeaders = [];
-      if (selectedCols.variedade) optionalHeaders.push({ id: 'variedade', title: 'Variedade' });
-      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade (m)' });
-      if (selectedCols.atr) optionalHeaders.push({ id: 'atr', title: 'ATR' });
-      if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador' });
-      if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias Aplic.' });
+      // Filtra os cabeçalhos selecionados
+      let finalHeaders = [];
+      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
+      const finalFixedHeaders = ['entrada', 'saida'];
 
-      const allHeaders = [...baseHeaders, ...optionalHeaders];
-      const headersText = allHeaders.map(h => h.title);
+      initialFixedHeaders.forEach(id => {
+          const header = allPossibleHeadersConfig.find(h => h.id === id);
+          if (header) finalHeaders.push(header);
+      });
 
-      // Definir larguras das colunas
-      const columnWidths = [
-          30,  // Seq.
-          100, // Fazenda
-          120, // Talhões
-          60,  // Área (ha)
-          60,  // Prod. (ton)
-          60,  // Entrada
-          60   // Saída
-      ];
+      allPossibleHeadersConfig.forEach(header => {
+          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && !finalFixedHeaders.includes(header.id)) {
+              finalHeaders.push(header);
+          }
+      });
 
-      if (selectedCols.variedade) columnWidths.push(80);
-      if (selectedCols.idade) columnWidths.push(50);
-      if (selectedCols.atr) columnWidths.push(40);
-      if (selectedCols.maturador) columnWidths.push(80);
-      if (selectedCols.diasAplicacao) columnWidths.push(60);
+      finalFixedHeaders.forEach(id => {
+          const header = allPossibleHeadersConfig.find(h => h.id === id);
+          if (header) finalHeaders.push(header);
+      });
+
+      const headersText = finalHeaders.map(h => h.title);
+
+      // Calcular larguras das colunas dinamicamente
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      let totalMinWidth = 0;
+      let flexibleColumnsCount = 0;
+
+      finalHeaders.forEach(header => {
+          totalMinWidth += header.minWidth;
+          // Considerar 'fazenda', 'talhoes', 'variedade', 'maturador' como colunas flexíveis
+          if (['fazenda', 'talhoes', 'variedade', 'maturador'].includes(header.id)) {
+              flexibleColumnsCount++;
+          }
+      });
+
+      let remainingWidth = pageWidth - totalMinWidth;
+      let flexibleColumnExtraWidth = flexibleColumnsCount > 0 ? remainingWidth / flexibleColumnsCount : 0;
+
+      let finalColumnWidths = finalHeaders.map(header => {
+          let width = header.minWidth;
+          if (['fazenda', 'talhoes', 'variedade', 'maturador'].includes(header.id)) {
+              width += flexibleColumnExtraWidth;
+          }
+          return width;
+      });
+
+      // Ajuste final para garantir que a soma das larguras seja exatamente `pageWidth`
+      const currentTotalWidth = finalColumnWidths.reduce((sum, w) => sum + w, 0);
+      const difference = pageWidth - currentTotalWidth;
+      // Distribui a diferença (pequenos erros de arredondamento) na primeira coluna flexível
+      if (difference !== 0 && flexibleColumnsCount > 0) {
+          const firstFlexibleIndex = finalHeaders.findIndex(h => ['fazenda', 'talhoes', 'variedade', 'maturador'].includes(h.id));
+          if (firstFlexibleIndex !== -1) {
+              finalColumnWidths[firstFlexibleIndex] += difference;
+          }
+      }
+
 
       const rowHeight = 18;
       const textPadding = 5;
 
-      const drawRowHarvest = (rowData, y, isHeader = false, isFooter = false, customWidths) => {
-        const startX = doc.page.margins.left;
-        const fontSize = 8;
-        if (isHeader || isFooter) {
-            doc.font('Helvetica-Bold').fontSize(fontSize);
-            doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
-            doc.fillColor('black');
-        } else {
-            doc.font('Helvetica').fontSize(fontSize);
-        }
-        let currentX = startX;
-        rowData.forEach((cell, i) => {
-            doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
-            currentX += customWidths[i];
-        });
-        return y + rowHeight;
-      };
-
-
-      currentY = drawRowHarvest(headersText, currentY, true, false, columnWidths);
+      // Desenhar cabeçalho da tabela
+      currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths, textPadding, rowHeight, finalHeaders);
 
       let grandTotalProducao = 0;
       let grandTotalArea = 0;
@@ -587,44 +609,33 @@ try {
             saida: dataSaida.toLocaleDateString('pt-BR')
         };
         
-        const rowData = allHeaders.map(h => rowDataMap[h.id]);
+        const rowData = finalHeaders.map(h => rowDataMap[h.id]);
 
-        currentY = await checkPageBreak(currentY);
-        currentY = drawRowHarvest(rowData, currentY, false, false, columnWidths);
+        currentY = await checkPageBreak(doc, currentY, title, generatedBy);
+        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); 
       }
 
       // Totais Gerais
-      currentY = await checkPageBreak(currentY, 40);
+      currentY = await checkPageBreak(doc, currentY, title, generatedBy, 40);
       doc.y = currentY;
       
       const totalRowData = [];
-      let totalColSpan = 0;
-      for (let i = 0; i < baseHeaders.length; i++) {
-        if (baseHeaders[i].id === 'area') {
-            totalRowData.push(grandTotalArea.toFixed(2));
-        } else if (baseHeaders[i].id === 'producao') {
-            totalRowData.push(grandTotalProducao.toFixed(2));
-        } else if (baseHeaders[i].id === 'seq') {
-            totalRowData.push(''); // Vazio
-        } else if (baseHeaders[i].id === 'fazenda') {
-            totalRowData.push('Total Geral');
-        } else {
-            totalRowData.push(''); // Preencher com vazio para outras colunas base
-        }
-      }
+      let totalGeneralTextAdded = false;
 
-      // Adiciona vazios para colunas opcionais no total
-      for (let i = 0; i < optionalHeaders.length; i++) {
-          totalRowData.push('');
-      }
+      finalHeaders.forEach((header, index) => {
+          if (index === 0 && !totalGeneralTextAdded) { // Primeira coluna para "Total Geral"
+              totalRowData.push('Total Geral');
+              totalGeneralTextAdded = true;
+          } else if (header.id === 'area') {
+              totalRowData.push(grandTotalArea.toFixed(2));
+          } else if (header.id === 'producao') {
+              totalRowData.push(grandTotalProducao.toFixed(2));
+          } else {
+              totalRowData.push(''); // Preenche com vazio para outras colunas
+          }
+      });
 
-      // Ajusta a primeira célula para "Total Geral" e as demais para vazias até chegar nas colunas de soma
-      const totalHeaders = ['Total Geral', ...Array(headersText.length - 1).fill('')];
-      totalHeaders[headersText.indexOf('Área (ha)')] = grandTotalArea.toFixed(2);
-      totalHeaders[headersText.indexOf('Prod. (ton)')] = grandTotalProducao.toFixed(2);
-
-
-      drawRowHarvest(totalHeaders, currentY, false, true, columnWidths);
+      drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders);
 
       doc.end();
     } catch (error) {
