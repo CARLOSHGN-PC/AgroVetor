@@ -86,10 +86,38 @@ try {
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
-    // Adicionado o nome do usuário que gerou o relatório
+    // Adicionado o nome do usuário para generatePdfHeader
     doc.fontSize(10).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
     return doc.y;
+  };
+
+  // Função auxiliar para desenhar linhas da tabela
+  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18) => {
+    const startX = doc.page.margins.left;
+    const fontSize = 8;
+    if (isHeader || isFooter) {
+        doc.font('Helvetica-Bold').fontSize(fontSize);
+        doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+        doc.fillColor('black');
+    } else {
+        doc.font('Helvetica').fontSize(fontSize);
+    }
+    let currentX = startX;
+    rowData.forEach((cell, i) => {
+        doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+        currentX += customWidths[i];
+    });
+    return y + rowHeight;
+  };
+
+  // Função auxiliar para verificar quebra de página
+  const checkPageBreak = async (doc, y, title, generatedBy, neededSpace = 40) => {
+    if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
+        doc.addPage();
+        return await generatePdfHeader(doc, title, generatedBy);
+    }
+    return y;
   };
 
 
@@ -129,45 +157,16 @@ try {
       // Passando o nome do usuário para generatePdfHeader
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
-      const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
+      const headersA = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
+      const headersB = ['Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
-      const rowHeight = 18;
-      const textPadding = 5;
-
-      const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths) => {
-        const startX = doc.page.margins.left;
-        const fontSize = 8;
-        if (isHeader || isFooter) {
-            doc.font('Helvetica-Bold').fontSize(fontSize);
-            doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
-            doc.fillColor('black');
-        } else {
-            doc.font('Helvetica').fontSize(fontSize);
-        }
-        let currentX = startX;
-        rowData.forEach((cell, i) => {
-            doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
-            currentX += customWidths[i];
-        });
-        return y + rowHeight;
-      };
-      
-      const checkPageBreak = async (y, neededSpace = rowHeight) => {
-        if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
-            doc.addPage();
-            // Passando o nome do usuário para generatePdfHeader
-            return await generatePdfHeader(doc, title, filters.generatedBy);
-        }
-        return y;
-      };
-      
       if (!isModelB) { // Modelo A
-        currentY = drawRow(headers, currentY, true, false, columnWidthsA);
+        currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA);
         for(const r of enrichedData) {
-            currentY = await checkPageBreak(currentY);
-            currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
+            currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+            currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
         }
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -178,18 +177,18 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
-          currentY = await checkPageBreak(currentY, 40);
+          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
           doc.y = currentY;
           doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
           currentY = doc.y + 5;
 
-          currentY = await checkPageBreak(currentY);
-          currentY = drawRow(headers.slice(1), currentY, true, false, columnWidthsB);
+          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+          currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB);
 
           const farmData = groupedData[fazendaKey];
           for(const r of farmData) {
-              currentY = await checkPageBreak(currentY);
-              currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
+              currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+              currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
           }
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -200,7 +199,7 @@ try {
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
           const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
-          currentY = drawRow(subtotalRow, currentY, false, true, columnWidthsB);
+          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB);
           currentY += 10;
         }
       }
@@ -212,15 +211,15 @@ try {
       const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
       const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-      currentY = await checkPageBreak(currentY, 40);
+      currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
       doc.y = currentY;
       
       if (!isModelB) {
         const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(totalRowData, currentY, false, true, columnWidthsA);
+        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA);
       } else {
         const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(totalRowDataB, currentY, false, true, columnWidthsB);
+        drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB);
       }
 
       doc.end();
@@ -255,7 +254,7 @@ try {
   });
 
   app.get('/reports/perda/pdf', async (req, res) => {
-    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
+    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
     doc.pipe(res);
@@ -264,9 +263,8 @@ try {
       const filters = req.query;
       const data = await getFilteredData('perdas', filters);
       if (data.length === 0) {
-        // Passando o nome do usuário para generatePdfHeader
         await generatePdfHeader(doc, 'Relatório de Perda', filters.generatedBy);
-        doc.text('Nenhum dado encontrado.');
+        doc.text('Nenhum dado encontrado para os filtros selecionados.');
         doc.end();
         return;
       }
@@ -274,25 +272,82 @@ try {
       const isDetailed = filters.tipoRelatorio === 'B';
       const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
       
-      // Passando o nome do usuário para generatePdfHeader
-      await generatePdfHeader(doc, title, filters.generatedBy);
+      let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
-      let headers, rows;
+      let headers, columnWidths;
       if (isDetailed) {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
-        rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total]);
+        columnWidths = [60, 120, 60, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50];
       } else {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-        rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total]);
+        columnWidths = [80, 160, 80, 100, 60, 120, 80];
       }
       
-      const { table } = require('pdfkit-table');
-      await table(doc, { 
-          headers, 
-          rows,
-          prepareHeader: () => doc.font('Helvetica-Bold'), 
-          prepareRow: () => doc.font('Helvetica'),
-      });
+      const rowHeight = 18;
+      const textPadding = 5;
+
+      if (!isDetailed) { // Modelo A - Resumido
+        currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+        for(const p of data) {
+            currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+            currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total], currentY, false, false, columnWidths);
+        }
+      } else { // Modelo B - Detalhado
+        const groupedData = data.reduce((acc, p) => {
+          const key = `${p.codigo} - ${p.fazenda}`;
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(p);
+          return acc;
+        }, {});
+
+        for (const fazendaKey of Object.keys(groupedData).sort()) {
+          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+          doc.y = currentY;
+          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
+          currentY = doc.y + 5;
+
+          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+          currentY = drawRow(doc, headers.slice(1), currentY, true, false, columnWidths.slice(1)); // Remove Fazenda do cabeçalho de subgrupo
+
+          const farmData = groupedData[fazendaKey];
+          for(const p of farmData) {
+              currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+              currentY = drawRow(doc, [p.data, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total], currentY, false, false, columnWidths.slice(1));
+          }
+          
+          const subTotalCanaInteira = farmData.reduce((sum, p) => sum + p.canaInteira, 0);
+          const subTotalTolete = farmData.reduce((sum, p) => sum + p.tolete, 0);
+          const subTotalToco = farmData.reduce((sum, p) => sum + p.toco, 0);
+          const subTotalPonta = farmData.reduce((sum, p) => sum + p.ponta, 0);
+          const subTotalEstilhaco = farmData.reduce((sum, p) => sum + p.estilhaco, 0);
+          const subTotalPedaco = farmData.reduce((sum, p) => sum + p.pedaco, 0);
+          const subTotal = farmData.reduce((sum, p) => sum + p.total, 0);
+
+          const subtotalRow = ['', '', '', '', 'Sub Total', subTotalCanaInteira, subTotalTolete, subTotalToco, subTotalPonta, subTotalEstilhaco, subTotalPedaco, subTotal];
+          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths.slice(1));
+          currentY += 10;
+        }
+      }
+      
+      const grandTotalCanaInteira = data.reduce((sum, p) => sum + p.canaInteira, 0);
+      const grandTotalTolete = data.reduce((sum, p) => sum + p.tolete, 0);
+      const grandTotalToco = data.reduce((sum, p) => sum + p.toco, 0);
+      const grandTotalPonta = data.reduce((sum, p) => sum + p.ponta, 0);
+      const grandTotalEstilhaco = data.reduce((sum, p) => sum + p.estilhaco, 0);
+      const grandTotalPedaco = data.reduce((sum, p) => sum + p.pedaco, 0);
+      const grandTotal = data.reduce((sum, p) => sum + p.total, 0);
+
+      currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+      doc.y = currentY;
+
+      if (!isDetailed) {
+        const totalRowData = ['', '', '', '', '', 'Total Geral', grandTotal];
+        drawRow(doc, totalRowData, currentY, false, true, columnWidths);
+      } else {
+        const totalRowData = ['', '', '', '', 'Total Geral', grandTotalCanaInteira, grandTotalTolete, grandTotalToco, grandTotalPonta, grandTotalEstilhaco, grandTotalPedaco, grandTotal];
+        drawRow(doc, totalRowData, currentY, false, true, columnWidths.slice(1));
+      }
+
       doc.end();
     } catch (error) { 
         console.error("Erro no PDF de Perda:", error);
@@ -334,6 +389,316 @@ try {
       res.download(filePath);
     } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
   });
+
+  // [ALTERAÇÃO]: generateCustomHarvestReport agora chama o backend
+  app.get('/reports/colheita/pdf', async (req, res) => {
+    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=relatorio_colheita_custom.pdf`);
+    doc.pipe(res);
+
+    try {
+      const { planId, selectedColumns, generatedBy } = req.query;
+      const selectedCols = JSON.parse(selectedColumns || '{}');
+
+      if (!planId) {
+        await generatePdfHeader(doc, 'Relatório Customizado de Colheita', generatedBy);
+        doc.text('Nenhum plano de colheita selecionado.');
+        doc.end();
+        return;
+      }
+
+      const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
+      if (!harvestPlanDoc.exists) {
+        await generatePdfHeader(doc, 'Relatório Customizado de Colheita', generatedBy);
+        doc.text('Plano de colheita não encontrado.');
+        doc.end();
+        return;
+      }
+
+      const harvestPlan = harvestPlanDoc.data();
+      const fazendasSnapshot = await db.collection('fazendas').get();
+      const fazendasData = {};
+      fazendasSnapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        fazendasData[data.code] = { id: docSnap.id, ...data };
+      });
+
+      const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
+      let currentY = await generatePdfHeader(doc, title, generatedBy);
+
+      const baseHeaders = [
+        { id: 'seq', title: 'Seq.' },
+        { id: 'fazenda', title: 'Fazenda' },
+        { id: 'talhoes', title: 'Talhões' },
+        { id: 'area', title: 'Área (ha)' },
+        { id: 'producao', title: 'Prod. (ton)' },
+        { id: 'entrada', title: 'Entrada' },
+        { id: 'saida', title: 'Saída' }
+      ];
+
+      const optionalHeaders = [];
+      if (selectedCols.variedade) optionalHeaders.push({ id: 'variedade', title: 'Variedade' });
+      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade (m)' });
+      if (selectedCols.atr) optionalHeaders.push({ id: 'atr', title: 'ATR' });
+      if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador' });
+      if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias Aplic.' });
+
+      const allHeaders = [...baseHeaders, ...optionalHeaders];
+      const headersText = allHeaders.map(h => h.title);
+
+      // Definir larguras das colunas
+      const columnWidths = [
+          30,  // Seq.
+          100, // Fazenda
+          120, // Talhões
+          60,  // Área (ha)
+          60,  // Prod. (ton)
+          60,  // Entrada
+          60   // Saída
+      ];
+
+      if (selectedCols.variedade) columnWidths.push(80);
+      if (selectedCols.idade) columnWidths.push(50);
+      if (selectedCols.atr) columnWidths.push(40);
+      if (selectedCols.maturador) columnWidths.push(80);
+      if (selectedCols.diasAplicacao) columnWidths.push(60);
+
+      const rowHeight = 18;
+      const textPadding = 5;
+
+      currentY = drawRow(doc, headersText, currentY, true, false, columnWidths);
+
+      let grandTotalProducao = 0;
+      let grandTotalArea = 0;
+      let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
+      const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+
+      for (let i = 0; i < harvestPlan.sequence.length; i++) {
+        const group = harvestPlan.sequence[i];
+        grandTotalProducao += group.totalProducao;
+        grandTotalArea += group.totalArea;
+
+        const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
+        const dataEntrada = new Date(currentDate.getTime());
+        currentDate.setDate(currentDate.getDate() + diasNecessarios);
+        const dataSaida = new Date(currentDate.getTime());
+
+        // Calcula Idade Média e Dias de Aplicação
+        let totalAgeInDays = 0;
+        let plotsWithDate = 0;
+        const allVarieties = new Set();
+        group.plots.forEach(plot => {
+            const farm = fazendasData[group.fazendaCodigo];
+            const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
+            if (talhao) {
+                if (talhao.dataUltimaColheita) {
+                    const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
+                    if (!isNaN(dataUltima)) {
+                        totalAgeInDays += Math.abs(dataEntrada - dataUltima);
+                        plotsWithDate++;
+                    }
+                }
+                if (talhao.variedade) {
+                    allVarieties.add(talhao.variedade);
+                }
+            }
+        });
+
+        const idadeMediaMeses = plotsWithDate > 0 ? (Math.ceil(totalAgeInDays / plotsWithDate) / 30).toFixed(1) : 'N/A';
+        
+        let diasAplicacao = 'N/A';
+        if (group.maturadorDate) {
+            try {
+                const today = new Date(); // Considera "hoje" como a data de geração do relatório
+                const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
+                const diffTime = today - applicationDate;
+                if (diffTime >= 0) { // Só calcula se a data de aplicação já passou
+                    diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                }
+            } catch (e) {
+                diasAplicacao = 'N/A';
+            }
+        }
+
+        const rowData = [
+            i + 1,
+            `${group.fazendaCodigo} - ${group.fazendaName}`,
+            group.plots.map(p => p.talhaoName).join(', '),
+            group.totalArea.toFixed(2),
+            group.totalProducao.toFixed(2),
+            dataEntrada.toLocaleDateString('pt-BR'),
+            dataSaida.toLocaleDateString('pt-BR')
+        ];
+
+        if (selectedCols.variedade) rowData.push(Array.from(allVarieties).join(', ') || 'N/A');
+        if (selectedCols.idade) rowData.push(idadeMediaMeses);
+        if (selectedCols.atr) rowData.push(group.atr || 'N/A');
+        if (selectedCols.maturador) rowData.push(group.maturador || 'N/A');
+        if (selectedCols.diasAplicacao) rowData.push(diasAplicacao);
+
+        currentY = await checkPageBreak(doc, currentY, title, generatedBy);
+        currentY = drawRow(doc, rowData, currentY, false, false, columnWidths);
+      }
+
+      // Totais Gerais
+      currentY = await checkPageBreak(doc, currentY, title, generatedBy, 40);
+      doc.y = currentY;
+      
+      const totalRowData = [];
+      let totalColSpan = 0;
+      for (let i = 0; i < baseHeaders.length; i++) {
+        if (baseHeaders[i].id === 'area') {
+            totalRowData.push(grandTotalArea.toFixed(2));
+        } else if (baseHeaders[i].id === 'producao') {
+            totalRowData.push(grandTotalProducao.toFixed(2));
+        } else if (baseHeaders[i].id === 'seq') {
+            totalRowData.push(''); // Vazio
+        } else if (baseHeaders[i].id === 'fazenda') {
+            totalRowData.push('Total Geral');
+        } else {
+            totalRowData.push(''); // Preencher com vazio para outras colunas base
+        }
+      }
+
+      // Adiciona vazios para colunas opcionais no total
+      for (let i = 0; i < optionalHeaders.length; i++) {
+          totalRowData.push('');
+      }
+
+      // Ajusta a primeira célula para "Total Geral" e as demais para vazias até chegar nas colunas de soma
+      const totalHeaders = ['Total Geral', ...Array(headersText.length - 1).fill('')];
+      totalHeaders[headersText.indexOf('Área (ha)')] = grandTotalArea.toFixed(2);
+      totalHeaders[headersText.indexOf('Prod. (ton)')] = grandTotalProducao.toFixed(2);
+
+
+      drawRow(doc, totalHeaders, currentY, false, true, columnWidths);
+
+      doc.end();
+    } catch (error) {
+        console.error("Erro no PDF de Colheita:", error);
+        if (!res.headersSent) {
+            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+        } else {
+            doc.end(); // Garante que o stream seja fechado
+        }
+    }
+  });
+
+  app.get('/reports/colheita/csv', async (req, res) => {
+    try {
+      const { planId, selectedColumns } = req.query;
+      const selectedCols = JSON.parse(selectedColumns || '{}');
+
+      if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
+
+      const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
+      if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
+
+      const harvestPlan = harvestPlanDoc.data();
+      const fazendasSnapshot = await db.collection('fazendas').get();
+      const fazendasData = {};
+      fazendasSnapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        fazendasData[data.code] = { id: docSnap.id, ...data };
+      });
+
+      const filePath = path.join(os.tmpdir(), `colheita_${Date.now()}.csv`);
+      
+      const baseHeaders = [
+        { id: 'seq', title: 'Seq.' },
+        { id: 'fazenda', title: 'Fazenda' },
+        { id: 'talhoes', title: 'Talhões' },
+        { id: 'area', title: 'Área (ha)' },
+        { id: 'producao', title: 'Prod. (ton)' },
+        { id: 'entrada', title: 'Entrada' },
+        { id: 'saida', title: 'Saída' }
+      ];
+
+      const optionalHeaders = [];
+      if (selectedCols.variedade) optionalHeaders.push({ id: 'variedade', title: 'Variedade' });
+      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade Média (meses)' });
+      if (selectedCols.atr) optionalHeaders.push({ id: 'atr', title: 'ATR' });
+      if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador Aplicado' });
+      if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias desde Aplicação' });
+
+      const allHeaders = [...baseHeaders, ...optionalHeaders];
+
+      const records = [];
+      let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
+      const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+
+      harvestPlan.sequence.forEach((group, index) => {
+        const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
+        const dataEntrada = new Date(currentDate.getTime());
+        currentDate.setDate(currentDate.getDate() + diasNecessarios);
+        const dataSaida = new Date(currentDate.getTime());
+
+        // Calcula Idade Média e Dias de Aplicação
+        let totalAgeInDays = 0;
+        let plotsWithDate = 0;
+        const allVarieties = new Set();
+        group.plots.forEach(plot => {
+            const farm = fazendasData[group.fazendaCodigo];
+            const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
+            if (talhao) {
+                if (talhao.dataUltimaColheita) {
+                    const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
+                    if (!isNaN(dataUltima)) {
+                        totalAgeInDays += Math.abs(dataEntrada - dataUltima);
+                        plotsWithDate++;
+                    }
+                }
+                if (talhao.variedade) {
+                    allVarieties.add(talhao.variedade);
+                }
+            }
+        });
+
+        const idadeMediaMeses = plotsWithDate > 0 ? (Math.ceil(totalAgeInDays / plotsWithDate) / 30).toFixed(1) : 'N/A';
+        
+        let diasAplicacao = 'N/A';
+        if (group.maturadorDate) {
+            try {
+                const today = new Date(); // Considera "hoje" como a data de geração do relatório
+                const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
+                const diffTime = today - applicationDate;
+                if (diffTime >= 0) { // Só calcula se a data de aplicação já passou
+                    diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                }
+            } catch (e) {
+                diasAplicacao = 'N/A';
+            }
+        }
+
+        const record = {
+            seq: index + 1,
+            fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
+            talhoes: group.plots.map(p => p.talhaoName).join(', '),
+            area: group.totalArea.toFixed(2),
+            producao: group.totalProducao.toFixed(2),
+            entrada: dataEntrada.toLocaleDateString('pt-BR'),
+            saida: dataSaida.toLocaleDateString('pt-BR')
+        };
+
+        if (selectedCols.variedade) record.variedade = Array.from(allVarieties).join(', ') || 'N/A';
+        if (selectedCols.idade) record.idade = idadeMediaMeses;
+        if (selectedCols.atr) record.atr = group.atr || 'N/A';
+        if (selectedCols.maturador) record.maturador = group.maturador || 'N/A';
+        if (selectedCols.diasAplicacao) record.diasAplicacao = diasAplicacao;
+
+        records.push(record);
+      });
+
+      const csvWriter = createObjectCsvWriter({ path: filePath, header: allHeaders });
+      await csvWriter.writeRecords(records);
+      res.download(filePath);
+    } catch (error) {
+      console.error("Erro ao gerar relatório CSV de Colheita:", error);
+      res.status(500).send('Erro ao gerar relatório.');
+    }
+  });
+
 
 } catch (error) {
   console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
