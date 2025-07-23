@@ -159,15 +159,9 @@ try {
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      // Ajuste as larguras das colunas para A4 paisagem (297mm x 210mm, margens de 30mm)
-      // Largura disponível: 297 - 30 - 30 = 237mm
-      // Converte mm para pontos (1mm = 2.83465 pontos)
-      const availableWidth = (297 - 60) * 2.83465; // ~671 pontos
-      
-      // Larguras ajustadas para o Modelo A (total 671)
-      const columnWidthsA = [110, 60, 70, 80, 50, 60, 45, 45, 45, 55, 51]; // Total: 671
-      // Larguras ajustadas para o Modelo B (total 671) - sem a coluna Fazenda
-      const columnWidthsB = [75, 80, 100, 50, 60, 45, 45, 45, 55, 116]; // Total: 671
+      // Larguras originais que o usuário confirmou estarem corretas para o relatório de broca
+      const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
+      const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
       const rowHeight = 18;
       
@@ -290,13 +284,13 @@ try {
       const textPadding = 5;
 
       let headers, columnWidths;
-      // Largura disponível: ~671 pontos
+      // Revertendo para as larguras originais do seu código para Perda
       if (isDetailed) {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
-        columnWidths = [60, 90, 60, 60, 40, 80, 50, 50, 40, 40, 50, 50, 51]; // Total: 671
+        columnWidths = [60, 100, 70, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50]; 
       } else {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-        columnWidths = [80, 140, 90, 90, 50, 140, 81]; // Total: 671
+        columnWidths = [80, 150, 100, 100, 60, 150, 80]; 
       }
       
       currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
@@ -343,8 +337,10 @@ try {
 
       let totalRowData;
       if (isDetailed) {
+        // Ajustado para alinhar com as colunas do modelo detalhado
         totalRowData = ['', '', '', '', '', '', '', '', '', '', '', 'Total Geral', String(grandTotal.toFixed(2))];
       } else {
+        // Ajustado para alinhar com as colunas do modelo resumido
         totalRowData = ['', '', '', '', '', 'Total Geral', String(grandTotal.toFixed(2))];
       }
       drawRow(doc, totalRowData, currentY, false, true, columnWidths, textPadding, rowHeight);
@@ -436,57 +432,60 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      const baseHeaders = [
-        { id: 'seq', title: 'Seq.' },
-        { id: 'fazenda', title: 'Fazenda' },
-        { id: 'talhoes', title: 'Talhões' },
-        { id: 'area', title: 'Área (ha)' },
-        { id: 'producao', title: 'Prod. (ton)' },
-        { id: 'entrada', title: 'Entrada' },
-        { id: 'saida', title: 'Saída' }
+      // Definindo todos os cabeçalhos possíveis e suas larguras fixas
+      const allPossibleHeadersConfig = [
+        { id: 'seq', title: 'Seq.', width: 25 },
+        { id: 'fazenda', title: 'Fazenda', width: 90 },
+        { id: 'talhoes', title: 'Talhões', width: 110 },
+        { id: 'area', title: 'Área (ha)', width: 55 },
+        { id: 'producao', title: 'Prod. (ton)', width: 55 },
+        { id: 'variedade', title: 'Variedade', width: 75 },
+        { id: 'idade', title: 'Idade Média (meses)', width: 45 },
+        { id: 'atr', title: 'ATR', width: 35 },
+        { id: 'maturador', title: 'Maturador', width: 75 },
+        { id: 'diasAplicacao', title: 'Dias Aplic.', width: 55 },
+        { id: 'entrada', title: 'Entrada', width: 55 },
+        { id: 'saida', title: 'Saída', width: 55 }
       ];
 
-      const optionalHeaders = [];
-      if (selectedCols.variedade) optionalHeaders.push({ id: 'variedade', title: 'Variedade' });
-      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade Média (meses)' });
-      if (selectedCols.atr) optionalHeaders.push({ id: 'atr', title: 'ATR' });
-      if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador' });
-      if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias Aplic.' });
+      // Construir os cabeçalhos finais e suas larguras com base na seleção do usuário
+      let finalHeaders = [];
+      let finalColumnWidths = [];
 
-      // Garante que 'entrada' e 'saida' estão sempre no final
-      const allHeaders = [...baseHeaders.filter(h => h.id !== 'entrada' && h.id !== 'saida'), ...optionalHeaders, { id: 'entrada', title: 'Entrada' }, { id: 'saida', title: 'Saída' }];
-      const headersText = allHeaders.map(h => h.title);
+      // Adiciona os cabeçalhos fixos iniciais
+      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
+      initialFixedHeaders.forEach(id => {
+          const header = allPossibleHeadersConfig.find(h => h.id === id);
+          if (header) {
+              finalHeaders.push(header);
+              finalColumnWidths.push(header.width);
+          }
+      });
 
-      // Definir larguras das colunas para A4 paisagem (~671 pontos)
-      const columnWidths = {
-          seq: 25,
-          fazenda: 90,
-          talhoes: 110,
-          area: 55,
-          producao: 55,
-          variedade: 75,
-          idade: 45,
-          atr: 35,
-          maturador: 75,
-          diasAplicacao: 55,
-          entrada: 55,
-          saida: 55
-      };
+      // Adiciona os cabeçalhos opcionais selecionados
+      allPossibleHeadersConfig.forEach(header => {
+          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && header.id !== 'entrada' && header.id !== 'saida') {
+              finalHeaders.push(header);
+              finalColumnWidths.push(header.width);
+          }
+      });
 
-      // Calcular as larguras finais baseadas nos cabeçalhos selecionados
-      const finalColumnWidths = allHeaders.map(h => columnWidths[h.id]);
-
-      // Ajustar larguras proporcionalmente se o total exceder o disponível
-      const totalCurrentWidth = finalColumnWidths.reduce((sum, width) => sum + width, 0);
-      const scaleFactor = availableWidth / totalCurrentWidth;
-
-      const scaledColumnWidths = finalColumnWidths.map(width => width * scaleFactor);
-
+      // Adiciona os cabeçalhos fixos finais (Entrada e Saída)
+      const finalFixedHeaders = ['entrada', 'saida'];
+      finalFixedHeaders.forEach(id => {
+          const header = allPossibleHeadersConfig.find(h => h.id === id);
+          if (header) {
+              finalHeaders.push(header);
+              finalColumnWidths.push(header.width);
+          }
+      });
+      
+      const headersText = finalHeaders.map(h => h.title);
 
       const rowHeight = 18;
       const textPadding = 5;
 
-      currentY = drawRow(doc, headersText, currentY, true, false, scaledColumnWidths, textPadding, rowHeight);
+      currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths, textPadding, rowHeight);
 
       let grandTotalProducao = 0;
       let grandTotalArea = 0;
@@ -584,22 +583,22 @@ try {
             saida: String(dataSaida.toLocaleDateString('pt-BR')) 
         };
         
-        const rowData = allHeaders.map(h => rowDataMap[h.id]);
+        const rowData = finalHeaders.map(h => rowDataMap[h.id]);
 
         currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
-        currentY = drawRow(doc, rowData, currentY, false, false, scaledColumnWidths, textPadding, rowHeight);
+        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight);
       }
 
       // Totais Gerais
       currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
       doc.y = currentY;
       
-      const totalHeaders = Array(headersText.length).fill('');
-      totalHeaders[allHeaders.findIndex(h => h.id === 'fazenda')] = 'Total Geral';
-      totalHeaders[allHeaders.findIndex(h => h.id === 'area')] = String(grandTotalArea.toFixed(2)); 
-      totalHeaders[allHeaders.findIndex(h => h.id === 'producao')] = String(grandTotalProducao.toFixed(2)); 
+      const totalRowData = Array(finalHeaders.length).fill('');
+      totalRowData[finalHeaders.findIndex(h => h.id === 'fazenda')] = 'Total Geral';
+      totalRowData[finalHeaders.findIndex(h => h.id === 'area')] = String(grandTotalArea.toFixed(2)); 
+      totalRowData[finalHeaders.findIndex(h => h.id === 'producao')] = String(grandTotalProducao.toFixed(2)); 
 
-      drawRow(doc, totalHeaders, currentY, false, true, scaledColumnWidths, textPadding, rowHeight);
+      drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight);
 
       doc.end();
     } catch (error) {
