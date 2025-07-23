@@ -433,6 +433,7 @@ try {
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
       // Definindo todos os cabeçalhos possíveis e suas larguras fixas
+      // Largura total disponível: 297mm - 60mm (margens) = 237mm = ~671 pontos
       const allPossibleHeadersConfig = [
         { id: 'seq', title: 'Seq.', width: 25 },
         { id: 'fazenda', title: 'Fazenda', width: 90 },
