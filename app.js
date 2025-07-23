@@ -1092,7 +1092,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const dataSaida = new Date(currentDate.getTime());
                     
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, startDate);
-                    // Revertendo para a chamada original da função calculateMaturadorDays
                     const diasAplicacao = App.actions.calculateMaturadorDays(group); 
 
                     const row = tableBody.insertRow();
@@ -1845,27 +1844,28 @@ document.addEventListener('DOMContentLoaded', () => {
             async saveHarvestPlan() {
                 if (!App.state.activeHarvestPlan) return;
                 
-                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este plano de colheita?", async () => {
-                    const planToSave = App.state.activeHarvestPlan;
-                    planToSave.frontName = planToSave.frontName.trim();
-                    
-                    if (!planToSave.frontName || !planToSave.startDate || !planToSave.dailyRate) {
-                        App.ui.showAlert('Preencha todos os campos de configuração da frente.', "error");
-                        return;
+                // Removendo a confirmação aqui para permitir salvamento automático
+                const planToSave = App.state.activeHarvestPlan;
+                planToSave.frontName = planToSave.frontName.trim();
+                
+                if (!planToSave.frontName || !planToSave.startDate || !planToSave.dailyRate) {
+                    App.ui.showAlert('Preencha todos os campos de configuração da frente.', "error");
+                    return;
+                }
+                
+                try {
+                    if (planToSave.id) {
+                        await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
+                    } else {
+                        const docRef = await App.data.addDocument('harvestPlans', planToSave);
+                        App.state.activeHarvestPlan.id = docRef.id; // Atualiza o ID para futuros salvamentos
                     }
-                    
-                    try {
-                        if (planToSave.id) {
-                            await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
-                        } else {
-                            await App.data.addDocument('harvestPlans', planToSave);
-                        }
-                        App.ui.showAlert(`Plano de colheita "${planToSave.frontName}" guardado com sucesso!`);
-                        App.ui.showHarvestPlanList();
-                    } catch(e) {
-                        App.ui.showAlert('Erro ao guardar o plano de colheita.', "error");
-                    }
-                });
+                    App.ui.showAlert(`Plano de colheita "${planToSave.frontName}" guardado com sucesso!`);
+                    // Não redireciona para a lista automaticamente após cada salvamento de sequência
+                } catch(e) {
+                    App.ui.showAlert('Erro ao guardar o plano de colheita.', "error");
+                    console.error("Erro ao guardar o plano de colheita:", e);
+                }
             },
             deleteHarvestPlan(planId) {
                 App.ui.showConfirmationModal("Tem a certeza que deseja excluir este plano de colheita?", async () => {
@@ -1873,7 +1873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Plano de colheita excluído.', 'info');
                 });
             },
-            addOrUpdateHarvestSequence() {
+            async addOrUpdateHarvestSequence() { // Adicionado 'async'
                 if (!App.state.activeHarvestPlan) { App.ui.showAlert("Primeiro crie ou edite um plano.", "warning"); return; }
                 const { fazenda: fazendaSelect, atr: atrInput, editingGroupId, maturador, maturadorDate } = App.elements.harvest;
                 const farmId = fazendaSelect.value;
@@ -1926,6 +1926,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 App.ui.renderHarvestSequence();
                 this.cancelEditSequence();
+                await this.saveHarvestPlan(); // Salva o plano no Firestore após adicionar/atualizar
             },
             editHarvestSequenceGroup(groupId) {
                 if (!App.state.activeHarvestPlan) return;
@@ -1963,13 +1964,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnAddOrUpdate.innerHTML = `<i class="fas fa-plus"></i> Adicionar à Sequência`;
                 btnCancelEdit.style.display = 'none';
             },
-            removeHarvestSequence(groupId) {
+            async removeHarvestSequence(groupId) { // Adicionado 'async'
                 if (!App.state.activeHarvestPlan) return;
                 
-                App.ui.showConfirmationModal("Tem a certeza que deseja remover este grupo da sequência?", () => {
+                App.ui.showConfirmationModal("Tem a certeza que deseja remover este grupo da sequência?", async () => { // Adicionado 'async' aqui
                     App.state.activeHarvestPlan.sequence = App.state.activeHarvestPlan.sequence.filter(g => g.id != groupId);
                     App.ui.renderHarvestSequence();
                     App.actions.cancelEditSequence();
+                    await this.saveHarvestPlan(); // Salva o plano no Firestore após remover
                     App.ui.showAlert('Grupo removido da sequência.', 'info');
                 });
             },
@@ -1982,9 +1984,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (newATR !== null && !isNaN(parseFloat(newATR))) {
                     group.atr = parseFloat(newATR);
                     App.ui.renderHarvestSequence();
+                    this.saveHarvestPlan(); // Salva o plano no Firestore após editar ATR
                 }
             },
-            reorderHarvestSequence(draggedId, targetId) {
+            async reorderHarvestSequence(draggedId, targetId) { // Adicionado 'async'
                 if (!App.state.activeHarvestPlan) return;
                 const sequence = App.state.activeHarvestPlan.sequence;
                 const fromIndex = sequence.findIndex(item => item.id == draggedId);
@@ -1993,6 +1996,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const item = sequence.splice(fromIndex, 1)[0];
                 sequence.splice(toIndex, 0, item);
                 App.ui.renderHarvestSequence();
+                await this.saveHarvestPlan(); // Salva o plano no Firestore após reordenar
             },
             calculateAverageAge(group, startDate) {
                 let totalAgeInDays = 0;
@@ -2017,7 +2021,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return 'N/A';
             },
-            // Revertendo a função calculateMaturadorDays para a versão original
             calculateMaturadorDays(group) {
                 if (!group.maturadorDate) {
                     return 'N/A';
