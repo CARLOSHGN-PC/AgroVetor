@@ -659,10 +659,8 @@ try {
         let totalAgeInDays = 0;
         let plotsWithDate = 0;
         const allVarieties = new Set();
-        
-        const farm = fazendasData[group.fazendaCodigo];
-
         group.plots.forEach(plot => {
+            const farm = fazendasData[group.fazendaCodigo];
             if (farm && farm.talhoes) {
                 let talhao = null;
                 if (typeof plot.talhaoId === 'number' || (typeof plot.talhaoId === 'string' && !isNaN(parseInt(plot.talhaoId)))) {
