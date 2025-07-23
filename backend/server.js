@@ -9,9 +9,9 @@ const path = require('path');
 const os = require('os');
 const axios = require('axios');
 
-// [CORREÇÃO CRÍTICA]: Inicializa pdfkit-table para estender PDFDocument globalmente
-// Isso deve ser feito uma única vez no início do arquivo.
-require('pdfkit-table')(PDFDocument); 
+// [REMOVIDO]: Não precisamos mais do pdfkit-table, vamos desenhar manualmente.
+// const createPdfTable = require('pdfkit-table'); 
+// require('pdfkit-table')(PDFDocument); 
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -199,6 +199,84 @@ try {
     }
   };
 
+  // [NOVO]: Função genérica para desenhar tabelas manualmente (baseada no drawRow de Brocamento)
+  const drawTable = async (doc, headers, rows, startY, options = {}) => {
+    const { 
+        columnWidths, 
+        rowHeight = 18, 
+        textPadding = 5, 
+        fontSize = 8, 
+        headStyles = { fillColor: [46, 125, 50], textColor: 255, font: 'Helvetica-Bold' }, 
+        alternateRowStyles = { fillColor: [245, 245, 245] } 
+    } = options;
+
+    let currentY = startY;
+    const startX = doc.page.margins.left;
+    const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+    // Calcula larguras das colunas se não forem fornecidas
+    let calculatedColumnWidths = columnWidths;
+    if (!calculatedColumnWidths) {
+        const numCols = headers.length;
+        const defaultColWidth = tableWidth / numCols;
+        calculatedColumnWidths = Array(numCols).fill(defaultColWidth);
+    }
+
+    // Função interna para desenhar uma linha
+    const drawRowContent = (rowData, y, isHeader = false, isFooter = false) => {
+        doc.save(); // Salva o estado para não afetar o resto do documento
+        let x = startX;
+        
+        if (isHeader) {
+            doc.rect(startX, y, tableWidth, rowHeight).fillAndStroke(headStyles.fillColor, headStyles.fillColor);
+            doc.fillColor(headStyles.textColor).font(headStyles.font);
+        } else if (isFooter) {
+            doc.rect(startX, y, tableWidth, rowHeight).fillAndStroke(alternateRowStyles.fillColor, alternateRowStyles.fillColor); // Pode ser uma cor diferente para footer
+            doc.fillColor('black').font('Helvetica-Bold'); // Exemplo
+        } else {
+            doc.fillColor('black').font('Helvetica');
+            if (rows.indexOf(rowData) % 2 === 1) { // Linhas alternadas
+                doc.rect(startX, y, tableWidth, rowHeight).fillAndStroke(alternateRowStyles.fillColor, alternateRowStyles.fillColor);
+            }
+        }
+        
+        doc.fontSize(fontSize);
+
+        rowData.forEach((cell, i) => {
+            doc.text(String(cell), x + textPadding, y + 5, {
+                width: calculatedColumnWidths[i] - (textPadding * 2),
+                align: 'left',
+                lineGap: 2 // Espaçamento entre linhas para overflow
+            });
+            x += calculatedColumnWidths[i];
+        });
+        doc.restore(); // Restaura o estado
+        return y + rowHeight;
+    };
+
+    // Quebra de página
+    const checkPageBreak = async (y, neededSpace = rowHeight) => {
+        if (y + neededSpace > doc.page.height - doc.page.margins.bottom) {
+            doc.addPage();
+            // Redesenha o cabeçalho da tabela na nova página
+            drawRowContent(headers, doc.y, true); 
+            return doc.y + rowHeight;
+        }
+        return y;
+    };
+
+    // Desenha o cabeçalho da tabela
+    currentY = drawRowContent(headers, currentY, true);
+
+    // Desenha as linhas de dados
+    for (const rowData of rows) {
+        currentY = await checkPageBreak(currentY);
+        currentY = drawRowContent(rowData, currentY);
+    }
+
+    return currentY; // Retorna a posição Y final
+  };
+
 
   app.get('/reports/brocamento/pdf', async (req, res) => {
     console.log('[brocamento/pdf] Requisição recebida.');
@@ -249,39 +327,15 @@ try {
         const rowHeight = 18;
         const textPadding = 5;
 
-        const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths) => {
-          const startX = doc.page.margins.left;
-          const fontSize = 8;
-          if (isHeader || isFooter) {
-              doc.font('Helvetica-Bold').fontSize(fontSize);
-              doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
-              doc.fillColor('black');
-          } else {
-              doc.font('Helvetica').fontSize(fontSize);
-          }
-          let currentX = startX;
-          rowData.forEach((cell, i) => {
-              doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
-              currentX += customWidths[i];
-          });
-          return y + rowHeight;
-        };
-        
-        const checkPageBreak = async (y, neededSpace = rowHeight) => {
-          if (y > doc.page.height - doc.page.margins.bottom - neededSpace) { 
-              doc.addPage();
-              return await generatePdfHeader(doc, title, generatedBy); 
-          }
-          return y;
-        };
-        
+        // [CORREÇÃO]: Usando a função drawRowContent diretamente para o cabeçalho
+        currentY = drawRowContent(headers, currentY, true, false, columnWidthsA);
+
         if (!isModelB) { // Modelo A
           console.log('[brocamento/pdf] Gerando Modelo A. Headers:', headers);
-          currentY = drawRow(headers, currentY, true, false, columnWidthsA);
           for(const r of enrichedData) {
               console.log('[brocamento/pdf] Desenhando linha de dados (Modelo A):', r.id);
-              currentY = await checkPageBreak(currentY);
-              currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
+              currentY = await checkPageBreak(currentY, rowHeight); // Passa rowHeight para neededSpace
+              currentY = drawRowContent([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
           }
         } else { // Modelo B
           console.log('[brocamento/pdf] Gerando Modelo B.');
@@ -300,14 +354,14 @@ try {
             doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
             currentY = doc.y + 5;
 
-            currentY = await checkPageBreak(currentY);
-            currentY = drawRow(headers.slice(1), currentY, true, false, columnWidthsB);
+            currentY = await checkPageBreak(currentY, rowHeight);
+            currentY = drawRowContent(headers.slice(1), currentY, true, false, columnWidthsB);
 
             const farmData = groupedData[fazendaKey];
             for(const r of farmData) {
                 console.log('[brocamento/pdf] Desenhando linha de dados (Modelo B):', r.id);
-                currentY = await checkPageBreak(currentY);
-                currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
+                currentY = await checkPageBreak(currentY, rowHeight);
+                currentY = drawRowContent([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
             }
             
             const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -319,7 +373,7 @@ try {
             
             const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
             console.log('[brocamento/pdf] Desenhando subtotal para fazenda:', fazendaKey);
-            currentY = drawRow(subtotalRow, currentY, false, true, columnWidthsB);
+            currentY = drawRowContent(subtotalRow, currentY, false, true, columnWidthsB);
             currentY += 10;
           }
         }
@@ -337,11 +391,11 @@ try {
         if (!isModelB) {
           const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
           console.log('[brocamento/pdf] Desenhando total geral (Modelo A).');
-          drawRow(totalRowData, currentY, false, true, columnWidthsA);
+          drawRowContent(totalRowData, currentY, false, true, columnWidthsA);
         } else {
           const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
           console.log('[brocamento/pdf] Desenhando total geral (Modelo B).');
-          drawRow(totalRowDataB, currentY, false, true, columnWidthsB);
+          drawRowContent(totalRowDataB, currentY, false, true, columnWidthsB);
         }
       }
       console.log('[brocamento/pdf] Finalizando documento.');
@@ -401,12 +455,13 @@ try {
         const isDetailed = filters.tipoRelatorio === 'B';
         const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
         
-        await generatePdfHeader(doc, title, generatedBy); 
+        let currentY = await generatePdfHeader(doc, title, generatedBy); 
 
-        let headers, rows;
+        let headers, rowsData; // Renomeado para evitar conflito com 'rows' da função drawTable
+        // [NOVO MODELO]: Modelo Detalhado (Tipo B)
         if (isDetailed) {
           headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Int.', 'Tol.', 'Toco', 'Ponta', 'Est.', 'Ped.', 'Total'];
-          rows = data.map(p => [
+          rowsData = data.map(p => [
             p.data, 
             `${p.codigo} - ${p.fazenda}`, 
             p.talhao, 
@@ -422,46 +477,19 @@ try {
             p.total
           ]);
           console.log('[perda/pdf] Gerando Modelo Detalhado. Headers:', headers);
-          console.log('[perda/pdf] Primeiras 5 linhas de dados (rows):', JSON.stringify(rows.slice(0, 5)));
+          console.log('[perda/pdf] Primeiras 5 linhas de dados (rowsData):', JSON.stringify(rowsData.slice(0, 5)));
 
-          // [CORREÇÃO]: Usando doc.table para gerar a tabela
-          await doc.table({ 
-              headers: [headers], 
-              rows,
-              columnStyles: {
-                  0: { width: 50 },  // Data
-                  1: { width: 80 },  // Fazenda
-                  2: { width: 60 },  // Talhão
-                  3: { width: 60 },  // Frente
-                  4: { width: 35 },  // Turno
-                  5: { width: 70 },  // Operador
-                  6: { width: 40 },  // Cana Inteira
-                  7: { width: 35 },  // Tolete
-                  8: { width: 35 },  // Toco
-                  9: { width: 35 },  // Ponta
-                  10: { width: 35 }, // Estilhaço
-                  11: { width: 35 }, // Pedaço
-                  12: { width: 40 }  // Total
-              },
-              styles: { 
-                  fontSize: 8,
-                  overflow: 'linebreak' 
-              },
-              headStyles: { 
-                  fillColor: [46, 125, 50], 
-                  textColor: 255, 
-                  font: 'Helvetica-Bold'
-              },
-              alternateRowStyles: { 
-                  fillColor: [245, 245, 245] 
-              },
-              prepareHeader: () => doc.font('Helvetica-Bold'),
-              prepareRow: () => doc.font('Helvetica'),
+          // [CORREÇÃO]: Usando a função drawTable genérica
+          await drawTable(doc, headers, rowsData, currentY, {
+              columnWidths: [50, 80, 60, 60, 35, 70, 40, 35, 35, 35, 35, 35, 40], // Larguras de coluna
+              fontSize: 8,
+              headStyles: { fillColor: [46, 125, 50], textColor: 255, font: 'Helvetica-Bold' },
+              alternateRowStyles: { fillColor: [245, 245, 245] }
           });
           console.log('[perda/pdf] Tabela detalhada gerada.');
         } else {
           headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-          rows = data.map(p => [
+          rowsData = data.map(p => [
             p.data, 
             `${p.codigo} - ${p.fazenda}`, 
             p.talhao, 
@@ -471,35 +499,14 @@ try {
             p.total
           ]);
           console.log('[perda/pdf] Gerando Modelo Resumido. Headers:', headers);
-          console.log('[perda/pdf] Primeiras 5 linhas de dados (rows):', JSON.stringify(rows.slice(0, 5)));
+          console.log('[perda/pdf] Primeiras 5 linhas de dados (rowsData):', JSON.stringify(rowsData.slice(0, 5)));
 
-          // [CORREÇÃO]: Usando doc.table para gerar a tabela
-          await doc.table({ 
-              headers: [headers], 
-              rows,
-              columnStyles: {
-                  0: { width: 60 },   // Data
-                  1: { width: 100 },  // Fazenda
-                  2: { width: 80 },   // Talhão
-                  3: { width: 80 },   // Frente
-                  4: { width: 40 },   // Turno
-                  5: { width: 100 },  // Operador
-                  6: { width: 50 }    // Total
-              },
-              styles: { 
-                  fontSize: 9, 
-                  overflow: 'linebreak'
-              },
-              headStyles: { 
-                  fillColor: [46, 125, 50], 
-                  textColor: 255, 
-                  font: 'Helvetica-Bold'
-              },
-              alternateRowStyles: { 
-                  fillColor: [245, 245, 245] 
-              },
-              prepareHeader: () => doc.font('Helvetica-Bold'),
-              prepareRow: () => doc.font('Helvetica'),
+          // [CORREÇÃO]: Usando a função drawTable genérica
+          await drawTable(doc, headers, rowsData, currentY, {
+              columnWidths: [60, 100, 80, 80, 40, 100, 50], // Larguras de coluna
+              fontSize: 9,
+              headStyles: { fillColor: [46, 125, 50], textColor: 255, font: 'Helvetica-Bold' },
+              alternateRowStyles: { fillColor: [245, 245, 245] }
           });
           console.log('[perda/pdf] Tabela resumida gerada.');
         }
@@ -596,7 +603,7 @@ try {
       console.log('[colheita/pdf] Dados de todas as fazendas carregados.');
 
       const title = `Plano de Colheita - ${harvestPlanData.frontName}`;
-      await generatePdfHeader(doc, title, generatedBy);
+      let currentY = await generatePdfHeader(doc, title, generatedBy);
 
       // Construir cabeçalhos dinamicamente
       const baseHeaders = ['Seq.', 'Fazenda', 'Talhões', 'Área (ha)', 'Prod. (ton)'];
@@ -663,31 +670,25 @@ try {
             console.log('[colheita/pdf] Exemplo de linha:', JSON.stringify(body[0]));
         }
 
-        // [CORREÇÃO]: Usando doc.table para gerar a tabela
-        await doc.table({ 
-            headers: [fullHeaders], 
-            rows: body,
-            styles: { 
-                fontSize: 8, 
-                overflow: 'linebreak' 
+        // [CORREÇÃO]: Usando a função drawTable genérica
+        await drawTable(doc, fullHeaders, body, currentY, {
+            columnWidths: {
+                'Seq.': 30, 
+                'Fazenda': 80, 
+                'Talhões': 100, 
+                'Área (ha)': 50, 
+                'Prod. (ton)': 50,
+                'Variedade': 70, // Largura para colunas dinâmicas, ajuste conforme necessário
+                'Idade (m)': 40,
+                'ATR': 30,
+                'Maturador': 60,
+                'Dias Aplic.': 40,
+                'Entrada': 50,
+                'Saída': 50
             },
-            headStyles: { 
-                fillColor: [46, 125, 50], 
-                textColor: 255, 
-                font: 'Helvetica-Bold'
-            },
-            alternateRowStyles: { 
-                fillColor: [245, 245, 245] 
-            },
-            columnStyles: {
-                0: { width: 30 }, // Seq.
-                1: { width: 80 }, // Fazenda
-                2: { width: 100 }, // Talhões
-                3: { width: 50 }, // Área
-                4: { width: 50 }, // Produção
-            },
-            prepareHeader: () => doc.font('Helvetica-Bold'),
-            prepareRow: () => doc.font('Helvetica'),
+            fontSize: 8, 
+            headStyles: { fillColor: [46, 125, 50], textColor: 255, font: 'Helvetica-Bold' },
+            alternateRowStyles: { fillColor: [245, 245, 245] }
         });
 
         console.log('[colheita/pdf] Tabela de colheita gerada.');
