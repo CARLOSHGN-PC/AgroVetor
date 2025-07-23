@@ -8,7 +8,9 @@ const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
-const createPdfTable = require('pdfkit-table'); // Importa a função principal do pdfkit-table
+
+// [CORREÇÃO CRÍTICA]: Inicializa pdfkit-table para estender PDFDocument
+require('pdfkit-table')(PDFDocument); 
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -422,7 +424,7 @@ try {
           console.log('[perda/pdf] Gerando Modelo Detalhado. Headers:', headers);
           console.log('[perda/pdf] Primeiras 5 linhas de dados (rows):', JSON.stringify(rows.slice(0, 5)));
 
-          // [CORREÇÃO]: Usando doc.table em vez de createPdfTable
+          // [CORREÇÃO]: Usando doc.table para gerar a tabela
           await doc.table({ 
               headers: [headers], 
               rows,
@@ -471,7 +473,7 @@ try {
           console.log('[perda/pdf] Gerando Modelo Resumido. Headers:', headers);
           console.log('[perda/pdf] Primeiras 5 linhas de dados (rows):', JSON.stringify(rows.slice(0, 5)));
 
-          // [CORREÇÃO]: Usando doc.table em vez de createPdfTable
+          // [CORREÇÃO]: Usando doc.table para gerar a tabela
           await doc.table({ 
               headers: [headers], 
               rows,
@@ -643,7 +645,6 @@ try {
                 }
                 dynamicRow.push(Array.from(varieties).join(', '));
             }
-            // [CORREÇÃO]: Passando allFazendasData para calculateAverageAge
             if (selectedColumns.idade) dynamicRow.push(calculateAverageAge(group, harvestPlanData.startDate, Object.values(allFazendasData)));
             if (selectedColumns.atr) dynamicRow.push(group.atr || 'N/A');
             if (selectedColumns.maturador) dynamicRow.push(group.maturador || 'N/A');
@@ -662,7 +663,7 @@ try {
             console.log('[colheita/pdf] Exemplo de linha:', JSON.stringify(body[0]));
         }
 
-        // [CORREÇÃO]: Usando doc.table em vez de createPdfTable
+        // [CORREÇÃO]: Usando doc.table para gerar a tabela
         await doc.table({ 
             headers: [fullHeaders], 
             rows: body,
@@ -790,7 +791,6 @@ try {
               }
               record['Variedade'] = Array.from(varieties).join(', ');
           }
-          // [CORREÇÃO]: Passando allFazendasData para calculateAverageAge
           if (selectedColumns.idade) record['Idade (m)'] = calculateAverageAge(group, harvestPlanData.startDate, Object.values(allFazendasData));
           if (selectedColumns.atr) record['ATR'] = group.atr || 'N/A';
           if (selectedColumns.maturador) record['Maturador'] = group.maturador || 'N/A';
