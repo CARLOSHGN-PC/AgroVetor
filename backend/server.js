@@ -93,8 +93,7 @@ try {
   };
 
   // Função auxiliar para desenhar linhas da tabela
-  // Adicionado `columnHeaders` para que a função saiba o ID da coluna e aplique a lógica de quebra de linha corretamente.
-  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeaders = []) => {
+  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18) => {
     const startX = doc.page.margins.left;
     const fontSize = 8;
     if (isHeader || isFooter) {
@@ -108,24 +107,12 @@ try {
     let maxRowHeight = rowHeight;
 
     rowData.forEach((cell, i) => {
-        const columnId = columnHeaders[i] ? columnHeaders[i].id : null; // Obter o ID da coluna
-        const cellWidth = customWidths[i] - (textPadding * 2);
-        const textOptions = { width: cellWidth, align: 'left', continued: false };
-
-        // Permitir quebra de linha para a coluna 'talhoes' e para números
-        // Verificar se o conteúdo da célula é um número ou uma string que pode ser um número
-        const isNumericContent = !isNaN(parseFloat(String(cell))) && isFinite(String(cell));
-
-        if (columnId === 'talhoes' || isNumericContent) {
-            textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
-        } else {
-            textOptions.lineBreak = false; // Evita quebra de linha para outros textos (títulos e nomes)
+        // Para a coluna de "Talhões", permitir quebra de linha
+        const options = { width: customWidths[i] - (textPadding * 2), align: 'left'};
+        if (finalHeaders[i].id === 'talhoes') { // Assuming finalHeaders is accessible here or passed
+            options.continued = false; // Ensure text wraps within the cell width
         }
-        
-        const textHeight = doc.heightOfString(String(cell), textOptions);
-        maxRowHeight = Math.max(maxRowHeight, textHeight + padding * 2);
-
-        doc.text(String(cell), currentX + padding, y + padding, textOptions);
+        doc.text(String(cell), currentX + textPadding, y + 5, options);
         currentX += customWidths[i];
     });
     return y + maxRowHeight; // Retorna a altura máxima da linha para o próximo Y
@@ -450,14 +437,14 @@ try {
       // Define todos os cabeçalhos possíveis com suas larguras mínimas ideais
       const allPossibleHeadersConfig = [
           { id: 'seq', title: 'Seq.', minWidth: 30 },
-          { id: 'fazenda', title: 'Fazenda', minWidth: 80 }, // Ajustado
-          { id: 'talhoes', title: 'Talhões', minWidth: 100 }, // Ajustado, permite quebra
+          { id: 'fazenda', title: 'Fazenda', minWidth: 80 }, 
+          { id: 'talhoes', title: 'Talhões', minWidth: 100 }, 
           { id: 'area', title: 'Área (ha)', minWidth: 50 },
           { id: 'producao', title: 'Prod. (ton)', minWidth: 50 },
-          { id: 'variedade', title: 'Variedade', minWidth: 70 }, // Ajustado
+          { id: 'variedade', title: 'Variedade', minWidth: 70 }, 
           { id: 'idade', title: 'Idade (m)', minWidth: 45 }, 
           { id: 'atr', title: 'ATR', minWidth: 40 }, 
-          { id: 'maturador', title: 'Maturador', minWidth: 70 }, // Ajustado
+          { id: 'maturador', title: 'Maturador', minWidth: 70 }, 
           { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 55 }, 
           { id: 'entrada', title: 'Entrada', minWidth: 60 }, 
           { id: 'saida', title: 'Saída', minWidth: 60 }    
@@ -598,7 +585,7 @@ try {
         const rowData = finalHeaders.map(h => rowDataMap[h.id]);
 
         currentY = await checkPageBreak(doc, currentY, title, generatedBy);
-        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); // Passar finalHeaders
+        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); 
       }
 
       // Totais Gerais
@@ -621,7 +608,7 @@ try {
           }
       });
 
-      drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders); // Passar finalHeaders
+      drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders);
 
       doc.end();
     } catch (error) {
