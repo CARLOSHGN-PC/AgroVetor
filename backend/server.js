@@ -380,6 +380,7 @@ try {
       const selectedCols = JSON.parse(selectedColumns || '{}');
 
       if (!planId) {
+        console.log('DEBUG: Nenhum planId fornecido.');
         await generatePdfHeader(doc, 'Relatório Customizado de Colheita', generatedBy);
         doc.text('Nenhum plano de colheita selecionado.');
         doc.end();
@@ -388,6 +389,7 @@ try {
 
       const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
       if (!harvestPlanDoc.exists) {
+        console.log(`DEBUG: Plano de colheita com ID ${planId} não encontrado.`);
         await generatePdfHeader(doc, 'Relatório Customizado de Colheita', generatedBy);
         doc.text('Plano de colheita não encontrado.');
         doc.end();
@@ -395,12 +397,16 @@ try {
       }
 
       const harvestPlan = harvestPlanDoc.data();
+      console.log('DEBUG: harvestPlan recuperado:', JSON.stringify(harvestPlan, null, 2));
+
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
       fazendasSnapshot.forEach(docSnap => {
         const data = docSnap.data();
         fazendasData[data.code] = { id: docSnap.id, ...data };
       });
+      console.log('DEBUG: fazendasData carregado:', JSON.stringify(fazendasData, null, 2));
+
 
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
@@ -453,8 +459,12 @@ try {
       let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
       const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
 
+      console.log('DEBUG: Iniciando loop sobre harvestPlan.sequence. Tamanho:', harvestPlan.sequence.length);
+
       for (let i = 0; i < harvestPlan.sequence.length; i++) {
         const group = harvestPlan.sequence[i];
+        console.log(`DEBUG: Processando grupo ${i}:`, JSON.stringify(group, null, 2));
+
         grandTotalProducao += group.totalProducao;
         grandTotalArea += group.totalArea;
 
@@ -470,6 +480,8 @@ try {
         group.plots.forEach(plot => {
             const farm = fazendasData[group.fazendaCodigo];
             const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
+            console.log(`DEBUG: Plot: ${plot.talhaoName}, Farm: ${group.fazendaCodigo}, Talhao encontrado:`, talhao ? talhao.name : 'NÃO ENCONTRADO');
+
             if (talhao) {
                 if (talhao.dataUltimaColheita) {
                     const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
@@ -515,7 +527,11 @@ try {
             saida: dataSaida.toLocaleDateString('pt-BR')
         };
         
+        console.log('DEBUG: rowDataMap para o grupo atual:', JSON.stringify(rowDataMap, null, 2));
+
         const rowData = allHeaders.map(h => rowDataMap[h.id]);
+        console.log('DEBUG: rowData final para o grupo atual:', JSON.stringify(rowData, null, 2));
+
 
         currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
         currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight);
