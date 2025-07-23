@@ -431,7 +431,7 @@ try {
       const allPossibleHeadersConfig = [
           { id: 'seq', title: 'Seq.', width: 30 },
           { id: 'fazenda', title: 'Fazenda', width: 100 },
-          { id: 'talhoes', title: 'Talhões', width: 120 },
+          { id: 'talhoes', title: 'Talhões', width: 120 }, // Ajustado para permitir quebra de linha no conteúdo
           { id: 'area', title: 'Área (ha)', width: 50 },
           { id: 'producao', title: 'Prod. (ton)', width: 50 },
           { id: 'variedade', title: 'Variedade', width: 80 },
