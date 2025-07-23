@@ -781,7 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
                 formElement.querySelectorAll('.info-display').forEach(el => el.textContent = '');
-                formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '');
+                formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '';
             },
             populateFazendaSelects() {
                 const selects = [
@@ -1098,8 +1098,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     row.draggable = true;
                     row.dataset.id = group.id;
                     
+                    // Ajustando o cabeçalho "Seq." para evitar quebra de linha
                     row.innerHTML = `
-                        <td data-label="Seq.">${index + 1}</td>
+                        <td data-label="Seq.">${index + 1}.</td> 
                         <td data-label="Fazenda">${group.fazendaCodigo} - ${group.fazendaName}</td>
                         <td data-label="Talhões" class="talhao-list-cell">${group.plots.map(p => p.talhaoName).join(', ')}</td>
                         <td data-label="Área (ha)">${group.totalArea.toFixed(2)}</td>
@@ -2132,7 +2133,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (navigator.onLine) {
                                 App.ui.showAlert('Lançamento de perda guardado com sucesso!');
                             } else {
-                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviado quando houver conexão.', 'info');
+                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
                             }
                             this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
                         })
