@@ -202,6 +202,7 @@ try {
           const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
+          // Re-adicionando a linha de subtotal para o Modelo B
           const subtotalRow = ['', '', '', '', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
           currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, rowHeight);
           currentY += 10;
@@ -426,9 +427,13 @@ try {
       }
 
       const harvestPlan = harvestPlanDoc.data();
+      // DEBUG: Log do plano de colheita recebido
+      console.log('Harvest Plan recebido no backend:', JSON.stringify(harvestPlan, null, 2));
+
 
       // Se a sequência estiver vazia, não há dados para o relatório
       if (!harvestPlan.sequence || harvestPlan.sequence.length === 0) {
+        console.log('Sequência do plano de colheita vazia.');
         await generatePdfHeader(doc, `Relatório de Colheita - ${harvestPlan.frontName}`, generatedBy);
         doc.text('Nenhum dado de sequência encontrado para este plano de colheita.');
         doc.end();
@@ -508,7 +513,9 @@ try {
 
       for (let i = 0; i < harvestPlan.sequence.length; i++) {
         const group = harvestPlan.sequence[i];
-        
+        // DEBUG: Log do grupo da sequência
+        console.log(`Processando grupo ${i + 1}:`, JSON.stringify(group, null, 2));
+
         grandTotalProducao += group.totalProducao;
         grandTotalArea += group.totalArea;
 
@@ -583,7 +590,7 @@ try {
         }
 
         const rowDataMap = {
-            seq: String(i + 1), 
+            seq: String(i + 1) + '.', // Adicionado o ponto aqui
             fazenda: String(`${group.fazendaCodigo} - ${group.fazendaName}`), 
             talhoes: String(group.plots.map(p => p.talhaoName).join(', ')), 
             area: String(group.totalArea.toFixed(2)), 
