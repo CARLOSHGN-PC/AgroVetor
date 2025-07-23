@@ -93,7 +93,7 @@ try {
   };
 
   // Função auxiliar para desenhar linhas da tabela
-  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18) => {
+  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeaders = []) => {
     const startX = doc.page.margins.left;
     const fontSize = 8;
     if (isHeader || isFooter) {
@@ -104,16 +104,27 @@ try {
         doc.font('Helvetica').fontSize(fontSize);
     }
     let currentX = startX;
+    let maxRowHeight = rowHeight;
+
     rowData.forEach((cell, i) => {
-        // Para a coluna de "Talhões", permitir quebra de linha
-        const options = { width: customWidths[i] - (textPadding * 2), align: 'left'};
-        if (finalHeaders[i].id === 'talhoes') { // Assuming finalHeaders is accessible here or passed
-            options.continued = false; // Ensure text wraps within the cell width
+        const columnId = columnHeaders[i] ? columnHeaders[i].id : null;
+        const cellWidth = customWidths[i] - (textPadding * 2);
+        const textOptions = { width: cellWidth, align: 'left', continued: false };
+
+        // Permitir quebra de linha para a coluna 'talhoes' e para números
+        if (columnId === 'talhoes' || !isNaN(parseFloat(String(cell)))) {
+            textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
+        } else {
+            textOptions.lineBreak = false; // Evita quebra de linha para outros textos (títulos e nomes)
         }
-        doc.text(String(cell), currentX + textPadding, y + 5, options);
+        
+        const textHeight = doc.heightOfString(String(cell), textOptions);
+        maxRowHeight = Math.max(maxRowHeight, textHeight + padding * 2);
+
+        doc.text(String(cell), currentX + padding, y + padding, textOptions);
         currentX += customWidths[i];
     });
-    return y + rowHeight;
+    return y + maxRowHeight; // Retorna a altura máxima da linha para o próximo Y
   };
 
   // Função auxiliar para verificar quebra de página
@@ -507,8 +518,11 @@ try {
             const cellWidth = widths[i] - (padding * 2);
             const textOptions = { width: cellWidth, align: 'left', continued: false };
 
-            // Permitir quebra de linha apenas para a coluna 'talhoes' e números
-            if (columnId === 'talhoes' || !isNaN(parseFloat(String(cell)))) {
+            // Permitir quebra de linha para a coluna 'talhoes' e para números
+            // Verificar se o conteúdo da célula é um número ou uma string que pode ser um número
+            const isNumericContent = !isNaN(parseFloat(String(cell))) && isFinite(String(cell));
+
+            if (columnId === 'talhoes' || isNumericContent) {
                 textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
             } else {
                 textOptions.lineBreak = false; // Evita quebra de linha para outros textos (títulos e nomes)
@@ -520,11 +534,11 @@ try {
             docInstance.text(String(cell), currentX + padding, yPos + padding, textOptions);
             currentX += widths[i];
         });
-        return yPos + maxRowHeight;
+        return yPos + maxRowHeight; // Retorna a altura máxima da linha para o próximo Y
       };
 
 
-      currentY = drawRowDynamic(doc, headersText, currentY, true, false, finalColumnWidths);
+      currentY = drawRowDynamic(doc, headersText, currentY, true, false, finalColumnWidths, textPadding); // Passar textPadding
 
       let grandTotalProducao = 0;
       let grandTotalArea = 0;
@@ -596,7 +610,7 @@ try {
         const rowData = finalHeaders.map(h => rowDataMap[h.id]);
 
         currentY = await checkPageBreak(doc, currentY, title, generatedBy);
-        currentY = drawRowDynamic(doc, rowData, currentY, false, false, finalColumnWidths); // Usar drawRowDynamic
+        currentY = drawRowDynamic(doc, rowData, currentY, false, false, finalColumnWidths, textPadding); // Usar drawRowDynamic
       }
 
       // Totais Gerais
@@ -619,7 +633,7 @@ try {
           }
       });
 
-      drawRowDynamic(doc, totalRowData, currentY, false, true, finalColumnWidths); // Usar drawRowDynamic
+      drawRowDynamic(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding); // Usar drawRowDynamic
 
       doc.end();
     } catch (error) {
