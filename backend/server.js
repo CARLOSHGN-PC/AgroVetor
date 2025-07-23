@@ -8,8 +8,7 @@ const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
-// [CORREÇÃO]: Importa a função principal do pdfkit-table
-const createPdfTable = require('pdfkit-table'); 
+const createPdfTable = require('pdfkit-table'); // Importa a função principal do pdfkit-table
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -30,7 +29,6 @@ try {
     res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
   });
 
-  // ROTA PARA UPLOAD DO LOGO (agora recebe Base64 diretamente)
   app.post('/upload-logo', async (req, res) => {
     const { logoBase64 } = req.body; 
 
@@ -48,7 +46,7 @@ try {
   });
 
 
-  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS (com alterações para o logo) ---
+  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS ---
 
   const getFilteredData = async (collectionName, filters) => {
     console.log(`[getFilteredData - ${collectionName}] Iniciando busca com filtros:`, filters);
@@ -153,6 +151,50 @@ try {
     );
 
     doc.restore(); 
+  };
+
+  // [CORREÇÃO]: Funções auxiliares para o relatório de colheita - Movidas para o escopo global
+  const calculateAverageAge = (group, startDate, allFazendas) => {
+    let totalAgeInDays = 0;
+    let plotsWithDate = 0;
+    // allFazendas é um array de objetos fazenda, precisamos encontrar pelo código
+    const farm = allFazendas.find(f => f.code === group.fazendaCodigo);
+    if (!farm) return 'N/A';
+
+    group.plots.forEach(plot => {
+        const talhao = farm.talhoes.find(t => t.id === plot.talhaoId);
+        if (talhao && talhao.dataUltimaColheita && startDate) {
+            const dataInicioPlano = new Date(startDate + 'T03:00:00Z');
+            const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
+            if (!isNaN(dataInicioPlano) && !isNaN(dataUltima)) {
+                totalAgeInDays += Math.abs(dataInicioPlano - dataUltima);
+                plotsWithDate++;
+            }
+        }
+    });
+
+    if (plotsWithDate > 0) {
+        const avgDiffTime = totalAgeInDays / plotsWithDate;
+        const avgDiffDays = Math.ceil(avgDiffTime / (1000 * 60 * 60 * 24));
+        return (avgDiffDays / 30).toFixed(1);
+    }
+    return 'N/A';
+  };
+
+  const calculateMaturadorDays = (group) => {
+    if (!group.maturadorDate) {
+        return 'N/A';
+    }
+    try {
+        const today = new Date();
+        const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
+        const diffTime = today - applicationDate;
+        if (diffTime < 0) return 0;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
+    } catch (e) {
+        return 'N/A';
+    }
   };
 
 
@@ -360,10 +402,6 @@ try {
         await generatePdfHeader(doc, title, generatedBy); 
 
         let headers, rows;
-        // [CORREÇÃO]: A função table espera um array de arrays para headers quando não é um array de objetos
-        // Ajustando para o formato esperado [ ['Header1', 'Header2'], ['SubHeader1', 'SubHeader2'] ]
-        // ou simplesmente [ ['Header1'], ['Header2'] ] para cabeçalhos simples.
-        // Aqui, headers já é um array de strings, então passamos como [headers]
         if (isDetailed) {
           headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Int.', 'Tol.', 'Toco', 'Ponta', 'Est.', 'Ped.', 'Total'];
           rows = data.map(p => [
@@ -384,8 +422,9 @@ try {
           console.log('[perda/pdf] Gerando Modelo Detalhado. Headers:', headers);
           console.log('[perda/pdf] Primeiras 5 linhas de dados (rows):', JSON.stringify(rows.slice(0, 5)));
 
-          await createPdfTable(doc, { // [CORREÇÃO]: Usando createPdfTable
-              headers: [headers], // [CORREÇÃO]: Passando headers como um array de array
+          // [CORREÇÃO]: Usando doc.table em vez de createPdfTable
+          await doc.table({ 
+              headers: [headers], 
               rows,
               columnStyles: {
                   0: { width: 50 },  // Data
@@ -432,8 +471,9 @@ try {
           console.log('[perda/pdf] Gerando Modelo Resumido. Headers:', headers);
           console.log('[perda/pdf] Primeiras 5 linhas de dados (rows):', JSON.stringify(rows.slice(0, 5)));
 
-          await createPdfTable(doc, { // [CORREÇÃO]: Usando createPdfTable
-              headers: [headers], // [CORREÇÃO]: Passando headers como um array de array
+          // [CORREÇÃO]: Usando doc.table em vez de createPdfTable
+          await doc.table({ 
+              headers: [headers], 
               rows,
               columnStyles: {
                   0: { width: 60 },   // Data
@@ -504,7 +544,7 @@ try {
     } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
   });
 
-  // [NOVA ROTA]: Geração de Relatório de Colheita Customizado (PDF)
+  // Geração de Relatório de Colheita Customizado (PDF)
   app.get('/reports/colheita/pdf', async (req, res) => {
     console.log('[colheita/pdf] Requisição recebida.');
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
@@ -603,6 +643,7 @@ try {
                 }
                 dynamicRow.push(Array.from(varieties).join(', '));
             }
+            // [CORREÇÃO]: Passando allFazendasData para calculateAverageAge
             if (selectedColumns.idade) dynamicRow.push(calculateAverageAge(group, harvestPlanData.startDate, Object.values(allFazendasData)));
             if (selectedColumns.atr) dynamicRow.push(group.atr || 'N/A');
             if (selectedColumns.maturador) dynamicRow.push(group.maturador || 'N/A');
@@ -621,8 +662,9 @@ try {
             console.log('[colheita/pdf] Exemplo de linha:', JSON.stringify(body[0]));
         }
 
-        await createPdfTable(doc, { // [CORREÇÃO]: Usando createPdfTable
-            headers: [fullHeaders], // [CORREÇÃO]: Passando fullHeaders como um array de array
+        // [CORREÇÃO]: Usando doc.table em vez de createPdfTable
+        await doc.table({ 
+            headers: [fullHeaders], 
             rows: body,
             styles: { 
                 fontSize: 8, 
@@ -660,7 +702,7 @@ try {
     }
   });
 
-  // [NOVA ROTA]: Geração de Relatório de Colheita Customizado (CSV)
+  // Geração de Relatório de Colheita Customizado (CSV)
   app.get('/reports/colheita/csv', async (req, res) => {
     console.log('[colheita/csv] Requisição recebida.');
     try {
@@ -748,6 +790,7 @@ try {
               }
               record['Variedade'] = Array.from(varieties).join(', ');
           }
+          // [CORREÇÃO]: Passando allFazendasData para calculateAverageAge
           if (selectedColumns.idade) record['Idade (m)'] = calculateAverageAge(group, harvestPlanData.startDate, Object.values(allFazendasData));
           if (selectedColumns.atr) record['ATR'] = group.atr || 'N/A';
           if (selectedColumns.maturador) record['Maturador'] = group.maturador || 'N/A';
