@@ -159,7 +159,6 @@ try {
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
       const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-      // Larguras originais que o usuário confirmou estarem corretas para o relatório de broca
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
       const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
@@ -201,7 +200,7 @@ try {
           const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
-          const subtotalRow = ['', '', '', '', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
+          const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
           currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, rowHeight);
           currentY += 10;
         }
@@ -218,10 +217,10 @@ try {
       doc.y = currentY;
       
       if (!isModelB) {
-        const totalRowData = ['', '', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+        const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, rowHeight);
       } else {
-        const totalRowDataB = ['', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
+        const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, rowHeight);
       }
 
@@ -270,7 +269,7 @@ try {
       const data = await getFilteredData('perdas', filters);
       if (data.length === 0) {
         await generatePdfHeader(doc, 'Relatório de Perda', filters.generatedBy);
-        doc.text('Nenhum dado encontrado para os filtros selecionados.');
+        doc.text('Nenhum dado encontrado.');
         doc.end();
         return;
       }
@@ -284,13 +283,12 @@ try {
       const textPadding = 5;
 
       let headers, columnWidths;
-      // Revertendo para as larguras originais do seu código para Perda
       if (isDetailed) {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
-        columnWidths = [60, 100, 70, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50]; 
+        columnWidths = [60, 100, 70, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50]; // Ajustado para A4 landscape
       } else {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-        columnWidths = [80, 150, 100, 100, 60, 150, 80]; 
+        columnWidths = [80, 150, 100, 100, 60, 150, 80]; // Ajustado para A4 landscape
       }
       
       currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
@@ -337,10 +335,8 @@ try {
 
       let totalRowData;
       if (isDetailed) {
-        // Ajustado para alinhar com as colunas do modelo detalhado
-        totalRowData = ['', '', '', '', '', '', '', '', '', '', '', 'Total Geral', String(grandTotal.toFixed(2))];
+        totalRowData = ['', '', '', '', '', 'Total Geral', '', '', '', '', '', '', String(grandTotal.toFixed(2))];
       } else {
-        // Ajustado para alinhar com as colunas do modelo resumido
         totalRowData = ['', '', '', '', '', 'Total Geral', String(grandTotal.toFixed(2))];
       }
       drawRow(doc, totalRowData, currentY, false, true, columnWidths, textPadding, rowHeight);
@@ -432,55 +428,43 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      // Definindo todos os cabeçalhos possíveis e suas larguras fixas
-      const allPossibleHeadersConfig = [
-        { id: 'seq', title: 'Seq.', width: 25 },
-        { id: 'fazenda', title: 'Fazenda', width: 90 },
-        { id: 'talhoes', title: 'Talhões', width: 110 },
-        { id: 'area', title: 'Área (ha)', width: 55 },
-        { id: 'producao', title: 'Prod. (ton)', width: 55 },
-        { id: 'variedade', title: 'Variedade', width: 75 },
-        { id: 'idade', title: 'Idade Média (meses)', width: 45 },
-        { id: 'atr', title: 'ATR', width: 35 },
-        { id: 'maturador', title: 'Maturador', width: 75 },
-        { id: 'diasAplicacao', title: 'Dias Aplic.', width: 55 },
-        { id: 'entrada', title: 'Entrada', width: 55 },
-        { id: 'saida', title: 'Saída', width: 55 }
+      const baseHeaders = [
+        { id: 'seq', title: 'Seq.' },
+        { id: 'fazenda', title: 'Fazenda' },
+        { id: 'talhoes', title: 'Talhões' },
+        { id: 'area', title: 'Área (ha)' },
+        { id: 'producao', title: 'Prod. (ton)' },
+        { id: 'entrada', title: 'Entrada' },
+        { id: 'saida', title: 'Saída' }
       ];
 
-      // Construir os cabeçalhos finais e suas larguras com base na seleção do usuário
-      let finalHeaders = [];
-      let finalColumnWidths = [];
+      const optionalHeaders = [];
+      if (selectedCols.variedade) optionalHeaders.push({ id: 'variedade', title: 'Variedade' });
+      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade Média (meses)' });
+      if (selectedCols.atr) optionalHeaders.push({ id: 'atr', title: 'ATR' });
+      if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador' });
+      if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias Aplic.' });
 
-      // Adiciona os cabeçalhos fixos iniciais
-      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
-      initialFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) {
-              finalHeaders.push(header);
-              finalColumnWidths.push(header.width);
-          }
-      });
+      const allHeaders = [...baseHeaders, ...optionalHeaders];
+      const headersText = allHeaders.map(h => h.title);
 
-      // Adiciona os cabeçalhos opcionais selecionados
-      allPossibleHeadersConfig.forEach(header => {
-          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && header.id !== 'entrada' && header.id !== 'saida') {
-              finalHeaders.push(header);
-              finalColumnWidths.push(header.width);
-          }
-      });
+      // Definir larguras das colunas
+      const columnWidths = {
+          seq: 25,
+          fazenda: 90,
+          talhoes: 110,
+          area: 55,
+          producao: 55,
+          variedade: 75,
+          idade: 45,
+          atr: 35,
+          maturador: 75,
+          diasAplicacao: 55,
+          entrada: 55,
+          saida: 55
+      };
 
-      // Adiciona os cabeçalhos fixos finais (Entrada e Saída)
-      const finalFixedHeaders = ['entrada', 'saida'];
-      finalFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) {
-              finalHeaders.push(header);
-              finalColumnWidths.push(header.width);
-          }
-      });
-      
-      const headersText = finalHeaders.map(h => h.title);
+      const finalColumnWidths = allHeaders.map(h => columnWidths[h.id]);
 
       const rowHeight = 18;
       const textPadding = 5;
@@ -557,9 +541,9 @@ try {
         let diasAplicacao = 'N/A';
         if (group.maturadorDate) {
             try {
+                const today = new Date(); 
                 const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                // Calcula a diferença em relação à data de entrada do grupo no plano, não à data atual
-                const diffTime = dataEntrada.getTime() - applicationDate.getTime();
+                const diffTime = today.getTime() - applicationDate.getTime();
                 if (diffTime >= 0) { 
                     diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 }
@@ -583,7 +567,7 @@ try {
             saida: String(dataSaida.toLocaleDateString('pt-BR')) 
         };
         
-        const rowData = finalHeaders.map(h => rowDataMap[h.id]);
+        const rowData = allHeaders.map(h => rowDataMap[h.id]);
 
         currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
         currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight);
@@ -593,12 +577,12 @@ try {
       currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
       doc.y = currentY;
       
-      const totalRowData = Array(finalHeaders.length).fill('');
-      totalRowData[finalHeaders.findIndex(h => h.id === 'fazenda')] = 'Total Geral';
-      totalRowData[finalHeaders.findIndex(h => h.id === 'area')] = String(grandTotalArea.toFixed(2)); 
-      totalRowData[finalHeaders.findIndex(h => h.id === 'producao')] = String(grandTotalProducao.toFixed(2)); 
+      const totalHeaders = Array(headersText.length).fill('');
+      totalHeaders[allHeaders.findIndex(h => h.id === 'fazenda')] = 'Total Geral';
+      totalHeaders[allHeaders.findIndex(h => h.id === 'area')] = String(grandTotalArea.toFixed(2)); 
+      totalHeaders[allHeaders.findIndex(h => h.id === 'producao')] = String(grandTotalProducao.toFixed(2)); 
 
-      drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight);
+      drawRow(doc, totalHeaders, currentY, false, true, finalColumnWidths, textPadding, rowHeight);
 
       doc.end();
     } catch (error) {
@@ -734,9 +718,9 @@ try {
         let diasAplicacao = 'N/A';
         if (group.maturadorDate) {
             try {
+                const today = new Date(); 
                 const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                // Calcula a diferença em relação à data de entrada do grupo no plano, não à data atual
-                const diffTime = dataEntrada.getTime() - applicationDate.getTime();
+                const diffTime = today.getTime() - applicationDate.getTime();
                 if (diffTime >= 0) { 
                     diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 }
