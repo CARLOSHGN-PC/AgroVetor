@@ -9,7 +9,7 @@ const path = require('path');
 const os = require('os');
 const axios = require('axios');
 // Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
-// Removido: const { table } = require('pdfkit-table'); // Removido esta linha
+// Removido: const { table } = require('pdfkit-table'); // Removido esta linha que causava o erro
 
 const app = express();
 const port = process.env.PORT || 3001;
