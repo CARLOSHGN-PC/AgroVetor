@@ -23,10 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const auth = getAuth(firebaseApp);
     // Removido: const storage = getStorage(firebaseApp);
 
-    // Aplicação secundária do Firebase, usada APENAS para criar novos utilizadores sem deslogar o admin.
-    const secondaryApp = initializeApp(firebaseConfig, "secondary");
-    const secondaryAuth = getAuth(secondaryApp);
-
     // Habilita a persistência offline
     enableIndexedDbPersistence(db)
         .catch((err) => {
