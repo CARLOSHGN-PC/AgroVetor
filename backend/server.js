@@ -56,50 +56,61 @@ try {
 
   // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS (com alterações para o logo) ---
 
-  // [DEBUG]: Adicionado console.log para rastrear a filtragem de dados
+  // [DEBUG]: Adicionado console.log extensivo para rastrear a filtragem de dados
   const getFilteredData = async (collectionName, filters) => {
-    console.log(`[getFilteredData] Iniciando busca para coleção: ${collectionName} com filtros:`, filters);
+    console.log(`[getFilteredData - ${collectionName}] Iniciando busca com filtros:`, filters);
     let queryRef = db.collection(collectionName);
     
     // Aplica filtros de data diretamente na query do Firestore
     if (filters.inicio) {
       queryRef = queryRef.where('data', '>=', filters.inicio);
-      console.log(`[getFilteredData] Aplicando filtro Firestore: data >= ${filters.inicio}`);
+      console.log(`[getFilteredData - ${collectionName}] Aplicando filtro Firestore: data >= ${filters.inicio}`);
     }
     if (filters.fim) {
       queryRef = queryRef.where('data', '<=', filters.fim);
-      console.log(`[getFilteredData] Aplicando filtro Firestore: data <= ${filters.fim}`);
+      console.log(`[getFilteredData - ${collectionName}] Aplicando filtro Firestore: data <= ${filters.fim}`);
     }
     
-    const snapshot = await queryRef.get();
     let data = [];
-    snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
-    console.log(`[getFilteredData] Dados brutos do Firestore (${data.length} registros):`, data.map(d => d.id));
+    try {
+        const snapshot = await queryRef.get();
+        snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
+        console.log(`[getFilteredData - ${collectionName}] Dados brutos do Firestore (${data.length} registros). Exemplo de ID: ${data.length > 0 ? data[0].id : 'N/A'}`);
+        if (data.length > 0) {
+            console.log(`[getFilteredData - ${collectionName}] Exemplo de registro (data, codigo, talhao):`, data[0].data, data[0].codigo, data[0].talhao);
+        }
+    } catch (firestoreError) {
+        console.error(`[getFilteredData - ${collectionName}] ERRO na consulta ao Firestore:`, firestoreError.code, firestoreError.message);
+        console.error(`[getFilteredData - ${collectionName}] Se for "failed-precondition", verifique os índices no console do Firebase.`);
+        return []; // Retorna vazio se a consulta ao Firestore falhar
+    }
 
     // Aplica outros filtros em memória (no backend Node.js)
+    let currentDataLength = data.length;
+
     if (filters.fazendaCodigo) {
-      const initialLength = data.length;
       data = data.filter(d => d.codigo === filters.fazendaCodigo);
-      console.log(`[getFilteredData] Filtrado por fazendaCodigo (${filters.fazendaCodigo}): ${data.length} registros (antes: ${initialLength})`);
+      console.log(`[getFilteredData - ${collectionName}] Filtrado por fazendaCodigo (${filters.fazendaCodigo}). Registros restantes: ${data.length} (antes: ${currentDataLength})`);
+      currentDataLength = data.length;
     }
     if (filters.matricula) {
-      const initialLength = data.length;
       data = data.filter(d => d.matricula === filters.matricula);
-      console.log(`[getFilteredData] Filtrado por matricula (${filters.matricula}): ${data.length} registros (antes: ${initialLength})`);
+      console.log(`[getFilteredData - ${collectionName}] Filtrado por matricula (${filters.matricula}). Registros restantes: ${data.length} (antes: ${currentDataLength})`);
+      currentDataLength = data.length;
     }
     if (filters.talhao) {
-      const initialLength = data.length;
-      data = data.filter(d => d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
-      console.log(`[getFilteredData] Filtrado por talhao (${filters.talhao}): ${data.length} registros (antes: ${initialLength})`);
+      data = data.filter(d => d.talhao && d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
+      console.log(`[getFilteredData - ${collectionName}] Filtrado por talhao (${filters.talhao}). Registros restantes: ${data.length} (antes: ${currentDataLength})`);
+      currentDataLength = data.length;
     }
     if (filters.frenteServico) {
-      const initialLength = data.length;
-      data = data.filter(d => d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
-      console.log(`[getFilteredData] Filtrado por frenteServico (${filters.frenteServico}): ${data.length} registros (antes: ${initialLength})`);
+      data = data.filter(d => d.frenteServico && d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
+      console.log(`[getFilteredData - ${collectionName}] Filtrado por frenteServico (${filters.frenteServico}). Registros restantes: ${data.length} (antes: ${currentDataLength})`);
+      currentDataLength = data.length;
     }
     
     data.sort((a, b) => new Date(a.data) - new Date(b.data));
-    console.log(`[getFilteredData] Retornando ${data.length} registros finais.`);
+    console.log(`[getFilteredData - ${collectionName}] Retornando ${data.length} registros finais após todas as filtragens.`);
     return data;
   };
 
@@ -177,6 +188,8 @@ try {
       if (data.length === 0) {
         await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', generatedBy); 
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
+        doc.end(); // Finaliza o documento aqui se não houver dados
+        return;
       } else {
         const fazendasSnapshot = await db.collection('fazendas').get();
         const fazendasData = {};
@@ -341,6 +354,8 @@ try {
       if (data.length === 0) {
         await generatePdfHeader(doc, 'Relatório de Perda', generatedBy); 
         doc.text('Nenhum dado encontrado.');
+        doc.end(); // Finaliza o documento aqui se não houver dados
+        return;
       } else {
         const isDetailed = filters.tipoRelatorio === 'B';
         const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
