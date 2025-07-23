@@ -97,6 +97,7 @@ try {
     }
     let currentX = startX;
     rowData.forEach((cell, i) => {
+        // Garante que o valor é uma string antes de passar para doc.text
         doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
         currentX += customWidths[i];
     });
@@ -246,7 +247,10 @@ try {
             {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'},
             {id: 'corte', title: 'Corte'}, {id: 'entrenos', title: 'Entrenós'}, {id: 'brocado', title: 'Brocado'},
             {id: 'brocamento', title: 'Brocamento (%)'}
-        ]
+        ],
+        // Adicionado para garantir compatibilidade com Excel no Brasil
+        separator: ';', 
+        withBOM: true 
       });
       const records = data.map(r => ({ ...r, fazenda: `${r.codigo} - ${r.fazenda}` }));
       await csvWriter.writeRecords(records);
@@ -296,29 +300,29 @@ try {
         let rowData;
         if (isDetailed) {
           rowData = [
-            p.data, 
-            `${p.codigo} - ${p.fazenda}`, 
-            p.talhao, 
-            p.frenteServico, 
-            p.turno, 
-            p.operador, 
-            p.canaInteira, 
-            p.tolete, 
-            p.toco, 
-            p.ponta, 
-            p.estilhaco, 
-            p.pedaco, 
-            p.total
+            String(p.data), 
+            String(`${p.codigo} - ${p.fazenda}`), 
+            String(p.talhao), 
+            String(p.frenteServico), 
+            String(p.turno), 
+            String(p.operador), 
+            String(p.canaInteira), 
+            String(p.tolete), 
+            String(p.toco), 
+            String(p.ponta), 
+            String(p.estilhaco), 
+            String(p.pedaco), 
+            String(p.total)
           ];
         } else {
           rowData = [
-            p.data, 
-            `${p.codigo} - ${p.fazenda}`, 
-            p.talhao, 
-            p.frenteServico, 
-            p.turno, 
-            p.operador, 
-            p.total
+            String(p.data), 
+            String(`${p.codigo} - ${p.fazenda}`), 
+            String(p.talhao), 
+            String(p.frenteServico), 
+            String(p.turno), 
+            String(p.operador), 
+            String(p.total)
           ];
         }
         grandTotal += p.total;
@@ -331,9 +335,9 @@ try {
 
       let totalRowData;
       if (isDetailed) {
-        totalRowData = ['', '', '', '', '', 'Total Geral', '', '', '', '', '', '', grandTotal.toFixed(2)];
+        totalRowData = ['', '', '', '', '', 'Total Geral', '', '', '', '', '', '', String(grandTotal.toFixed(2))];
       } else {
-        totalRowData = ['', '', '', '', '', 'Total Geral', grandTotal.toFixed(2)];
+        totalRowData = ['', '', '', '', '', 'Total Geral', String(grandTotal.toFixed(2))];
       }
       drawRow(doc, totalRowData, currentY, false, true, columnWidths, textPadding, rowHeight);
 
@@ -373,7 +377,13 @@ try {
         records = data.map(p => ({ data: p.data, fazenda: `${p.codigo} - ${p.fazenda}`, talhao: p.talhao, frenteServico: p.frenteServico, turno: p.turno, operador: p.operador, total: p.total }));
       }
       
-      const csvWriter = createObjectCsvWriter({ path: filePath, header });
+      const csvWriter = createObjectCsvWriter({ 
+        path: filePath, 
+        header, 
+        // Adicionado para garantir compatibilidade com Excel no Brasil
+        separator: ';', 
+        withBOM: true 
+      });
       await csvWriter.writeRecords(records);
       res.download(filePath);
     } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
@@ -543,18 +553,18 @@ try {
         }
 
         const rowDataMap = {
-            seq: String(i + 1), // Converte para string
-            fazenda: String(`${group.fazendaCodigo} - ${group.fazendaName}`), // Converte para string
-            talhoes: String(group.plots.map(p => p.talhaoName).join(', ')), // Converte para string
-            area: String(group.totalArea.toFixed(2)), // Converte para string
-            producao: String(group.totalProducao.toFixed(2)), // Converte para string
-            variedade: String(Array.from(allVarieties).join(', ') || 'N/A'), // Converte para string
-            idade: String(idadeMediaMeses), // Converte para string
-            atr: String(group.atr || 'N/A'), // Converte para string
-            maturador: String(group.maturador || 'N/A'), // Converte para string
-            diasAplicacao: String(diasAplicacao), // Converte para string
-            entrada: String(dataEntrada.toLocaleDateString('pt-BR')), // Converte para string
-            saida: String(dataSaida.toLocaleDateString('pt-BR')) // Converte para string
+            seq: String(i + 1), 
+            fazenda: String(`${group.fazendaCodigo} - ${group.fazendaName}`), 
+            talhoes: String(group.plots.map(p => p.talhaoName).join(', ')), 
+            area: String(group.totalArea.toFixed(2)), 
+            producao: String(group.totalProducao.toFixed(2)), 
+            variedade: String(Array.from(allVarieties).join(', ') || 'N/A'), 
+            idade: String(idadeMediaMeses), 
+            atr: String(group.atr || 'N/A'), 
+            maturador: String(group.maturador || 'N/A'), 
+            diasAplicacao: String(diasAplicacao), 
+            entrada: String(dataEntrada.toLocaleDateString('pt-BR')), 
+            saida: String(dataSaida.toLocaleDateString('pt-BR')) 
         };
         
         const rowData = allHeaders.map(h => rowDataMap[h.id]);
@@ -569,8 +579,8 @@ try {
       
       const totalHeaders = Array(headersText.length).fill('');
       totalHeaders[allHeaders.findIndex(h => h.id === 'fazenda')] = 'Total Geral';
-      totalHeaders[allHeaders.findIndex(h => h.id === 'area')] = String(grandTotalArea.toFixed(2)); // Converte para string
-      totalHeaders[allHeaders.findIndex(h => h.id === 'producao')] = String(grandTotalProducao.toFixed(2)); // Converte para string
+      totalHeaders[allHeaders.findIndex(h => h.id === 'area')] = String(grandTotalArea.toFixed(2)); 
+      totalHeaders[allHeaders.findIndex(h => h.id === 'producao')] = String(grandTotalProducao.toFixed(2)); 
 
       drawRow(doc, totalHeaders, currentY, false, true, finalColumnWidths, textPadding, rowHeight);
 
@@ -741,7 +751,13 @@ try {
         records.push(record);
       });
 
-      const csvWriter = createObjectCsvWriter({ path: filePath, header: finalHeaders });
+      const csvWriter = createObjectCsvWriter({ 
+        path: filePath, 
+        header: finalHeaders, 
+        // Adicionado para garantir compatibilidade com Excel no Brasil
+        separator: ';', 
+        withBOM: true 
+      });
       await csvWriter.writeRecords(records);
       res.download(filePath);
     } catch (error) {
