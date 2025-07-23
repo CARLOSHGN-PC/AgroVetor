@@ -8,6 +8,7 @@ const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
+// Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -15,13 +16,19 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Aumenta o limite para receber strings Base64 grandes
 
+// Removido: const storage = multer.memoryStorage();
+// Removido: const upload = multer({ storage: storage });
+
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   admin.initializeApp({ 
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: "agrovetor-v2.firebaseapp.com" 
+    // O storageBucket não é mais usado diretamente pelo backend para upload/download de logo,
+    // mas pode ser mantido se outras partes da sua aplicação o utilizarem.
+    storageBucket: "agrovetor-v2.appspot.com" 
   });
   const db = admin.firestore();
+  // Removido: const bucket = admin.storage().bucket();
   console.log('Firebase Admin SDK inicializado com sucesso.');
 
   app.get('/', (req, res) => {
@@ -47,7 +54,7 @@ try {
   });
 
 
-  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS ---
+  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS (com alterações para o logo) ---
 
   const getFilteredData = async (collectionName, filters) => {
     let query = db.collection(collectionName);
@@ -79,6 +86,7 @@ try {
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
+    // Adicionado o nome do usuário para generatePdfHeader
     doc.fontSize(10).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
     return doc.y;
@@ -97,13 +105,12 @@ try {
     }
     let currentX = startX;
     rowData.forEach((cell, i) => {
-        // Garante que o valor é uma string antes de passar para doc.text
         doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
         currentX += customWidths[i];
     });
     return y + rowHeight;
   };
-  
+
   // Função auxiliar para verificar quebra de página
   const checkPageBreak = async (doc, y, title, generatedBy, neededSpace = 40) => {
     if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
@@ -111,16 +118,6 @@ try {
         return await generatePdfHeader(doc, title, generatedBy);
     }
     return y;
-  };
-
-  // Função para parsear data DD/MM/YYYY para YYYY-MM-DD
-  const parseDateDDMMYYYY = (dateString) => {
-      if (!dateString) return null;
-      const parts = String(dateString).split('/'); // Garante que é string
-      if (parts.length === 3) {
-          return `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
-      return dateString; 
   };
 
 
@@ -135,6 +132,7 @@ try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
       if (data.length === 0) {
+        // Passando o nome do usuário para generatePdfHeader
         await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', filters.generatedBy);
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
         doc.end();
@@ -156,19 +154,19 @@ try {
       const isModelB = filters.tipoRelatorio === 'B';
       const title = 'Relatório de Inspeção de Broca';
       
+      // Passando o nome do usuário para generatePdfHeader
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
-      const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
+      const headersA = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
+      const headersB = ['Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
-      const rowHeight = 18;
-      
       if (!isModelB) { // Modelo A
-        currentY = drawRow(doc, headers, currentY, true, false, columnWidthsA, 5, rowHeight);
+        currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA);
         for(const r of enrichedData) {
-            currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
-            currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA, 5, rowHeight);
+            currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+            currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
         }
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -184,13 +182,13 @@ try {
           doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
           currentY = doc.y + 5;
 
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
-          currentY = drawRow(doc, headers.slice(1), currentY, true, false, columnWidthsB, 5, rowHeight);
+          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+          currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB);
 
           const farmData = groupedData[fazendaKey];
           for(const r of farmData) {
-              currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
-              currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB, 5, rowHeight);
+              currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+              currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
           }
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -201,7 +199,7 @@ try {
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
           const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
-          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, rowHeight);
+          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB);
           currentY += 10;
         }
       }
@@ -218,10 +216,10 @@ try {
       
       if (!isModelB) {
         const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, rowHeight);
+        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA);
       } else {
         const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, rowHeight);
+        drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB);
       }
 
       doc.end();
@@ -247,10 +245,7 @@ try {
             {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'},
             {id: 'corte', title: 'Corte'}, {id: 'entrenos', title: 'Entrenós'}, {id: 'brocado', title: 'Brocado'},
             {id: 'brocamento', title: 'Brocamento (%)'}
-        ],
-        // Adicionado para garantir compatibilidade com Excel no Brasil
-        separator: ';', 
-        withBOM: true 
+        ]
       });
       const records = data.map(r => ({ ...r, fazenda: `${r.codigo} - ${r.fazenda}` }));
       await csvWriter.writeRecords(records);
@@ -259,7 +254,7 @@ try {
   });
 
   app.get('/reports/perda/pdf', async (req, res) => {
-    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
     doc.pipe(res);
@@ -268,6 +263,7 @@ try {
       const filters = req.query;
       const data = await getFilteredData('perdas', filters);
       if (data.length === 0) {
+        // Passando o nome do usuário para generatePdfHeader
         await generatePdfHeader(doc, 'Relatório de Perda', filters.generatedBy);
         doc.text('Nenhum dado encontrado.');
         doc.end();
@@ -277,70 +273,25 @@ try {
       const isDetailed = filters.tipoRelatorio === 'B';
       const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
       
-      let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
+      // Passando o nome do usuário para generatePdfHeader
+      await generatePdfHeader(doc, title, filters.generatedBy);
 
-      const rowHeight = 18;
-      const textPadding = 5;
-
-      let headers, columnWidths;
+      let headers, rows;
       if (isDetailed) {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
-        columnWidths = [60, 100, 70, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50]; // Ajustado para A4 landscape
+        rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total]);
       } else {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-        columnWidths = [80, 150, 100, 100, 60, 150, 80]; // Ajustado para A4 landscape
+        rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total]);
       }
       
-      currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
-
-      let grandTotal = 0;
-
-      for (const p of data) {
-        currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
-        let rowData;
-        if (isDetailed) {
-          rowData = [
-            String(p.data), 
-            String(`${p.codigo} - ${p.fazenda}`), 
-            String(p.talhao), 
-            String(p.frenteServico), 
-            String(p.turno), 
-            String(p.operador), 
-            String(p.canaInteira), 
-            String(p.tolete), 
-            String(p.toco), 
-            String(p.ponta), 
-            String(p.estilhaco), 
-            String(p.pedaco), 
-            String(p.total)
-          ];
-        } else {
-          rowData = [
-            String(p.data), 
-            String(`${p.codigo} - ${p.fazenda}`), 
-            String(p.talhao), 
-            String(p.frenteServico), 
-            String(p.turno), 
-            String(p.operador), 
-            String(p.total)
-          ];
-        }
-        grandTotal += p.total;
-        currentY = drawRow(doc, rowData, currentY, false, false, columnWidths, textPadding, rowHeight);
-      }
-
-      // Totais Gerais
-      currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
-      doc.y = currentY;
-
-      let totalRowData;
-      if (isDetailed) {
-        totalRowData = ['', '', '', '', '', 'Total Geral', '', '', '', '', '', '', String(grandTotal.toFixed(2))];
-      } else {
-        totalRowData = ['', '', '', '', '', 'Total Geral', String(grandTotal.toFixed(2))];
-      }
-      drawRow(doc, totalRowData, currentY, false, true, columnWidths, textPadding, rowHeight);
-
+      const { table } = require('pdfkit-table');
+      await table(doc, { 
+          headers, 
+          rows,
+          prepareHeader: () => doc.font('Helvetica-Bold'), 
+          prepareRow: () => doc.font('Helvetica'),
+      });
       doc.end();
     } catch (error) { 
         console.error("Erro no PDF de Perda:", error);
@@ -377,18 +328,13 @@ try {
         records = data.map(p => ({ data: p.data, fazenda: `${p.codigo} - ${p.fazenda}`, talhao: p.talhao, frenteServico: p.frenteServico, turno: p.turno, operador: p.operador, total: p.total }));
       }
       
-      const csvWriter = createObjectCsvWriter({ 
-        path: filePath, 
-        header, 
-        // Adicionado para garantir compatibilidade com Excel no Brasil
-        separator: ';', 
-        withBOM: true 
-      });
+      const csvWriter = createObjectCsvWriter({ path: filePath, header });
       await csvWriter.writeRecords(records);
       res.download(filePath);
     } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
   });
 
+  // [ALTERAÇÃO]: generateCustomHarvestReport agora chama o backend
   app.get('/reports/colheita/pdf', async (req, res) => {
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
     res.setHeader('Content-Type', 'application/pdf');
@@ -399,11 +345,7 @@ try {
       const { planId, selectedColumns, generatedBy } = req.query;
       const selectedCols = JSON.parse(selectedColumns || '{}');
 
-      console.log('PDF Colheita: planId', planId); // Adicionado para depuração
-      console.log('PDF Colheita: selectedColumns', selectedCols); // Adicionado para depuração
-
       if (!planId) {
-        console.error('Erro: Nenhum planId fornecido para o relatório de colheita.');
         await generatePdfHeader(doc, 'Relatório Customizado de Colheita', generatedBy);
         doc.text('Nenhum plano de colheita selecionado.');
         doc.end();
@@ -412,7 +354,6 @@ try {
 
       const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
       if (!harvestPlanDoc.exists) {
-        console.error(`Erro: Plano de colheita com ID ${planId} não encontrado.`);
         await generatePdfHeader(doc, 'Relatório Customizado de Colheita', generatedBy);
         doc.text('Plano de colheita não encontrado.');
         doc.end();
@@ -420,17 +361,6 @@ try {
       }
 
       const harvestPlan = harvestPlanDoc.data();
-      console.log('PDF Colheita: harvestPlan', harvestPlan); // Adicionado para depuração
-      console.log('PDF Colheita: harvestPlan.sequence length', harvestPlan.sequence ? harvestPlan.sequence.length : 0); // Adicionado para depuração
-
-      // Verifica se a sequência de colheita está vazia
-      if (!harvestPlan.sequence || harvestPlan.sequence.length === 0) {
-        await generatePdfHeader(doc, `Relatório de Colheita - ${harvestPlan.frontName}`, generatedBy);
-        doc.text('Este plano de colheita não possui nenhuma sequência de fazendas/talhões configurada.');
-        doc.end();
-        return;
-      }
-
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
       fazendasSnapshot.forEach(docSnap => {
@@ -453,7 +383,7 @@ try {
 
       const optionalHeaders = [];
       if (selectedCols.variedade) optionalHeaders.push({ id: 'variedade', title: 'Variedade' });
-      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade Média (meses)' });
+      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade (m)' });
       if (selectedCols.atr) optionalHeaders.push({ id: 'atr', title: 'ATR' });
       if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador' });
       if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias Aplic.' });
@@ -462,27 +392,45 @@ try {
       const headersText = allHeaders.map(h => h.title);
 
       // Definir larguras das colunas
-      const columnWidths = {
-          seq: 25,
-          fazenda: 90,
-          talhoes: 110,
-          area: 55,
-          producao: 55,
-          variedade: 75,
-          idade: 45,
-          atr: 35,
-          maturador: 75,
-          diasAplicacao: 55,
-          entrada: 55,
-          saida: 55
-      };
+      const columnWidths = [
+          30,  // Seq.
+          100, // Fazenda
+          120, // Talhões
+          60,  // Área (ha)
+          60,  // Prod. (ton)
+          60,  // Entrada
+          60   // Saída
+      ];
 
-      const finalColumnWidths = allHeaders.map(h => columnWidths[h.id]);
+      if (selectedCols.variedade) columnWidths.push(80);
+      if (selectedCols.idade) columnWidths.push(50);
+      if (selectedCols.atr) columnWidths.push(40);
+      if (selectedCols.maturador) columnWidths.push(80);
+      if (selectedCols.diasAplicacao) columnWidths.push(60);
 
       const rowHeight = 18;
       const textPadding = 5;
 
-      currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths, textPadding, rowHeight);
+      const drawRowHarvest = (rowData, y, isHeader = false, isFooter = false, customWidths) => {
+        const startX = doc.page.margins.left;
+        const fontSize = 8;
+        if (isHeader || isFooter) {
+            doc.font('Helvetica-Bold').fontSize(fontSize);
+            doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            doc.fillColor('black');
+        } else {
+            doc.font('Helvetica').fontSize(fontSize);
+        }
+        let currentX = startX;
+        rowData.forEach((cell, i) => {
+            doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+            currentX += customWidths[i];
+        });
+        return y + rowHeight;
+      };
+
+
+      currentY = drawRowHarvest(headersText, currentY, true, false, columnWidths);
 
       let grandTotalProducao = 0;
       let grandTotalArea = 0;
@@ -491,7 +439,6 @@ try {
 
       for (let i = 0; i < harvestPlan.sequence.length; i++) {
         const group = harvestPlan.sequence[i];
-        
         grandTotalProducao += group.totalProducao;
         grandTotalArea += group.totalArea;
 
@@ -504,60 +451,32 @@ try {
         let totalAgeInDays = 0;
         let plotsWithDate = 0;
         const allVarieties = new Set();
-        
-        const farm = fazendasData[group.fazendaCodigo];
-
-        // Criar um mapa de talhões para busca eficiente por ID ou nome
-        const talhaoMap = new Map();
-        if (farm && farm.talhoes) {
-            farm.talhoes.forEach(t => {
-                talhaoMap.set(t.id, t); // Mapeia por ID (número)
-                talhaoMap.set(String(t.id), t); // Mapeia por ID (string, para segurança)
-                talhaoMap.set(t.name.toUpperCase().trim(), t); // Mapeia por nome (maiúsculas e sem espaços extras)
-            });
-        }
-
         group.plots.forEach(plot => {
-            let talhao = null;
-            // Tenta encontrar por ID (número ou string)
-            if (talhaoMap.has(plot.talhaoId)) {
-                talhao = talhaoMap.get(plot.talhaoId);
-            } else if (talhaoMap.has(String(plot.talhaoId))) { // Explicitamente tenta versão string
-                talhao = talhaoMap.get(String(plot.talhaoId));
-            }
-            // Se não encontrou por ID, tenta por nome (normalizado)
-            if (!talhao && plot.talhaoName) {
-                talhao = talhaoMap.get(plot.talhaoName.toUpperCase().trim());
-            }
-
+            const farm = fazendasData[group.fazendaCodigo];
+            const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
             if (talhao) {
                 if (talhao.dataUltimaColheita) {
-                    const formattedDate = parseDateDDMMYYYY(String(talhao.dataUltimaColheita)); // Garante que é string
-                    const dataUltima = new Date(formattedDate + 'T03:00:00Z'); 
-                    if (!isNaN(dataUltima.getTime())) { // Verifica se a data é válida
-                        totalAgeInDays += Math.abs(dataEntrada.getTime() - dataUltima.getTime());
+                    const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
+                    if (!isNaN(dataUltima)) {
+                        totalAgeInDays += Math.abs(dataEntrada - dataUltima);
                         plotsWithDate++;
-                    } else {
-                        console.warn(`WARN: dataUltimaColheita inválida ou formato inesperado para talhão ${talhao.name} (ID: ${talhao.id}): ${talhao.dataUltimaColheita}`);
                     }
                 }
                 if (talhao.variedade) {
                     allVarieties.add(talhao.variedade);
                 }
-            } else {
-                console.warn(`WARN: Talhão "${plot.talhaoName}" (ID: ${plot.talhaoId}) na Fazenda ${group.fazendaCodigo} NÃO ENCONTRADO NO CADASTRO DE FAZENDAS. Usando valores padrão.`);
             }
         });
 
-        const idadeMediaMeses = plotsWithDate > 0 ? (Math.ceil(totalAgeInDays / plotsWithDate / (1000 * 60 * 60 * 24)) / 30).toFixed(1) : 'N/A';
+        const idadeMediaMeses = plotsWithDate > 0 ? (Math.ceil(totalAgeInDays / plotsWithDate) / 30).toFixed(1) : 'N/A';
         
         let diasAplicacao = 'N/A';
         if (group.maturadorDate) {
             try {
-                const today = new Date(); 
+                const today = new Date(); // Considera "hoje" como a data de geração do relatório
                 const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                const diffTime = today.getTime() - applicationDate.getTime();
-                if (diffTime >= 0) { 
+                const diffTime = today - applicationDate;
+                if (diffTime >= 0) { // Só calcula se a data de aplicação já passou
                     diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 }
             } catch (e) {
@@ -566,37 +485,58 @@ try {
         }
 
         const rowDataMap = {
-            seq: String(i + 1), 
-            fazenda: String(`${group.fazendaCodigo} - ${group.fazendaName}`), 
-            talhoes: String(group.plots.map(p => p.talhaoName).join(', ')), 
-            area: String(group.totalArea.toFixed(2)), 
-            producao: String(group.totalProducao.toFixed(2)), 
-            variedade: String(Array.from(allVarieties).join(', ') || 'N/A'), 
-            idade: String(idadeMediaMeses), 
-            atr: String(group.atr || 'N/A'), 
-            maturador: String(group.maturador || 'N/A'), 
-            diasAplicacao: String(diasAplicacao), 
-            entrada: String(dataEntrada.toLocaleDateString('pt-BR')), 
-            saida: String(dataSaida.toLocaleDateString('pt-BR')) 
+            seq: i + 1,
+            fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
+            talhoes: group.plots.map(p => p.talhaoName).join(', '),
+            area: group.totalArea.toFixed(2),
+            producao: group.totalProducao.toFixed(2),
+            variedade: Array.from(allVarieties).join(', ') || 'N/A',
+            idade: idadeMediaMeses,
+            atr: group.atr || 'N/A',
+            maturador: group.maturador || 'N/A',
+            diasAplicacao: diasAplicacao,
+            entrada: dataEntrada.toLocaleDateString('pt-BR'),
+            saida: dataSaida.toLocaleDateString('pt-BR')
         };
         
         const rowData = allHeaders.map(h => rowDataMap[h.id]);
-        console.log('PDF Colheita: rowData for group', i, rowData); // Adicionado para depuração
 
-        currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, rowHeight);
-        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight);
+        currentY = await checkPageBreak(currentY);
+        currentY = drawRowHarvest(rowData, currentY, false, false, columnWidths);
       }
 
       // Totais Gerais
-      currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+      currentY = await checkPageBreak(currentY, 40);
       doc.y = currentY;
       
-      const totalHeaders = Array(headersText.length).fill('');
-      totalHeaders[allHeaders.findIndex(h => h.id === 'fazenda')] = 'Total Geral';
-      totalHeaders[allHeaders.findIndex(h => h.id === 'area')] = String(grandTotalArea.toFixed(2)); 
-      totalHeaders[allHeaders.findIndex(h => h.id === 'producao')] = String(grandTotalProducao.toFixed(2)); 
+      const totalRowData = [];
+      let totalColSpan = 0;
+      for (let i = 0; i < baseHeaders.length; i++) {
+        if (baseHeaders[i].id === 'area') {
+            totalRowData.push(grandTotalArea.toFixed(2));
+        } else if (baseHeaders[i].id === 'producao') {
+            totalRowData.push(grandTotalProducao.toFixed(2));
+        } else if (baseHeaders[i].id === 'seq') {
+            totalRowData.push(''); // Vazio
+        } else if (baseHeaders[i].id === 'fazenda') {
+            totalRowData.push('Total Geral');
+        } else {
+            totalRowData.push(''); // Preencher com vazio para outras colunas base
+        }
+      }
 
-      drawRow(doc, totalHeaders, currentY, false, true, finalColumnWidths, textPadding, rowHeight);
+      // Adiciona vazios para colunas opcionais no total
+      for (let i = 0; i < optionalHeaders.length; i++) {
+          totalRowData.push('');
+      }
+
+      // Ajusta a primeira célula para "Total Geral" e as demais para vazias até chegar nas colunas de soma
+      const totalHeaders = ['Total Geral', ...Array(headersText.length - 1).fill('')];
+      totalHeaders[headersText.indexOf('Área (ha)')] = grandTotalArea.toFixed(2);
+      totalHeaders[headersText.indexOf('Prod. (ton)')] = grandTotalProducao.toFixed(2);
+
+
+      drawRowHarvest(totalHeaders, currentY, false, true, columnWidths);
 
       doc.end();
     } catch (error) {
@@ -614,23 +554,12 @@ try {
       const { planId, selectedColumns } = req.query;
       const selectedCols = JSON.parse(selectedColumns || '{}');
 
-      console.log('CSV Colheita: planId', planId); // Adicionado para depuração
-      console.log('CSV Colheita: selectedColumns', selectedCols); // Adicionado para depuração
-
       if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
 
       const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
       if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
 
       const harvestPlan = harvestPlanDoc.data();
-      console.log('CSV Colheita: harvestPlan', harvestPlan); // Adicionado para depuração
-      console.log('CSV Colheita: harvestPlan.sequence length', harvestPlan.sequence ? harvestPlan.sequence.length : 0); // Adicionado para depuração
-
-      // Verifica se a sequência de colheita está vazia
-      if (!harvestPlan.sequence || harvestPlan.sequence.length === 0) {
-        return res.status(404).send('Este plano de colheita não possui nenhuma sequência de fazendas/talhões configurada.');
-      }
-
       const fazendasSnapshot = await db.collection('fazendas').get();
       const fazendasData = {};
       fazendasSnapshot.forEach(docSnap => {
@@ -652,8 +581,8 @@ try {
         { id: 'atr', title: 'ATR' },
         { id: 'maturador', title: 'Maturador Aplicado' },
         { id: 'diasAplicacao', title: 'Dias desde Aplicação' },
-        { id: 'entrada', title: 'Entrada' }, 
-        { id: 'saida', title: 'Saída' }    
+        { id: 'entrada', title: 'Entrada' }, // Sempre no final
+        { id: 'saida', title: 'Saída' }    // Sempre no final
       ];
 
       // Filtra e ordena os cabeçalhos para o CSV
@@ -700,35 +629,14 @@ try {
         let totalAgeInDays = 0;
         let plotsWithDate = 0;
         const allVarieties = new Set();
-        
-        const farm = fazendasData[group.fazendaCodigo];
-
-        const talhaoMap = new Map();
-        if (farm && farm.talhoes) {
-            farm.talhoes.forEach(t => {
-                talhaoMap.set(t.id, t);
-                talhaoMap.set(String(t.id), t); 
-                talhaoMap.set(t.name.toUpperCase().trim(), t);
-            });
-        }
-
         group.plots.forEach(plot => {
-            let talhao = null;
-            if (talhaoMap.has(plot.talhaoId)) {
-                talhao = talhaoMap.get(plot.talhaoId);
-            } else if (talhaoMap.has(String(plot.talhaoId))) {
-                talhao = talhaoMap.get(String(plot.talhaoId));
-            }
-            if (!talhao && plot.talhaoName) {
-                talhao = talhaoMap.get(plot.talhaoName.toUpperCase().trim());
-            }
-
+            const farm = fazendasData[group.fazendaCodigo];
+            const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
             if (talhao) {
                 if (talhao.dataUltimaColheita) {
-                    const formattedDate = parseDateDDMMYYYY(String(talhao.dataUltimaColheita));
-                    const dataUltima = new Date(formattedDate + 'T03:00:00Z');
-                    if (!isNaN(dataUltima.getTime())) {
-                        totalAgeInDays += Math.abs(dataEntrada.getTime() - dataUltima.getTime());
+                    const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
+                    if (!isNaN(dataUltima)) {
+                        totalAgeInDays += Math.abs(dataEntrada - dataUltima);
                         plotsWithDate++;
                     }
                 }
@@ -738,15 +646,15 @@ try {
             }
         });
 
-        const idadeMediaMeses = plotsWithDate > 0 ? (Math.ceil(totalAgeInDays / plotsWithDate / (1000 * 60 * 60 * 24)) / 30).toFixed(1) : 'N/A';
+        const idadeMediaMeses = plotsWithDate > 0 ? (Math.ceil(totalAgeInDays / plotsWithDate) / 30).toFixed(1) : 'N/A';
         
         let diasAplicacao = 'N/A';
         if (group.maturadorDate) {
             try {
-                const today = new Date(); 
+                const today = new Date(); // Considera "hoje" como a data de geração do relatório
                 const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                const diffTime = today.getTime() - applicationDate.getTime();
-                if (diffTime >= 0) { 
+                const diffTime = today - applicationDate;
+                if (diffTime >= 0) { // Só calcula se a data de aplicação já passou
                     diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 }
             } catch (e) {
@@ -776,13 +684,7 @@ try {
         records.push(record);
       });
 
-      const csvWriter = createObjectCsvWriter({ 
-        path: filePath, 
-        header: finalHeaders, 
-        // Adicionado para garantir compatibilidade com Excel no Brasil
-        separator: ';', 
-        withBOM: true 
-      });
+      const csvWriter = createObjectCsvWriter({ path: filePath, header: finalHeaders });
       await csvWriter.writeRecords(records);
       res.download(filePath);
     } catch (error) {
