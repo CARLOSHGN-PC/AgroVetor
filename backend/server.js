@@ -219,9 +219,11 @@ try {
       doc.y = currentY;
       
       if (!isModelB) {
+        // Re-adicionando a linha de total geral para o Modelo A
         const totalRowData = ['', '', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, rowHeight);
       } else {
+        // Re-adicionando a linha de total geral para o Modelo B
         const totalRowDataB = ['', '', '', '', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
         drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, rowHeight);
       }
@@ -234,6 +236,7 @@ try {
         } else {
             doc.end(); // Garante que o stream seja fechado
         }
+        return;
     }
   });
 
@@ -354,7 +357,7 @@ try {
         } else {
             doc.end(); // Garante que o stream seja fechado
         }
-        return; // Retorna para evitar mais processamento em caso de erro
+        return;
     }
   });
 
@@ -488,7 +491,6 @@ try {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
           if (header) {
               finalHeaders.push(header);
-              finalColumnWidths.push(header.width);
           }
       });
       
@@ -620,7 +622,7 @@ try {
         } else {
             doc.end(); // Garante que o stream seja fechado
         }
-        return; // Retorna para evitar mais processamento em caso de erro
+        return;
     }
   });
 
