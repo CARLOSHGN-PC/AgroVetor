@@ -24,12 +24,9 @@ try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   admin.initializeApp({ 
     credential: admin.credential.cert(serviceAccount),
-    // O storageBucket não é mais usado diretamente pelo backend para upload/download de logo,
-    // mas pode ser mantido se outras partes da sua aplicação o utilizarem.
     storageBucket: "agrovetor-v2.appspot.com" 
   });
   const db = admin.firestore();
-  // Removido: const bucket = admin.storage().bucket();
   console.log('Firebase Admin SDK inicializado com sucesso.');
 
   app.get('/', (req, res) => {
@@ -55,7 +52,7 @@ try {
   });
 
 
-  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS (com alterações para o logo) ---
+  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS ---
 
   const getFilteredData = async (collectionName, filters) => {
     let query = db.collection(collectionName);
@@ -93,11 +90,12 @@ try {
     return doc.y;
   };
 
-  // Função auxiliar para desenhar linhas da tabela
-  // Adicionado `columnHeadersConfig` para que a função saiba o ID da coluna e aplique a lógica de quebra de linha corretamente.
-  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeadersConfig = []) => { // Default to empty array for safety
+  // Função auxiliar para desenhar linhas da tabela (agora mais robusta)
+  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeadersConfig = []) => {
     const startX = doc.page.margins.left;
     const fontSize = 8;
+    
+    // Define o estilo da fonte para cabeçalho/rodapé ou corpo
     if (isHeader || isFooter) {
         doc.font('Helvetica-Bold').fontSize(fontSize);
         doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
@@ -105,12 +103,13 @@ try {
     } else {
         doc.font('Helvetica').fontSize(fontSize);
     }
+    
     let currentX = startX;
-    let maxRowHeight = rowHeight;
+    let maxRowHeight = rowHeight; // Altura mínima da linha
 
     rowData.forEach((cell, i) => {
         let columnId = null;
-        // Garante que columnHeadersConfig é um array e que o elemento no índice i existe
+        // Verifica se columnHeadersConfig é um array e se o índice existe
         if (Array.isArray(columnHeadersConfig) && i < columnHeadersConfig.length && columnHeadersConfig[i]) {
             columnId = columnHeadersConfig[i].id;
         }
@@ -118,8 +117,10 @@ try {
         const cellWidth = customWidths[i] - (textPadding * 2);
         const textOptions = { width: cellWidth, align: 'left', continued: false };
 
+        // Verifica se o conteúdo é numérico (para permitir quebra de linha)
         const isNumericContent = !isNaN(parseFloat(String(cell))) && isFinite(String(cell));
         
+        // Lógica de quebra de linha: permite para 'talhoes' e conteúdo numérico
         if (columnId === 'talhoes' || isNumericContent) {
             textOptions.lineBreak = true; // Permite quebra de linha
             textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
@@ -127,13 +128,14 @@ try {
             textOptions.lineBreak = false; // Impede quebra de linha para outros textos (títulos e nomes)
         }
         
+        // Calcula a altura necessária para o texto na célula
         const textHeight = doc.heightOfString(String(cell), textOptions);
-        maxRowHeight = Math.max(maxRowHeight, textHeight + padding * 2);
+        maxRowHeight = Math.max(maxRowHeight, textHeight + textPadding * 2); // Atualiza a altura máxima da linha
 
-        doc.text(String(cell), currentX + padding, y + padding, textOptions);
+        doc.text(String(cell), currentX + textPadding, y + textPadding, textOptions);
         currentX += customWidths[i];
     });
-    return y + maxRowHeight; // Retorna a altura máxima da linha para a próxima posição Y
+    return y + maxRowHeight; // Retorna a altura da linha para a próxima posição Y
   };
 
   // Função auxiliar para verificar quebra de página
@@ -157,7 +159,6 @@ try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
       if (data.length === 0) {
-        // Passando o nome do usuário para generatePdfHeader
         await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', filters.generatedBy);
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
         doc.end();
@@ -179,7 +180,6 @@ try {
       const isModelB = filters.tipoRelatorio === 'B';
       const title = 'Relatório de Inspeção de Broca';
       
-      // Passando o nome do usuário para generatePdfHeader
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
       const headersA = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
@@ -304,27 +304,24 @@ try {
       
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
-      let headers, columnWidths;
-      if (isDetailed) {
-        headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
-        columnWidths = [60, 120, 60, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50];
-      } else {
-        headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-        columnWidths = [80, 160, 80, 100, 60, 120, 80];
-      }
+      // Definindo os cabeçalhos e larguras para o relatório de perda
+      const headersA = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
+      const columnWidthsA = [80, 160, 80, 100, 60, 120, 80];
+      const headersB = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaco', 'Pedaco', 'Total'];
+      const columnWidthsB = [60, 120, 60, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50];
 
       // Definir os cabeçalhos como objetos para a função drawRow
-      const headersConfig = headers.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
-      const headersDetailedConfig = ['Data', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'].map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
-
+      const headersAConfig = headersA.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+      const headersBConfig = headersB.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+      
       const rowHeight = 18;
       const textPadding = 5;
 
       if (!isDetailed) { // Modelo A - Resumido
-        currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 18, headersConfig); // Passar headersConfig
+        currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
         for(const p of data) {
             currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-            currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total], currentY, false, false, columnWidths, 5, 18, headersConfig); // Passar headersConfig
+            currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total], currentY, false, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
         }
       } else { // Modelo B - Detalhado
         const groupedData = data.reduce((acc, p) => {
@@ -341,12 +338,13 @@ try {
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-          currentY = drawRow(doc, headers.slice(1), currentY, true, false, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
+          // Passar headersBConfig para a função drawRow, e ajustar os dados para não incluir a fazenda
+          currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
 
           const farmData = groupedData[fazendaKey];
           for(const p of farmData) {
               currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-              currentY = drawRow(doc, [p.data, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total], currentY, false, false, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
+              currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total], currentY, false, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
           }
           
           const subTotalCanaInteira = farmData.reduce((sum, p) => sum + p.canaInteira, 0);
@@ -357,8 +355,8 @@ try {
           const subTotalPedaco = farmData.reduce((sum, p) => sum + p.pedaco, 0);
           const subTotal = farmData.reduce((sum, p) => sum + p.total, 0);
 
-          const subtotalRow = ['', '', '', '', 'Sub Total', subTotalCanaInteira, subTotalTolete, subTotalToco, subTotalPonta, subTotalEstilhaco, subTotalPedaco, subTotal];
-          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
+          const subtotalRow = ['', '', '', '', '', 'Sub Total', subTotalCanaInteira, subTotalTolete, subTotalToco, subTotalPonta, subTotalEstilhaco, subTotalPedaco, subTotal];
+          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, textPadding, rowHeight, headersBConfig);
           currentY += 10;
         }
       }
@@ -376,10 +374,10 @@ try {
 
       if (!isDetailed) {
         const totalRowData = ['', '', '', '', '', 'Total Geral', grandTotal];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidths, 5, 18, headersConfig); // Passar headersConfig
+        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, textPadding, rowHeight, headersAConfig);
       } else {
-        const totalRowData = ['', '', '', '', 'Total Geral', grandTotalCanaInteira, grandTotalTolete, grandTotalToco, grandTotalPonta, grandTotalEstilhaco, grandTotalPedaco, grandTotal];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
+        const totalRowData = ['', '', '', '', '', 'Total Geral', grandTotalCanaInteira, grandTotalTolete, grandTotalToco, grandTotalPonta, grandTotalEstilhaco, grandTotalPedaco, grandTotal];
+        drawRow(doc, totalRowData, currentY, false, true, columnWidthsB, textPadding, rowHeight, headersBConfig);
       }
 
       doc.end();
@@ -424,7 +422,6 @@ try {
     } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
   });
 
-  // [ALTERAÇÃO]: generateCustomHarvestReport agora chama o backend
   app.get('/reports/colheita/pdf', async (req, res) => {
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
     res.setHeader('Content-Type', 'application/pdf');
