@@ -93,7 +93,8 @@ try {
   };
 
   // Função auxiliar para desenhar linhas da tabela
-  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18) => {
+  // Adicionado `columnHeaders` para que a função saiba o ID da coluna e aplique a lógica de quebra de linha corretamente.
+  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeaders = []) => {
     const startX = doc.page.margins.left;
     const fontSize = 8;
     if (isHeader || isFooter) {
@@ -107,12 +108,25 @@ try {
     let maxRowHeight = rowHeight;
 
     rowData.forEach((cell, i) => {
-        // Para a coluna de "Talhões", permitir quebra de linha
-        const options = { width: customWidths[i] - (textPadding * 2), align: 'left'};
-        if (finalHeaders[i].id === 'talhoes') { // Assuming finalHeaders is accessible here or passed
-            options.continued = false; // Ensure text wraps within the cell width
+        // Garante que columnHeaders é um array e que a coluna existe
+        const columnId = (columnHeaders && columnHeaders[i]) ? columnHeaders[i].id : null; 
+        const cellWidth = customWidths[i] - (textPadding * 2);
+        const textOptions = { width: cellWidth, align: 'left', continued: false };
+
+        // Permitir quebra de linha para a coluna 'talhoes' e para números
+        // Verificar se o conteúdo da célula é um número ou uma string que pode ser um número
+        const isNumericContent = !isNaN(parseFloat(String(cell))) && isFinite(String(cell));
+
+        if (columnId === 'talhoes' || isNumericContent) {
+            textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
+        } else {
+            textOptions.lineBreak = false; // Evita quebra de linha para outros textos (títulos e nomes)
         }
-        doc.text(String(cell), currentX + textPadding, y + 5, options);
+        
+        const textHeight = doc.heightOfString(String(cell), textOptions);
+        maxRowHeight = Math.max(maxRowHeight, textHeight + padding * 2);
+
+        doc.text(String(cell), currentX + padding, y + padding, textOptions);
         currentX += customWidths[i];
     });
     return y + maxRowHeight; // Retorna a altura máxima da linha para o próximo Y
@@ -169,11 +183,16 @@ try {
       const headersB = ['Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
+      // Definir os cabeçalhos como objetos para a função drawRow
+      const headersAConfig = headersA.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+      const headersBConfig = headersB.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+
+
       if (!isModelB) { // Modelo A
-        currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA);
+        currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, 5, 18, headersAConfig); // Passar headersAConfig
         for(const r of enrichedData) {
             currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-            currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
+            currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA, 5, 18, headersAConfig); // Passar headersAConfig
         }
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -190,12 +209,12 @@ try {
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-          currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB);
+          currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
 
           const farmData = groupedData[fazendaKey];
           for(const r of farmData) {
               currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-              currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
+              currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
           }
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -206,7 +225,7 @@ try {
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
           const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
-          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB);
+          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
           currentY += 10;
         }
       }
@@ -223,10 +242,10 @@ try {
       
       if (!isModelB) {
         const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA);
+        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, 18, headersAConfig); // Passar headersAConfig
       } else {
         const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB);
+        drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
       }
 
       doc.end();
@@ -289,15 +308,19 @@ try {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
         columnWidths = [80, 160, 80, 100, 60, 120, 80];
       }
-      
+
+      // Definir os cabeçalhos como objetos para a função drawRow
+      const headersConfig = headers.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+      const headersDetailedConfig = ['Data', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'].map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+
       const rowHeight = 18;
       const textPadding = 5;
 
       if (!isDetailed) { // Modelo A - Resumido
-        currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+        currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 18, headersConfig); // Passar headersConfig
         for(const p of data) {
             currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-            currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total], currentY, false, false, columnWidths);
+            currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total], currentY, false, false, columnWidths, 5, 18, headersConfig); // Passar headersConfig
         }
       } else { // Modelo B - Detalhado
         const groupedData = data.reduce((acc, p) => {
@@ -314,12 +337,12 @@ try {
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-          currentY = drawRow(doc, headers.slice(1), currentY, true, false, columnWidths.slice(1)); // Remove Fazenda do cabeçalho de subgrupo
+          currentY = drawRow(doc, headers.slice(1), currentY, true, false, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
 
           const farmData = groupedData[fazendaKey];
           for(const p of farmData) {
               currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-              currentY = drawRow(doc, [p.data, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total], currentY, false, false, columnWidths.slice(1));
+              currentY = drawRow(doc, [p.data, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total], currentY, false, false, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
           }
           
           const subTotalCanaInteira = farmData.reduce((sum, p) => sum + p.canaInteira, 0);
@@ -331,7 +354,7 @@ try {
           const subTotal = farmData.reduce((sum, p) => sum + p.total, 0);
 
           const subtotalRow = ['', '', '', '', 'Sub Total', subTotalCanaInteira, subTotalTolete, subTotalToco, subTotalPonta, subTotalEstilhaco, subTotalPedaco, subTotal];
-          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths.slice(1));
+          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
           currentY += 10;
         }
       }
@@ -349,10 +372,10 @@ try {
 
       if (!isDetailed) {
         const totalRowData = ['', '', '', '', '', 'Total Geral', grandTotal];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidths);
+        drawRow(doc, totalRowData, currentY, false, true, columnWidths, 5, 18, headersConfig); // Passar headersConfig
       } else {
         const totalRowData = ['', '', '', '', 'Total Geral', grandTotalCanaInteira, grandTotalTolete, grandTotalToco, grandTotalPonta, grandTotalEstilhaco, grandTotalPedaco, grandTotal];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidths.slice(1));
+        drawRow(doc, totalRowData, currentY, false, true, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
       }
 
       doc.end();
