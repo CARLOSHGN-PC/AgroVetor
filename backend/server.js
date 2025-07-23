@@ -9,14 +9,15 @@ const path = require('path');
 const os = require('os');
 const axios = require('axios');
 
-// [CORREÇÃO CRÍTICA]: Inicializa pdfkit-table para estender PDFDocument
+// [CORREÇÃO CRÍTICA]: Inicializa pdfkit-table para estender PDFDocument globalmente
+// Isso deve ser feito uma única vez no início do arquivo.
 require('pdfkit-table')(PDFDocument); 
 
 const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // Aumenta o limite para receber strings Base64 grandes
+app.use(express.json({ limit: '10mb' })); 
 
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -155,11 +156,10 @@ try {
     doc.restore(); 
   };
 
-  // [CORREÇÃO]: Funções auxiliares para o relatório de colheita - Movidas para o escopo global
+  // Funções auxiliares para o relatório de colheita - Movidas para o escopo global
   const calculateAverageAge = (group, startDate, allFazendas) => {
     let totalAgeInDays = 0;
     let plotsWithDate = 0;
-    // allFazendas é um array de objetos fazenda, precisamos encontrar pelo código
     const farm = allFazendas.find(f => f.code === group.fazendaCodigo);
     if (!farm) return 'N/A';
 
