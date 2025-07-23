@@ -551,9 +551,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.unsubscribeListeners.push(unsubscribeConfig);
             },
             async getDocument(collectionName, docId, options) {
-                const docRef = doc(db, collectionName, docId);
-                const docSnap = await getDoc(docRef, options);
-                return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                return await getDoc(doc(db, collectionName, docId)).then(docSnap => {
+                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                });
             },
             async addDocument(collectionName, data) {
                 return await addDoc(collection(db, collectionName), { ...data, createdAt: serverTimestamp() });
@@ -746,9 +746,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (id === 'cadastrarPessoas') this.renderPersonnelList();
                     if (id === 'planejamento') this.renderPlanejamento();
                     if (id === 'planejamentoColheita') this.showHarvestPlanList();
-                    if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                     if (id === 'relatorioBroca' || id === 'relatorioPerda') this.setDefaultDatesForReportForms();
                     if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
+                    // [CORREÇÃO]: Adicionado setDefaultDatesForEntryForms aqui
+                    if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 }
                 this.closeAllMenus();
             },
@@ -1421,6 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
                 
                 const customReportEls = App.elements.relatorioColheita;
+                // [ALTERAÇÃO]: Chamar a função de geração de relatório do backend
                 customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
                 
@@ -1847,7 +1849,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     planToSave.frontName = planToSave.frontName.trim();
                     
                     if (!planToSave.frontName || !planToSave.startDate || !planToSave.dailyRate) {
-                        App.ui.showAlert('Preencha todos os campos de configuração da frente.', 'error');
+                        App.ui.showAlert('Preencha todos os campos de configuração da frente.', "error");
                         return;
                     }
                     
@@ -1860,7 +1862,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showAlert(`Plano de colheita "${planToSave.frontName}" guardado com sucesso!`);
                         App.ui.showHarvestPlanList();
                     } catch(e) {
-                        App.ui.showAlert('Erro ao guardar o plano de colheita.', 'error');
+                        App.ui.showAlert('Erro ao guardar o plano de colheita.', "error");
                     }
                 });
             },
@@ -2072,7 +2074,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
                         })
                         .catch((e) => {
-                            App.ui.showAlert('Erro ao guardar inspeção.', 'error');
+                            App.ui.showAlert('Erro ao guardar inspeção.', "error");
                             console.error("Erro ao salvar brocamento:", e);
                         });
                 });
@@ -2130,7 +2132,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
                         })
                         .catch((e) => {
-                            App.ui.showAlert('Erro ao guardar lançamento de perda.', 'error');
+                            App.ui.showAlert('Erro ao guardar lançamento de perda.', "error");
                             console.error("Erro ao salvar perda:", e);
                         });
                 });
@@ -2156,7 +2158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          const totalLines = lines.length - 1;
 
                          if (totalLines <= 0) {
-                             App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', 'error'); return;
+                             App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
                          }
                          
                          App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
@@ -2173,7 +2175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          };
 
                          if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
-                             App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', 'error');
+                             App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
                              App.ui.setLoading(false);
                              return;
                          }
@@ -2238,7 +2240,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
 
                      } catch (e) {
-                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', 'error');
+                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
                          console.error(e);
                      } finally {
                          App.ui.setLoading(false);
@@ -2270,7 +2272,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          const csv = event.target.result;
                          const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
                          const totalLines = lines.length - 1;
-                         if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', 'error'); return; }
+                         if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
                          
                          App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
                          await new Promise(resolve => setTimeout(resolve, 100));
@@ -2279,7 +2281,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
 
                          if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
-                             App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', 'error');
+                             App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
                              App.ui.setLoading(false);
                              return;
                          }
@@ -2319,7 +2321,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          
                          App.ui.showAlert(`Importação concluída!`, 'success');
                      } catch (e) {
-                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', 'error');
+                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
                          console.error(e);
                      } finally {
                          App.ui.setLoading(false);
@@ -2603,7 +2605,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._createOrUpdateChart('graficoTopOperadores', {
                     type: 'bar',
                     data: { labels, datasets: [{ label: 'Perda Média por Operador (kg)', data, backgroundColor: themeColors.primary }] },
-                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { display: false } } }
+                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { labels: { color: themeColors.text } } } }
                 });
             }
         },
@@ -2612,7 +2614,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // NOVA SEÇÃO DE RELATÓRIOS - APONTANDO PARA O BACKEND
         // ===================================================================
         reports: {
-            // [ALTERAÇÃO]: Adicionado 'username' aos filtros enviados para o backend
             _fetchAndDownloadReport(endpoint, filters, filename) {
                 const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                 // Adiciona o nome de usuário do App.state.currentUser aos filtros
@@ -2644,7 +2645,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .catch(error => {
                         console.error('Erro ao gerar relatório via API:', error);
-                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, 'error');
+                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
                     })
                     .finally(() => {
                         App.ui.setLoading(false);
@@ -2705,16 +2706,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
                     fazendaCodigo: farm ? farm.code : '',
-                    talhao: filtroTalhao.value,
-                    matricula: filtroOperador.value,
-                    frenteServico: filtroFrente.value,
                     tipoRelatorio: tipoRelatorio.value
                 };
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
         
+            // [ALTERAÇÃO]: generateCustomHarvestReport agora chama o backend
             generateCustomHarvestReport(format) {
-                const { jsPDF } = window.jspdf;
                 const { select, optionsContainer } = App.elements.relatorioColheita;
                 const planId = select.value;
                 if (!planId) {
@@ -2722,95 +2720,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
         
-                const plan = App.state.harvestPlans.find(p => p.id == planId);
-                if (!plan) {
-                    App.ui.showAlert("Plano não encontrado.", "error");
-                    return;
-                }
-        
-                const options = {};
+                const selectedColumns = {};
                 optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    options[cb.dataset.column] = cb.checked;
+                    selectedColumns[cb.dataset.column] = cb.checked;
                 });
+
+                const filters = {
+                    planId: planId,
+                    selectedColumns: JSON.stringify(selectedColumns) // Envia como string JSON
+                };
                 
-                const baseHeaders = ['Seq.', 'Fazenda', 'Talhões', 'Área (ha)', 'Prod. (ton)'];
-                const dynamicHeaders = [];
-                if (options.variedade) dynamicHeaders.push('Variedade');
-                if (options.idade) dynamicHeaders.push('Idade (m)');
-                if (options.atr) dynamicHeaders.push('ATR');
-                if (options.maturador) dynamicHeaders.push('Maturador');
-                if (options.diasAplicacao) dynamicHeaders.push('Dias Aplic.');
-                const finalHeaders = ['Entrada', 'Saída'];
-        
-                const fullHeaders = [...baseHeaders, ...dynamicHeaders, ...finalHeaders];
-                const body = [];
-                let currentDate = new Date(plan.startDate + 'T03:00:00Z');
-                const dailyTon = parseFloat(plan.dailyRate) || 1;
-        
-                plan.sequence.forEach((group, index) => {
-                    const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
-                    const dataEntrada = new Date(currentDate.getTime());
-                    currentDate.setDate(currentDate.getDate() + diasNecessarios);
-                    const dataSaida = new Date(currentDate.getTime());
-        
-                    const baseRow = [
-                        index + 1,
-                        `${group.fazendaCodigo} - ${group.fazendaName}`,
-                        group.plots.map(p => p.talhaoName).join(', '),
-                        group.totalArea.toFixed(2),
-                        group.totalProducao.toFixed(2),
-                    ];
-        
-                    const dynamicRow = [];
-                    if (options.variedade) {
-                        const varieties = new Set();
-                        const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
-                        group.plots.forEach(plot => {
-                            const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
-                            if (talhao?.variedade) varieties.add(talhao.variedade);
-                        });
-                        dynamicRow.push(Array.from(varieties).join(', '));
-                    }
-                    if (options.idade) dynamicRow.push(App.actions.calculateAverageAge(group, plan.startDate));
-                    if (options.atr) dynamicRow.push(group.atr || 'N/A');
-                    if (options.maturador) dynamicRow.push(group.maturador || 'N/A');
-                    if (options.diasAplicacao) dynamicRow.push(App.actions.calculateMaturadorDays(group));
-                    
-                    const finalRowData = [
-                        dataEntrada.toLocaleDateString('pt-BR'),
-                        dataSaida.toLocaleDateString('pt-BR')
-                    ];
-                    
-                    body.push([...baseRow, ...dynamicRow, ...finalRowData]);
-                    currentDate.setDate(currentDate.getDate() + 1);
-                });
-        
-                const reportTitle = `Plano de Colheita - ${plan.frontName}`;
-                if (format === 'pdf') {
-                    const doc = new jsPDF({ orientation: 'landscape' });
-                    doc.autoTable({
-                        head: [fullHeaders],
-                        body: body,
-                        startY: 25,
-                        headStyles: { fillColor: [46, 125, 50], textColor: 255 },
-                        alternateRowStyles: { fillColor: [245, 245, 245] },
-                        styles: { fontSize: 7 },
-                        columnStyles: { 2: { cellWidth: 35 } }
-                    });
-                    doc.save(`${reportTitle.toLowerCase().replace(/\s/g, '_')}.pdf`);
-                    App.ui.showAlert('Relatório PDF gerado com sucesso!');
-                } else if (format === 'csv') {
-                    let csvContent = "\uFEFF" + fullHeaders.map(h => `"${h}"`).join(';') + '\n';
-                    csvContent += body.map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(';')).join('\n');
-                    const encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
-                    const link = document.createElement("a");
-                    link.setAttribute("href", encodedUri);
-                    link.setAttribute("download", `${plan.frontName.replace(/\s+/g, '_')}.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    App.ui.showAlert('Relatório Excel (CSV) gerado com sucesso!');
-                }
+                this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_custom.${format}`);
             }
         },
 
