@@ -105,7 +105,12 @@ try {
     }
     let currentX = startX;
     rowData.forEach((cell, i) => {
-        doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+        // Para a coluna de "Talhões", permitir quebra de linha
+        const options = { width: customWidths[i] - (textPadding * 2), align: 'left'};
+        if (finalHeaders[i].id === 'talhoes') { // Assuming finalHeaders is accessible here or passed
+            options.continued = false; // Ensure text wraps within the cell width
+        }
+        doc.text(String(cell), currentX + textPadding, y + 5, options);
         currentX += customWidths[i];
     });
     return y + rowHeight;
@@ -428,19 +433,20 @@ try {
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
       // Define todos os cabeçalhos possíveis com suas larguras ideais
+      // Ajuste de larguras para evitar quebra de linha nos títulos e permitir quebra nos números/talhões
       const allPossibleHeadersConfig = [
           { id: 'seq', title: 'Seq.', width: 30 },
           { id: 'fazenda', title: 'Fazenda', width: 100 },
-          { id: 'talhoes', title: 'Talhões', width: 120 }, // Ajustado para permitir quebra de linha no conteúdo
+          { id: 'talhoes', title: 'Talhões', width: 120 }, // Mantido para quebra de linha no conteúdo
           { id: 'area', title: 'Área (ha)', width: 50 },
           { id: 'producao', title: 'Prod. (ton)', width: 50 },
           { id: 'variedade', title: 'Variedade', width: 80 },
-          { id: 'idade', title: 'Idade (m)', width: 40 },
-          { id: 'atr', title: 'ATR', width: 35 },
+          { id: 'idade', title: 'Idade (m)', width: 45 }, // Ajustado
+          { id: 'atr', title: 'ATR', width: 40 }, // Ajustado
           { id: 'maturador', title: 'Maturador', width: 80 },
-          { id: 'diasAplicacao', title: 'Dias Aplic.', width: 50 },
-          { id: 'entrada', title: 'Entrada', width: 55 }, // Sempre no final
-          { id: 'saida', title: 'Saída', width: 55 }    // Sempre no final
+          { id: 'diasAplicacao', title: 'Dias Aplic.', width: 55 }, // Ajustado
+          { id: 'entrada', title: 'Entrada', width: 60 }, // Sempre no final, ajustado
+          { id: 'saida', title: 'Saída', width: 60 }    // Sempre no final, ajustado
       ];
 
       // Filtra e ordena os cabeçalhos
@@ -482,7 +488,43 @@ try {
       const rowHeight = 18;
       const textPadding = 5;
 
-      currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths);
+      // Modificação na função drawRow para lidar com quebra de linha no conteúdo
+      const drawRowDynamic = (docInstance, rowData, yPos, isHeader = false, isFooter = false, widths, padding = 5) => {
+        const startX = docInstance.page.margins.left;
+        const fontSize = 8;
+        if (isHeader || isFooter) {
+            docInstance.font('Helvetica-Bold').fontSize(fontSize);
+            docInstance.rect(startX, yPos, docInstance.page.width - docInstance.page.margins.left - docInstance.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            docInstance.fillColor('black');
+        } else {
+            docInstance.font('Helvetica').fontSize(fontSize);
+        }
+        let currentX = startX;
+        let maxRowHeight = rowHeight;
+
+        rowData.forEach((cell, i) => {
+            const columnId = finalHeaders[i].id; // Obter o ID da coluna atual
+            const cellWidth = widths[i] - (padding * 2);
+            const textOptions = { width: cellWidth, align: 'left', continued: false };
+
+            // Permitir quebra de linha apenas para a coluna 'talhoes' e números
+            if (columnId === 'talhoes' || !isNaN(parseFloat(String(cell)))) {
+                textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
+            } else {
+                textOptions.lineBreak = false; // Evita quebra de linha para outros textos (títulos e nomes)
+            }
+            
+            const textHeight = docInstance.heightOfString(String(cell), textOptions);
+            maxRowHeight = Math.max(maxRowHeight, textHeight + padding * 2);
+
+            docInstance.text(String(cell), currentX + padding, yPos + padding, textOptions);
+            currentX += widths[i];
+        });
+        return yPos + maxRowHeight;
+      };
+
+
+      currentY = drawRowDynamic(doc, headersText, currentY, true, false, finalColumnWidths);
 
       let grandTotalProducao = 0;
       let grandTotalArea = 0;
@@ -554,7 +596,7 @@ try {
         const rowData = finalHeaders.map(h => rowDataMap[h.id]);
 
         currentY = await checkPageBreak(doc, currentY, title, generatedBy);
-        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths);
+        currentY = drawRowDynamic(doc, rowData, currentY, false, false, finalColumnWidths); // Usar drawRowDynamic
       }
 
       // Totais Gerais
@@ -577,7 +619,7 @@ try {
           }
       });
 
-      drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths);
+      drawRowDynamic(doc, totalRowData, currentY, false, true, finalColumnWidths); // Usar drawRowDynamic
 
       doc.end();
     } catch (error) {
