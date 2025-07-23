@@ -92,58 +92,6 @@ try {
     return doc.y;
   };
 
-  // Função auxiliar para desenhar linhas da tabela
-  // Adicionado `columnHeadersConfig` para que a função saiba o ID da coluna e aplique a lógica de quebra de linha corretamente.
-  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeadersConfig = []) => { // Default to empty array for safety
-    const startX = doc.page.margins.left;
-    const fontSize = 8;
-    if (isHeader || isFooter) {
-        doc.font('Helvetica-Bold').fontSize(fontSize);
-        doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
-        doc.fillColor('black');
-    } else {
-        doc.font('Helvetica').fontSize(fontSize);
-    }
-    let currentX = startX;
-    let maxRowHeight = rowHeight;
-
-    rowData.forEach((cell, i) => {
-        let columnId = null;
-        // Garante que columnHeadersConfig é um array e que o elemento no índice i existe
-        if (Array.isArray(columnHeadersConfig) && i < columnHeadersConfig.length && columnHeadersConfig[i]) {
-            columnId = columnHeadersConfig[i].id;
-        }
-
-        const cellWidth = customWidths[i] - (textPadding * 2);
-        const textOptions = { width: cellWidth, align: 'left', continued: false };
-
-        const isNumericContent = !isNaN(parseFloat(String(cell))) && isFinite(String(cell));
-        
-        if (columnId === 'talhoes' || isNumericContent) {
-            textOptions.lineBreak = true; // Permite quebra de linha
-            textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
-        } else {
-            textOptions.lineBreak = false; // Impede quebra de linha para outros textos (títulos e nomes)
-        }
-        
-        const textHeight = doc.heightOfString(String(cell), textOptions);
-        maxRowHeight = Math.max(maxRowHeight, textHeight + padding * 2);
-
-        doc.text(String(cell), currentX + padding, y + padding, textOptions);
-        currentX += customWidths[i];
-    });
-    return y + maxRowHeight; // Retorna a altura máxima da linha para a próxima posição Y
-  };
-
-  // Função auxiliar para verificar quebra de página
-  const checkPageBreak = async (doc, y, title, generatedBy, neededSpace = 40) => {
-    if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
-        doc.addPage();
-        return await generatePdfHeader(doc, title, generatedBy);
-    }
-    return y;
-  };
-
 
   app.get('/reports/brocamento/pdf', async (req, res) => {
     const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
@@ -181,21 +129,45 @@ try {
       // Passando o nome do usuário para generatePdfHeader
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
-      const headersA = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
+      const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
-      const headersB = ['Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
-      // Definir os cabeçalhos como objetos para a função drawRow
-      const headersAConfig = headersA.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
-      const headersBConfig = headersB.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+      const rowHeight = 18;
+      const textPadding = 5;
 
-
+      const drawRow = (rowData, y, isHeader = false, isFooter = false, customWidths) => {
+        const startX = doc.page.margins.left;
+        const fontSize = 8;
+        if (isHeader || isFooter) {
+            doc.font('Helvetica-Bold').fontSize(fontSize);
+            doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            doc.fillColor('black');
+        } else {
+            doc.font('Helvetica').fontSize(fontSize);
+        }
+        let currentX = startX;
+        rowData.forEach((cell, i) => {
+            doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+            currentX += customWidths[i];
+        });
+        return y + rowHeight;
+      };
+      
+      const checkPageBreak = async (y, neededSpace = rowHeight) => {
+        if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
+            doc.addPage();
+            // Passando o nome do usuário para generatePdfHeader
+            return await generatePdfHeader(doc, title, filters.generatedBy);
+        }
+        return y;
+      };
+      
       if (!isModelB) { // Modelo A
-        currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, 5, 18, headersAConfig); // Passar headersAConfig
+        currentY = drawRow(headers, currentY, true, false, columnWidthsA);
         for(const r of enrichedData) {
-            currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-            currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA, 5, 18, headersAConfig); // Passar headersAConfig
+            currentY = await checkPageBreak(currentY);
+            currentY = drawRow([`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA);
         }
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -206,18 +178,18 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+          currentY = await checkPageBreak(currentY, 40);
           doc.y = currentY;
           doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
           currentY = doc.y + 5;
 
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-          currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
+          currentY = await checkPageBreak(currentY);
+          currentY = drawRow(headers.slice(1), currentY, true, false, columnWidthsB);
 
           const farmData = groupedData[fazendaKey];
           for(const r of farmData) {
-              currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-              currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
+              currentY = await checkPageBreak(currentY);
+              currentY = drawRow([r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB);
           }
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -228,7 +200,7 @@ try {
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
           const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
-          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
+          currentY = drawRow(subtotalRow, currentY, false, true, columnWidthsB);
           currentY += 10;
         }
       }
@@ -240,20 +212,20 @@ try {
       const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
       const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-      currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+      currentY = await checkPageBreak(currentY, 40);
       doc.y = currentY;
       
       if (!isModelB) {
         const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, 18, headersAConfig); // Passar headersAConfig
+        drawRow(totalRowData, currentY, false, true, columnWidthsA);
       } else {
         const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
+        drawRow(totalRowDataB, currentY, false, true, columnWidthsB);
       }
 
       doc.end();
     } catch (error) { 
-        console.error("Erro ao gerar PDF de Brocamento:", error);
+        console.error("Erro no PDF de Brocamento:", error);
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
@@ -283,7 +255,7 @@ try {
   });
 
   app.get('/reports/perda/pdf', async (req, res) => {
-    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
     doc.pipe(res);
@@ -292,8 +264,9 @@ try {
       const filters = req.query;
       const data = await getFilteredData('perdas', filters);
       if (data.length === 0) {
+        // Passando o nome do usuário para generatePdfHeader
         await generatePdfHeader(doc, 'Relatório de Perda', filters.generatedBy);
-        doc.text('Nenhum dado encontrado para os filtros selecionados.');
+        doc.text('Nenhum dado encontrado.');
         doc.end();
         return;
       }
@@ -301,89 +274,28 @@ try {
       const isDetailed = filters.tipoRelatorio === 'B';
       const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
       
-      let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
+      // Passando o nome do usuário para generatePdfHeader
+      await generatePdfHeader(doc, title, filters.generatedBy);
 
-      let headers, columnWidths;
+      let headers, rows;
       if (isDetailed) {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'];
-        columnWidths = [60, 120, 60, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50];
+        rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total]);
       } else {
         headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-        columnWidths = [80, 160, 80, 100, 60, 120, 80];
-      }
-
-      // Definir os cabeçalhos como objetos para a função drawRow
-      const headersConfig = headers.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
-      const headersDetailedConfig = ['Data', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'].map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
-
-      const rowHeight = 18;
-      const textPadding = 5;
-
-      if (!isDetailed) { // Modelo A - Resumido
-        currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 18, headersConfig); // Passar headersConfig
-        for(const p of data) {
-            currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-            currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total], currentY, false, false, columnWidths, 5, 18, headersConfig); // Passar headersConfig
-        }
-      } else { // Modelo B - Detalhado
-        const groupedData = data.reduce((acc, p) => {
-          const key = `${p.codigo} - ${p.fazenda}`;
-          if (!acc[key]) acc[key] = [];
-          acc[key].push(p);
-          return acc;
-        }, {});
-
-        for (const fazendaKey of Object.keys(groupedData).sort()) {
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
-          doc.y = currentY;
-          doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
-          currentY = doc.y + 5;
-
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-          currentY = drawRow(doc, headers.slice(1), currentY, true, false, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
-
-          const farmData = groupedData[fazendaKey];
-          for(const p of farmData) {
-              currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-              currentY = drawRow(doc, [p.data, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total], currentY, false, false, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
-          }
-          
-          const subTotalCanaInteira = farmData.reduce((sum, p) => sum + p.canaInteira, 0);
-          const subTotalTolete = farmData.reduce((sum, p) => sum + p.tolete, 0);
-          const subTotalToco = farmData.reduce((sum, p) => sum + p.toco, 0);
-          const subTotalPonta = farmData.reduce((sum, p) => sum + p.ponta, 0);
-          const subTotalEstilhaco = farmData.reduce((sum, p) => sum + p.estilhaco, 0);
-          const subTotalPedaco = farmData.reduce((sum, p) => sum + p.pedaco, 0);
-          const subTotal = farmData.reduce((sum, p) => sum + p.total, 0);
-
-          const subtotalRow = ['', '', '', '', 'Sub Total', subTotalCanaInteira, subTotalTolete, subTotalToco, subTotalPonta, subTotalEstilhaco, subTotalPedaco, subTotal];
-          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
-          currentY += 10;
-        }
+        rows = data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total]);
       }
       
-      const grandTotalCanaInteira = data.reduce((sum, p) => sum + p.canaInteira, 0);
-      const grandTotalTolete = data.reduce((sum, p) => sum + p.tolete, 0);
-      const grandTotalToco = data.reduce((sum, p) => sum + p.toco, 0);
-      const grandTotalPonta = data.reduce((sum, p) => sum + p.ponta, 0);
-      const grandTotalEstilhaco = data.reduce((sum, p) => sum + p.estilhaco, 0);
-      const grandTotalPedaco = data.reduce((sum, p) => sum + p.pedaco, 0);
-      const grandTotal = data.reduce((sum, p) => sum + p.total, 0);
-
-      currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
-      doc.y = currentY;
-
-      if (!isDetailed) {
-        const totalRowData = ['', '', '', '', '', 'Total Geral', grandTotal];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidths, 5, 18, headersConfig); // Passar headersConfig
-      } else {
-        const totalRowData = ['', '', '', '', 'Total Geral', grandTotalCanaInteira, grandTotalTolete, grandTotalToco, grandTotalPonta, grandTotalEstilhaco, grandTotalPedaco, grandTotal];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidths.slice(1), 5, 18, headersDetailedConfig); // Passar headersDetailedConfig
-      }
-
+      const { table } = require('pdfkit-table');
+      await table(doc, { 
+          headers, 
+          rows,
+          prepareHeader: () => doc.font('Helvetica-Bold'), 
+          prepareRow: () => doc.font('Helvetica'),
+      });
       doc.end();
     } catch (error) { 
-        console.error("Erro ao gerar PDF de Perda:", error);
+        console.error("Erro no PDF de Perda:", error);
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
@@ -460,86 +372,66 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      // Define todos os cabeçalhos possíveis com suas larguras mínimas ideais
-      const allPossibleHeadersConfig = [
-          { id: 'seq', title: 'Seq.', minWidth: 30 },
-          { id: 'fazenda', title: 'Fazenda', minWidth: 80 }, 
-          { id: 'talhoes', title: 'Talhões', minWidth: 100 }, 
-          { id: 'area', title: 'Área (ha)', minWidth: 50 },
-          { id: 'producao', title: 'Prod. (ton)', minWidth: 50 },
-          { id: 'variedade', title: 'Variedade', minWidth: 70 }, 
-          { id: 'idade', title: 'Idade (m)', minWidth: 45 }, 
-          { id: 'atr', title: 'ATR', minWidth: 40 }, 
-          { id: 'maturador', title: 'Maturador', minWidth: 70 }, 
-          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 55 }, 
-          { id: 'entrada', title: 'Entrada', minWidth: 60 }, 
-          { id: 'saida', title: 'Saída', minWidth: 60 }    
+      const baseHeaders = [
+        { id: 'seq', title: 'Seq.' },
+        { id: 'fazenda', title: 'Fazenda' },
+        { id: 'talhoes', title: 'Talhões' },
+        { id: 'area', title: 'Área (ha)' },
+        { id: 'producao', title: 'Prod. (ton)' },
+        { id: 'entrada', title: 'Entrada' },
+        { id: 'saida', title: 'Saída' }
       ];
 
-      // Filtra os cabeçalhos selecionados
-      let finalHeaders = [];
-      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
-      const finalFixedHeaders = ['entrada', 'saida'];
+      const optionalHeaders = [];
+      if (selectedCols.variedade) optionalHeaders.push({ id: 'variedade', title: 'Variedade' });
+      if (selectedCols.idade) optionalHeaders.push({ id: 'idade', title: 'Idade (m)' });
+      if (selectedCols.atr) optionalHeaders.push({ id: 'atr', title: 'ATR' });
+      if (selectedCols.maturador) optionalHeaders.push({ id: 'maturador', title: 'Maturador' });
+      if (selectedCols.diasAplicacao) optionalHeaders.push({ id: 'diasAplicacao', title: 'Dias Aplic.' });
 
-      initialFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) finalHeaders.push(header);
-      });
+      const allHeaders = [...baseHeaders, ...optionalHeaders];
+      const headersText = allHeaders.map(h => h.title);
 
-      allPossibleHeadersConfig.forEach(header => {
-          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && !finalFixedHeaders.includes(header.id)) {
-              finalHeaders.push(header);
-          }
-      });
+      // Definir larguras das colunas
+      const columnWidths = [
+          30,  // Seq.
+          100, // Fazenda
+          120, // Talhões
+          60,  // Área (ha)
+          60,  // Prod. (ton)
+          60,  // Entrada
+          60   // Saída
+      ];
 
-      finalFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) finalHeaders.push(header);
-      });
-
-      const headersText = finalHeaders.map(h => h.title);
-
-      // Calcular larguras das colunas dinamicamente
-      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      let totalMinWidth = 0;
-      let flexibleColumnsCount = 0;
-
-      finalHeaders.forEach(header => {
-          totalMinWidth += header.minWidth;
-          // Considerar 'fazenda', 'talhoes', 'variedade', 'maturador' como colunas flexíveis
-          if (['fazenda', 'talhoes', 'variedade', 'maturador'].includes(header.id)) {
-              flexibleColumnsCount++;
-          }
-      });
-
-      let remainingWidth = pageWidth - totalMinWidth;
-      let flexibleColumnExtraWidth = flexibleColumnsCount > 0 ? remainingWidth / flexibleColumnsCount : 0;
-
-      let finalColumnWidths = finalHeaders.map(header => {
-          let width = header.minWidth;
-          if (['fazenda', 'talhoes', 'variedade', 'maturador'].includes(header.id)) {
-              width += flexibleColumnExtraWidth;
-          }
-          return width;
-      });
-
-      // Ajuste final para garantir que a soma das larguras seja exatamente `pageWidth`
-      const currentTotalWidth = finalColumnWidths.reduce((sum, w) => sum + w, 0);
-      const difference = pageWidth - currentTotalWidth;
-      // Distribui a diferença (pequenos erros de arredondamento) na primeira coluna flexível
-      if (difference !== 0 && flexibleColumnsCount > 0) {
-          const firstFlexibleIndex = finalHeaders.findIndex(h => ['fazenda', 'talhoes', 'variedade', 'maturador'].includes(h.id));
-          if (firstFlexibleIndex !== -1) {
-              finalColumnWidths[firstFlexibleIndex] += difference;
-          }
-      }
-
+      if (selectedCols.variedade) columnWidths.push(80);
+      if (selectedCols.idade) columnWidths.push(50);
+      if (selectedCols.atr) columnWidths.push(40);
+      if (selectedCols.maturador) columnWidths.push(80);
+      if (selectedCols.diasAplicacao) columnWidths.push(60);
 
       const rowHeight = 18;
       const textPadding = 5;
 
-      // Desenhar cabeçalho da tabela
-      currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths, textPadding, rowHeight, finalHeaders);
+      const drawRowHarvest = (rowData, y, isHeader = false, isFooter = false, customWidths) => {
+        const startX = doc.page.margins.left;
+        const fontSize = 8;
+        if (isHeader || isFooter) {
+            doc.font('Helvetica-Bold').fontSize(fontSize);
+            doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            doc.fillColor('black');
+        } else {
+            doc.font('Helvetica').fontSize(fontSize);
+        }
+        let currentX = startX;
+        rowData.forEach((cell, i) => {
+            doc.text(String(cell), currentX + textPadding, y + 5, { width: customWidths[i] - (textPadding * 2), align: 'left'});
+            currentX += customWidths[i];
+        });
+        return y + rowHeight;
+      };
+
+
+      currentY = drawRowHarvest(headersText, currentY, true, false, columnWidths);
 
       let grandTotalProducao = 0;
       let grandTotalArea = 0;
@@ -608,33 +500,44 @@ try {
             saida: dataSaida.toLocaleDateString('pt-BR')
         };
         
-        const rowData = finalHeaders.map(h => rowDataMap[h.id]);
+        const rowData = allHeaders.map(h => rowDataMap[h.id]);
 
-        currentY = await checkPageBreak(doc, currentY, title, generatedBy);
-        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); 
+        currentY = await checkPageBreak(currentY);
+        currentY = drawRowHarvest(rowData, currentY, false, false, columnWidths);
       }
 
       // Totais Gerais
-      currentY = await checkPageBreak(doc, currentY, title, generatedBy, 40);
+      currentY = await checkPageBreak(currentY, 40);
       doc.y = currentY;
       
       const totalRowData = [];
-      let totalGeneralTextAdded = false;
+      let totalColSpan = 0;
+      for (let i = 0; i < baseHeaders.length; i++) {
+        if (baseHeaders[i].id === 'area') {
+            totalRowData.push(grandTotalArea.toFixed(2));
+        } else if (baseHeaders[i].id === 'producao') {
+            totalRowData.push(grandTotalProducao.toFixed(2));
+        } else if (baseHeaders[i].id === 'seq') {
+            totalRowData.push(''); // Vazio
+        } else if (baseHeaders[i].id === 'fazenda') {
+            totalRowData.push('Total Geral');
+        } else {
+            totalRowData.push(''); // Preencher com vazio para outras colunas base
+        }
+      }
 
-      finalHeaders.forEach((header, index) => {
-          if (index === 0 && !totalGeneralTextAdded) { // Primeira coluna para "Total Geral"
-              totalRowData.push('Total Geral');
-              totalGeneralTextAdded = true;
-          } else if (header.id === 'area') {
-              totalRowData.push(grandTotalArea.toFixed(2));
-          } else if (header.id === 'producao') {
-              totalRowData.push(grandTotalProducao.toFixed(2));
-          } else {
-              totalRowData.push(''); // Preenche com vazio para outras colunas
-          }
-      });
+      // Adiciona vazios para colunas opcionais no total
+      for (let i = 0; i < optionalHeaders.length; i++) {
+          totalRowData.push('');
+      }
 
-      drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders);
+      // Ajusta a primeira célula para "Total Geral" e as demais para vazias até chegar nas colunas de soma
+      const totalHeaders = ['Total Geral', ...Array(headersText.length - 1).fill('')];
+      totalHeaders[headersText.indexOf('Área (ha)')] = grandTotalArea.toFixed(2);
+      totalHeaders[headersText.indexOf('Prod. (ton)')] = grandTotalProducao.toFixed(2);
+
+
+      drawRowHarvest(totalHeaders, currentY, false, true, columnWidths);
 
       doc.end();
     } catch (error) {
