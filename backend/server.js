@@ -93,8 +93,8 @@ try {
   };
 
   // Função auxiliar para desenhar linhas da tabela
-  // Adicionado `columnHeaders` para que a função saiba o ID da coluna e aplique a lógica de quebra de linha corretamente.
-  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeaders = []) => {
+  // Adicionado `columnHeadersConfig` para que a função saiba o ID da coluna e aplique a lógica de quebra de linha corretamente.
+  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeadersConfig = []) => { // Default to empty array for safety
     const startX = doc.page.margins.left;
     const fontSize = 8;
     if (isHeader || isFooter) {
@@ -108,19 +108,22 @@ try {
     let maxRowHeight = rowHeight;
 
     rowData.forEach((cell, i) => {
-        // Garante que columnHeaders é um array e que a coluna existe
-        const columnId = (columnHeaders && columnHeaders[i]) ? columnHeaders[i].id : null; 
+        let columnId = null;
+        // Garante que columnHeadersConfig é um array e que o elemento no índice i existe
+        if (Array.isArray(columnHeadersConfig) && i < columnHeadersConfig.length && columnHeadersConfig[i]) {
+            columnId = columnHeadersConfig[i].id;
+        }
+
         const cellWidth = customWidths[i] - (textPadding * 2);
         const textOptions = { width: cellWidth, align: 'left', continued: false };
 
-        // Permitir quebra de linha para a coluna 'talhoes' e para números
-        // Verificar se o conteúdo da célula é um número ou uma string que pode ser um número
         const isNumericContent = !isNaN(parseFloat(String(cell))) && isFinite(String(cell));
-
+        
         if (columnId === 'talhoes' || isNumericContent) {
+            textOptions.lineBreak = true; // Permite quebra de linha
             textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
         } else {
-            textOptions.lineBreak = false; // Evita quebra de linha para outros textos (títulos e nomes)
+            textOptions.lineBreak = false; // Impede quebra de linha para outros textos (títulos e nomes)
         }
         
         const textHeight = doc.heightOfString(String(cell), textOptions);
@@ -129,7 +132,7 @@ try {
         doc.text(String(cell), currentX + padding, y + padding, textOptions);
         currentX += customWidths[i];
     });
-    return y + maxRowHeight; // Retorna a altura máxima da linha para o próximo Y
+    return y + maxRowHeight; // Retorna a altura máxima da linha para a próxima posição Y
   };
 
   // Função auxiliar para verificar quebra de página
@@ -250,7 +253,7 @@ try {
 
       doc.end();
     } catch (error) { 
-        console.error("Erro no PDF de Brocamento:", error);
+        console.error("Erro ao gerar PDF de Brocamento:", error);
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
@@ -380,7 +383,7 @@ try {
 
       doc.end();
     } catch (error) { 
-        console.error("Erro no PDF de Perda:", error);
+        console.error("Erro ao gerar PDF de Perda:", error);
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
