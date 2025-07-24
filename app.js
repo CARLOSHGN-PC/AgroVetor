@@ -717,8 +717,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { select } = App.elements.relatorioColheita;
                 const savedValue = select.value;
                 select.innerHTML = '<option value="">Selecione um plano de colheita...</option>';
-                // [ALTERAÇÃO AQUI]
-                select.innerHTML += '<option value="all">TODOS OS PLANOS</option>';
                 if (App.state.harvestPlans.length === 0) {
                     select.innerHTML += '<option value="" disabled>Nenhum plano salvo encontrado</option>';
                 } else {
