@@ -1177,8 +1177,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.changePasswordModalCloseBtn.addEventListener('click', () => this.closeChangePasswordModal());
                     App.elements.changePasswordModalCancelBtn.addEventListener('click', () => this.closeChangePasswordModal());
                     App.elements.changePasswordModalSaveBtn.addEventListener('click', () => this.performPasswordChange());
-                    App.elements.adminPasswordConfirmModalCloseBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
-                    App.elements.adminPasswordConfirmModalCancelBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
+                    App.elements.adminPasswordConfirmModalCloseBtn.addEventListener('click', () => App.utils.closeAdminPasswordConfirmModal());
+                    App.elements.adminPasswordConfirmModalCancelBtn.addEventListener('click', () => App.utils.closeAdminPasswordConfirmModal());
                 },
                 loadUsers() {
                     const container = App.elements.usersList;
@@ -1227,8 +1227,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.utils.showLoading(true, 'A criar utilizador...');
                     try {
-                        // A função `createUser` é uma função de backend que você precisa chamar.
-                        // Aqui, simulamos a chamada.
                         const response = await fetch('https://us-central1-agrovetor-v2.cloudfunctions.net/createUser', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1257,7 +1255,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const permissionGrid = App.elements.editUserPermissionGrid;
                     permissionGrid.innerHTML = ''; // Limpa
-                    const allPermissions = App.logic.usuarios.getAllPermissions();
+                    const allPermissions = this.getAllPermissions();
                     allPermissions.forEach(p => {
                         const isChecked = user.permissions && user.permissions.includes(p.id);
                         const label = document.createElement('label');
@@ -1316,7 +1314,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         'EXCLUIR UTILIZADOR',
                         `Esta ação é IRREVERSÍVEL. Tem a certeza absoluta que deseja excluir o utilizador ${userEmail}? Todos os dados associados podem ser perdidos.`,
                         async () => {
-                            // A exclusão de um utilizador deve ser feita no backend por razões de segurança.
                             App.utils.showAlert('A funcionalidade de exclusão deve ser implementada no backend.', 'warning');
                         }
                     );
@@ -1368,9 +1365,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         { id: 'lancamentoPerda', label: 'Lanç. Perda', icon: 'fas fa-dollar-sign' },
                         { id: 'relatorioBroca', label: 'Relatório Broca', icon: 'fas fa-chart-bar' },
                         { id: 'relatorioPerda', label: 'Relatório Perda', icon: 'fas fa-chart-pie' },
-                        { id: 'excluir', label: 'Excluir Dados', icon: 'fas fa-trash' },
+                        { id: 'excluirDados', label: 'Excluir Dados', icon: 'fas fa-trash' },
                         { id: 'gerenciarUsuarios', label: 'Gerir Utilizadores', icon: 'fas fa-users-cog' },
-                        { id: 'configuracoes', label: 'Cadastros', icon: 'fas fa-cog' },
+                        { id: 'configuracoesEmpresa', label: 'Config. Empresa', icon: 'fas fa-building' },
                         { id: 'cadastrarPessoas', label: 'Cadastrar Pessoas', icon: 'fas fa-id-card' }
                     ];
                 },
@@ -2106,21 +2103,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderChart('graficoTopOperadores', this.getTopOperadoresData);
                 },
                 renderKPIs() {
-                    // KPI Brocamento
                     const totalEntrenos = App.state.inspecoesBroca.reduce((sum, item) => sum + item.entrenos, 0);
                     const totalBrocados = App.state.inspecoesBroca.reduce((sum, item) => sum + item.brocado, 0);
                     const mediaBrocamento = totalEntrenos > 0 ? (totalBrocados / totalEntrenos) * 100 : 0;
                     App.elements.kpiBrocamento.innerHTML = this.createKpiCard('bug', 'Média Brocamento', `${mediaBrocamento.toFixed(2)}%`, 'var(--color-danger)');
 
-                    // KPI Perda
                     const totalPerdaKg = App.state.inspecoesPerda.reduce((sum, item) => sum + item.totalPerda, 0);
                     App.elements.kpiPerda.innerHTML = this.createKpiCard('balance-scale', 'Perda Total', `${(totalPerdaKg / 1000).toFixed(2)} ton`, 'var(--color-warning)');
                     
-                    // KPI Inspeções
                     const totalInspecoes = App.state.inspecoesBroca.length + App.state.inspecoesPerda.length;
                     App.elements.kpiInspecoes.innerHTML = this.createKpiCard('clipboard-check', 'Total Inspeções', totalInspecoes, 'var(--color-info)');
 
-                    // KPI Fazendas
                     const totalFazendas = App.state.fazendas.length;
                     App.elements.kpiFazendas.innerHTML = this.createKpiCard('tractor', 'Total Fazendas', totalFazendas, 'var(--color-primary)');
                 },
@@ -2189,15 +2182,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     chart.update();
                 },
-                getTopFarmsBrocamentoData() { /* ... Lógica para dados do gráfico ... */ return {type: 'bar', data: { labels: [], datasets: []}}; },
-                getTopFarmsPerdaData() { /* ... Lógica para dados do gráfico ... */ return {type: 'bar', data: { labels: [], datasets: []}}; },
-                getEvolucaoMensalData() { /* ... Lógica para dados do gráfico ... */ return {type: 'line', data: { labels: [], datasets: []}}; },
-                getInspecoesResponsavelData() { /* ... Lógica para dados do gráfico ... */ return {type: 'pie', data: { labels: [], datasets: []}}; },
-                getPerdaPorTipoData() { /* ... Lógica para dados do gráfico ... */ return {type: 'doughnut', data: { labels: [], datasets: []}}; },
-                getTopOperadoresData() { /* ... Lógica para dados do gráfico ... */ return {type: 'bar', data: { labels: [], datasets: []}}; },
-                getAIAnalysis() { /* ... Lógica para análise com IA ... */ },
-                expandChart(canvasId) { /* ... Lógica para expandir gráfico ... */ },
-                closeChartModal() { /* ... Lógica para fechar modal do gráfico ... */ }
+                getTopFarmsBrocamentoData() { return {type: 'bar', data: { labels: [], datasets: []}}; },
+                getTopFarmsPerdaData() { return {type: 'bar', data: { labels: [], datasets: []}}; },
+                getEvolucaoMensalData() { return {type: 'line', data: { labels: [], datasets: []}}; },
+                getInspecoesResponsavelData() { return {type: 'pie', data: { labels: [], datasets: []}}; },
+                getPerdaPorTipoData() { return {type: 'doughnut', data: { labels: [], datasets: []}}; },
+                getTopOperadoresData() { return {type: 'bar', data: { labels: [], datasets: []}}; },
+                getAIAnalysis() { },
+                expandChart(canvasId) { },
+                closeChartModal() { }
             },
             
             planejamentoColheita: {
@@ -2258,13 +2251,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         select.appendChild(option);
                     });
                 },
-                loadTalhoesForSelection(farmCode) { /* ... Lógica para carregar talhões ... */ },
-                addOrUpdateSequenceGroup() { /* ... Lógica para adicionar/atualizar sequência ... */ },
-                cancelEditSequence() { /* ... Lógica para cancelar edição de sequência ... */ },
-                renderSequenceTable() { /* ... Lógica para renderizar tabela de sequência ... */ },
-                renderPlanList() { /* ... Lógica para renderizar lista de planos ... */ },
-                async saveHarvestPlan() { /* ... Lógica para salvar plano de colheita ... */ },
-                deleteHarvestPlan(planId) { /* ... Lógica para deletar plano de colheita ... */ }
+                loadTalhoesForSelection(farmCode) { },
+                addOrUpdateSequenceGroup() { },
+                cancelEditSequence() { },
+                renderSequenceTable() { },
+                renderPlanList() { },
+                async saveHarvestPlan() { },
+                deleteHarvestPlan(planId) { }
             }
         },
 
@@ -2325,7 +2318,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.confirmationModalCloseBtn.onclick = closeModal;
             },
             showAdminPasswordConfirmModal(title, message, onConfirm) {
-                // Similar a showConfirmationModal, mas para o modal de senha de admin
                 const modal = App.elements.adminPasswordConfirmModal;
                 modal.querySelector('h2').textContent = title;
                 modal.querySelector('p').textContent = message;
