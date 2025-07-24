@@ -316,6 +316,73 @@
           border-color: var(--color-accent);
       }
 
+      /* [NOVO] Estilos para as checkboxes customizadas do relatório */
+      .report-options-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 15px;
+      }
+      .report-option-item {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 16px;
+          background-color: var(--color-bg);
+          border: 1px solid var(--color-border);
+          border-radius: var(--border-radius);
+          cursor: pointer;
+          transition: var(--transition);
+          user-select: none;
+      }
+      .report-option-item:hover {
+          border-color: var(--color-accent);
+          background-color: var(--color-primary-light);
+      }
+      .report-option-item input[type="checkbox"] {
+          position: absolute;
+          opacity: 0;
+          width: 0;
+          height: 0;
+      }
+      .report-option-item .checkbox-visual {
+          flex-shrink: 0;
+          width: 20px;
+          height: 20px;
+          border: 2px solid var(--color-text-light);
+          border-radius: 6px;
+          background-color: var(--color-surface);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: var(--transition);
+      }
+      .report-option-item .checkbox-visual i {
+          font-size: 12px;
+          color: var(--color-white);
+          transform: scale(0);
+          transition: var(--transition);
+      }
+      .report-option-item input[type="checkbox"]:checked ~ .checkbox-visual {
+          background-color: var(--color-primary);
+          border-color: var(--color-primary);
+      }
+      .report-option-item input[type="checkbox"]:checked ~ .checkbox-visual i {
+          transform: scale(1);
+      }
+      .report-option-item .option-content {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-weight: 500;
+      }
+      .report-option-item .option-content i {
+          color: var(--color-primary);
+          font-size: 18px;
+          width: 20px;
+          text-align: center;
+      }
+
       @media (max-width: 1200px) {
         .chart-card {
             grid-column: span 1;
@@ -634,6 +701,7 @@
                 </div>
             </section>
 
+            <!-- [ALTERADO] Seção do Relatório Customizado de Colheita -->
             <section id="relatorioColheitaCustom" class="tab-content card" aria-label="Relatório Customizado de Colheita" tabindex="0" hidden>
                 <h2 style="color: var(--color-purple);"><i class="fas fa-file-invoice"></i> Relatório Customizado de Colheita</h2>
                 
@@ -649,20 +717,40 @@
                 
                 <div class="card" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-check-square"></i> 2. Selecione as Colunas para o Relatório</h3>
-                    <div id="reportOptionsContainer" class="permission-grid" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));">
-                        <label class="permission-item"><input type="checkbox" data-column="variedade" checked> <i class="fas fa-seedling"></i> Variedade</label>
-                        <label class="permission-item"><input type="checkbox" data-column="idade" checked> <i class="fas fa-hourglass-half"></i> Idade Média (meses)</label>
-                        <label class="permission-item"><input type="checkbox" data-column="atr" checked> <i class="fas fa-vial"></i> ATR</label>
-                        <label class="permission-item"><input type="checkbox" data-column="maturador" checked> <i class="fas fa-flask"></i> Maturador Aplicado</label>
-                        <label class="permission-item"><input type="checkbox" data-column="diasAplicacao" checked> <i class="fas fa-calendar-day"></i> Dias desde Aplicação</label>
+                    <div id="reportOptionsContainer" class="report-options-grid">
+                        <label class="report-option-item">
+                            <input type="checkbox" data-column="variedade" checked>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content"><i class="fas fa-seedling"></i> Variedade</span>
+                        </label>
+                        <label class="report-option-item">
+                            <input type="checkbox" data-column="idade" checked>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content"><i class="fas fa-hourglass-half"></i> Idade Média (meses)</span>
+                        </label>
+                        <label class="report-option-item">
+                            <input type="checkbox" data-column="atr" checked>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content"><i class="fas fa-vial"></i> ATR</span>
+                        </label>
+                        <label class="report-option-item">
+                            <input type="checkbox" data-column="maturador" checked>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content"><i class="fas fa-flask"></i> Maturador Aplicado</span>
+                        </label>
+                        <label class="report-option-item">
+                            <input type="checkbox" data-column="diasAplicacao" checked>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content"><i class="fas fa-calendar-day"></i> Dias desde Aplicação</span>
+                        </label>
                     </div>
                 </div>
                 
                 <div class="card" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-file-export"></i> 3. Gerar Relatório</h3>
                     <div class="botoes-relatorio">
-                        <button id="btnGerarRelatorioCustomExcel" class="save" style="background: var(--color-primary-dark);"><i class="fas fa-file-excel"></i> Gerar Excel</button>
-                        <button id="btnGerarRelatorioCustomPDF" class="save" style="background: var(--color-danger);"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+                        <button id="btnGerarRelatorioCustomPDF" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                        <button id="btnGerarRelatorioCustomExcel" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                     </div>
                 </div>
             </section>
