@@ -1,212 +1,172 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, deleteField } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-// Removido: import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // FIREBASE: Configuração e inicialização do Firebase
     const firebaseConfig = {
-        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY", // Substitua pela sua chave de API
+        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
         authDomain: "agrovetor-v2.firebaseapp.com",
         projectId: "agrovetor-v2",
         storageBucket: "agrovetor-v2.appspot.com",
         messagingSenderId: "782518751171",
-        appId: "1:782518751171:web:d501ee31c1db33da4eb776",
-        measurementId: "G-JN4MSW63JR"
+        appId: "1:782518751171:web:d226a3f819f7a7593c617b"
     };
 
-    // Aplicação principal do Firebase
-    const firebaseApp = initializeApp(firebaseConfig);
-    const db = getFirestore(firebaseApp);
-    const auth = getAuth(firebaseApp);
-    // Removido: const storage = getStorage(firebaseApp);
-
-    // Habilita a persistência offline
-    enableIndexedDbPersistence(db)
-        .catch((err) => {
-            if (err.code == 'failed-precondition') {
-                console.warn("A persistência offline falhou. Múltiplas abas abertas?");
-            } else if (err.code == 'unimplemented') {
-                console.warn("O navegador atual não suporta a persistência offline.");
-            }
-        });
-
-
     const App = {
-        config: {
-            appName: "Inspeção e Planeamento de Cana com IA",
-            themeKey: 'canaAppTheme',
-            inactivityTimeout: 15 * 60 * 1000, // 15 minutos
-            menuConfig: [
-                { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
-                { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
-                {
-                    label: 'Colheita', icon: 'fas fa-tractor',
-                    submenu: [
-                        { label: 'Planeamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
-                    ]
-                },
-                {
-                    label: 'Lançamentos', icon: 'fas fa-pen-to-square',
-                    submenu: [
-                        { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
-                        { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
-                    ]
-                },
-                {
-                    label: 'Relatórios', icon: 'fas fa-chart-line',
-                    submenu: [
-                        { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
-                        { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
-                        { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
-                    ]
-                },
-                {
-                    label: 'Administrativo', icon: 'fas fa-cogs',
-                    submenu: [
-                        { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
-                        { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
-                        { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
-                        { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
-                        { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
-                    ]
-                },
-            ],
-            roles: {
-                admin: { dashboard: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
-                supervisor: { dashboard: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
-                colaborador: { dashboard: true, lancamentoBroca: true, lancamentoPerda: true },
-                user: { dashboard: true }
-            }
-        },
-
+        // --- PROPRIEDADES ---
+        db: null,
+        auth: null,
+        elements: {},
         state: {
             currentUser: null,
-            users: [],
-            registros: [],
-            perdas: [],
-            planos: [],
+            activeTab: null,
             fazendas: [],
-            personnel: [],
-            companyLogo: null, // Agora armazenará a string Base64
-            activeSubmenu: null,
-            charts: {},
-            harvestPlans: [],
-            activeHarvestPlan: null,
-            inactivityTimer: null,
-            unsubscribeListeners: [],
+            lancamentosBroca: [],
+            lancamentosPerda: [],
+            usuarios: [],
+            planosInspecao: [],
+            planosColheita: [],
+            pessoas: [],
+            activeCharts: {},
+            editingHarvestPlan: null,
+            editingHarvestPlanId: null,
+            isOffline: false,
             deferredInstallPrompt: null,
-            newUserCreationData: null,
-            expandedChart: null,
+            companyConfig: {},
+            isDragging: false,
+            draggedElement: null,
+            draggedGroupId: null,
+            adminActionCallback: null
         },
         
-        elements: {
-            loadingOverlay: document.getElementById('loading-overlay'),
-            loadingProgressText: document.getElementById('loading-progress-text'),
-            loginScreen: document.getElementById('loginScreen'),
-            appScreen: document.getElementById('appScreen'),
-            loginUser: document.getElementById('loginUser'),
-            loginPass: document.getElementById('loginPass'),
-            btnLogin: document.getElementById('btnLogin'),
-            loginMessage: document.getElementById('loginMessage'),
-            loginForm: document.getElementById('loginForm'),
-            offlineUserSelection: document.getElementById('offlineUserSelection'),
-            offlineUserList: document.getElementById('offlineUserList'),
-            headerTitle: document.querySelector('header h1'),
-            currentDateTime: document.getElementById('currentDateTime'),
-            logoutBtn: document.getElementById('logoutBtn'),
-            btnToggleMenu: document.getElementById('btnToggleMenu'),
-            menu: document.getElementById('menu'),
-            content: document.getElementById('content'),
-            alertContainer: document.getElementById('alertContainer'),
-            userMenu: {
-                container: document.getElementById('user-menu-container'),
-                toggle: document.getElementById('user-menu-toggle'),
-                dropdown: document.getElementById('user-menu-dropdown'),
-                username: document.getElementById('userMenuUsername'),
-                changePasswordBtn: document.getElementById('changePasswordBtn'),
-                themeButtons: document.querySelectorAll('.theme-button')
-            },
-            confirmationModal: {
-                overlay: document.getElementById('confirmationModal'),
-                title: document.getElementById('confirmationModalTitle'),
-                message: document.getElementById('confirmationModalMessage'),
-                confirmBtn: document.getElementById('confirmationModalConfirmBtn'),
-                cancelBtn: document.getElementById('confirmationModalCancelBtn'),
-                closeBtn: document.getElementById('confirmationModalCloseBtn'),
-            },
-            changePasswordModal: {
-                overlay: document.getElementById('changePasswordModal'),
-                closeBtn: document.getElementById('changePasswordModalCloseBtn'),
-                cancelBtn: document.getElementById('changePasswordModalCancelBtn'),
-                saveBtn: document.getElementById('changePasswordModalSaveBtn'),
-                currentPassword: document.getElementById('currentPassword'),
-                newPassword: document.getElementById('newPassword'),
-                confirmNewPassword: document.getElementById('confirmNewPassword'),
-            },
-            adminPasswordConfirmModal: {
-                overlay: document.getElementById('adminPasswordConfirmModal'),
-                closeBtn: document.getElementById('adminPasswordConfirmModalCloseBtn'),
-                cancelBtn: document.getElementById('adminPasswordConfirmModalCancelBtn'),
-                confirmBtn: document.getElementById('adminPasswordConfirmModalConfirmBtn'),
-                passwordInput: document.getElementById('adminConfirmPassword')
-            },
-            chartModal: {
-                overlay: document.getElementById('chartModal'),
-                title: document.getElementById('chartModalTitle'),
-                closeBtn: document.getElementById('chartModalCloseBtn'),
-                canvas: document.getElementById('expandedChartCanvas'),
-            },
-            companyConfig: {
-                logoUploadArea: document.getElementById('logoUploadArea'),
-                logoInput: document.getElementById('logoInput'),
-                logoPreview: document.getElementById('logoPreview'),
-                removeLogoBtn: document.getElementById('removeLogoBtn'),
-            },
-            dashboard: {
-                kpiBrocamento: document.getElementById('kpi-brocamento'),
-                kpiPerda: document.getElementById('kpi-perda'),
-                kpiInspecoes: document.getElementById('kpi-inspecoes'),
-                kpiFazendas: document.getElementById('kpi-fazendas'),
-                btnAnalisar: document.getElementById('btnAnalisarDashboard'),
-                aiCard: document.getElementById('ai-analysis-card'),
-                aiContent: document.getElementById('ai-analysis-content'),
-            },
-            users: {
-                username: document.getElementById('newUserUsername'),
-                password: document.getElementById('newUserPassword'),
-                role: document.getElementById('newUserRole'),
-                permissionsContainer: document.querySelector('#gerenciarUsuarios .permission-grid'),
-                permissionCheckboxes: document.querySelectorAll('#gerenciarUsuarios .permission-grid input[type="checkbox"]'),
-                btnCreate: document.getElementById('btnCreateUser'),
-                list: document.getElementById('usersList')
-            },
-            userEditModal: {
-                overlay: document.getElementById('userEditModal'),
-                title: document.getElementById('userEditModalTitle'),
-                closeBtn: document.getElementById('userEditModalCloseBtn'),
-                editingUserId: document.getElementById('editingUserId'),
-                username: document.getElementById('editUserUsername'),
-                role: document.getElementById('editUserRole'),
-                permissionGrid: document.getElementById('editUserPermissionGrid'),
-                btnSaveChanges: document.getElementById('btnSaveUserChanges'),
-                btnResetPassword: document.getElementById('btnResetPassword'),
-                btnDeleteUser: document.getElementById('btnDeleteUser'),
-            },
-            personnel: {
-                id: document.getElementById('personnelId'),
-                matricula: document.getElementById('personnelMatricula'),
-                name: document.getElementById('personnelName'),
-                btnSave: document.getElementById('btnSavePersonnel'),
-                list: document.getElementById('personnelList'),
-                csvUploadArea: document.getElementById('personnelCsvUploadArea'),
-                csvFileInput: document.getElementById('personnelCsvInput'),
-                btnDownloadCsvTemplate: document.getElementById('btnDownloadPersonnelCsvTemplate'),
-            },
-            cadastros: {
+        // --- INICIALIZAÇÃO ---
+        init() {
+            try {
+                const firebaseApp = initializeApp(firebaseConfig);
+                this.db = getFirestore(firebaseApp);
+                this.auth = getAuth(firebaseApp);
+
+                enableIndexedDbPersistence(this.db)
+                    .catch((err) => {
+                        if (err.code == 'failed-precondition') {
+                            console.warn("Persistência não pôde ser habilitada, múltiplas abas abertas.");
+                        } else if (err.code == 'unimplemented') {
+                            console.warn("O browser atual não suporta persistência offline.");
+                        }
+                    });
+
+                this.cacheElements();
+                this.bindEvents();
+                this.auth.handleAuthStateChange();
+                this.pwa.registerServiceWorker();
+
+            } catch (error) {
+                console.error("Erro ao inicializar o Firebase:", error);
+                this.ui.showAlert('Falha crítica ao inicializar a aplicação. Verifique a consola.', 'error');
+            }
+        },
+
+        // --- CACHE DE ELEMENTOS ---
+        cacheElements() {
+            this.elements.loginScreen = document.getElementById('loginScreen');
+            this.elements.appScreen = document.getElementById('appScreen');
+            this.elements.content = document.getElementById('content');
+            this.elements.menu = document.getElementById('menu');
+            this.elements.btnToggleMenu = document.getElementById('btnToggleMenu');
+            this.elements.alertContainer = document.getElementById('alertContainer');
+            this.elements.loadingOverlay = document.getElementById('loading-overlay');
+            
+            this.elements.loginForm = document.getElementById('loginForm');
+            this.elements.loginUser = document.getElementById('loginUser');
+            this.elements.loginPass = document.getElementById('loginPass');
+            this.elements.btnLogin = document.getElementById('btnLogin');
+            this.elements.loginMessage = document.getElementById('loginMessage');
+            this.elements.offlineUserSelection = document.getElementById('offlineUserSelection');
+            this.elements.offlineUserList = document.getElementById('offlineUserList');
+            this.elements.userMenuContainer = document.getElementById('user-menu-container');
+            this.elements.userMenuToggle = document.getElementById('user-menu-toggle');
+            this.elements.userMenuDropdown = document.getElementById('user-menu-dropdown');
+            this.elements.userMenuUsername = document.getElementById('userMenuUsername');
+            this.elements.currentDateTime = document.getElementById('currentDateTime');
+            this.elements.logoutBtn = document.getElementById('logoutBtn');
+            this.elements.installAppBtn = document.getElementById('installAppBtn');
+            this.elements.changePasswordBtn = document.getElementById('changePasswordBtn');
+            
+            this.elements.themeButtons = document.querySelectorAll('.theme-button');
+            
+            // [NOVO] Dashboard
+            this.elements.dashboardSelector = document.getElementById('dashboard-selector');
+            this.elements.dashboardBroca = document.getElementById('dashboard-broca');
+            this.elements.dashboardPerda = document.getElementById('dashboard-perda');
+            this.elements.dashboardAerea = document.getElementById('dashboard-aerea');
+            this.elements.cardBroca = document.getElementById('card-broca');
+            this.elements.cardPerda = document.getElementById('card-perda');
+            this.elements.cardAerea = document.getElementById('card-aerea');
+            this.elements.btnBackToSelectorBroca = document.getElementById('btn-back-to-selector-broca');
+            this.elements.btnBackToSelectorPerda = document.getElementById('btn-back-to-selector-perda');
+            this.elements.btnBackToSelectorAerea = document.getElementById('btn-back-to-selector-aerea');
+
+            this.elements.formBroca = {
+                form: document.getElementById('formBrocamento'),
+                codigo: document.getElementById('codigo'),
+                data: document.getElementById('data'),
+                talhao: document.getElementById('talhao'),
+                varietyDisplay: document.getElementById('varietyDisplay'),
+                entrenos: document.getElementById('entrenos'),
+                brocaBase: document.getElementById('brocaBase'),
+                brocaMeio: document.getElementById('brocaMeio'),
+                brocaTopo: document.getElementById('brocaTopo'),
+                brocado: document.getElementById('brocado'),
+                resultado: document.getElementById('resultado'),
+                btnSalvar: document.getElementById('btnSalvarBrocamento')
+            };
+
+            this.elements.formPerda = {
+                form: document.getElementById('formPerda'),
+                dataPerda: document.getElementById('dataPerda'),
+                codigoPerda: document.getElementById('codigoPerda'),
+                talhaoPerda: document.getElementById('talhaoPerda'),
+                varietyDisplayPerda: document.getElementById('varietyDisplayPerda'),
+                frenteServico: document.getElementById('frenteServico'),
+                turno: document.getElementById('turno'),
+                frotaEquipamento: document.getElementById('frotaEquipamento'),
+                matriculaOperador: document.getElementById('matriculaOperador'),
+                operadorNome: document.getElementById('operadorNome'),
+                canaInteira: document.getElementById('canaInteira'),
+                tolete: document.getElementById('tolete'),
+                toco: document.getElementById('toco'),
+                ponta: document.getElementById('ponta'),
+                estilhaco: document.getElementById('estilhaco'),
+                pedaco: document.getElementById('pedaco'),
+                resultadoPerda: document.getElementById('resultadoPerda'),
+                btnSalvarPerda: document.getElementById('btnSalvarPerda')
+            };
+            
+            this.elements.fazendaFiltroBrocamento = document.getElementById('fazendaFiltroBrocamento');
+            this.elements.inicioBrocamento = document.getElementById('inicioBrocamento');
+            this.elements.fimBrocamento = document.getElementById('fimBrocamento');
+            this.elements.btnPDFBrocamento = document.getElementById('btnPDFBrocamento');
+            this.elements.btnExcelBrocamento = document.getElementById('btnExcelBrocamento');
+            this.elements.tipoRelatorioBroca = document.getElementById('tipoRelatorioBroca');
+
+            this.elements.fazendaFiltroPerda = document.getElementById('fazendaFiltroPerda');
+            this.elements.talhaoFiltroPerda = document.getElementById('talhaoFiltroPerda');
+            this.elements.operadorFiltroPerda = document.getElementById('operadorFiltroPerda');
+            this.elements.frenteFiltroPerda = document.getElementById('frenteFiltroPerda');
+            this.elements.inicioPerda = document.getElementById('inicioPerda');
+            this.elements.fimPerda = document.getElementById('fimPerda');
+            this.elements.btnPDFPerda = document.getElementById('btnPDFPerda');
+            this.elements.btnExcelPerda = document.getElementById('btnExcelPerda');
+            this.elements.tipoRelatorioPerda = document.getElementById('tipoRelatorioPerda');
+            
+            this.elements.listaExclusao = document.getElementById('listaExclusao');
+            
+            this.elements.cadastros = {
+                csvUploadArea: document.getElementById('csvUploadArea'),
+                csvFileInput: document.getElementById('csvFileInput'),
+                btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
                 farmCode: document.getElementById('farmCode'),
                 farmName: document.getElementById('farmName'),
                 btnSaveFarm: document.getElementById('btnSaveFarm'),
@@ -218,16 +178,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 talhaoName: document.getElementById('talhaoName'),
                 talhaoArea: document.getElementById('talhaoArea'),
                 talhaoProducao: document.getElementById('talhaoProducao'),
-                talhaoCorte: document.getElementById('talhaoCorte'),
                 talhaoVariedade: document.getElementById('talhaoVariedade'),
+                talhaoCorte: document.getElementById('talhaoCorte'),
                 talhaoDistancia: document.getElementById('talhaoDistancia'),
                 talhaoUltimaColheita: document.getElementById('talhaoUltimaColheita'),
                 btnSaveTalhao: document.getElementById('btnSaveTalhao'),
-                csvUploadArea: document.getElementById('csvUploadArea'),
-                csvFileInput: document.getElementById('csvFileInput'),
-                btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
-            },
-            planejamento: {
+            };
+
+            this.elements.planejamento = {
+                form: document.getElementById('formPlanejamentoInspecao'),
                 tipo: document.getElementById('planoTipo'),
                 fazenda: document.getElementById('planoFazenda'),
                 talhao: document.getElementById('planoTalhao'),
@@ -236,2524 +195,2409 @@ document.addEventListener('DOMContentLoaded', () => {
                 meta: document.getElementById('planoMeta'),
                 obs: document.getElementById('planoObs'),
                 btnAgendar: document.getElementById('btnAgendarInspecao'),
-                btnSugerir: document.getElementById('btnSugerirPlano'),
-                lista: document.getElementById('listaPlanejamento')
-            },
-            harvest: {
+                lista: document.getElementById('listaPlanejamento'),
+            };
+
+            this.elements.planejamentoColheita = {
                 plansListContainer: document.getElementById('harvest-plans-list-container'),
                 plansList: document.getElementById('harvest-plans-list'),
-                planEditor: document.getElementById('harvest-plan-editor'),
+                editor: document.getElementById('harvest-plan-editor'),
                 btnAddNew: document.getElementById('btnAddNewHarvestPlan'),
-                maturador: document.getElementById('harvestMaturador'),
-                maturadorDate: document.getElementById('harvestMaturadorDate'),
-                btnSavePlan: document.getElementById('btnSaveHarvestPlan'),
-                btnCancelPlan: document.getElementById('btnCancelHarvestPlan'),
                 frontName: document.getElementById('harvestFrontName'),
                 startDate: document.getElementById('harvestStartDate'),
                 dailyRate: document.getElementById('harvestDailyRate'),
-                fazenda: document.getElementById('harvestFazenda'),
-                atr: document.getElementById('harvestAtr'),
+                addOrEditTitle: document.getElementById('addOrEditSequenceTitle'),
+                editingGroupId: document.getElementById('editingGroupId'),
+                fazendaSelect: document.getElementById('harvestFazenda'),
+                atrInput: document.getElementById('harvestAtr'),
+                maturadorInput: document.getElementById('harvestMaturador'),
+                maturadorDate: document.getElementById('harvestMaturadorDate'),
+                talhaoSelectionContainer: document.getElementById('harvestTalhaoSelectionContainer'),
                 talhaoSelectionList: document.getElementById('harvestTalhaoSelectionList'),
                 btnAddOrUpdate: document.getElementById('btnAddOrUpdateHarvestSequence'),
                 btnCancelEdit: document.getElementById('btnCancelEditSequence'),
-                addOrEditTitle: document.getElementById('addOrEditSequenceTitle'),
-                editingGroupId: document.getElementById('editingGroupId'),
-                btnOptimize: document.getElementById('btnOptimizeHarvest'),
                 tableBody: document.querySelector('#harvestPlanTable tbody'),
                 summary: document.getElementById('harvestSummary'),
-            },
-            broca: {
-                form: document.getElementById('lancamentoBroca'),
-                codigo: document.getElementById('codigo'),
-                data: document.getElementById('data'),
-                talhao: document.getElementById('talhao'),
-                varietyDisplay: document.getElementById('varietyDisplay'),
-                entrenos: document.getElementById('entrenos'),
-                base: document.getElementById('brocaBase'),
-                meio: document.getElementById('brocaMeio'),
-                topo: document.getElementById('brocaTopo'),
-                brocado: document.getElementById('brocado'),
-                resultado: document.getElementById('resultado'),
-                btnSalvar: document.getElementById('btnSalvarBrocamento'),
-                filtroFazenda: document.getElementById('fazendaFiltroBrocamento'),
-                tipoRelatorio: document.getElementById('tipoRelatorioBroca'),
-                filtroInicio: document.getElementById('inicioBrocamento'),
-                filtroFim: document.getElementById('fimBrocamento'),
-                btnPDF: document.getElementById('btnPDFBrocamento'),
-                btnExcel: document.getElementById('btnExcelBrocamento'),
-            },
-            perda: {
-                form: document.getElementById('lancamentoPerda'),
-                data: document.getElementById('dataPerda'),
-                codigo: document.getElementById('codigoPerda'),
-                talhao: document.getElementById('talhaoPerda'),
-                varietyDisplay: document.getElementById('varietyDisplayPerda'),
-                frente: document.getElementById('frenteServico'),
-                turno: document.getElementById('turno'),
-                frota: document.getElementById('frotaEquipamento'),
-                matricula: document.getElementById('matriculaOperador'),
-                operadorNome: document.getElementById('operadorNome'),
-                canaInteira: document.getElementById('canaInteira'),
-                tolete: document.getElementById('tolete'),
-                toco: document.getElementById('toco'),
-                ponta: document.getElementById('ponta'),
-                estilhaco: document.getElementById('estilhaco'),
-                pedaco: document.getElementById('pedaco'),
-                resultado: document.getElementById('resultadoPerda'),
-                btnSalvar: document.getElementById('btnSalvarPerda'),
-                filtroFazenda: document.getElementById('fazendaFiltroPerda'),
-                filtroTalhao: document.getElementById('talhaoFiltroPerda'),
-                filtroOperador: document.getElementById('operadorFiltroPerda'),
-                filtroFrente: document.getElementById('frenteFiltroPerda'),
-                filtroInicio: document.getElementById('inicioPerda'),
-                filtroFim: document.getElementById('fimPerda'),
-                tipoRelatorio: document.getElementById('tipoRelatorioPerda'),
-                btnPDF: document.getElementById('btnPDFPerda'),
-                btnExcel: document.getElementById('btnExcelPerda'),
-            },
-            exclusao: {
-                lista: document.getElementById('listaExclusao')
-            },
-            relatorioColheita: {
-                select: document.getElementById('planoRelatorioSelect'),
-                optionsContainer: document.querySelector('#relatorioColheitaCustom #reportOptionsContainer'),
+                btnSavePlan: document.getElementById('btnSaveHarvestPlan'),
+                btnCancelPlan: document.getElementById('btnCancelHarvestPlan'),
+                btnOptimize: document.getElementById('btnOptimizeHarvest')
+            };
+
+            this.elements.relatorioColheitaCustom = {
+                planoSelect: document.getElementById('planoRelatorioSelect'),
+                optionsContainer: document.getElementById('reportOptionsContainer'),
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel')
-            },
-            installAppBtn: document.getElementById('installAppBtn'),
+            };
+
+            this.elements.gerenciarUsuarios = {
+                form: document.getElementById('formCreateUser'),
+                newUserUsername: document.getElementById('newUserUsername'),
+                newUserPassword: document.getElementById('newUserPassword'),
+                newUserRole: document.getElementById('newUserRole'),
+                permissionCheckboxes: document.querySelectorAll('#gerenciarUsuarios .permission-grid input[type="checkbox"]'),
+                btnCreateUser: document.getElementById('btnCreateUser'),
+                usersList: document.getElementById('usersList'),
+            };
+
+            this.elements.cadastrarPessoas = {
+                form: document.getElementById('formPersonnel'),
+                csvUploadArea: document.getElementById('personnelCsvUploadArea'),
+                csvInput: document.getElementById('personnelCsvInput'),
+                btnDownloadTemplate: document.getElementById('btnDownloadPersonnelCsvTemplate'),
+                personnelId: document.getElementById('personnelId'),
+                matricula: document.getElementById('personnelMatricula'),
+                name: document.getElementById('personnelName'),
+                btnSave: document.getElementById('btnSavePersonnel'),
+                list: document.getElementById('personnelList'),
+            };
+            
+            this.elements.configuracoesEmpresa = {
+                logoUploadArea: document.getElementById('logoUploadArea'),
+                logoInput: document.getElementById('logoInput'),
+                logoPreview: document.getElementById('logoPreview'),
+                removeLogoBtn: document.getElementById('removeLogoBtn'),
+            };
+
+            this.elements.modals = {
+                userEdit: {
+                    overlay: document.getElementById('userEditModal'),
+                    title: document.getElementById('userEditModalTitle'),
+                    closeBtn: document.getElementById('userEditModalCloseBtn'),
+                    userId: document.getElementById('editingUserId'),
+                    username: document.getElementById('editUserUsername'),
+                    role: document.getElementById('editUserRole'),
+                    permissionGrid: document.getElementById('editUserPermissionGrid'),
+                    btnSave: document.getElementById('btnSaveUserChanges'),
+                    btnResetPass: document.getElementById('btnResetPassword'),
+                    btnDelete: document.getElementById('btnDeleteUser'),
+                },
+                confirmation: {
+                    overlay: document.getElementById('confirmationModal'),
+                    title: document.getElementById('confirmationModalTitle'),
+                    message: document.getElementById('confirmationModalMessage'),
+                    confirmBtn: document.getElementById('confirmationModalConfirmBtn'),
+                    cancelBtn: document.getElementById('confirmationModalCancelBtn'),
+                    closeBtn: document.getElementById('confirmationModalCloseBtn'),
+                },
+                changePassword: {
+                    overlay: document.getElementById('changePasswordModal'),
+                    closeBtn: document.getElementById('changePasswordModalCloseBtn'),
+                    currentPassword: document.getElementById('currentPassword'),
+                    newPassword: document.getElementById('newPassword'),
+                    confirmNewPassword: document.getElementById('confirmNewPassword'),
+                    saveBtn: document.getElementById('changePasswordModalSaveBtn'),
+                    cancelBtn: document.getElementById('changePasswordModalCancelBtn'),
+                },
+                adminPassword: {
+                    overlay: document.getElementById('adminPasswordConfirmModal'),
+                    closeBtn: document.getElementById('adminPasswordConfirmModalCloseBtn'),
+                    passwordInput: document.getElementById('adminConfirmPassword'),
+                    confirmBtn: document.getElementById('adminPasswordConfirmModalConfirmBtn'),
+                    cancelBtn: document.getElementById('adminPasswordConfirmModalCancelBtn'),
+                },
+                chart: {
+                     overlay: document.getElementById('chartModal'),
+                     title: document.getElementById('chartModalTitle'),
+                     closeBtn: document.getElementById('chartModalCloseBtn'),
+                     container: document.getElementById('expandedChartContainer'),
+                     canvas: document.getElementById('expandedChartCanvas')
+                }
+            };
         },
 
-        init() {
-            this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
-            this.ui.setupEventListeners();
-            this.auth.checkSession();
-            this.pwa.registerServiceWorker();
+        // --- EVENTOS ---
+        bindEvents() {
+            this.elements.btnLogin.addEventListener('click', () => this.auth.login());
+            this.elements.loginPass.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.auth.login(); });
+            this.elements.logoutBtn.addEventListener('click', () => this.auth.logout());
+            this.elements.btnToggleMenu.addEventListener('click', () => this.ui.toggleMenu());
+            
+            document.addEventListener('click', (e) => {
+                if (this.elements.menu.classList.contains('open') && !this.elements.menu.contains(e.target) && !this.elements.btnToggleMenu.contains(e.target)) {
+                    this.ui.closeMenu();
+                }
+                if (this.elements.userMenuContainer && !this.elements.userMenuContainer.contains(e.target)) {
+                    this.ui.closeUserMenu();
+                }
+            });
+
+            if (this.elements.userMenuToggle) this.elements.userMenuToggle.addEventListener('click', () => this.ui.toggleUserMenu());
+            if (this.elements.installAppBtn) this.elements.installAppBtn.addEventListener('click', () => this.pwa.install());
+            if(this.elements.changePasswordBtn) this.elements.changePasswordBtn.addEventListener('click', () => this.ui.modals.show('changePassword'));
+
+            this.elements.themeButtons.forEach(button => {
+                button.addEventListener('click', (e) => this.ui.setTheme(e.target.id));
+            });
+            
+            this.dashboard.bindEvents();
+            this.forms.bindAll();
+            this.relatorios.bindAll();
+        },
+
+        // --- LÓGICA DE DADOS (DB) ---
+        db_ops: {
+            async fetchCollection(collectionName, stateKey, callback) {
+                try {
+                    const q = query(collection(App.db, collectionName));
+                    onSnapshot(q, (querySnapshot) => {
+                        const dataList = [];
+                        querySnapshot.forEach((doc) => {
+                            dataList.push({ id: doc.id, ...doc.data() });
+                        });
+                        App.state[stateKey] = dataList;
+                        if (callback) callback(dataList);
+                    }, (error) => {
+                        console.error(`Erro ao buscar ${collectionName}: `, error);
+                        App.ui.showAlert(`Falha ao carregar ${collectionName}.`, 'error');
+                    });
+                } catch (error) {
+                    console.error(`Exceção em fetchCollection para ${collectionName}: `, error);
+                }
+            },
+            
+            fetchFazendas() {
+                this.fetchCollection('fazendas', 'fazendas', (data) => {
+                    App.ui.populateSelect(App.elements.formBroca.codigo, data, 'id', 'nome');
+                    App.ui.populateSelect(App.elements.formPerda.codigoPerda, data, 'id', 'nome');
+                    App.ui.populateSelect(App.elements.fazendaFiltroBrocamento, data, 'id', 'nome', 'Todas');
+                    App.ui.populateSelect(App.elements.fazendaFiltroPerda, data, 'id', 'nome', 'Todas');
+                    App.ui.populateSelect(App.elements.cadastros.farmSelect, data, 'id', 'nome', 'Selecione uma fazenda...');
+                    App.ui.populateSelect(App.elements.planejamento.fazenda, data, 'id', 'nome', 'Selecione...');
+                    App.ui.populateSelect(App.elements.planejamentoColheita.fazendaSelect, data, 'id', 'nome', 'Selecione...');
+                });
+            },
+            
+            fetchPessoas() {
+                 this.fetchCollection('pessoas', 'pessoas', (data) => {
+                    App.ui.populateSelect(App.elements.operadorFiltroPerda, data, 'matricula', 'nome', 'Todos');
+                    App.ui.populateSelect(App.elements.planejamento.responsavel, data, 'matricula', 'nome', 'Selecione...');
+                    App.ui.renderPersonnelList(data);
+                 });
+            },
+
+            fetchLancamentosBroca() {
+                this.fetchCollection('lancamentos_broca', 'lancamentosBroca', (data) => {
+                    if (App.state.activeTab === 'dashboard') App.dashboard.renderCharts('broca');
+                    if (App.state.activeTab === 'excluirDados') App.ui.renderExclusionList();
+                });
+            },
+
+            fetchLancamentosPerda() {
+                this.fetchCollection('lancamentos_perda', 'lancamentosPerda', (data) => {
+                    if (App.state.activeTab === 'dashboard') App.dashboard.renderCharts('perda');
+                    if (App.state.activeTab === 'excluirDados') App.ui.renderExclusionList();
+                });
+            },
+            
+            fetchUsuarios() {
+                 this.fetchCollection('usuarios', 'usuarios', (data) => {
+                    App.ui.renderUsersList(data);
+                 });
+            },
+            
+            fetchPlanosInspecao() {
+                this.fetchCollection('planos_inspecao', 'planosInspecao', (data) => {
+                    App.ui.renderPlanosInspecao(data);
+                });
+            },
+            
+            fetchPlanosColheita() {
+                this.fetchCollection('planos_colheita', 'planosColheita', (data) => {
+                    App.ui.renderHarvestPlansList(data);
+                    App.ui.populateSelect(App.elements.relatorioColheitaCustom.planoSelect, data, 'id', 'nome', 'Selecione...');
+                });
+            },
+
+            async fetchCompanyConfig() {
+                const configRef = doc(App.db, 'configuracoes', 'empresa');
+                try {
+                    const docSnap = await getDoc(configRef);
+                    if (docSnap.exists()) {
+                        App.state.companyConfig = docSnap.data();
+                        App.ui.renderCompanyConfig();
+                    }
+                } catch (error) {
+                    console.error("Erro ao buscar configurações da empresa:", error);
+                }
+            },
         },
         
+        // --- AUTENTICAÇÃO ---
         auth: {
-            async checkSession() {
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        const userDoc = await App.data.getUserData(user.uid);
-                        if (userDoc && userDoc.active) {
-                            App.state.currentUser = { ...user, ...userDoc };
-                            App.actions.saveUserProfileLocally(App.state.currentUser);
-                            App.ui.showAppScreen();
-                            App.data.listenToAllData();
-                        } else {
-                            this.logout();
-                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
-                        }
+            handleAuthStateChange() {
+                onAuthStateChanged(App.auth, user => {
+                    if (user && user.email) {
+                        this.handleAuthenticatedUser(user);
                     } else {
-                        const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection(localProfiles);
-                        } else {
-                            App.ui.showLoginScreen();
-                        }
+                        this.handleUnauthenticatedUser();
                     }
                 });
             },
+
+            async handleAuthenticatedUser(user) {
+                App.ui.showLoading(true, "A carregar dados...");
+                const userDocRef = doc(App.db, "usuarios", user.uid);
+                try {
+                    const userDoc = await getDoc(userDocRef);
+                    if (userDoc.exists()) {
+                        App.state.currentUser = { uid: user.uid, email: user.email, ...userDoc.data() };
+                        App.state.isOffline = false;
+                        await this.fetchAllInitialData();
+                        App.ui.showApp();
+                        App.ui.renderMenu();
+                        App.ui.updateUserInfo();
+                        App.ui.setTheme(App.state.currentUser.theme || 'theme-green');
+                        App.ui.showFirstAvailableTab();
+                    } else {
+                        console.error("Documento do utilizador não encontrado no Firestore.");
+                        this.logout();
+                    }
+                } catch (error) {
+                    console.error("Erro ao buscar dados do utilizador:", error);
+                    this.logout();
+                } finally {
+                    App.ui.showLoading(false);
+                }
+            },
+            
+            handleUnauthenticatedUser() {
+                 App.state.currentUser = null;
+                 App.ui.showLogin();
+            },
+
+            async fetchAllInitialData() {
+                const promises = [
+                    App.db_ops.fetchFazendas(),
+                    App.db_ops.fetchPessoas(),
+                    App.db_ops.fetchLancamentosBroca(),
+                    App.db_ops.fetchLancamentosPerda(),
+                    App.db_ops.fetchPlanosInspecao(),
+                    App.db_ops.fetchPlanosColheita(),
+                    App.db_ops.fetchCompanyConfig()
+                ];
+                if (App.auth_guards.isAdmin()) {
+                    promises.push(App.db_ops.fetchUsuarios());
+                }
+                await Promise.all(promises);
+            },
+            
             async login() {
                 const email = App.elements.loginUser.value.trim();
                 const password = App.elements.loginPass.value;
+                App.elements.loginMessage.textContent = '';
                 if (!email || !password) {
-                    App.ui.showLoginMessage("Preencha e-mail e senha.");
+                    App.elements.loginMessage.textContent = 'Por favor, preencha o email e a senha.';
                     return;
                 }
-                App.ui.setLoading(true, "A autenticar...");
+                App.ui.showLoading(true, "A autenticar...");
                 try {
-                    await signInWithEmailAndPassword(auth, email, password);
+                    await signInWithEmailAndPassword(App.auth, email, password);
                 } catch (error) {
-                    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                        App.ui.showLoginMessage("E-mail ou senha inválidos.");
-                    } else if (error.code === 'auth/network-request-failed') {
-                        App.ui.showLoginMessage("Erro de rede. Verifique sua conexão e tente novamente.");
-                    } else {
-                        App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
-                    }
-                    console.error("Erro de login:", error.code, error.message);
-                } finally {
-                    App.ui.setLoading(false);
+                    App.elements.loginMessage.textContent = App.helpers.getFirebaseAuthErrorMessage(error);
+                    App.ui.showLoading(false);
                 }
             },
-            async loginOffline(userId) {
-                const localProfiles = App.actions.getLocalUserProfiles();
-                const userProfile = localProfiles.find(p => p.uid === userId);
-                if (userProfile) {
-                    App.state.currentUser = userProfile;
-                    App.ui.showAppScreen();
-                    App.data.listenToAllData();
-                }
-            },
-            async logout() {
-                if (navigator.onLine) {
-                    await signOut(auth);
-                }
-                App.data.cleanupListeners();
-                App.state.currentUser = null;
-                clearTimeout(App.state.inactivityTimer);
-                App.ui.showLoginScreen();
-            },
-            initiateUserCreation() {
-                const els = App.elements.users;
-                const email = els.username.value.trim();
-                const password = els.password.value;
-                const role = els.role.value;
-                if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
 
-                const permissions = {};
-                els.permissionCheckboxes.forEach(cb => {
-                    permissions[cb.dataset.permission] = cb.checked;
-                });
-
-                App.state.newUserCreationData = { email, password, role, permissions };
-                App.ui.showAdminPasswordConfirmModal();
-            },
-            async createUserAfterAdminConfirmation() {
-                const { email, password, role, permissions } = App.state.newUserCreationData;
-                const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
-
-                if (!adminPassword) {
-                    App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error");
-                    return;
-                }
-
-                App.ui.setLoading(true, "A criar utilizador...");
-                try {
-                    const adminUser = auth.currentUser;
-                    const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
-                    await reauthenticateWithCredential(adminUser, credential);
-                    
-                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-                    const newUser = userCredential.user;
-
-                    await signOut(secondaryAuth);
-
-                    const userData = {
-                        username: email.split('@')[0],
-                        email: email,
-                        role: role,
-                        active: true,
-                        permissions: permissions
-                    };
-                    await App.data.createUserData(newUser.uid, userData);
-                    
-                    App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
-                    App.elements.users.username.value = ''; 
-                    App.elements.users.password.value = ''; 
-                    App.elements.users.role.value = 'user';
-                    App.ui.updatePermissionsForRole('user');
-                    App.ui.closeAdminPasswordConfirmModal();
-
-                } catch (error) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                        App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
-                    } else if (error.code === 'auth/email-already-in-use') {
-                        App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
-                    } else if (error.code === 'auth/weak-password') {
-                        App.ui.showAlert("A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
-                    } else {
-                        App.ui.showAlert("Erro ao criar utilizador.", "error");
-                        console.error("Erro ao criar utilizador:", error);
-                    }
-                } finally {
-                    App.state.newUserCreationData = null;
-                    App.elements.adminPasswordConfirmModal.passwordInput.value = '';
-                    App.ui.setLoading(false);
-                }
-            },
-            async deleteUser(userId) {
-                const userToDelete = App.state.users.find(u => u.id === userId);
-                if (!userToDelete) return;
-                
-                App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
-                    try {
-                        await App.data.updateDocument('users', userId, { active: false });
-                        App.actions.removeUserProfileLocally(userId);
-                        App.ui.showAlert(`Utilizador ${userToDelete.username} desativado.`);
-                        App.ui.closeUserEditModal();
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao desativar utilizador.", "error");
-                    }
-                });
-            },
-            async toggleUserStatus(userId) {
-                const user = App.state.users.find(u => u.id === userId);
-                if (!user) return;
-                const newStatus = !user.active;
-                await App.data.updateDocument('users', userId, { active: newStatus });
-                App.ui.showAlert(`Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
-            },
-            async resetUserPassword(userId) {
-                const user = App.state.users.find(u => u.id === userId);
-                if (!user || !user.email) return;
-
-                App.ui.showConfirmationModal(`Deseja enviar um e-mail de redefinição de senha para ${user.email}?`, async () => {
-                    try {
-                        await sendPasswordResetEmail(auth, user.email);
-                        App.ui.showAlert(`E-mail de redefinição enviado para ${user.email}.`, 'success');
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao enviar e-mail de redefinição.", "error");
-                        console.error(error);
-                    }
-                });
-            },
-            async saveUserChanges(userId) {
-                const modalEls = App.elements.userEditModal;
-                const role = modalEls.role.value;
-                const permissions = {};
-                modalEls.permissionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    permissions[cb.dataset.permission] = cb.checked;
-                });
-                
-                await App.data.updateDocument('users', userId, { role, permissions });
-                App.ui.showAlert("Alterações guardadas com sucesso!");
-                App.ui.closeUserEditModal();
-            }
-        },
-
-        data: {
-            cleanupListeners() {
-                App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
-                App.state.unsubscribeListeners = [];
-            },
-            listenToAllData() {
-                this.cleanupListeners();
-                
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans' ];
-                
-                collectionsToListen.forEach(collectionName => {
-                    const q = collection(db, collectionName);
-                    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                        const data = [];
-                        querySnapshot.forEach((doc) => {
-                            data.push({ id: doc.id, ...doc.data() });
-                        });
-                        App.state[collectionName] = data;
-                        App.ui.renderAllDynamicContent();
-                    }, (error) => {
-                        console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
-                    });
-                    App.state.unsubscribeListeners.push(unsubscribe);
-                });
-                
-                const configDocRef = doc(db, 'config', 'company');
-                const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
-                    // Agora, companyLogo armazena a string Base64 diretamente
-                    App.state.companyLogo = doc.exists() ? doc.data().logoBase64 : null; 
-                    App.ui.renderLogoPreview();
-                });
-                App.state.unsubscribeListeners.push(unsubscribeConfig);
-            },
-            async getDocument(collectionName, docId, options) {
-                return await getDoc(doc(db, collectionName, docId)).then(docSnap => {
-                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
-                });
-            },
-            async addDocument(collectionName, data) {
-                return await addDoc(collection(db, collectionName), { ...data, createdAt: serverTimestamp() });
-            },
-            async setDocument(collectionName, docId, data) {
-                return await setDoc(doc(db, collectionName, docId), data, { merge: true });
-            },
-            async updateDocument(collectionName, docId, data) {
-                return await updateDoc(doc(db, collectionName, docId), data);
-            },
-            async deleteDocument(collectionName, docId) {
-                return await deleteDoc(doc(db, collectionName, docId));
-            },
-            async getUserData(uid, options = {}) {
-                return this.getDocument('users', uid, options);
-            },
-            async createUserData(uid, data) {
-                return this.setDocument('users', uid, data);
+            logout() {
+                signOut(App.auth).catch(error => console.error("Erro ao fazer logout:", error));
             },
         },
         
+        // --- DASHBOARD ---
+        dashboard: {
+            bindEvents() {
+                App.elements.cardBroca.addEventListener('click', () => this.show('broca'));
+                App.elements.cardPerda.addEventListener('click', () => this.show('perda'));
+                App.elements.cardAerea.addEventListener('click', () => this.show('aerea'));
+
+                App.elements.btnBackToSelectorBroca.addEventListener('click', () => this.show('selector'));
+                App.elements.btnBackToSelectorPerda.addEventListener('click', () => this.show('selector'));
+                App.elements.btnBackToSelectorAerea.addEventListener('click', () => this.show('selector'));
+            },
+
+            show(dashboardName) {
+                App.elements.dashboardSelector.style.display = 'none';
+                App.elements.dashboardBroca.style.display = 'none';
+                App.elements.dashboardPerda.style.display = 'none';
+                App.elements.dashboardAerea.style.display = 'none';
+
+                switch (dashboardName) {
+                    case 'selector':
+                        App.elements.dashboardSelector.style.display = 'grid';
+                        App.charts.destroyAll();
+                        break;
+                    case 'broca':
+                        App.elements.dashboardBroca.style.display = 'block';
+                        this.renderCharts('broca');
+                        break;
+                    case 'perda':
+                        App.elements.dashboardPerda.style.display = 'block';
+                        this.renderCharts('perda');
+                        break;
+                    case 'aerea':
+                        App.elements.dashboardAerea.style.display = 'block';
+                        App.charts.destroyAll();
+                        break;
+                }
+            },
+            
+            renderCharts(type) {
+                if (type === 'broca') {
+                    App.charts.renderBrocaDashboardCharts();
+                } else if (type === 'perda') {
+                    App.charts.renderPerdaDashboardCharts();
+                }
+            }
+        },
+
+        // --- INTERFACE (UI) ---
         ui: {
-            setLoading(isLoading, progressText = "A processar...") {
-                App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
-                App.elements.loadingProgressText.textContent = progressText;
-            },
-            showLoginScreen() {
-                App.elements.loginForm.style.display = 'block';
-                App.elements.offlineUserSelection.style.display = 'none';
-                App.elements.loginScreen.style.display = 'flex';
-                App.elements.appScreen.style.display = 'none';
-                App.elements.userMenu.container.style.display = 'none';
-                App.elements.loginUser.value = '';
-                App.elements.loginPass.value = '';
-                App.elements.loginUser.focus();
-                this.closeAllMenus();
-            },
-            showOfflineUserSelection(profiles) {
-                App.elements.loginForm.style.display = 'none';
-                App.elements.offlineUserSelection.style.display = 'block';
-                const { offlineUserList } = App.elements;
-                offlineUserList.innerHTML = '';
-                profiles.forEach(profile => {
-                    const btn = document.createElement('button');
-                    btn.className = 'offline-user-btn';
-                    btn.dataset.uid = profile.uid;
-                    btn.innerHTML = `<i class="fas fa-user-circle"></i> ${profile.username || profile.email}`;
-                    btn.addEventListener('click', () => App.auth.loginOffline(profile.uid));
-                    offlineUserList.appendChild(btn);
-                });
-                App.elements.loginScreen.style.display = 'flex';
-                App.elements.appScreen.style.display = 'none';
-            },
-            showAppScreen() {
-                const { currentUser } = App.state;
-                App.elements.loginScreen.style.display = 'none';
-                App.elements.appScreen.style.display = 'flex';
-                App.elements.userMenu.container.style.display = 'block';
-                App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
-                this.updateDateTime();
-                setInterval(() => this.updateDateTime(), 60000);
-                this.renderMenu();
-                this.renderAllDynamicContent();
-                this.showTab('dashboard');
-                App.actions.resetInactivityTimer();
-            },
-            renderAllDynamicContent() {
-                this.populateFazendaSelects();
-                this.populateUserSelects();
-                this.populateOperatorSelects();
-                this.renderUsersList();
-                this.renderPersonnelList();
-                this.renderLogoPreview();
-                this.renderPlanejamento();
-                this.showHarvestPlanList();
-                this.populateHarvestPlanSelect();
-                if (document.getElementById('dashboard').classList.contains('active')) {
-                    App.charts.renderAll();
+            showTab(tabId) {
+                if (!App.auth_guards.canView(tabId)) {
+                    this.showAlert("Não tem permissão para aceder a esta secção.", 'warning');
+                    return;
                 }
-            },
-            showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
-            showAlert(message, type = 'success', duration = 3000) {
-                const { alertContainer } = App.elements;
-                if (!alertContainer) return;
-                const icons = { success: 'check-circle', error: 'exclamation-circle', warning: 'info-circle', info: 'info-circle' };
-                alertContainer.innerHTML = `<i class="fas fa-${icons[type] || 'info-circle'}"></i> ${message}`;
-                alertContainer.className = `show ${type}`;
-                setTimeout(() => alertContainer.classList.remove('show'), duration);
-            },
-            updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
-            renderMenu() {
-                const { menu } = App.elements; const { menuConfig } = App.config; const { currentUser } = App.state;
-                menu.innerHTML = '';
-                const menuContent = document.createElement('div');
-                menuContent.className = 'menu-content';
-                menu.appendChild(menuContent);
-
-                const createMenuItem = (item) => {
-                    const hasPermission = item.submenu ? 
-                                        item.submenu.some(sub => currentUser.permissions[sub.permission]) : 
-                                        currentUser.permissions[item.permission];
-
-                    if (!hasPermission) return null;
-                    
-                    const btn = document.createElement('button');
-                    btn.className = 'menu-btn';
-                    btn.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span>`;
-                    
-                    if (item.submenu) {
-                        btn.innerHTML += '<span class="arrow">&rsaquo;</span>';
-                        btn.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            this.renderSubmenu(item);
-                        });
-                    } else {
-                        btn.addEventListener('click', () => {
-                            this.closeAllMenus();
-                            this.showTab(item.target);
-                        });
-                    }
-                    return btn;
-                };
-                menuConfig.forEach(item => { const menuItem = createMenuItem(item); if (menuItem) menuContent.appendChild(menuItem); });
-            },
-            renderSubmenu(parentItem) {
-                const { menu } = App.elements;
-                let submenuContent = menu.querySelector('.submenu-content');
-                if (submenuContent) submenuContent.remove();
-
-                submenuContent = document.createElement('div');
-                submenuContent.className = 'submenu-content';
-
-                const backBtn = document.createElement('button');
-                backBtn.className = 'submenu-back-btn';
-                backBtn.innerHTML = '<i class="fas fa-arrow-left"></i> <span>Voltar</span>';
-                backBtn.onclick = () => {
-                    submenuContent.classList.remove('active');
-                    setTimeout(() => this.renderMenu(), 300);
-                };
-                submenuContent.appendChild(backBtn);
                 
-                parentItem.submenu.forEach(subItem => {
-                    if (App.state.currentUser.permissions[subItem.permission]) {
-                        const subBtn = document.createElement('button');
-                        subBtn.className = 'submenu-btn';
-                        subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
-                        subBtn.addEventListener('click', () => {
-                            this.closeAllMenus();
-                            this.showTab(subItem.target);
-                        });
-                        submenuContent.appendChild(subBtn);
-                    }
-                });
-                menu.appendChild(submenuContent);
-                requestAnimationFrame(() => submenuContent.classList.add('active'));
-            },
-            closeAllMenus() {
-                document.body.classList.remove('mobile-menu-open');
-                App.elements.menu.classList.remove('open');
-                App.elements.btnToggleMenu.classList.remove('open');
-                const activeSubmenu = App.elements.menu.querySelector('.submenu-content.active');
-                if(activeSubmenu) activeSubmenu.classList.remove('active');
-            },
-            populateHarvestPlanSelect() {
-                const { select } = App.elements.relatorioColheita;
-                const savedValue = select.value;
-                select.innerHTML = '<option value="">Selecione um plano de colheita...</option>';
-                if (App.state.harvestPlans.length === 0) {
-                    select.innerHTML += '<option value="" disabled>Nenhum plano salvo encontrado</option>';
-                } else {
-                    App.state.harvestPlans.forEach(plan => {
-                        select.innerHTML += `<option value="${plan.id}">${plan.frontName}</option>`;
+                document.querySelectorAll('.tab-content').forEach(tab => tab.hidden = true);
+                
+                const tabToShow = document.getElementById(tabId);
+                if (tabToShow) {
+                    tabToShow.hidden = false;
+                    App.state.activeTab = tabId;
+
+                    document.querySelectorAll('.menu-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                        if (btn.dataset.tab === tabId) btn.classList.add('active');
                     });
-                }
-                select.value = savedValue;
-            },
-            showTab(id) {
-                document.querySelectorAll('.tab-content').forEach(tab => {
-                    tab.classList.remove('active');
-                    tab.hidden = true;
-                });
-                const tab = document.getElementById(id);
-                if (tab) {
-                    tab.classList.add('active');
-                    tab.hidden = false;
-                    if (id === 'dashboard') App.charts.renderAll();
-                    if (id === 'excluirDados') this.renderExclusao();
-                    if (id === 'gerenciarUsuarios') this.renderUsersList();
-                    if (id === 'cadastros') this.renderFarmSelect();
-                    if (id === 'cadastrarPessoas') this.renderPersonnelList();
-                    if (id === 'planejamento') this.renderPlanejamento();
-                    if (id === 'planejamentoColheita') this.showHarvestPlanList();
-                    if (id === 'relatorioBroca' || id === 'relatorioPerda') this.setDefaultDatesForReportForms();
-                    if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
-                    // [CORREÇÃO]: Adicionado setDefaultDatesForEntryForms aqui
-                    if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
-                }
-                this.closeAllMenus();
-            },
-            setDefaultDatesForEntryForms() {
-                const today = new Date().toISOString().split('T')[0];
-                App.elements.broca.data.value = today;
-                App.elements.perda.data.value = today;
-                App.elements.broca.data.max = today;
-                App.elements.perda.data.max = today;
-            },
-            setDefaultDatesForReportForms() {
-                const today = new Date();
-                const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-                const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-
-                App.elements.broca.filtroInicio.value = firstDayOfMonth;
-                App.elements.broca.filtroFim.value = lastDayOfMonth;
-                App.elements.perda.filtroInicio.value = firstDayOfMonth;
-                App.elements.perda.filtroFim.value = lastDayOfMonth;
-            },
-            clearForm(formElement) {
-                if (!formElement) return;
-                const inputs = formElement.querySelectorAll('input, select, textarea');
-                inputs.forEach(input => {
-                    if (input.type === 'checkbox' || input.type === 'radio') {
-                        input.checked = false;
-                    } else if (input.type !== 'date') { // Não limpa o campo de data
-                        input.value = '';
-                    }
-                });
-                formElement.querySelectorAll('.info-display').forEach(el => el.textContent = '');
-                formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '');
-            },
-            populateFazendaSelects() {
-                const selects = [
-                    App.elements.broca.filtroFazenda,
-                    App.elements.perda.filtroFazenda,
-                    App.elements.planejamento.fazenda,
-                    App.elements.harvest.fazenda,
-                    App.elements.cadastros.farmSelect,
-                    App.elements.broca.codigo,
-                    App.elements.perda.codigo
-                ];
-                selects.forEach(select => {
-                    if (!select) return;
-                    const currentValue = select.value;
-                    select.innerHTML = '<option value="">Selecione...</option>';
-                    if(select.id.includes('Filtro')) {
-                        select.innerHTML = '<option value="">Todas</option>';
-                    }
-                    App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
-                        select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
-                    });
-                    select.value = currentValue;
-                });
-            },
-            populateUserSelects() {
-                const select = App.elements.planejamento.responsavel;
-                select.innerHTML = '<option value="">Selecione...</option>';
-                App.state.users
-                    .filter(u => u.role === 'tecnico' || u.role === 'colaborador' || u.role === 'supervisor' || u.role === 'admin')
-                    .sort((a, b) => (a.username || '').localeCompare(b.username || ''))
-                    .forEach(user => { select.innerHTML += `<option value="${user.username}">${user.username}</option>`; });
-            },
-            populateOperatorSelects() {
-                const selects = [App.elements.perda.filtroOperador];
-                selects.forEach(select => {
-                    if (!select) return;
-
-                    const currentValue = select.value;
-                    let firstOptionHTML = '';
-                    if (select.id === 'operadorFiltroPerda') {
-                        firstOptionHTML = '<option value="">Todos</option>';
-                    } else {
-                        firstOptionHTML = '<option value="">Selecione um operador...</option>';
-                    }
-                    select.innerHTML = firstOptionHTML;
                     
-                    App.state.personnel
-                        .sort((a, b) => a.name.localeCompare(b.name))
-                        .forEach(p => {
-                            select.innerHTML += `<option value="${p.matricula}">${p.matricula} - ${p.name}</option>`;
-                        });
-                    select.value = currentValue;
-                });
-            },
-            renderFarmSelect() {
-                const { farmSelect } = App.elements.cadastros;
-                const currentValue = farmSelect.value;
-                farmSelect.innerHTML = '<option value="">Selecione uma fazenda para gerir...</option>';
-                App.state.fazendas.sort((a,b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
-                    farmSelect.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
-                });
-                farmSelect.value = currentValue;
-                if(!currentValue) {
-                    App.elements.cadastros.talhaoManagementContainer.style.display = 'none';
-                }
-            },
-            renderTalhaoList(farmId) {
-                const { talhaoList, talhaoManagementContainer, selectedFarmName } = App.elements.cadastros;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                talhaoList.innerHTML = '';
-                if (!farm) {
-                    talhaoManagementContainer.style.display = 'none';
-                    selectedFarmName.innerHTML = '';
-                    return;
-                }
-                talhaoManagementContainer.style.display = 'block';
-                selectedFarmName.innerHTML = `${farm.code} - ${farm.name} <button id="btnEditFarmName" class="btn-excluir" style="background:var(--color-info); margin-left:10px;"><i class="fas fa-edit"></i></button>`;
-                document.getElementById('btnEditFarmName').addEventListener('click', () => App.actions.editFarmName(farm.id));
-
-                if (!farm.talhoes || farm.talhoes.length === 0) {
-                    talhaoList.innerHTML = '<p>Nenhum talhão cadastrado para esta fazenda.</p>';
-                    return;
-                }
-                const table = document.createElement('table');
-                table.id = 'personnelTable';
-                table.className = 'harvestPlanTable';
-                table.innerHTML = `<thead><tr><th>Nome</th><th>Área</th><th>Produção</th><th>Variedade</th><th>Corte</th><th>Distância</th><th>Última Colheita</th><th>Ações</th></tr></thead><tbody></tbody>`;
-                const tbody = table.querySelector('tbody');
-                farm.talhoes.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
-                    const row = tbody.insertRow();
-                    const dataColheita = talhao.dataUltimaColheita && !isNaN(new Date(talhao.dataUltimaColheita)) 
-                        ? new Date(talhao.dataUltimaColheita + 'T03:00:00Z').toLocaleDateString('pt-BR') 
-                        : 'N/A';
-
-                    row.innerHTML = `
-                        <td data-label="Nome">${talhao.name}</td>
-                        <td data-label="Área">${talhao.area || ''}</td>
-                        <td data-label="Produção">${talhao.producao || ''}</td>
-                        <td data-label="Variedade">${talhao.variedade || ''}</td>
-                        <td data-label="Corte">${talhao.corte || ''}</td>
-                        <td data-label="Distância">${talhao.distancia || ''}</td>
-                        <td data-label="Última Colheita">${dataColheita}</td>
-                        <td data-label="Ações">
-                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-talhao" data-id="${talhao.id}"><i class="fas fa-edit"></i></button>
-                                <button class="btn-excluir" data-action="delete-talhao" data-id="${talhao.id}"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </td>
-                    `;
-                });
-                talhaoList.appendChild(table);
-            },
-            renderHarvestTalhaoSelection(farmId, plotIdsToCheck = []) {
-                const { talhaoSelectionList, editingGroupId } = App.elements.harvest;
-                talhaoSelectionList.innerHTML = '';
-
-                if (!App.state.activeHarvestPlan) return;
-
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm || !farm.talhoes || farm.talhoes.length === 0) {
-                    talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Nenhum talhão cadastrado nesta fazenda.</p>';
-                    return;
-                }
-
-                const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
-                
-                const availableTalhoes = farm.talhoes.filter(t => !allAssignedTalhaoIds.includes(t.id));
-
-                if (availableTalhoes.length === 0 && plotIdsToCheck.length === 0) {
-                        talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados em um plano.</p>';
-                        return;
-                }
-                
-                const talhoesToShow = [...availableTalhoes];
-                if (plotIdsToCheck.length > 0) {
-                    const currentlyEditedTalhoes = farm.talhoes.filter(t => plotIdsToCheck.includes(t.id));
-                    talhoesToShow.push(...currentlyEditedTalhoes);
-                }
-
-                const uniqueTalhoesToShow = [...new Map(talhoesToShow.map(item => [item['id'], item])).values()];
-
-
-                uniqueTalhoesToShow.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
-                    const isChecked = plotIdsToCheck.includes(talhao.id);
-                    
-                    const label = document.createElement('label');
-                    label.className = 'talhao-selection-item';
-                    label.htmlFor = `talhao-select-${talhao.id}`;
-
-                    label.innerHTML = `
-                        <input type="checkbox" id="talhao-select-${talhao.id}" data-talhao-id="${talhao.id}" ${isChecked ? 'checked' : ''}>
-                        <div class="talhao-name">${talhao.name}</div>
-                        <div class="talhao-details">
-                            <span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area || 0} ha</span>
-                            <span><i class="fas fa-weight-hanging"></i>Produção: ${talhao.producao || 0} ton</span>
-                            <span><i class="fas fa-seedling"></i>Variedade: ${talhao.variedade || 'N/A'}</span>
-                            <span><i class="fas fa-cut"></i>Corte: ${talhao.corte || 'N/A'}</span>
-                        </div>
-                    `;
-                    talhaoSelectionList.appendChild(label);
-                });
-            },
-            updatePermissionsForRole(role, containerSelector = '#gerenciarUsuarios .permission-grid') {
-                const permissions = App.config.roles[role] || {};
-                const container = document.querySelector(containerSelector);
-                container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    const key = cb.dataset.permission;
-                    cb.checked = !!permissions[key];
-                });
-            },
-            _createUserCardHTML(user) {
-                const getRoleInfo = (role) => {
-                    const roles = { admin: ['Administrador', 'var(--color-primary)'], supervisor: ['Supervisor', 'var(--color-warning)'], tecnico: ['Técnico', 'var(--color-accent)'], colaborador: ['Colaborador', 'var(--color-purple)'], user: ['Utilizador', '#718096'] };
-                    return roles[role] || ['Desconhecido', '#718096'];
-                };
-                const [roleName, roleColor] = getRoleInfo(user.role);
-                const buttonsHTML = user.email.toLowerCase() === 'admin@agrovetor.com' ? '' : `
-                    <button class="btn-excluir" style="background: ${user.active ? '#718096' : 'var(--color-success)'};" data-action="toggle" data-id="${user.id}">${user.active ? '<i class="fas fa-ban"></i> Desativar' : '<i class="fas fa-check"></i> Ativar'}</button>
-                    <button class="btn-excluir" style="background: var(--color-info);" data-action="edit" data-id="${user.id}"><i class="fas fa-edit"></i> Editar</button>
-                `;
-                return `<div class="user-card"><div class="user-header"><div class="user-title">${user.username || user.email}<span class="user-role-badge" style="background: ${roleColor}; margin-left:10px; padding: 2px 8px; font-size: 12px; color: white; border-radius: 10px;">${roleName}</span></div><div class="user-status ${user.active ? '' : 'inactive'}" style="color: ${user.active ? 'var(--color-success)' : 'var(--color-danger)'}"><i class="fas fa-circle"></i> ${user.active ? 'Ativo' : 'Inativo'}</div></div><div class="user-actions" style="margin-top: 10px; display: flex; gap: 10px; justify-content: flex-end;">${buttonsHTML}</div></div>`;
-            },
-            renderUsersList() { const { list } = App.elements.users; list.innerHTML = App.state.users.map((u) => this._createUserCardHTML(u)).join(''); },
-            renderPersonnelList() {
-                const { list } = App.elements.personnel;
-                list.innerHTML = '';
-                if (App.state.personnel.length === 0) {
-                    list.innerHTML = '<p>Nenhuma pessoa cadastrada.</p>';
-                    return;
-                }
-                const table = document.createElement('table');
-                table.id = 'personnelTable';
-                table.className = 'harvestPlanTable';
-                table.innerHTML = `<thead><tr><th>Matrícula</th><th>Nome</th><th>Ações</th></tr></thead><tbody></tbody>`;
-                const tbody = table.querySelector('tbody');
-                App.state.personnel.sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td data-label="Matrícula">${p.matricula}</td>
-                        <td data-label="Nome">${p.name}</td>
-                        <td data-label="Ações">
-                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-personnel" data-id="${p.id}"><i class="fas fa-edit"></i></button>
-                                <button class="btn-excluir" data-action="delete-personnel" data-id="${p.id}"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </td>
-                    `;
-                });
-                list.appendChild(table);
-            },
-            renderLogoPreview() {
-                const { logoPreview, removeLogoBtn } = App.elements.companyConfig;
-                // Agora, companyLogo é a string Base64
-                if (App.state.companyLogo) {
-                    logoPreview.src = App.state.companyLogo;
-                    logoPreview.style.display = 'block';
-                    removeLogoBtn.style.display = 'inline-flex';
+                    switch (tabId) {
+                        case 'dashboard':
+                           App.dashboard.show('broca');
+                           break;
+                        case 'excluirDados':
+                           this.renderExclusionList();
+                           break;
+                        case 'planejamentoColheita':
+                           App.forms.planejamentoColheita.resetView();
+                           break;
+                        case 'cadastros':
+                            App.forms.cadastros.resetTalhaoView();
+                            break;
+                        default:
+                            App.charts.destroyAll();
+                            break;
+                    }
                 } else {
-                    logoPreview.style.display = 'none';
-                    removeLogoBtn.style.display = 'none';
+                    console.warn(`Aba com ID "${tabId}" não encontrada.`);
                 }
+                this.closeMenu();
             },
-            renderExclusao() {
-                const { lista } = App.elements.exclusao; lista.innerHTML = ''; let content = '';
-                if (App.state.registros.length > 0) {
-                    content += `<h3>Brocamento</h3>`;
-                    content += App.state.registros.map((reg) => `<div class="user-card"><strong>${reg.fazenda}</strong> - ${reg.talhao} (${reg.data}) <button class="btn-excluir" data-type="brocamento" data-id="${reg.id}"><i class="fas fa-trash"></i> Excluir</button></div>`).join('');
-                }
-                if (App.state.perdas.length > 0) {
-                    content += `<h3 style="margin-top:20px;">Perda de Cana</h3>`;
-                    content += App.state.perdas.map((p) => `<div class="user-card"><strong>${p.fazenda}</strong> - ${p.talhao} (${p.data}) <button class="btn-excluir" data-type="perda" data-id="${p.id}"><i class="fas fa-trash"></i> Excluir</button></div>`).join('');
-                }
-                lista.innerHTML = content || '<p>Nenhum lançamento encontrado.</p>';
-            },
-            renderPlanejamento() {
-                const { lista } = App.elements.planejamento; lista.innerHTML = '';
-                const hoje = new Date(); hoje.setHours(0,0,0,0);
-                const planosOrdenados = [...App.state.planos].sort((a,b) => new Date(a.dataPrevista) - new Date(b.dataPrevista));
-                if(planosOrdenados.length === 0) { lista.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma inspeção planeada.</p>'; return; }
-                planosOrdenados.forEach(plano => {
-                    let status = plano.status;
-                    const dataPlano = new Date(plano.dataPrevista + 'T03:00:00Z');
-                    if (plano.status === 'Pendente' && dataPlano < hoje) { status = 'Atrasado'; }
-                    const fazenda = App.state.fazendas.find(f => f.code === plano.fazendaCodigo);
-                    const fazendaNome = fazenda ? `${fazenda.code} - ${fazenda.name}` : 'Desconhecida';
-                    const card = document.createElement('div'); card.className = 'plano-card';
-                    card.innerHTML = `<div class="plano-header"><span class="plano-title"><i class="fas fa-${plano.tipo === 'broca' ? 'bug' : 'dollar-sign'}"></i> ${fazendaNome} - Talhão: ${plano.talhao}</span><span class="plano-status ${status.toLowerCase()}">${status}</span></div><div class="plano-details"><div><i class="fas fa-calendar-day"></i> Data Prevista: ${dataPlano.toLocaleDateString('pt-BR')}</div><div><i class="fas fa-user-check"></i> Responsável: ${plano.usuarioResponsavel}</div>${plano.meta ? `<div><i class="fas fa-bullseye"></i> Meta: ${plano.meta}</div>` : ''}</div>${plano.observacoes ? `<div style="margin-top:8px;font-size:14px;"><i class="fas fa-info-circle"></i> Obs: ${plano.observacoes}</div>` : ''}<div class="plano-actions">${status !== 'Concluído' ? `<button class="btn-excluir" style="background-color: var(--color-success)" data-action="concluir" data-id="${plano.id}"><i class="fas fa-check"></i> Marcar Concluído</button>` : ''}<button class="btn-excluir" data-action="excluir" data-id="${plano.id}"><i class="fas fa-trash"></i> Excluir</button></div>`;
-                    lista.appendChild(card);
-                });
-            },
-            showHarvestPlanList() {
-                App.state.activeHarvestPlan = null;
-                App.elements.harvest.plansListContainer.style.display = 'block';
-                App.elements.harvest.planEditor.style.display = 'none';
-                this.renderHarvestPlansList();
-            },
-            showHarvestPlanEditor() {
-                App.elements.harvest.plansListContainer.style.display = 'none';
-                App.elements.harvest.planEditor.style.display = 'block';
-            },
-            renderHarvestPlansList() {
-                const { plansList } = App.elements.harvest;
-                plansList.innerHTML = '';
-                if(App.state.harvestPlans.length === 0) {
-                    plansList.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum plano de colheita criado. Clique em "Novo Plano" para começar.</p>';
-                    return;
-                }
-                App.state.harvestPlans.forEach(plan => {
-                    const totalProducao = plan.sequence.reduce((sum, group) => sum + group.totalProducao, 0);
-                    const card = document.createElement('div');
-                    card.className = 'plano-card';
-                    card.innerHTML = `
-                        <div class="plano-header">
-                            <span class="plano-title"><i class="fas fa-stream"></i> ${plan.frontName}</span>
-                            <span class="plano-status pendente">${plan.sequence.length} fazenda(s)</span>
-                        </div>
-                        <div class="plano-details">
-                            <div><i class="fas fa-calendar-day"></i> Início: ${new Date(plan.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
-                            <div><i class="fas fa-tasks"></i> ${plan.dailyRate} ton/dia</div>
-                            <div><i class="fas fa-weight-hanging"></i> Total: ${totalProducao.toFixed(2)} ton</div>
-                        </div>
-                        <div class="plano-actions">
-                            <button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="edit" data-id="${plan.id}"><i class="fas fa-edit"></i> Editar</button>
-                            <button class="btn-excluir" data-action="delete" data-id="${plan.id}"><i class="fas fa-trash"></i> Excluir</button>
-                        </div>
-                    `;
-                    plansList.appendChild(card);
-                });
-            },
-            renderHarvestSequence() {
-                if (!App.state.activeHarvestPlan) return;
-                const { tableBody, summary } = App.elements.harvest;
-                const { id: planId, startDate, dailyRate, sequence } = App.state.activeHarvestPlan;
+
+            showFirstAvailableTab() {
+                const permissions = App.state.currentUser.permissions || {};
+                const menuOrder = ['dashboard', 'planejamentoColheita', 'planejamento', 'lancamentoBroca', 'lancamentoPerda', 'relatorioColheitaCustom', 'relatorioBroca', 'relatorioPerda', 'excluirDados', 'gerenciarUsuarios', 'cadastrarPessoas', 'configuracoesEmpresa', 'cadastros'];
+                const firstTab = menuOrder.find(tab => permissions[tab]);
                 
-                tableBody.innerHTML = '';
-                let grandTotalProducao = 0;
-                let grandTotalArea = 0;
-                let currentDate = startDate ? new Date(startDate + 'T03:00:00Z') : new Date();
-                const dailyTon = parseFloat(dailyRate) || 1;
-
-                sequence.forEach((group, index) => {
-                    grandTotalProducao += group.totalProducao;
-                    grandTotalArea += group.totalArea;
-
-                    const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
-                    const dataEntrada = new Date(currentDate.getTime());
-                    currentDate.setDate(currentDate.getDate() + diasNecessarios);
-                    const dataSaida = new Date(currentDate.getTime());
-                    
-                    const idadeMediaMeses = App.actions.calculateAverageAge(group, startDate);
-                    const diasAplicacao = App.actions.calculateMaturadorDays(group);
-
-                    const row = tableBody.insertRow();
-                    row.draggable = true;
-                    row.dataset.id = group.id;
-                    
-                    row.innerHTML = `
-                        <td data-label="Seq.">${index + 1}</td>
-                        <td data-label="Fazenda">${group.fazendaCodigo} - ${group.fazendaName}</td>
-                        <td data-label="Talhões" class="talhao-list-cell">${group.plots.map(p => p.talhaoName).join(', ')}</td>
-                        <td data-label="Área (ha)">${group.totalArea.toFixed(2)}</td>
-                        <td data-label="Prod. (ton)">${group.totalProducao.toFixed(2)}</td>
-                        <td data-label="ATR"><span class="editable-atr" data-id="${group.id}">${group.atr || 'N/A'}</span></td>
-                        <td data-label="Idade (m)">${idadeMediaMeses}</td>
-                        <td data-label="Maturador">${group.maturador || 'N/A'}</td>
-                        <td data-label="Dias Aplic.">${diasAplicacao}</td>
-                        <td data-label="Ação">
-                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                <button class="btn-excluir" style="background-color: var(--color-info);" title="Editar Grupo no Plano" data-action="edit-harvest-group" data-id="${group.id}"><i class="fas fa-edit"></i></button>
-                                <button class="btn-excluir" title="Remover Grupo do Plano" data-action="remove-harvest" data-id="${group.id}"><i class="fas fa-times"></i></button>
-                            </div>
-                        </td>
-                        <td data-label="Entrada">${dataEntrada.toLocaleDateString('pt-BR')}</td>
-                        <td data-label="Saída">${dataSaida.toLocaleDateString('pt-BR')}</td>
-                    `;
-                    currentDate.setDate(currentDate.getDate() + 1);
-                });
-
-                if (sequence.length > 0) {
-                    const allVarieties = new Set();
-                    sequence.forEach(group => {
-                        const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
-                        if(farm) {
-                            group.plots.forEach(plot => {
-                                const talhao = farm.talhoes.find(t => t.id === plot.talhaoId);
-                                if(talhao && talhao.variedade) {
-                                    allVarieties.add(talhao.variedade);
-                                }
-                            });
-                        }
-                    });
-                    const varietiesString = allVarieties.size > 0 ? Array.from(allVarieties).join(', ') : 'N/A';
-                    
-                    const finalDate = new Date(currentDate.getTime());
-                    finalDate.setDate(finalDate.getDate() - 1);
-
-                    summary.innerHTML = `
-                        <p>Produção Total Estimada: <span>${grandTotalProducao.toFixed(2)} ton</span></p>
-                        <p>Área Total: <span>${grandTotalArea.toFixed(2)} ha</span></p>
-                        <p>Data Final de Saída Prevista: <span>${finalDate.toLocaleDateString('pt-BR')}</span></p>
-                        <p>Variedades na Sequência: <span>${varietiesString}</span></p>
-                    `;
+                if (firstTab) {
+                    this.showTab(firstTab);
                 } else {
-                    summary.innerHTML = '<p>Adicione fazendas à sequência para ver o resumo da colheita.</p>';
+                    this.showTab('dashboard'); 
+                    this.showAlert("Não tem permissão para visualizar nenhuma secção.", "error");
                 }
             },
-            validateFields(ids) { return ids.every(id => { const el = document.getElementById(id); const valid = el.value.trim() !== ''; el.style.borderColor = valid ? 'var(--color-border)' : 'var(--color-danger)'; if (!valid) el.focus(); return valid; }); },
-            updateBrocadoTotal() {
-                const { broca } = App.elements;
-                const base = parseInt(broca.base.value) || 0;
-                const meio = parseInt(broca.meio.value) || 0;
-                const topo = parseInt(broca.topo.value) || 0;
-                broca.brocado.value = base + meio + topo;
+            
+            showApp() {
+                this.elements.loginScreen.style.display = 'none';
+                this.elements.appScreen.style.display = 'flex';
+                this.elements.userMenuContainer.style.display = 'block';
             },
-            calculateBrocamento() {
-                const entrenos = parseInt(App.elements.broca.entrenos.value) || 0;
-                const brocado = parseInt(App.elements.broca.brocado.value) || 0;
-                const resultadoEl = App.elements.broca.resultado;
-                if (entrenos > 0) {
-                    const porcentagem = (brocado / entrenos) * 100;
-                    resultadoEl.textContent = `Brocamento: ${porcentagem.toFixed(2).replace('.', ',')}%`;
-                    resultadoEl.style.color = porcentagem > 20 ? 'var(--color-danger)' : 'var(--color-success)';
-                } else {
-                    resultadoEl.textContent = '';
-                }
+            
+            showLogin() {
+                this.elements.loginScreen.style.display = 'flex';
+                this.elements.appScreen.style.display = 'none';
+                this.elements.userMenuContainer.style.display = 'none';
+                this.closeMenu();
+                this.closeUserMenu();
             },
-            calculatePerda() {
-                const fields = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
-                const total = fields.reduce((sum, id) => sum + (parseFloat(document.getElementById(id).value) || 0), 0);
-                App.elements.perda.resultado.textContent = `Total Perda: ${total.toFixed(2).replace('.', ',')} kg`;
-            },
-            showConfirmationModal(message, onConfirm) {
-                const { overlay, message: msgEl, confirmBtn, cancelBtn, closeBtn } = App.elements.confirmationModal;
-                msgEl.textContent = message;
 
-                const confirmHandler = () => {
-                    onConfirm();
-                    closeHandler();
-                };
-                const closeHandler = () => {
-                    overlay.classList.remove('show');
-                    confirmBtn.removeEventListener('click', confirmHandler);
-                    cancelBtn.removeEventListener('click', closeHandler);
-                    closeBtn.removeEventListener('click', closeHandler);
-                };
+            toggleMenu() {
+                this.elements.btnToggleMenu.classList.toggle('open');
+                this.elements.menu.classList.toggle('open');
+                const isOpen = this.elements.menu.classList.contains('open');
+                document.querySelector('main.content').style.filter = isOpen ? 'blur(4px) brightness(0.7)' : '';
+                document.querySelector('header').style.filter = isOpen ? 'blur(4px) brightness(0.7)' : '';
+            },
 
-                confirmBtn.addEventListener('click', confirmHandler);
-                cancelBtn.addEventListener('click', closeHandler);
-                closeBtn.addEventListener('click', closeHandler);
-                overlay.classList.add('show');
+            closeMenu() {
+                this.elements.btnToggleMenu.classList.remove('open');
+                this.elements.menu.classList.remove('open');
+                document.querySelector('main.content').style.filter = '';
+                document.querySelector('header').style.filter = '';
             },
-            showAdminPasswordConfirmModal() {
-                App.elements.adminPasswordConfirmModal.overlay.classList.add('show');
-                App.elements.adminPasswordConfirmModal.passwordInput.focus();
-            },
-            closeAdminPasswordConfirmModal() {
-                App.elements.adminPasswordConfirmModal.overlay.classList.remove('show');
-                App.elements.adminPasswordConfirmModal.passwordInput.value = '';
-            },
-            openUserEditModal(userId) {
-                const modalEls = App.elements.userEditModal;
-                const user = App.state.users.find(u => u.id == userId);
-                if (!user) return;
 
-                modalEls.editingUserId.value = user.id;
-                modalEls.title.textContent = `Editar Utilizador: ${user.username}`;
-                modalEls.username.value = user.username;
-                modalEls.role.value = user.role;
-
-                modalEls.permissionGrid.innerHTML = '';
-                const permissionItems = App.config.menuConfig.flatMap(item => {
-                    if (item.submenu) {
-                        return item.submenu.filter(sub => sub.permission);
-                    }
-                    return item.permission ? [item] : [];
-                });
-                
-                permissionItems.forEach(perm => {
-                    if (!perm.permission) return;
-                    const isChecked = user.permissions[perm.permission];
-                    const label = document.createElement('label');
-                    label.className = 'permission-item';
-                    label.innerHTML = `<input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}> <i class="${perm.icon}"></i> ${perm.label}`;
-                    modalEls.permissionGrid.appendChild(label);
-                });
-
-                modalEls.overlay.classList.add('show');
+            toggleUserMenu() {
+                this.elements.userMenuToggle.classList.toggle('open');
+                this.elements.userMenuDropdown.classList.toggle('show');
             },
-            closeUserEditModal() {
-                App.elements.userEditModal.overlay.classList.remove('show');
+
+            closeUserMenu() {
+                this.elements.userMenuToggle.classList.remove('open');
+                this.elements.userMenuDropdown.classList.remove('show');
             },
-            applyTheme(theme) {
-                document.body.className = theme;
-                App.elements.userMenu.themeButtons.forEach(btn => {
-                    btn.classList.toggle('active', btn.id === theme);
-                });
-                localStorage.setItem(App.config.themeKey, theme);
+
+            updateUserInfo() {
                 if (App.state.currentUser) {
-                    setTimeout(() => App.charts.renderAll(), 50);
+                    this.elements.userMenuUsername.textContent = App.state.currentUser.email;
+                    this.updateDateTime();
+                    setInterval(() => this.updateDateTime(), 1000 * 60);
                 }
             },
-            enableEnterKeyNavigation(formSelector) {
-                const form = document.querySelector(formSelector);
-                if (!form) return;
 
-                form.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON') {
-                        e.preventDefault();
-                        const fields = Array.from(
-                            form.querySelectorAll('input:not([readonly]):not([disabled]), select:not([disabled]), textarea:not([disabled])')
-                        );
-                        const currentIndex = fields.indexOf(e.target);
-                        const nextField = fields[currentIndex + 1];
+            updateDateTime() {
+                const now = new Date();
+                const date = now.toLocaleDateString('pt-BR');
+                const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                this.elements.currentDateTime.innerHTML = `<i class="fas fa-calendar-alt"></i> ${date} <i class="fas fa-clock" style="margin-left: 10px;"></i> ${time}`;
+            },
+            
+            setTheme(themeId) {
+                if (!themeId) return;
+                document.body.className = '';
+                document.body.classList.add(themeId.replace('theme-', 'theme-'));
+                localStorage.setItem('agrovetor_theme', themeId);
+                this.elements.themeButtons.forEach(btn => btn.classList.remove('active'));
+                const activeBtn = document.getElementById(themeId);
+                if (activeBtn) activeBtn.classList.add('active');
 
-                        if (nextField) {
-                            nextField.focus();
-                        } else {
-                            form.querySelector('.save, #btnConfirmarOrdemCorte, #btnLogin')?.focus();
-                        }
-                    }
+                if (App.state.currentUser && App.state.currentUser.theme !== themeId) {
+                    const userRef = doc(App.db, 'usuarios', App.state.currentUser.uid);
+                    updateDoc(userRef, { theme: themeId }).catch(e => console.error("Erro ao salvar tema:", e));
+                }
+            },
+
+            renderMenu() {
+                const permissions = App.state.currentUser.permissions || {};
+                const menuItems = [
+                    { id: 'dashboard', icon: 'fa-tachometer-alt', text: 'Dashboard' },
+                    { id: 'planejamentoColheita', icon: 'fa-stream', text: 'Plan. Colheita' },
+                    { id: 'planejamento', icon: 'fa-calendar-alt', text: 'Plan. Inspeção' },
+                    { id: 'lancamentoBroca', icon: 'fa-bug', text: 'Lançar Broca' },
+                    { id: 'lancamentoPerda', icon: 'fa-dollar-sign', text: 'Lançar Perda' },
+                    { id: 'relatorioColheitaCustom', icon: 'fa-file-invoice', text: 'Relatório Colheita' },
+                    { id: 'relatorioBroca', icon: 'fa-chart-bar', text: 'Relatório Broca' },
+                    { id: 'relatorioPerda', icon: 'fa-chart-pie', text: 'Relatório Perda' },
+                    { id: 'excluirDados', icon: 'fa-trash', text: 'Excluir Lançamentos' },
+                    { id: 'gerenciarUsuarios', icon: 'fa-users-cog', text: 'Gerir Utilizadores' },
+                    { id: 'cadastrarPessoas', icon: 'fa-id-card', text: 'Cadastrar Pessoas' },
+                    { id: 'configuracoesEmpresa', icon: 'fa-building', text: 'Config. Empresa' },
+                    { id: 'cadastros', icon: 'fa-book', text: 'Cadastros Fazendas' }
+                ];
+
+                this.elements.menu.innerHTML = menuItems
+                    .filter(item => permissions[item.id])
+                    .map(item => `<button class="menu-btn" data-tab="${item.id}"><i class="fas ${item.icon}"></i> ${item.text}</button>`).join('');
+
+                this.elements.menu.querySelectorAll('.menu-btn').forEach(btn => {
+                    btn.addEventListener('click', () => this.showTab(btn.dataset.tab));
                 });
             },
-            setupEventListeners() {
-                App.elements.btnLogin.addEventListener('click', () => App.auth.login());
-                App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
-                App.elements.btnToggleMenu.addEventListener('click', () => {
-                    document.body.classList.toggle('mobile-menu-open');
-                    App.elements.menu.classList.toggle('open');
-                    App.elements.btnToggleMenu.classList.toggle('open');
+            
+            populateSelect(selectElement, data, valueKey, textKey, defaultOptionText = '') {
+                if (!selectElement) return;
+                const currentValue = selectElement.value;
+                selectElement.innerHTML = ''; 
+                if (defaultOptionText) {
+                    const defaultOption = document.createElement('option');
+                    defaultOption.value = '';
+                    defaultOption.textContent = defaultOptionText;
+                    selectElement.appendChild(defaultOption);
+                }
+                data.sort((a,b) => a[textKey].localeCompare(b[textKey])).forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item[valueKey];
+                    option.textContent = item[textKey];
+                    selectElement.appendChild(option);
                 });
-                
-                document.addEventListener('click', (e) => {
-                    if (!App.elements.menu.contains(e.target) && !App.elements.btnToggleMenu.contains(e.target)) {
-                        this.closeAllMenus();
-                    }
-                    if (!App.elements.userMenu.container.contains(e.target)) {
-                        App.elements.userMenu.dropdown.classList.remove('show');
-                        App.elements.userMenu.toggle.classList.remove('open');
-                        App.elements.userMenu.toggle.setAttribute('aria-expanded', 'false');
-                    }
-                });
+                selectElement.value = currentValue;
+            },
 
-                App.elements.userMenu.toggle.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const dropdown = App.elements.userMenu.dropdown;
-                    const toggle = App.elements.userMenu.toggle;
-                    const isShown = dropdown.classList.toggle('show');
-                    toggle.classList.toggle('open', isShown);
-                    toggle.setAttribute('aria-expanded', isShown);
-                });
-
-                App.elements.userMenu.themeButtons.forEach(btn => {
-                    btn.addEventListener('click', () => this.applyTheme(btn.id));
-                });
-
-                const chartModal = App.elements.chartModal;
-                chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
-                chartModal.overlay.addEventListener('click', e => { if(e.target === chartModal.overlay) App.charts.closeChartModal(); });
-                document.querySelectorAll('.btn-expand-chart').forEach(btn => {
-                    btn.addEventListener('click', () => App.charts.openChartModal(btn.dataset.chartId));
-                });
-
-                App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
-                App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
-                
-                App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
-                
-                App.elements.users.list.addEventListener('click', e => {
-                    const button = e.target.closest('button[data-action]');
-                    if (!button) return;
-                    const { action, id } = button.dataset;
-                    if (action === 'edit') this.openUserEditModal(id);
-                    if (action === 'toggle') App.auth.toggleUserStatus(id);
-                });
-
-                const adminModal = App.elements.adminPasswordConfirmModal;
-                adminModal.closeBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
-                adminModal.cancelBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
-                adminModal.confirmBtn.addEventListener('click', () => App.auth.createUserAfterAdminConfirmation());
-                adminModal.overlay.addEventListener('click', e => { if(e.target === adminModal.overlay) this.closeAdminPasswordConfirmModal(); });
-
-
-                const modalEls = App.elements.userEditModal;
-                modalEls.closeBtn.addEventListener('click', () => this.closeUserEditModal());
-                modalEls.overlay.addEventListener('click', e => { if(e.target === modalEls.overlay) this.closeUserEditModal(); });
-                modalEls.btnSaveChanges.addEventListener('click', () => App.auth.saveUserChanges(modalEls.editingUserId.value));
-                modalEls.btnResetPassword.addEventListener('click', () => App.auth.resetUserPassword(modalEls.editingUserId.value));
-                modalEls.btnDeleteUser.addEventListener('click', () => App.auth.deleteUser(modalEls.editingUserId.value));
-                modalEls.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value, '#editUserPermissionGrid'));
-                
-                const cpModal = App.elements.changePasswordModal;
-                App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
-                cpModal.closeBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
-                cpModal.cancelBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
-                cpModal.saveBtn.addEventListener('click', () => App.actions.changePassword());
-
-
-                App.elements.personnel.btnSave.addEventListener('click', () => App.actions.savePersonnel());
-                App.elements.personnel.list.addEventListener('click', e => {
-                    const btn = e.target.closest('button');
-                    if (!btn) return;
-                    const { action, id } = btn.dataset;
-                    if (action === 'edit-personnel') App.actions.editPersonnel(id);
-                    if (action === 'delete-personnel') App.actions.deletePersonnel(id);
-                });
-                App.elements.personnel.csvUploadArea.addEventListener('click', () => App.elements.personnel.csvFileInput.click());
-                App.elements.personnel.csvFileInput.addEventListener('change', (e) => App.actions.importPersonnelFromCSV(e.target.files[0]));
-                App.elements.personnel.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadPersonnelCsvTemplate());
-                
-                App.elements.companyConfig.logoUploadArea.addEventListener('click', () => App.elements.companyConfig.logoInput.click());
-                App.elements.companyConfig.logoInput.addEventListener('change', (e) => App.actions.handleLogoUpload(e));
-                App.elements.companyConfig.removeLogoBtn.addEventListener('click', () => App.actions.removeLogo());
-
-
-                App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
-                App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
-                App.elements.cadastros.talhaoList.addEventListener('click', e => { const btn = e.target.closest('button'); if(!btn) return; const { action, id } = btn.dataset; if(action === 'edit-talhao') App.actions.editTalhao(id); if(action === 'delete-talhao') App.actions.deleteTalhao(id); });
-                App.elements.cadastros.btnSaveTalhao.addEventListener('click', () => App.actions.saveTalhao());
-                App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
-                App.elements.cadastros.csvFileInput.addEventListener('change', (e) => App.actions.importFarmsFromCSV(e.target.files[0]));
-                App.elements.cadastros.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadCsvTemplate());
-                App.elements.planejamento.btnAgendar.addEventListener('click', () => App.actions.agendarInspecao());
-                App.elements.planejamento.btnSugerir.addEventListener('click', () => App.gemini.getPlanningSuggestions());
-                App.elements.planejamento.lista.addEventListener('click', (e) => { const button = e.target.closest('button[data-action]'); if(!button) return; const { action, id } = button.dataset; if (action === 'concluir') App.actions.marcarPlanoComoConcluido(id); if (action === 'excluir') App.actions.excluirPlano(id); });
-                
-                App.elements.harvest.btnAddNew.addEventListener('click', () => App.actions.editHarvestPlan());
-                App.elements.harvest.btnCancelPlan.addEventListener('click', () => this.showHarvestPlanList());
-                App.elements.harvest.btnSavePlan.addEventListener('click', () => App.actions.saveHarvestPlan());
-                App.elements.harvest.plansList.addEventListener('click', (e) => {
-                    const button = e.target.closest('button[data-action]');
-                    if (!button) return;
-                    const { action, id } = button.dataset;
-                    if (action === 'edit') App.actions.editHarvestPlan(id);
-                    if (action === 'delete') App.actions.deleteHarvestPlan(id);
-                });
-                App.elements.harvest.fazenda.addEventListener('change', e => this.renderHarvestTalhaoSelection(e.target.value));
-                App.elements.harvest.btnAddOrUpdate.addEventListener('click', () => App.actions.addOrUpdateHarvestSequence());
-                App.elements.harvest.btnCancelEdit.addEventListener('click', () => App.actions.cancelEditSequence());
-                App.elements.harvest.btnOptimize.addEventListener('click', () => App.gemini.getOptimizedHarvestSequence());
-                App.elements.harvest.tableBody.addEventListener('click', e => {
-                    const removeBtn = e.target.closest('button[data-action="remove-harvest"]');
-                    if (removeBtn) App.actions.removeHarvestSequence(removeBtn.dataset.id);
-                    const editBtn = e.target.closest('button[data-action="edit-harvest-group"]');
-                    if(editBtn) App.actions.editHarvestSequenceGroup(editBtn.dataset.id);
-                    const atrSpan = e.target.closest('.editable-atr');
-                    if (atrSpan) App.actions.editHarvestSequenceATR(atrSpan.dataset.id);
-                });
-                [App.elements.harvest.frontName, App.elements.harvest.startDate, App.elements.harvest.dailyRate].forEach(el => el.addEventListener('input', () => App.actions.updateActiveHarvestPlanDetails()));
-                
-                let dragSrcEl = null;
-                App.elements.harvest.tableBody.addEventListener('dragstart', e => { dragSrcEl = e.target; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/html', e.target.innerHTML); });
-                App.elements.harvest.tableBody.addEventListener('dragover', e => { e.preventDefault(); return false; });
-                App.elements.harvest.tableBody.addEventListener('drop', e => { e.stopPropagation(); if (dragSrcEl !== e.target) { const targetRow = e.target.closest('tr'); if(targetRow) App.actions.reorderHarvestSequence(dragSrcEl.dataset.id, targetRow.dataset.id); } return false; });
-                
-                App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
-                App.elements.broca.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('broca'));
-                ['brocaBase', 'brocaMeio', 'brocaTopo', 'entrenos'].forEach(id => {
-                    document.getElementById(id).addEventListener('input', () => {
-                        App.ui.updateBrocadoTotal();
-                        App.ui.calculateBrocamento();
+            showAlert(message, type = 'success', duration = 4000) {
+                this.elements.alertContainer.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
+                this.elements.alertContainer.className = `show ${type}`;
+                setTimeout(() => {
+                    this.elements.alertContainer.className = '';
+                }, duration);
+            },
+            
+            showLoading(show, text = 'A processar...') {
+                if (show) {
+                    document.getElementById('loading-progress-text').textContent = text;
+                    this.elements.loadingOverlay.style.display = 'flex';
+                } else {
+                    this.elements.loadingOverlay.style.display = 'none';
+                }
+            },
+            
+            renderExclusionList() {
+                const container = App.elements.listaExclusao;
+                container.innerHTML = '';
+            
+                const combinedList = [
+                    ...App.state.lancamentosBroca.map(item => ({...item, type: 'Broca', typeId: 'lancamentos_broca'})),
+                    ...App.state.lancamentosPerda.map(item => ({...item, type: 'Perda', typeId: 'lancamentos_perda'}))
+                ];
+            
+                combinedList.sort((a, b) => new Date(b.data) - new Date(a.data));
+            
+                if (combinedList.length === 0) {
+                    container.innerHTML = '<p>Nenhum lançamento encontrado.</p>';
+                    return;
+                }
+            
+                combinedList.forEach(item => {
+                    const fazendaNome = App.helpers.getFazendaNome(item.codigo) || `Código: ${item.codigo}`;
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'exclusion-item';
+                    itemDiv.innerHTML = `
+                        <div class="item-info">
+                            <span class="item-type ${item.type.toLowerCase()}">${item.type}</span>
+                            <span class="item-date">${new Date(item.data + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                            <span class="item-farm"><strong>Fazenda:</strong> ${fazendaNome}</span>
+                            <span class="item-plot"><strong>Talhão:</strong> ${item.talhao}</span>
+                            <span class="item-result"><strong>Resultado:</strong> ${item.resultado}</span>
+                        </div>
+                        <button class="btn-danger-outline btn-delete-entry"><i class="fas fa-trash-alt"></i> Excluir</button>
+                    `;
+            
+                    itemDiv.querySelector('.btn-delete-entry').addEventListener('click', () => {
+                        App.ui.modals.showConfirmation(
+                            'Confirmar Exclusão',
+                            `Tem a certeza de que deseja excluir este lançamento de ${item.type}? Esta ação não pode ser desfeita.`,
+                            async () => {
+                                try {
+                                    await deleteDoc(doc(App.db, item.typeId, item.id));
+                                    App.ui.showAlert('Lançamento excluído com sucesso!', 'success');
+                                } catch (error) {
+                                    console.error("Erro ao excluir lançamento:", error);
+                                    App.ui.showAlert('Erro ao excluir o lançamento.', 'error');
+                                }
+                            }
+                        );
                     });
+            
+                    container.appendChild(itemDiv);
                 });
-                
-                App.elements.perda.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('perda'));
-                App.elements.perda.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('perda'));
-                App.elements.perda.matricula.addEventListener('input', () => App.actions.findOperatorName());
-                ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'].forEach(id => {
-                    document.getElementById(id).addEventListener('input', () => App.ui.calculatePerda());
+            },
+            
+            renderUsersList(users) {
+                const list = App.elements.gerenciarUsuarios.usersList;
+                list.innerHTML = '';
+                if (!users) return;
+            
+                users.sort((a, b) => a.email.localeCompare(b.email)).forEach(user => {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'user-item';
+                    userDiv.innerHTML = `
+                        <div class="user-info">
+                            <span class="user-email"><i class="fas fa-envelope"></i> ${user.email}</span>
+                            <span class="user-role"><i class="fas fa-user-tag"></i> ${user.role || 'N/D'}</span>
+                        </div>
+                        <div class="user-actions">
+                            <button class="btn-secondary btn-edit-user"><i class="fas fa-edit"></i> Editar</button>
+                        </div>
+                    `;
+                    userDiv.querySelector('.btn-edit-user').addEventListener('click', () => App.forms.gerenciarUsuarios.editUser(user));
+                    list.appendChild(userDiv);
                 });
-                
-                App.elements.broca.btnSalvar.addEventListener('click', () => App.actions.saveBrocamento());
-                App.elements.perda.btnSalvar.addEventListener('click', () => App.actions.savePerda());
-                
-                App.elements.broca.btnPDF.addEventListener('click', () => App.reports.generateBrocamentoPDF());
-                App.elements.broca.btnExcel.addEventListener('click', () => App.reports.generateBrocamentoCSV());
-                App.elements.perda.btnPDF.addEventListener('click', () => App.reports.generatePerdaPDF());
-                App.elements.perda.btnExcel.addEventListener('click', () => App.reports.generatePerdaCSV());
-                App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
-                
-                const customReportEls = App.elements.relatorioColheita;
-                // [ALTERAÇÃO]: Chamar a função de geração de relatório do backend
-                customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
-                customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
-                
-                this.enableEnterKeyNavigation('#loginBox');
-                this.enableEnterKeyNavigation('#lancamentoBroca');
-                this.enableEnterKeyNavigation('#lancamentoPerda');
-                this.enableEnterKeyNavigation('#changePasswordModal');
-                this.enableEnterKeyNavigation('#cadastros');
-                this.enableEnterKeyNavigation('#cadastrarPessoas');
-                this.enableEnterKeyNavigation('#adminPasswordConfirmModal');
+            },
 
-                ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
-                    document.addEventListener(event, () => App.actions.resetInactivityTimer());
+            renderPersonnelList(people) {
+                const list = App.elements.cadastrarPessoas.list;
+                list.innerHTML = '';
+                if (!people) return;
+            
+                people.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(person => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'person-item';
+                    itemDiv.innerHTML = `
+                        <div class="person-info">
+                            <span class="person-name"><i class="fas fa-user"></i> ${person.nome}</span>
+                            <span class="person-id"><i class="fas fa-id-badge"></i> Matrícula: ${person.matricula}</span>
+                        </div>
+                        <div class="person-actions">
+                            <button class="btn-secondary btn-edit-person"><i class="fas fa-edit"></i></button>
+                            <button class="btn-danger-outline btn-delete-person"><i class="fas fa-trash"></i></button>
+                        </div>
+                    `;
+                    itemDiv.querySelector('.btn-edit-person').addEventListener('click', () => App.forms.cadastrarPessoas.edit(person));
+                    itemDiv.querySelector('.btn-delete-person').addEventListener('click', () => App.forms.cadastrarPessoas.delete(person.id));
+                    list.appendChild(itemDiv);
                 });
+            },
 
-                App.elements.installAppBtn.addEventListener('click', async () => {
-                    if (App.state.deferredInstallPrompt) {
-                        App.state.deferredInstallPrompt.prompt();
-                        const { outcome } = await App.state.deferredInstallPrompt.userChoice;
-                        console.log(`User response to the install prompt: ${outcome}`);
-                        App.state.deferredInstallPrompt = null;
-                        App.elements.installAppBtn.style.display = 'none';
-                    }
+            renderPlanosInspecao(planos) {
+                const container = App.elements.planejamento.lista;
+                container.innerHTML = '';
+            
+                planos.sort((a, b) => new Date(a.data) - new Date(b.data));
+            
+                if (planos.length === 0) {
+                    container.innerHTML = '<p>Nenhum plano de inspeção agendado.</p>';
+                    return;
+                }
+            
+                planos.forEach(plano => {
+                    const fazendaNome = App.helpers.getFazendaNome(plano.fazenda) || 'N/D';
+                    const responsavelNome = App.helpers.getPersonNameByMatricula(plano.responsavel) || 'N/D';
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'plan-item';
+                    itemDiv.innerHTML = `
+                        <div class="plan-header">
+                            <span class="plan-type ${plano.tipo.toLowerCase()}">${plano.tipo}</span>
+                            <span class="plan-date"><i class="fas fa-calendar-day"></i> ${new Date(plano.data + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <div class="plan-body">
+                            <p><strong>Fazenda:</strong> ${fazendaNome}</p>
+                            <p><strong>Talhão:</strong> ${plano.talhao}</p>
+                            <p><strong>Responsável:</strong> ${responsavelNome}</p>
+                            <p><strong>Meta:</strong> ${plano.meta}</p>
+                            ${plano.obs ? `<p class="plan-obs"><strong>Obs:</strong> ${plano.obs}</p>` : ''}
+                        </div>
+                        <div class="plan-actions">
+                             <button class="btn-danger-outline btn-delete-plan"><i class="fas fa-trash-alt"></i> Excluir</button>
+                        </div>
+                    `;
+            
+                    itemDiv.querySelector('.btn-delete-plan').addEventListener('click', () => {
+                        App.ui.modals.showConfirmation(
+                            'Confirmar Exclusão',
+                            `Tem a certeza de que deseja excluir este plano de inspeção?`,
+                            async () => {
+                                try {
+                                    await deleteDoc(doc(App.db, 'planos_inspecao', plano.id));
+                                    App.ui.showAlert('Plano excluído com sucesso!', 'success');
+                                } catch (error) {
+                                    console.error("Erro ao excluir plano:", error);
+                                    App.ui.showAlert('Erro ao excluir o plano.', 'error');
+                                }
+                            }
+                        );
+                    });
+            
+                    container.appendChild(itemDiv);
                 });
+            },
+            
+            renderHarvestPlansList(plans) {
+                const list = App.elements.planejamentoColheita.plansList;
+                list.innerHTML = '';
+                if (!plans) return;
+
+                plans.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(plan => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'harvest-plan-list-item';
+                    itemDiv.innerHTML = `
+                        <div class="plan-list-info">
+                            <span class="plan-list-name"><i class="fas fa-stream"></i> ${plan.nome}</span>
+                            <span class="plan-list-date">Início: ${new Date(plan.dataInicio + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <div class="plan-list-actions">
+                            <button class="btn-secondary btn-edit-plan"><i class="fas fa-edit"></i> Editar</button>
+                            <button class="btn-danger-outline btn-delete-plan"><i class="fas fa-trash"></i> Excluir</button>
+                        </div>
+                    `;
+                    itemDiv.querySelector('.btn-edit-plan').addEventListener('click', () => App.forms.planejamentoColheita.showEditor(plan.id));
+                    itemDiv.querySelector('.btn-delete-plan').addEventListener('click', () => {
+                        App.ui.modals.showConfirmation(
+                            'Confirmar Exclusão',
+                            `Tem a certeza de que deseja excluir o plano de colheita "${plan.nome}"? Esta ação não pode ser desfeita.`,
+                            async () => {
+                                try {
+                                    await deleteDoc(doc(App.db, 'planos_colheita', plan.id));
+                                    App.ui.showAlert('Plano de colheita excluído com sucesso!', 'success');
+                                } catch (error) {
+                                    console.error("Erro ao excluir plano de colheita:", error);
+                                    App.ui.showAlert('Erro ao excluir plano.', 'error');
+                                }
+                            }
+                        );
+                    });
+                    list.appendChild(itemDiv);
+                });
+            },
+
+            renderCompanyConfig() {
+                const logoUrl = App.state.companyConfig.logoUrl;
+                if (logoUrl) {
+                    App.elements.configuracoesEmpresa.logoPreview.src = logoUrl;
+                    App.elements.configuracoesEmpresa.logoPreview.style.display = 'block';
+                    App.elements.configuracoesEmpresa.removeLogoBtn.style.display = 'inline-block';
+                } else {
+                    App.elements.configuracoesEmpresa.logoPreview.style.display = 'none';
+                    App.elements.configuracoesEmpresa.removeLogoBtn.style.display = 'none';
+                }
+            },
+            
+            modals: {
+                 show(modalName) { App.elements.modals[modalName].overlay.classList.add('show'); },
+                 hide(modalName) { App.elements.modals[modalName].overlay.classList.remove('show'); },
+                 getAll() { return Object.values(App.elements.modals).map(m => m.overlay); },
+                 hideAll() { this.getAll().forEach(m => { if(m) m.classList.remove('show'); }); },
+                 showConfirmation(title, message, onConfirm) {
+                    const modal = App.elements.modals.confirmation;
+                    modal.title.textContent = title;
+                    modal.message.textContent = message;
+                    
+                    const newConfirmBtn = modal.confirmBtn.cloneNode(true);
+                    modal.confirmBtn.parentNode.replaceChild(newConfirmBtn, modal.confirmBtn);
+                    modal.confirmBtn = newConfirmBtn;
+                    
+                    modal.confirmBtn.onclick = () => {
+                        onConfirm();
+                        this.hide('confirmation');
+                    };
+                    
+                    this.show('confirmation');
+                 },
+                 showAdminPasswordConfirmation(callback) {
+                    App.state.adminActionCallback = callback;
+                    this.show('adminPassword');
+                 }
             }
         },
         
-        actions: {
-            resetInactivityTimer() {
-                clearTimeout(App.state.inactivityTimer);
-                if (App.state.currentUser) {
-                    App.state.inactivityTimer = setTimeout(() => {
-                        App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
-                        App.auth.logout();
-                    }, App.config.inactivityTimeout);
+        // --- GRÁFICOS ---
+        charts: {
+            createChart(canvasId, type, data, options = {}) {
+                this.destroyChart(canvasId);
+                const ctx = document.getElementById(canvasId);
+                if (ctx) {
+                    const defaultOptions = {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' },
+                            title: { display: false }
+                        }
+                    };
+                    const chart = new Chart(ctx, { type, data, options: { ...defaultOptions, ...options } });
+                    App.state.activeCharts[canvasId] = chart;
+                    return chart;
                 }
             },
-            saveUserProfileLocally(userProfile) {
-                let profiles = this.getLocalUserProfiles();
-                const index = profiles.findIndex(p => p.uid === userProfile.uid);
-                if (index > -1) {
-                    profiles[index] = userProfile;
-                } else {
-                    profiles.push(userProfile);
-                }
-                localStorage.setItem('localUserProfiles', JSON.stringify(profiles));
-            },
-            getLocalUserProfiles() {
-                return JSON.parse(localStorage.getItem('localUserProfiles') || '[]');
-            },
-            removeUserProfileLocally(userId) {
-                let profiles = this.getLocalUserProfiles();
-                profiles = profiles.filter(p => p.uid !== userId);
-                localStorage.setItem('localUserProfiles', JSON.stringify(profiles));
-            },
-            async changePassword() {
-                const els = App.elements.changePasswordModal;
-                const currentPassword = els.currentPassword.value;
-                const newPassword = els.newPassword.value;
-                const confirmNewPassword = els.confirmNewPassword.value;
-                
-                if (!currentPassword || !newPassword || !confirmNewPassword) { App.ui.showAlert("Preencha todos os campos.", "error"); return; }
-                if (newPassword !== confirmNewPassword) { App.ui.showAlert("As novas senhas não coincidem.", "error"); return; }
-                if (newPassword.length < 6) { App.ui.showAlert("A nova senha deve ter pelo menos 6 caracteres.", "error"); return; }
-                
-                App.ui.setLoading(true, "A alterar senha...");
-                try {
-                    const user = auth.currentUser;
-                    const credential = EmailAuthProvider.credential(user.email, currentPassword);
-                    
-                    await reauthenticateWithCredential(user, credential);
-                    await updatePassword(user, newPassword);
-                    
-                    App.ui.showAlert("Senha alterada com sucesso!", "success");
-                    els.overlay.classList.remove('show');
-                    els.currentPassword.value = '';
-                    els.newPassword.value = '';
-                    els.confirmNewPassword.value = '';
-                } catch (error) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                        App.ui.showAlert("A senha atual está incorreta.", "error");
-                    } else {
-                        App.ui.showAlert("Erro ao alterar senha. Tente fazer login novamente.", "error");
-                    }
-                    console.error("Erro ao alterar senha:", error);
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-            getAssignedTalhaoIds(editingGroupId = null) {
-                const assignedIds = new Set();
-                const currentPlanId = App.state.activeHarvestPlan ? App.state.activeHarvestPlan.id : null;
 
-                App.state.harvestPlans.forEach(plan => {
-                    if (currentPlanId && plan.id === currentPlanId) {
-                            plan.sequence.forEach(group => {
-                                if (editingGroupId && group.id == editingGroupId) {
-                                    return;
-                                }
-                                group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                            });
-                    } else {
-                        plan.sequence.forEach(group => {
-                            group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                        });
+            destroyChart(canvasId) {
+                if (App.state.activeCharts[canvasId]) {
+                    App.state.activeCharts[canvasId].destroy();
+                    delete App.state.activeCharts[canvasId];
+                }
+            },
+            
+            destroyAll() {
+                 Object.keys(App.state.activeCharts).forEach(id => this.destroyChart(id));
+            },
+
+            renderBrocaDashboardCharts() {
+                this.destroyAll();
+                if(App.state.lancamentosBroca.length > 0) {
+                    this.renderTop10FazendasBroca();
+                    this.renderBrocaMensal();
+                    this.renderBrocaPosicao();
+                    this.renderAreaAvaliadaBroca();
+                }
+            },
+
+            renderPerdaDashboardCharts() {
+                this.destroyAll();
+                 if(App.state.lancamentosPerda.length > 0) {
+                    this.renderTop10FazendasPerda();
+                    this.renderPerdaPorTipoDetalhado();
+                    this.renderPerdaMensal();
+                    this.renderAreaAvaliadaPerda();
+                }
+            },
+
+            renderTop10FazendasBroca() {
+                const fazendasMap = new Map();
+                App.state.lancamentosBroca.forEach(item => {
+                    const fazendaNome = App.helpers.getFazendaNome(item.codigo) || `Cód: ${item.codigo}`;
+                    if (!fazendasMap.has(fazendaNome)) {
+                        fazendasMap.set(fazendaNome, { totalEntrenos: 0, totalBrocadoPonderado: 0 });
                     }
+                    const fazenda = fazendasMap.get(fazendaNome);
+                    fazenda.totalEntrenos += Number(item.entrenos);
+                    fazenda.totalBrocadoPonderado += (Number(item.brocaBase) * 1) + (Number(item.brocaMeio) * 2) + (Number(item.brocaTopo) * 3);
                 });
-                if (App.state.activeHarvestPlan) {
-                    App.state.activeHarvestPlan.sequence.forEach(group => {
-                        if (editingGroupId && group.id == editingGroupId) {
+
+                const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, data]) => {
+                    const indice = data.totalEntrenos > 0 ? (data.totalBrocadoPonderado / (data.totalEntrenos * 3)) * 100 : 0;
+                    return { nome, indice };
+                });
+
+                fazendasArray.sort((a, b) => b.indice - a.indice);
+                const top10 = fazendasArray.slice(0, 10).reverse();
+
+                this.createChart('graficoTop10FazendasBroca', 'bar', {
+                    labels: top10.map(f => f.nome),
+                    datasets: [{
+                        label: 'Índice de Broca Ponderado (%)',
+                        data: top10.map(f => f.indice.toFixed(2)),
+                        backgroundColor: 'rgba(211, 47, 47, 0.6)',
+                        borderColor: 'rgba(211, 47, 47, 1)',
+                        borderWidth: 1
+                    }]
+                }, { indexAxis: 'y' });
+            },
+
+            renderBrocaMensal() {
+                const dataByMonth = {};
+                App.state.lancamentosBroca.forEach(item => {
+                    if (!item.data) return;
+                    const date = new Date(item.data + 'T00:00:00');
+                    const month = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
+                    if (!dataByMonth[month]) {
+                        dataByMonth[month] = { totalIndicePonderado: 0, totalEntrenos: 0, date: date };
+                    }
+                    const brocadoPonderado = (Number(item.brocaBase) * 1) + (Number(item.brocaMeio) * 2) + (Number(item.brocaTopo) * 3);
+                    dataByMonth[month].totalIndicePonderado += brocadoPonderado;
+                    dataByMonth[month].totalEntrenos += (Number(item.entrenos) * 3);
+                });
+
+                const sortedMonths = Object.keys(dataByMonth).sort((a,b) => dataByMonth[a].date - dataByMonth[b].date);
+                const labels = sortedMonths;
+                const data = sortedMonths.map(month => {
+                    const monthData = dataByMonth[month];
+                    return monthData.totalEntrenos > 0 ? ((monthData.totalIndicePonderado / monthData.totalEntrenos) * 100).toFixed(2) : 0;
+                });
+
+                this.createChart('graficoBrocaMensal', 'line', {
+                    labels,
+                    datasets: [{
+                        label: 'Índice Ponderado Mensal (%)',
+                        data,
+                        fill: true,
+                        borderColor: 'rgba(211, 47, 47, 1)',
+                        backgroundColor: 'rgba(211, 47, 47, 0.2)',
+                        tension: 0.4
+                    }]
+                });
+            },
+
+            renderBrocaPosicao() {
+                const totalBase = App.state.lancamentosBroca.reduce((sum, item) => sum + Number(item.brocaBase), 0);
+                const totalMeio = App.state.lancamentosBroca.reduce((sum, item) => sum + Number(item.brocaMeio), 0);
+                const totalTopo = App.state.lancamentosBroca.reduce((sum, item) => sum + Number(item.brocaTopo), 0);
+                
+                this.createChart('graficoBrocaPosicao', 'doughnut', {
+                    labels: ['Base', 'Meio', 'Topo'],
+                    datasets: [{
+                        label: 'Posição da Broca (Nº de Insetos)',
+                        data: [totalBase, totalMeio, totalTopo],
+                        backgroundColor: ['#d32f2f', '#c62828', '#b71c1c']
+                    }]
+                });
+            },
+
+            renderAreaAvaliadaBroca() {
+                 const talhoesAvaliados = new Map();
+                 App.state.lancamentosBroca.forEach(l => {
+                     const key = `${l.codigo}-${l.talhao.toUpperCase().trim()}`;
+                     talhoesAvaliados.set(key, { fazendaId: l.codigo, talhaoNome: l.talhao.toUpperCase().trim() });
+                 });
+                 
+                 let areaTotal = 0;
+                 for (const talhaoInfo of talhoesAvaliados.values()) {
+                     const fazendaData = App.state.fazendas.find(f => f.id === talhaoInfo.fazendaId);
+                     if (fazendaData && fazendaData.talhoes) {
+                         const talhaoData = fazendaData.talhoes.find(t => t.nome.toUpperCase().trim() === talhaoInfo.talhaoNome);
+                         if(talhaoData && talhaoData.area) areaTotal += Number(talhaoData.area);
+                     }
+                 }
+                 this.createChart('graficoAreaAvaliadaBroca', 'bar', {
+                     labels: [''],
+                     datasets: [{
+                         label: 'Área Inspecionada (ha)',
+                         data: [areaTotal.toFixed(2)],
+                         backgroundColor: 'rgba(211, 47, 47, 0.6)',
+                         maxBarThickness: 100
+                     }]
+                 });
+            },
+
+            renderTop10FazendasPerda() {
+                 const fazendasMap = new Map();
+                 App.state.lancamentosPerda.forEach(item => {
+                     const fazendaNome = App.helpers.getFazendaNome(item.codigo) || `Cód: ${item.codigo}`;
+                     if (!fazendasMap.has(fazendaNome)) fazendasMap.set(fazendaNome, { totalPerda: 0, count: 0 });
+                     const fazenda = fazendasMap.get(fazendaNome);
+                     fazenda.totalPerda += parseFloat(item.resultado.replace('kg','').replace(',','.'));
+                     fazenda.count++;
+                 });
+                 
+                 const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, data]) => ({ nome, media: data.count > 0 ? data.totalPerda / data.count : 0 }));
+                 fazendasArray.sort((a, b) => b.media - a.media);
+                 const top10 = fazendasArray.slice(0, 10).reverse();
+
+                 this.createChart('graficoTop10FazendasPerda', 'bar', {
+                     labels: top10.map(f => f.nome),
+                     datasets: [{
+                         label: 'Perda Média (kg)',
+                         data: top10.map(f => f.media.toFixed(2)),
+                         backgroundColor: 'rgba(245, 124, 0, 0.6)',
+                         borderColor: 'rgba(245, 124, 0, 1)',
+                         borderWidth: 1
+                     }]
+                 }, { indexAxis: 'y' });
+            },
+
+            renderPerdaPorTipoDetalhado() {
+                const totais = { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0 };
+                App.state.lancamentosPerda.forEach(item => {
+                    for (const tipo in totais) totais[tipo] += Number(item[tipo] || 0);
+                });
+                this.createChart('graficoPerdaPorTipoDetalhado', 'doughnut', {
+                    labels: ['Cana Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'],
+                    datasets: [{
+                        label: 'Composição da Perda (Amostras)',
+                        data: Object.values(totais),
+                        backgroundColor: ['#f57c00', '#fb8c00', '#ff9800', '#ffa726', '#ffb74d', '#ffcc80']
+                    }]
+                });
+            },
+            
+            renderPerdaMensal() {
+                 const dataByMonth = {};
+                 App.state.lancamentosPerda.forEach(item => {
+                    if (!item.data) return;
+                    const date = new Date(item.data + 'T00:00:00');
+                    const month = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
+                    if (!dataByMonth[month]) dataByMonth[month] = { totalPerda: 0, count: 0, date: date };
+                    dataByMonth[month].totalPerda += parseFloat(item.resultado.replace('kg','').replace(',','.'));
+                    dataByMonth[month].count++;
+                });
+                const sortedMonths = Object.keys(dataByMonth).sort((a,b) => dataByMonth[a].date - dataByMonth[b].date);
+                const labels = sortedMonths;
+                const data = sortedMonths.map(month => (dataByMonth[month].totalPerda / dataByMonth[month].count).toFixed(2));
+                this.createChart('graficoPerdaMensal', 'line', {
+                    labels,
+                    datasets: [{
+                        label: 'Perda Média Mensal (kg)',
+                        data,
+                        fill: true,
+                        borderColor: 'rgba(245, 124, 0, 1)',
+                        backgroundColor: 'rgba(245, 124, 0, 0.2)',
+                        tension: 0.4
+                    }]
+                });
+            },
+
+            renderAreaAvaliadaPerda() {
+                 const talhoesAvaliados = new Map();
+                 App.state.lancamentosPerda.forEach(l => {
+                     const key = `${l.codigo}-${l.talhao.toUpperCase().trim()}`;
+                     talhoesAvaliados.set(key, { fazendaId: l.codigo, talhaoNome: l.talhao.toUpperCase().trim() });
+                 });
+                 let areaTotal = 0;
+                 for (const talhaoInfo of talhoesAvaliados.values()) {
+                     const fazendaData = App.state.fazendas.find(f => f.id === talhaoInfo.fazendaId);
+                     if (fazendaData && fazendaData.talhoes) {
+                         const talhaoData = fazendaData.talhoes.find(t => t.nome.toUpperCase().trim() === talhaoInfo.talhaoNome);
+                         if (talhaoData && talhaoData.area) areaTotal += Number(talhaoData.area);
+                     }
+                 }
+                 this.createChart('graficoAreaAvaliadaPerda', 'bar', {
+                     labels: [''],
+                     datasets: [{
+                         label: 'Área com Aferição (ha)',
+                         data: [areaTotal.toFixed(2)],
+                         backgroundColor: 'rgba(245, 124, 0, 0.6)',
+                         maxBarThickness: 100
+                     }]
+                 });
+            }
+        },
+        
+        forms: {
+            bindAll() {
+                this.broca.bindEvents();
+                this.perda.bindEvents();
+                this.cadastros.bindEvents();
+                this.planejamento.bindEvents();
+                this.planejamentoColheita.bindEvents();
+                this.gerenciarUsuarios.bindEvents();
+                this.cadastrarPessoas.bindEvents();
+                this.configuracoesEmpresa.bindEvents();
+                this.modals.bindEvents();
+            },
+            broca: {
+                bindEvents() {
+                    const form = App.elements.formBroca;
+                    form.btnSalvar.addEventListener('click', () => this.salvar());
+                    ['entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'].forEach(id => {
+                        form[id].addEventListener('input', () => this.calcularTotalBrocado());
+                    });
+                     form.codigo.addEventListener('change', () => {
+                        const fazendaId = App.elements.formBroca.codigo.value;
+                        const fazenda = App.state.fazendas.find(f => f.id === fazendaId);
+                        const talhoes = fazenda ? fazenda.talhoes.map(t => ({id: t.nome, nome: t.nome})) : [];
+                        App.ui.populateSelect(App.elements.formBroca.talhao, talhoes, 'id', 'nome', 'Selecione...');
+                        this.findVariety();
+                     });
+                     form.talhao.addEventListener('change', () => this.findVariety());
+                },
+                calcularTotalBrocado() {
+                    const form = App.elements.formBroca;
+                    const total = Number(form.brocaBase.value) + Number(form.brocaMeio.value) + Number(form.brocaTopo.value);
+                    form.brocado.value = total;
+                    this.calcularResultado();
+                },
+                calcularResultado() {
+                    const form = App.elements.formBroca;
+                    const entrenos = Number(form.entrenos.value);
+                    const brocadoPonderado = (Number(form.brocaBase.value) * 1) + (Number(form.brocaMeio.value) * 2) + (Number(form.brocaTopo.value) * 3);
+                    const totalEntrenosPontuacao = entrenos * 3;
+                    if (totalEntrenosPontuacao > 0) {
+                        const resultado = ((brocadoPonderado / totalEntrenosPontuacao) * 100).toFixed(2);
+                        form.resultado.textContent = `Resultado: ${resultado.replace('.', ',')}%`;
+                    } else {
+                        form.resultado.textContent = 'Resultado: 0,00%';
+                    }
+                },
+                async findVariety() {
+                    const form = App.elements.formBroca;
+                    const fazendaId = form.codigo.value;
+                    const talhaoNome = form.talhao.value;
+                    const fazenda = App.state.fazendas.find(f => f.id === fazendaId);
+                    if (fazenda && fazenda.talhoes && talhaoNome) {
+                        const talhao = fazenda.talhoes.find(t => t.nome === talhaoNome);
+                        form.varietyDisplay.textContent = talhao ? `Variedade: ${talhao.variedade}` : 'Variedade: N/D';
+                    } else {
+                        form.varietyDisplay.textContent = 'Variedade: N/D';
+                    }
+                },
+                async salvar() {
+                    const form = App.elements.formBroca;
+                    const data = {
+                        codigo: form.codigo.value,
+                        data: form.data.value,
+                        talhao: form.talhao.value,
+                        entrenos: form.entrenos.value,
+                        brocaBase: form.brocaBase.value,
+                        brocaMeio: form.brocaMeio.value,
+                        brocaTopo: form.brocaTopo.value,
+                        brocado: form.brocado.value,
+                        resultado: form.resultado.textContent.replace('Resultado: ', ''),
+                        timestamp: serverTimestamp(),
+                        userId: App.state.currentUser.uid
+                    };
+                    if (!data.codigo || !data.data || !data.talhao || !data.entrenos) {
+                        App.ui.showAlert('Preencha todos os campos obrigatórios.', 'error');
+                        return;
+                    }
+                    try {
+                        App.ui.showLoading(true);
+                        await addDoc(collection(App.db, 'lancamentos_broca'), data);
+                        App.ui.showAlert('Lançamento salvo com sucesso!', 'success');
+                        this._resetForm();
+                    } catch (error) {
+                        console.error("Erro ao salvar lançamento de broca:", error);
+                        App.ui.showAlert('Falha ao salvar. Tente novamente.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                },
+                _resetForm() {
+                    App.elements.formBroca.form.reset();
+                    App.elements.formBroca.resultado.textContent = 'Resultado: 0,00%';
+                    App.elements.formBroca.varietyDisplay.textContent = 'Variedade: N/D';
+                    App.ui.populateSelect(App.elements.formBroca.talhao, [], 'id', 'nome', 'Selecione a fazenda');
+                }
+            },
+            perda: { 
+                bindEvents() {
+                    const form = App.elements.formPerda;
+                    form.btnSalvarPerda.addEventListener('click', () => this.salvar());
+                    ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'].forEach(id => {
+                        form[id].addEventListener('input', () => this.calcularResultado());
+                    });
+                    form.codigoPerda.addEventListener('change', () => {
+                        const fazendaId = App.elements.formPerda.codigoPerda.value;
+                        const fazenda = App.state.fazendas.find(f => f.id === fazendaId);
+                        const talhoes = fazenda ? fazenda.talhoes.map(t => ({id: t.nome, nome: t.nome})) : [];
+                        App.ui.populateSelect(App.elements.formPerda.talhaoPerda, talhoes, 'id', 'nome', 'Selecione...');
+                        this.findVariety();
+                    });
+                    form.talhaoPerda.addEventListener('change', () => this.findVariety());
+                    form.matriculaOperador.addEventListener('change', () => this.findOperatorName());
+                    form.matriculaOperador.addEventListener('input', App.helpers.debounce(() => this.findOperatorName(), 500));
+                },
+                calcularResultado() {
+                    const form = App.elements.formPerda;
+                    const total = (
+                        Number(form.canaInteira.value) + Number(form.tolete.value) + 
+                        Number(form.toco.value) + Number(form.ponta.value) + 
+                        Number(form.estilhaco.value) + Number(form.pedaco.value)
+                    );
+                    const resultado = (total * 10).toFixed(2);
+                    form.resultadoPerda.textContent = `Resultado: ${resultado.replace('.',',')} kg`;
+                },
+                async findVariety() {
+                    const form = App.elements.formPerda;
+                    const fazendaId = form.codigoPerda.value;
+                    const talhaoNome = form.talhaoPerda.value;
+                    const fazenda = App.state.fazendas.find(f => f.id === fazendaId);
+                    if (fazenda && fazenda.talhoes && talhaoNome) {
+                        const talhao = fazenda.talhoes.find(t => t.nome === talhaoNome);
+                        form.varietyDisplayPerda.textContent = talhao ? `Variedade: ${talhao.variedade}` : 'Variedade: N/D';
+                    } else {
+                        form.varietyDisplayPerda.textContent = 'Variedade: N/D';
+                    }
+                },
+                async findOperatorName() {
+                    const form = App.elements.formPerda;
+                    const matricula = form.matriculaOperador.value;
+                    const pessoa = App.state.pessoas.find(p => p.matricula === matricula);
+                    form.operadorNome.textContent = pessoa ? `Nome: ${pessoa.nome}` : 'Nome: Operador não encontrado';
+                },
+                async salvar() {
+                    const form = App.elements.formPerda;
+                    const data = {
+                        data: form.dataPerda.value,
+                        codigo: form.codigoPerda.value,
+                        talhao: form.talhaoPerda.value,
+                        frenteServico: form.frenteServico.value,
+                        turno: form.turno.value,
+                        frotaEquipamento: form.frotaEquipamento.value,
+                        matriculaOperador: form.matriculaOperador.value,
+                        canaInteira: form.canaInteira.value,
+                        tolete: form.tolete.value,
+                        toco: form.toco.value,
+                        ponta: form.ponta.value,
+                        estilhaco: form.estilhaco.value,
+                        pedaco: form.pedaco.value,
+                        resultado: form.resultadoPerda.textContent.replace('Resultado: ', ''),
+                        timestamp: serverTimestamp(),
+                        userId: App.state.currentUser.uid
+                    };
+                    if (!data.data || !data.codigo || !data.talhao || !data.frenteServico || !data.matriculaOperador) {
+                        App.ui.showAlert('Preencha todos os campos obrigatórios.', 'error');
+                        return;
+                    }
+                    try {
+                        App.ui.showLoading(true);
+                        await addDoc(collection(App.db, 'lancamentos_perda'), data);
+                        App.ui.showAlert('Lançamento salvo com sucesso!', 'success');
+                        this._resetForm();
+                    } catch (error) {
+                        console.error("Erro ao salvar lançamento de perda:", error);
+                        App.ui.showAlert('Falha ao salvar. Tente novamente.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                },
+                _resetForm() {
+                    App.elements.formPerda.form.reset();
+                    App.elements.formPerda.resultadoPerda.textContent = 'Resultado: 0,00 kg';
+                    App.elements.formPerda.varietyDisplayPerda.textContent = 'Variedade: N/D';
+                    App.elements.formPerda.operadorNome.textContent = 'Nome:';
+                    App.ui.populateSelect(App.elements.formPerda.talhaoPerda, [], 'id', 'nome', 'Selecione a fazenda');
+                }
+            },
+            cadastros: { 
+                bindEvents() {
+                    const elements = App.elements.cadastros;
+                    elements.csvUploadArea.addEventListener('click', () => elements.csvFileInput.click());
+                    elements.csvUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('dragover'); });
+                    elements.csvUploadArea.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('dragover'); });
+                    elements.csvUploadArea.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('dragover'); this.handleCsvUpload(e.dataTransfer.files[0]); });
+                    elements.csvFileInput.addEventListener('change', (e) => this.handleCsvUpload(e.target.files[0]));
+                    elements.btnDownloadCsvTemplate.addEventListener('click', () => this.downloadCsvTemplate());
+                    elements.btnSaveFarm.addEventListener('click', () => this.saveFarm());
+                    elements.farmSelect.addEventListener('change', (e) => this.loadTalhoesForFarm(e.target.value));
+                    elements.btnSaveTalhao.addEventListener('click', () => this.saveTalhao());
+                },
+                downloadCsvTemplate() {
+                    const header = "CodigoFazenda,NomeFazenda,CodigoTalhao,NomeTalhao,Area,ProducaoEstimada,Variedade,Ciclo,Distancia,DataUltimaColheita\n";
+                    const example = "1001,Fazenda Exemplo,1,T-01,150.5,12000,RB966928,CANA PLANTA,25.5,2023-04-15\n";
+                    const csvContent = "data:text/csv;charset=utf-8," + header + example;
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "template_fazendas_talhoes.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+                handleCsvUpload(file) {
+                    if (!file || !file.type.match('text/csv')) {
+                        App.ui.showAlert('Por favor, selecione um ficheiro CSV.', 'error');
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        const csv = event.target.result;
+                        const lines = csv.split('\n').filter(line => line.trim() !== '');
+                        if (lines.length <= 1) {
+                            App.ui.showAlert('Ficheiro CSV vazio ou inválido.', 'error');
                             return;
                         }
-                        group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                    });
-                }
-                return Array.from(assignedIds);
-            },
-            async saveFarm() {
-                const { farmCode, farmName } = App.elements.cadastros;
-                const code = farmCode.value.trim();
-                const name = farmName.value.trim().toUpperCase();
-                if (!code || !name) { App.ui.showAlert("Código e Nome da fazenda são obrigatórios.", "error"); return; }
-                
-                const existingFarm = App.state.fazendas.find(f => f.code === code);
-                if (existingFarm) {
-                    App.ui.showAlert("Já existe uma fazenda com este código.", "error");
-                    return;
-                }
-
-                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar a fazenda ${name}?`, async () => {
-                    try {
-                        await App.data.addDocument('fazendas', { code, name, talhoes: [] });
-                        App.ui.showAlert("Fazenda adicionada com sucesso!");
-                        farmCode.value = ''; farmName.value = '';
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao guardar fazenda.", "error");
-                    }
-                });
-            },
-            async editFarmName(farmId) {
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) return;
-
-                const newName = prompt("Digite o novo nome para a fazenda:", farm.name);
-                if (newName && newName.trim() !== '') {
-                    App.ui.showConfirmationModal(`Tem a certeza que deseja alterar o nome da fazenda para "${newName.toUpperCase()}"?`, async () => {
-                        await App.data.updateDocument('fazendas', farmId, { name: newName.toUpperCase() });
-                        App.ui.showAlert("Nome da fazenda atualizado com sucesso!");
-                    });
-                }
-            },
-            async saveTalhao() {
-                const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
-                const farmId = farmSelect.value;
-                if (!farmId) { App.ui.showAlert("Selecione uma fazenda.", "error"); return; }
-                
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) { App.ui.showAlert("Fazenda selecionada não encontrada.", "error"); return; }
-                
-                const talhaoData = {
-                    id: talhaoId.value ? parseInt(talhaoId.value) : Date.now(),
-                    name: talhaoName.value.trim().toUpperCase(),
-                    area: parseFloat(talhaoArea.value) || 0,
-                    producao: parseFloat(talhaoProducao.value) || 0,
-                    corte: parseInt(talhaoCorte.value) || 1,
-                    variedade: talhaoVariedade.value.trim(),
-                    distancia: parseFloat(talhaoDistancia.value) || 0,
-                    dataUltimaColheita: talhaoUltimaColheita.value
-                };
-                if (!talhaoData.name || isNaN(talhaoData.area) || isNaN(talhaoData.producao)) { App.ui.showAlert("Nome, Área e Produção do talhão são obrigatórios e devem ser números válidos.", "error"); return; }
-                
-                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar o talhão ${talhaoData.name}?`, async () => {
-                    let updatedTalhoes = farm.talhoes ? [...farm.talhoes] : [];
-                    const existingIndex = updatedTalhoes.findIndex(t => t.id === talhaoData.id);
-
-                    if (existingIndex > -1) {
-                        updatedTalhoes[existingIndex] = talhaoData;
-                    } else {
-                        updatedTalhoes.push(talhaoData);
-                    }
-                    
-                    try {
-                        await App.data.updateDocument('fazendas', farm.id, { talhoes: updatedTalhoes });
-                        App.ui.showAlert("Talhão guardado com sucesso!");
-                        [talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita].forEach(el => el.value = '');
-                        App.elements.cadastros.talhaoName.focus();
-                    } catch(error) {
-                        App.ui.showAlert("Erro ao guardar talhão.", "error");
-                        console.error("Erro ao guardar talhão:", error);
-                    }
-                });
-            },
-            editTalhao(talhaoId) {
-                const { farmSelect, ...talhaoEls } = App.elements.cadastros;
-                const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
-                const talhao = farm?.talhoes.find(t => t.id == talhaoId);
-                if (talhao) {
-                    talhaoEls.talhaoId.value = talhao.id;
-                    talhaoEls.talhaoName.value = talhao.name;
-                    talhaoEls.talhaoArea.value = talhao.area;
-                    talhaoEls.talhaoProducao.value = talhao.producao;
-                    talhaoEls.talhaoCorte.value = talhao.corte;
-                    talhaoEls.talhaoVariedade.value = talhao.variedade;
-                    talhaoEls.talhaoDistancia.value = talhao.distancia;
-                    talhaoEls.talhaoUltimaColheita.value = talhao.dataUltimaColheita;
-                    talhaoEls.talhaoName.focus();
-                }
-            },
-            async deleteTalhao(talhaoId) {
-                const farm = App.state.fazendas.find(f => f.id === App.elements.cadastros.farmSelect.value);
-                if (farm && farm.talhoes) {
-                    App.ui.showConfirmationModal("Tem a certeza que deseja excluir este talhão?", async () => {
-                        const updatedTalhoes = farm.talhoes.filter(t => t.id != talhaoId);
+                        
+                        App.ui.showLoading(true, 'A processar CSV...');
                         try {
-                            await App.data.updateDocument('fazendas', farm.id, { talhoes: updatedTalhoes });
-                            App.ui.showAlert('Talhão excluído com sucesso.', 'info');
-                        } catch(e) {
-                            App.ui.showAlert('Erro ao excluir talhão.', 'error');
+                            const fazendasMap = new Map();
+                            const headers = lines[0].trim().split(',').map(h => h.trim());
+                            
+                            const requiredHeaders = ['CodigoFazenda', 'NomeFazenda', 'CodigoTalhao', 'NomeTalhao', 'Area'];
+                            if (!requiredHeaders.every(h => headers.includes(h))) {
+                                throw new Error(`O cabeçalho do CSV deve conter: ${requiredHeaders.join(', ')}`);
+                            }
+
+                            for (let i = 1; i < lines.length; i++) {
+                                const values = lines[i].trim().split(',');
+                                const row = headers.reduce((obj, header, index) => {
+                                    obj[header] = values[index];
+                                    return obj;
+                                }, {});
+
+                                if (!fazendasMap.has(row.CodigoFazenda)) {
+                                    fazendasMap.set(row.CodigoFazenda, {
+                                        id: row.CodigoFazenda,
+                                        nome: row.NomeFazenda,
+                                        talhoes: []
+                                    });
+                                }
+                                fazendasMap.get(row.CodigoFazenda).talhoes.push({
+                                    id: row.CodigoTalhao,
+                                    nome: row.NomeTalhao,
+                                    area: parseFloat(row.Area) || 0,
+                                    producao: parseFloat(row.ProducaoEstimada) || 0,
+                                    variedade: row.Variedade || '',
+                                    corte: row.Ciclo || '',
+                                    distancia: parseFloat(row.Distancia) || 0,
+                                    ultimaColheita: row.DataUltimaColheita || ''
+                                });
+                            }
+                            
+                            const batch = writeBatch(App.db);
+                            for (const [id, fazendaData] of fazendasMap) {
+                                const fazendaRef = doc(App.db, "fazendas", id);
+                                batch.set(fazendaRef, { nome: fazendaData.nome, talhoes: fazendaData.talhoes });
+                            }
+                            await batch.commit();
+                            App.ui.showAlert(`${fazendasMap.size} fazendas e seus talhões foram importados/atualizados com sucesso!`, 'success');
+                        } catch (error) {
+                            console.error("Erro ao processar CSV:", error);
+                            App.ui.showAlert(`Erro ao processar CSV: ${error.message}`, 'error', 6000);
+                        } finally {
+                            App.ui.showLoading(false);
+                            App.elements.cadastros.csvFileInput.value = '';
                         }
-                    });
-                }
-            },
-            async savePersonnel() {
-                const { id, matricula, name } = App.elements.personnel;
-                const matriculaValue = matricula.value.trim();
-                const nameValue = name.value.trim();
-                if (!matriculaValue || !nameValue) { App.ui.showAlert("Matrícula e Nome são obrigatórios.", "error"); return; }
-                
-                const existingId = id.value;
-                const data = { matricula: matriculaValue, name: nameValue };
-                
-                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar os dados de ${nameValue}?`, async () => {
-                    try {
-                        if (existingId) {
-                            await App.data.updateDocument('personnel', existingId, data);
-                        } else {
-                            await App.data.addDocument('personnel', data);
-                        }
-                        App.ui.showAlert("Pessoa guardada com sucesso!");
-                        id.value = ''; matricula.value = ''; name.value = '';
-                    } catch (e) {
-                        App.ui.showAlert("Erro ao guardar pessoa.", "error");
-                    }
-                });
-            },
-            editPersonnel(personnelId) {
-                const { id, matricula, name } = App.elements.personnel;
-                const person = App.state.personnel.find(p => p.id == personnelId);
-                if (person) {
-                    id.value = person.id;
-                    matricula.value = person.matricula;
-                    name.value = person.name;
-                    matricula.focus();
-                }
-            },
-            deletePersonnel(personnelId) {
-                App.ui.showConfirmationModal("Tem certeza que deseja excluir esta pessoa?", async () => {
-                    await App.data.deleteDocument('personnel', personnelId);
-                    App.ui.showAlert('Pessoa excluída com sucesso.', 'info');
-                });
-            },
-            // [ALTERAÇÃO]: Função de upload de logo modificada para usar Base64 no Firestore.
-            async handleLogoUpload(e) {
-                const file = e.target.files[0];
-                const input = e.target;
-                if (!file) return;
-
-                if (!file.type.startsWith('image/')) {
-                    App.ui.showAlert('Por favor, selecione um ficheiro de imagem (PNG, JPG, etc.).', 'error');
-                    input.value = '';
-                    return;
-                }
-
-                const MAX_SIZE_MB = 1; // Reduzido para 1MB para armazenamento no Firestore
-                if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-                    App.ui.showAlert(`O ficheiro é muito grande. O tamanho máximo é de ${MAX_SIZE_MB}MB para armazenamento direto.`, 'error');
-                    input.value = '';
-                    return;
-                }
-
-                App.ui.setLoading(true, "A carregar logo...");
-
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    const base64String = event.target.result; // Data URL (Base64)
-                    try {
-                        // Salvar a string Base64 diretamente no Firestore
-                        await App.data.setDocument('config', 'company', { logoBase64: base64String });
-                        App.ui.showAlert('Logo carregado com sucesso!');
-                    } catch (error) {
-                        console.error("Erro ao carregar o logo para o Firestore:", error);
-                        App.ui.showAlert(`Erro ao carregar o logo: ${error.message}`, 'error');
-                    } finally {
-                        App.ui.setLoading(false);
-                        input.value = ''; // Limpa o input file
-                    }
-                };
-                reader.onerror = (error) => {
-                    App.ui.setLoading(false);
-                    App.ui.showAlert('Erro ao ler o ficheiro.', 'error');
-                    console.error("Erro FileReader:", error);
-                };
-                reader.readAsDataURL(file); // Lê o ficheiro como Data URL (Base64)
-            },
-            // [ALTERAÇÃO]: Função de remover logo modificada para limpar a string Base64 no Firestore.
-            removeLogo() {
-                App.ui.showConfirmationModal("Tem a certeza que deseja remover o logotipo?", async () => {
-                    App.ui.setLoading(true, "A remover logo...");
-                    try {
-                        // Remove a referência Base64 do Firestore
-                        await App.data.setDocument('config', 'company', { logoBase64: null });
-                        App.ui.showAlert('Logo removido com sucesso!');
-                    } catch (error) {
-                        console.error("Erro ao remover logo do Firestore:", error);
-                        App.ui.showAlert(`Erro ao remover o logo: ${error.message}`, 'error');
-                    } finally {
-                        App.ui.setLoading(false);
-                        App.elements.companyConfig.logoInput.value = '';
-                    }
-                });
-            },
-            async agendarInspecao() {
-                const els = App.elements.planejamento;
-                const farmId = els.fazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) { App.ui.showAlert("Fazenda inválida.", "error"); return; }
-
-                const campos = { tipo: els.tipo.value, fazendaCodigo: farm.code, talhao: els.talhao.value.trim(), dataPrevista: els.data.value, usuarioResponsavel: els.responsavel.value };
-                if (Object.values(campos).some(v => !v)) { App.ui.showAlert("Todos os campos obrigatórios devem ser preenchidos.", "error"); return; }
-                
-                App.ui.showConfirmationModal("Tem a certeza que deseja agendar esta inspeção?", async () => {
-                    const novoPlano = { ...campos, meta: els.meta.value || null, observacoes: els.obs.value.trim() || null, status: 'Pendente' };
-                    await App.data.addDocument('planos', novoPlano);
-                    App.ui.showAlert("Inspeção agendada com sucesso!");
-                    els.talhao.value = ''; els.data.value = ''; els.meta.value = ''; els.obs.value = '';
-                });
-            },
-            async marcarPlanoComoConcluido(id) {
-                App.ui.showConfirmationModal("Marcar esta inspeção como concluída?", async () => {
-                    await App.data.updateDocument('planos', id, { status: 'Concluído' });
-                    App.ui.showAlert("Inspeção marcada como concluída!", "success");
-                });
-            },
-            excluirPlano(id) {
-                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este planeamento?", async () => {
-                    await App.data.deleteDocument('planos', id);
-                    App.ui.showAlert("Planeamento excluído.", "info");
-                });
-            },
-            async verificarEAtualizarPlano(tipo, fazendaCodigo, talhao) {
-                const planoPendente = App.state.planos.find(p => p.status === 'Pendente' && p.tipo === tipo && p.fazendaCodigo === fazendaCodigo && p.talhao.toLowerCase() === talhao.toLowerCase());
-                if (planoPendente) {
-                    await this.marcarPlanoComoConcluido(planoPendente.id);
-                    App.ui.showAlert(`Planeamento correspondente para ${talhao} foi concluído automaticamente.`, 'info');
-                }
-            },
-            findVarietyForTalhao(section) {
-                const formElements = App.elements[section];
-                const farmId = formElements.codigo.value;
-                const talhaoName = formElements.talhao.value.trim().toUpperCase();
-                const display = formElements.varietyDisplay;
-                
-                display.textContent = '';
-                if (!farmId || !talhaoName) return;
-
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === talhaoName);
-
-                if (talhao && talhao.variedade) {
-                    display.textContent = `Variedade: ${talhao.variedade}`;
-                }
-            },
-            findOperatorName() {
-                const { matricula, operadorNome } = App.elements.perda;
-                const matriculaValue = matricula.value.trim();
-                operadorNome.textContent = '';
-                if (!matriculaValue) return;
-
-                const operator = App.state.personnel.find(p => p.matricula === matriculaValue);
-                if (operator) {
-                    operadorNome.textContent = operator.name;
-                    operadorNome.style.color = 'var(--color-primary)';
-                } else {
-                    operadorNome.textContent = 'Operador não encontrado';
-                    operadorNome.style.color = 'var(--color-danger)';
-                }
-            },
-            editHarvestPlan(planId = null) {
-                App.ui.showHarvestPlanEditor();
-                const { frontName, startDate, dailyRate } = App.elements.harvest;
-                
-                if (planId) {
-                    const planToEdit = App.state.harvestPlans.find(p => p.id == planId);
-                    App.state.activeHarvestPlan = JSON.parse(JSON.stringify(planToEdit));
-                } else {
-                    App.state.activeHarvestPlan = {
-                        frontName: '',
-                        startDate: new Date().toISOString().split('T')[0],
-                        dailyRate: 750,
-                        sequence: []
                     };
-                }
-                
-                frontName.value = App.state.activeHarvestPlan.frontName;
-                startDate.value = App.state.activeHarvestPlan.startDate;
-                dailyRate.value = App.state.activeHarvestPlan.dailyRate;
+                    reader.readAsText(file);
+                },
+                async saveFarm() {
+                    const id = App.elements.cadastros.farmCode.value;
+                    const nome = App.elements.cadastros.farmName.value;
+                    if (!id || !nome) {
+                        App.ui.showAlert('Código e Nome da Fazenda são obrigatórios.', 'error');
+                        return;
+                    }
+                    try {
+                        App.ui.showLoading(true);
+                        const fazendaRef = doc(App.db, "fazendas", id);
+                        await setDoc(fazendaRef, { nome: nome }, { merge: true });
+                        App.ui.showAlert('Fazenda salva com sucesso!', 'success');
+                        document.getElementById('formSaveFarm').reset();
+                    } catch (error) {
+                        console.error("Erro ao salvar fazenda:", error);
+                        App.ui.showAlert('Erro ao salvar fazenda.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                },
+                async loadTalhoesForFarm(farmId) {
+                    if (!farmId) {
+                        this.resetTalhaoView();
+                        return;
+                    }
+                    const fazenda = App.state.fazendas.find(f => f.id === farmId);
+                    if (fazenda) {
+                        App.elements.cadastros.selectedFarmName.textContent = fazenda.nome;
+                        App.elements.cadastros.talhaoManagementContainer.hidden = false;
+                        this.renderTalhaoList(fazenda.talhoes || []);
+                    } else {
+                        this.resetTalhaoView();
+                    }
+                },
+                renderTalhaoList(talhoes) {
+                    const list = App.elements.cadastros.talhaoList;
+                    list.innerHTML = '';
+                    if (!talhoes || talhoes.length === 0) {
+                        list.innerHTML = '<li>Nenhum talhão cadastrado para esta fazenda.</li>';
+                        return;
+                    }
+                    talhoes.sort((a,b) => a.nome.localeCompare(b.nome)).forEach(talhao => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `
+                            <span>${talhao.nome} (${talhao.area || 0} ha)</span>
+                            <div>
+                                <button class="btn-secondary btn-sm btn-edit-talhao"><i class="fas fa-edit"></i></button>
+                                <button class="btn-danger-outline btn-sm btn-delete-talhao"><i class="fas fa-trash"></i></button>
+                            </div>
+                        `;
+                        li.querySelector('.btn-edit-talhao').addEventListener('click', () => this.editTalhao(talhao));
+                        li.querySelector('.btn-delete-talhao').addEventListener('click', () => this.deleteTalhao(talhao.id));
+                        list.appendChild(li);
+                    });
+                },
+                editTalhao(talhao) {
+                    const elements = App.elements.cadastros;
+                    elements.talhaoId.value = talhao.id;
+                    elements.talhaoName.value = talhao.nome;
+                    elements.talhaoArea.value = talhao.area || '';
+                    elements.talhaoProducao.value = talhao.producao || '';
+                    elements.talhaoVariedade.value = talhao.variedade || '';
+                    elements.talhaoCorte.value = talhao.corte || '';
+                    elements.talhaoDistancia.value = talhao.distancia || '';
+                    elements.talhaoUltimaColheita.value = talhao.ultimaColheita || '';
+                    elements.talhaoName.focus();
+                },
+                async saveTalhao() {
+                    const elements = App.elements.cadastros;
+                    const farmId = elements.farmSelect.value;
+                    const fazenda = App.state.fazendas.find(f => f.id === farmId);
+                    if (!fazenda) return;
 
-                App.ui.renderHarvestSequence();
-                this.cancelEditSequence();
-            },
-            updateActiveHarvestPlanDetails() {
-                if (!App.state.activeHarvestPlan) return;
-                const { frontName, startDate, dailyRate } = App.elements.harvest;
-                App.state.activeHarvestPlan.frontName = frontName.value;
-                App.state.activeHarvestPlan.startDate = startDate.value;
-                App.state.activeHarvestPlan.dailyRate = parseFloat(dailyRate.value);
-                App.ui.renderHarvestSequence();
-            },
-            async saveHarvestPlan() {
-                if (!App.state.activeHarvestPlan) return;
-                
-                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este plano de colheita?", async () => {
-                    const planToSave = App.state.activeHarvestPlan;
-                    planToSave.frontName = planToSave.frontName.trim();
+                    const newTalhao = {
+                        id: elements.talhaoId.value || `T${Date.now()}`,
+                        nome: elements.talhaoName.value,
+                        area: parseFloat(elements.talhaoArea.value) || 0,
+                        producao: parseFloat(elements.talhaoProducao.value) || 0,
+                        variedade: elements.talhaoVariedade.value,
+                        corte: elements.talhaoCorte.value,
+                        distancia: parseFloat(elements.talhaoDistancia.value) || 0,
+                        ultimaColheita: elements.talhaoUltimaColheita.value
+                    };
                     
-                    if (!planToSave.frontName || !planToSave.startDate || !planToSave.dailyRate) {
-                        App.ui.showAlert('Preencha todos os campos de configuração da frente.', "error");
+                    if (!newTalhao.nome || !newTalhao.area) {
+                        App.ui.showAlert('Nome e Área do Talhão são obrigatórios.', 'error');
+                        return;
+                    }
+
+                    const talhoes = fazenda.talhoes || [];
+                    const existingIndex = talhoes.findIndex(t => t.id === newTalhao.id);
+                    if (existingIndex > -1) {
+                        talhoes[existingIndex] = newTalhao;
+                    } else {
+                        talhoes.push(newTalhao);
+                    }
+
+                    try {
+                        App.ui.showLoading(true);
+                        const fazendaRef = doc(App.db, "fazendas", farmId);
+                        await updateDoc(fazendaRef, { talhoes: talhoes });
+                        App.ui.showAlert('Talhão salvo com sucesso!', 'success');
+                        document.getElementById('formSaveTalhao').reset();
+                        elements.talhaoId.value = '';
+                    } catch (error) {
+                        console.error("Erro ao salvar talhão:", error);
+                        App.ui.showAlert('Erro ao salvar talhão.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                },
+                async deleteTalhao(talhaoId) {
+                    App.ui.modals.showConfirmation(
+                        'Confirmar Exclusão',
+                        `Tem a certeza de que deseja excluir este talhão?`,
+                        async () => {
+                            const farmId = App.elements.cadastros.farmSelect.value;
+                            const fazenda = App.state.fazendas.find(f => f.id === farmId);
+                            if (!fazenda || !fazenda.talhoes) return;
+
+                            const updatedTalhoes = fazenda.talhoes.filter(t => t.id !== talhaoId);
+                            try {
+                                App.ui.showLoading(true);
+                                const fazendaRef = doc(App.db, "fazendas", farmId);
+                                await updateDoc(fazendaRef, { talhoes: updatedTalhoes });
+                                App.ui.showAlert('Talhão excluído com sucesso!', 'success');
+                            } catch (error) {
+                                console.error("Erro ao excluir talhão:", error);
+                                App.ui.showAlert('Erro ao excluir talhão.', 'error');
+                            } finally {
+                                App.ui.showLoading(false);
+                            }
+                        }
+                    );
+                },
+                resetTalhaoView() {
+                    const elements = App.elements.cadastros;
+                    elements.talhaoManagementContainer.hidden = true;
+                    elements.selectedFarmName.textContent = '';
+                    elements.talhaoList.innerHTML = '';
+                    document.getElementById('formSaveTalhao').reset();
+                }
+             },
+            planejamento: { 
+                bindEvents() {
+                    App.elements.planejamento.btnAgendar.addEventListener('click', () => this.agendarInspecao());
+                    App.elements.planejamento.fazenda.addEventListener('change', (e) => {
+                        const fazendaId = e.target.value;
+                        const fazenda = App.state.fazendas.find(f => f.id === fazendaId);
+                        const talhoes = fazenda ? fazenda.talhoes.map(t => ({id: t.nome, nome: t.nome})) : [];
+                        App.ui.populateSelect(App.elements.planejamento.talhao, talhoes, 'id', 'nome', 'Selecione...');
+                    });
+                },
+                async agendarInspecao() {
+                    const form = App.elements.planejamento;
+                    const data = {
+                        tipo: form.tipo.value,
+                        fazenda: form.fazenda.value,
+                        talhao: form.talhao.value,
+                        data: form.data.value,
+                        responsavel: form.responsavel.value,
+                        meta: form.meta.value,
+                        obs: form.obs.value,
+                        timestamp: serverTimestamp(),
+                        userId: App.state.currentUser.uid
+                    };
+            
+                    if (!data.tipo || !data.fazenda || !data.talhao || !data.data || !data.responsavel) {
+                        App.ui.showAlert('Preencha todos os campos obrigatórios.', 'error');
+                        return;
+                    }
+            
+                    try {
+                        App.ui.showLoading(true);
+                        await addDoc(collection(App.db, 'planos_inspecao'), data);
+                        App.ui.showAlert('Inspeção agendada com sucesso!', 'success');
+                        this.resetForm();
+                    } catch (error) {
+                        console.error("Erro ao agendar inspeção:", error);
+                        App.ui.showAlert('Erro ao agendar inspeção.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                },
+                resetForm() {
+                    App.elements.planejamento.form.reset();
+                    App.ui.populateSelect(App.elements.planejamento.talhao, [], 'id', 'nome', 'Selecione a fazenda primeiro');
+                }
+            },
+            planejamentoColheita: { 
+                bindEvents() {
+                    const elements = App.elements.planejamentoColheita;
+                    elements.btnAddNew.addEventListener('click', () => this.showEditor());
+                    elements.btnCancelPlan.addEventListener('click', () => this.resetView());
+                    elements.btnSavePlan.addEventListener('click', () => this.savePlan());
+                    elements.fazendaSelect.addEventListener('change', () => this.populateTalhaoSelection());
+                    elements.btnAddOrUpdate.addEventListener('click', () => this.addOrUpdateSequenceGroup());
+                    elements.btnCancelEdit.addEventListener('click', () => this.resetSequenceGroupForm());
+                },
+                resetView() {
+                    const elements = App.elements.planejamentoColheita;
+                    elements.plansListContainer.style.display = 'block';
+                    elements.editor.style.display = 'none';
+                    App.state.editingHarvestPlanId = null;
+                    App.state.editingHarvestPlan = null;
+                },
+                showEditor(planId = null) {
+                    const elements = App.elements.planejamentoColheita;
+                    elements.plansListContainer.style.display = 'none';
+                    elements.editor.style.display = 'block';
+                    document.getElementById('harvest-plan-form').reset();
+                    this.resetSequenceGroupForm();
+                    elements.tableBody.innerHTML = '';
+                    elements.summary.textContent = '';
+            
+                    if (planId) {
+                        App.state.editingHarvestPlanId = planId;
+                        App.state.editingHarvestPlan = JSON.parse(JSON.stringify(App.state.planosColheita.find(p => p.id === planId)));
+                        if (App.state.editingHarvestPlan) {
+                            elements.frontName.value = App.state.editingHarvestPlan.nome;
+                            elements.startDate.value = App.state.editingHarvestPlan.dataInicio;
+                            elements.dailyRate.value = App.state.editingHarvestPlan.taxaDiaria;
+                            this.renderSequenceTable();
+                        }
+                    } else {
+                        App.state.editingHarvestPlanId = null;
+                        App.state.editingHarvestPlan = {
+                            nome: '',
+                            dataInicio: '',
+                            taxaDiaria: '',
+                            sequencia: []
+                        };
+                    }
+                },
+                populateTalhaoSelection() {
+                    const elements = App.elements.planejamentoColheita;
+                    const fazendaId = elements.fazendaSelect.value;
+                    const list = elements.talhaoSelectionList;
+                    list.innerHTML = '';
+            
+                    if (fazendaId) {
+                        const fazenda = App.state.fazendas.find(f => f.id === fazendaId);
+                        if (fazenda && fazenda.talhoes) {
+                            fazenda.talhoes.forEach(talhao => {
+                                const li = document.createElement('li');
+                                const checkbox = document.createElement('input');
+                                checkbox.type = 'checkbox';
+                                checkbox.id = `talhao-${talhao.id}`;
+                                checkbox.value = talhao.id;
+                                checkbox.dataset.nome = talhao.nome;
+                                checkbox.dataset.area = talhao.area;
+                                checkbox.dataset.producao = talhao.producao;
+                                checkbox.dataset.variedade = talhao.variedade;
+                                checkbox.dataset.corte = talhao.corte;
+
+                                const label = document.createElement('label');
+                                label.htmlFor = `talhao-${talhao.id}`;
+                                label.textContent = `${talhao.nome} (${talhao.area} ha)`;
+                                
+                                li.appendChild(checkbox);
+                                li.appendChild(label);
+                                list.appendChild(li);
+                            });
+                        }
+                    }
+                },
+                addOrUpdateSequenceGroup() {
+                    const elements = App.elements.planejamentoColheita;
+                    const fazendaId = elements.fazendaSelect.value;
+                    const fazendaNome = elements.fazendaSelect.options[elements.fazendaSelect.selectedIndex].text;
+                    const selectedTalhoes = Array.from(elements.talhaoSelectionList.querySelectorAll('input:checked')).map(cb => {
+                        return {
+                            id: cb.value,
+                            nome: cb.dataset.nome,
+                            area: parseFloat(cb.dataset.area),
+                            producao: parseFloat(cb.dataset.producao),
+                            variedade: cb.dataset.variedade,
+                            corte: cb.dataset.corte
+                        };
+                    });
+
+                    if(!fazendaId || selectedTalhoes.length === 0) {
+                        App.ui.showAlert('Selecione uma fazenda e pelo menos um talhão.', 'error');
+                        return;
+                    }
+
+                    const groupData = {
+                        id: elements.editingGroupId.value || `G${Date.now()}`,
+                        fazendaId: fazendaId,
+                        fazendaNome: fazendaNome,
+                        talhoes: selectedTalhoes,
+                        atr: elements.atrInput.value,
+                        maturador: elements.maturadorInput.value,
+                        dataAplicacaoMaturador: elements.maturadorDate.value
+                    };
+                    
+                    const existingIndex = App.state.editingHarvestPlan.sequencia.findIndex(g => g.id === groupData.id);
+                    if (existingIndex > -1) {
+                        App.state.editingHarvestPlan.sequencia[existingIndex] = groupData;
+                    } else {
+                        App.state.editingHarvestPlan.sequencia.push(groupData);
+                    }
+                    this.renderSequenceTable();
+                    this.resetSequenceGroupForm();
+                },
+                renderSequenceTable() {
+                    const elements = App.elements.planejamentoColheita;
+                    const tableBody = elements.tableBody;
+                    tableBody.innerHTML = '';
+                    if (!App.state.editingHarvestPlan) return;
+            
+                    App.state.editingHarvestPlan.sequencia.forEach((group, index) => {
+                        const row = document.createElement('tr');
+                        row.dataset.groupId = group.id;
+                        row.draggable = true;
+                        
+                        const totalArea = group.talhoes.reduce((sum, t) => sum + t.area, 0).toFixed(2);
+                        const totalProd = group.talhoes.reduce((sum, t) => sum + t.producao, 0).toFixed(2);
+            
+                        row.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${group.fazendaNome}</td>
+                            <td>${group.talhoes.map(t => t.nome).join(', ')}</td>
+                            <td>${totalArea}</td>
+                            <td>${totalProd}</td>
+                            <td>
+                                <button class="btn-secondary btn-sm btn-edit-seq"><i class="fas fa-edit"></i></button>
+                                <button class="btn-danger-outline btn-sm btn-delete-seq"><i class="fas fa-trash"></i></button>
+                            </td>
+                        `;
+                        row.querySelector('.btn-edit-seq').addEventListener('click', () => this.editSequenceGroup(group.id));
+                        row.querySelector('.btn-delete-seq').addEventListener('click', () => this.deleteSequenceGroup(group.id));
+                        tableBody.appendChild(row);
+                    });
+                    this.handleDragAndDrop();
+                    this.calculateHarvestPlan();
+                },
+                editSequenceGroup(groupId) {
+                    const group = App.state.editingHarvestPlan.sequencia.find(g => g.id === groupId);
+                    if (group) {
+                        const elements = App.elements.planejamentoColheita;
+                        elements.addOrEditTitle.textContent = 'Editar Grupo de Talhões';
+                        elements.editingGroupId.value = group.id;
+                        elements.fazendaSelect.value = group.fazendaId;
+                        this.populateTalhaoSelection();
+                        
+                        group.talhoes.forEach(talhao => {
+                            const cb = document.getElementById(`talhao-${talhao.id}`);
+                            if (cb) cb.checked = true;
+                        });
+
+                        elements.atrInput.value = group.atr || '';
+                        elements.maturadorInput.value = group.maturador || '';
+                        elements.maturadorDate.value = group.dataAplicacaoMaturador || '';
+                    }
+                },
+                deleteSequenceGroup(groupId) {
+                    if (App.state.editingHarvestPlan) {
+                        App.state.editingHarvestPlan.sequencia = App.state.editingHarvestPlan.sequencia.filter(g => g.id !== groupId);
+                        this.renderSequenceTable();
+                    }
+                },
+                resetSequenceGroupForm() {
+                     const elements = App.elements.planejamentoColheita;
+                     elements.addOrEditTitle.textContent = 'Adicionar Grupo de Talhões';
+                     elements.editingGroupId.value = '';
+                     document.getElementById('harvest-sequence-form').reset();
+                     elements.talhaoSelectionList.innerHTML = '<li>Selecione uma fazenda para ver os talhões</li>';
+                },
+                calculateHarvestPlan() {
+                    const summaryEl = App.elements.planejamentoColheita.summary;
+                    summaryEl.innerHTML = '';
+                    if (!App.state.editingHarvestPlan) return;
+
+                    const taxaDiaria = parseFloat(App.elements.planejamentoColheita.dailyRate.value);
+                    const dataInicio = App.elements.planejamentoColheita.startDate.value;
+
+                    if (!taxaDiaria || !dataInicio) return;
+                    
+                    let dataAtual = new Date(dataInicio + 'T00:00:00');
+                    let totalAreaColhida = 0;
+                    let totalProducaoColhida = 0;
+                    let diasTotais = 0;
+
+                    const table = document.createElement('table');
+                    table.className = 'summary-table';
+                    table.innerHTML = `
+                        <thead>
+                            <tr>
+                                <th>Ordem</th>
+                                <th>Fazenda/Talhões</th>
+                                <th>Área (ha)</th>
+                                <th>Produção (t)</th>
+                                <th>Data Início</th>
+                                <th>Data Fim</th>
+                                <th>Dias</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    `;
+                    const tbody = table.querySelector('tbody');
+
+                    App.state.editingHarvestPlan.sequencia.forEach((group, index) => {
+                        const producaoGrupo = group.talhoes.reduce((sum, t) => sum + t.producao, 0);
+                        const areaGrupo = group.talhoes.reduce((sum, t) => sum + t.area, 0);
+                        const diasParaColher = producaoGrupo > 0 ? Math.ceil(producaoGrupo / taxaDiaria) : 0;
+
+                        const dataFim = new Date(dataAtual);
+                        dataFim.setDate(dataFim.getDate() + (diasParaColher > 0 ? diasParaColher -1 : 0));
+                        
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${group.fazendaNome} - ${group.talhoes.map(t=>t.nome).join(', ')}</td>
+                            <td>${areaGrupo.toFixed(2)}</td>
+                            <td>${producaoGrupo.toFixed(2)}</td>
+                            <td>${dataAtual.toLocaleDateString('pt-BR')}</td>
+                            <td>${dataFim.toLocaleDateString('pt-BR')}</td>
+                            <td>${diasParaColher}</td>
+                        `;
+                        tbody.appendChild(row);
+
+                        dataAtual.setDate(dataFim.getDate() + 1);
+                        totalAreaColhida += areaGrupo;
+                        totalProducaoColhida += producaoGrupo;
+                        diasTotais += diasParaColher;
+                    });
+                    
+                    summaryEl.appendChild(table);
+                    const totalDiv = document.createElement('div');
+                    totalDiv.className = 'summary-totals';
+                    totalDiv.innerHTML = `
+                        <strong>Total:</strong> ${diasTotais} dias de colheita | 
+                        ${totalAreaColhida.toFixed(2)} ha | 
+                        ${totalProducaoColhida.toFixed(2)} t
+                    `;
+                    summaryEl.appendChild(totalDiv);
+                },
+                async savePlan() {
+                    const elements = App.elements.planejamentoColheita;
+                    const plan = App.state.editingHarvestPlan;
+                    plan.nome = elements.frontName.value;
+                    plan.dataInicio = elements.startDate.value;
+                    plan.taxaDiaria = elements.dailyRate.value;
+
+                    if (!plan.nome || !plan.dataInicio || !plan.taxaDiaria) {
+                        App.ui.showAlert('Preencha Nome da Frente, Data de Início e Taxa Diária.', 'error');
+                        return;
+                    }
+                    if (plan.sequencia.length === 0) {
+                        App.ui.showAlert('Adicione pelo menos um grupo de talhões à sequência.', 'error');
                         return;
                     }
                     
+                    App.ui.showLoading(true, 'A salvar plano...');
                     try {
-                        if (planToSave.id) {
-                            await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
+                        const dataToSave = {
+                            nome: plan.nome,
+                            dataInicio: plan.dataInicio,
+                            taxaDiaria: plan.taxaDiaria,
+                            sequencia: plan.sequencia,
+                            updatedAt: serverTimestamp(),
+                            userId: App.state.currentUser.uid
+                        };
+
+                        if (App.state.editingHarvestPlanId) {
+                            const planRef = doc(App.db, 'planos_colheita', App.state.editingHarvestPlanId);
+                            await updateDoc(planRef, dataToSave);
                         } else {
-                            await App.data.addDocument('harvestPlans', planToSave);
+                            dataToSave.createdAt = serverTimestamp();
+                            await addDoc(collection(App.db, 'planos_colheita'), dataToSave);
                         }
-                        App.ui.showAlert(`Plano de colheita "${planToSave.frontName}" guardado com sucesso!`);
-                        App.ui.showHarvestPlanList();
-                    } catch(e) {
-                        App.ui.showAlert('Erro ao guardar o plano de colheita.', "error");
+                        App.ui.showAlert('Plano de colheita salvo com sucesso!', 'success');
+                        this.resetView();
+                    } catch (error) {
+                        console.error("Erro ao salvar plano de colheita:", error);
+                        App.ui.showAlert('Erro ao salvar plano.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
                     }
-                });
-            },
-            deleteHarvestPlan(planId) {
-                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este plano de colheita?", async () => {
-                    await App.data.deleteDocument('harvestPlans', planId);
-                    App.ui.showAlert('Plano de colheita excluído.', 'info');
-                });
-            },
-            addOrUpdateHarvestSequence() {
-                if (!App.state.activeHarvestPlan) { App.ui.showAlert("Primeiro crie ou edite um plano.", "warning"); return; }
-                const { fazenda: fazendaSelect, atr: atrInput, editingGroupId, maturador, maturadorDate } = App.elements.harvest;
-                const farmId = fazendaSelect.value;
-                const atr = parseFloat(atrInput.value);
-                const maturadorValue = maturador.value.trim();
-                const maturadorDateValue = maturadorDate.value;
-                const isEditing = editingGroupId.value !== '';
-
-                if (!farmId) { App.ui.showAlert("Selecione uma fazenda.", "warning"); return; }
-                if (isNaN(atr) || atr <= 0) { App.ui.showAlert("Insira um valor de ATR válido.", "warning"); return; }
-
-                const selectedCheckboxes = document.querySelectorAll('#harvestTalhaoSelectionList input[type="checkbox"]:checked');
-                if (selectedCheckboxes.length === 0) { App.ui.showAlert("Selecione pelo menos um talhão.", "warning"); return; }
-
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) return;
-
-                const selectedPlots = [];
-                let totalArea = 0;
-                let totalProducao = 0;
-
-                selectedCheckboxes.forEach(cb => {
-                    const talhaoId = parseInt(cb.dataset.talhaoId);
-                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
-                    if (talhao) {
-                        selectedPlots.push({ talhaoId: talhao.id, talhaoName: talhao.name });
-                        totalArea += talhao.area;
-                        totalProducao += talhao.producao;
-                    }
-                });
-
-                if (isEditing) {
-                    const group = App.state.activeHarvestPlan.sequence.find(g => g.id == editingGroupId.value);
-                    if (group) {
-                        group.plots = selectedPlots;
-                        group.totalArea = totalArea;
-                        group.totalProducao = totalProducao;
-                        group.atr = atr;
-                        group.maturador = maturadorValue;
-                        group.maturadorDate = maturadorDateValue;
-                    }
-                } else {
-                    App.state.activeHarvestPlan.sequence.push({
-                        id: Date.now(), fazendaCodigo: farm.code, fazendaName: farm.name,
-                        plots: selectedPlots, totalArea, totalProducao, atr,
-                        maturador: maturadorValue,
-                        maturadorDate: maturadorDateValue
-                    });
-                }
-                
-                App.ui.renderHarvestSequence();
-                this.cancelEditSequence();
-            },
-            editHarvestSequenceGroup(groupId) {
-                if (!App.state.activeHarvestPlan) return;
-                const { fazenda, atr, editingGroupId, btnAddOrUpdate, btnCancelEdit, addOrEditTitle, maturador, maturadorDate } = App.elements.harvest;
-                const group = App.state.activeHarvestPlan.sequence.find(g => g.id == groupId);
-                if (!group) return;
-
-                editingGroupId.value = group.id;
-                const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
-                fazenda.value = farm ? farm.id : "";
-                fazenda.disabled = true;
-                atr.value = group.atr;
-                maturador.value = group.maturador || '';
-                maturadorDate.value = group.maturadorDate || '';
-                
-                const plotIds = group.plots.map(p => p.talhaoId);
-                App.ui.renderHarvestTalhaoSelection(farm.id, plotIds);
-
-                addOrEditTitle.innerHTML = `<i class="fas fa-edit"></i> Editar Sequência da Fazenda`;
-                btnAddOrUpdate.innerHTML = `<i class="fas fa-save"></i> Atualizar Sequência`;
-                btnCancelEdit.style.display = 'inline-flex';
-                
-                fazenda.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            },
-            cancelEditSequence() {
-                const { fazenda, atr, editingGroupId, btnAddOrUpdate, btnCancelEdit, addOrEditTitle, talhaoSelectionList, maturador, maturadorDate } = App.elements.harvest;
-                editingGroupId.value = '';
-                fazenda.value = '';
-                fazenda.disabled = false;
-                atr.value = '';
-                maturador.value = '';
-                maturadorDate.value = '';
-                talhaoSelectionList.innerHTML = '';
-                addOrEditTitle.innerHTML = `<i class="fas fa-plus-circle"></i> Adicionar Fazenda à Sequência`;
-                btnAddOrUpdate.innerHTML = `<i class="fas fa-plus"></i> Adicionar à Sequência`;
-                btnCancelEdit.style.display = 'none';
-            },
-            removeHarvestSequence(groupId) {
-                if (!App.state.activeHarvestPlan) return;
-                
-                App.ui.showConfirmationModal("Tem a certeza que deseja remover este grupo da sequência?", () => {
-                    App.state.activeHarvestPlan.sequence = App.state.activeHarvestPlan.sequence.filter(g => g.id != groupId);
-                    App.ui.renderHarvestSequence();
-                    App.actions.cancelEditSequence();
-                    App.ui.showAlert('Grupo removido da sequência.', 'info');
-                });
-            },
-            editHarvestSequenceATR(groupId) {
-                if (!App.state.activeHarvestPlan) return;
-                const group = App.state.activeHarvestPlan.sequence.find(g => g.id == groupId);
-                if (!group) return;
-
-                const newATR = prompt(`Editar ATR para a fazenda ${group.fazendaName}:`, group.atr);
-                if (newATR !== null && !isNaN(parseFloat(newATR))) {
-                    group.atr = parseFloat(newATR);
-                    App.ui.renderHarvestSequence();
-                }
-            },
-            reorderHarvestSequence(draggedId, targetId) {
-                if (!App.state.activeHarvestPlan) return;
-                const sequence = App.state.activeHarvestPlan.sequence;
-                const fromIndex = sequence.findIndex(item => item.id == draggedId);
-                const toIndex = sequence.findIndex(item => item.id == targetId);
-                if (fromIndex === -1 || toIndex === -1) return;
-                const item = sequence.splice(fromIndex, 1)[0];
-                sequence.splice(toIndex, 0, item);
-                App.ui.renderHarvestSequence();
-            },
-            calculateAverageAge(group, startDate) {
-                let totalAgeInDays = 0;
-                let plotsWithDate = 0;
-                group.plots.forEach(plot => {
-                    const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
-                    const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
-                        if (talhao && talhao.dataUltimaColheita && startDate) {
-                        const dataInicioPlano = new Date(startDate + 'T03:00:00Z');
-                        const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
-                        if (!isNaN(dataInicioPlano) && !isNaN(dataUltima)) {
-                            totalAgeInDays += Math.abs(dataInicioPlano - dataUltima);
-                            plotsWithDate++;
-                        }
-                    }
-                });
-
-                if (plotsWithDate > 0) {
-                    const avgDiffTime = totalAgeInDays / plotsWithDate;
-                    const avgDiffDays = Math.ceil(avgDiffTime / (1000 * 60 * 60 * 24));
-                    return (avgDiffDays / 30).toFixed(1);
-                }
-                return 'N/A';
-            },
-            calculateMaturadorDays(group) {
-                if (!group.maturadorDate) {
-                    return 'N/A';
-                }
-                try {
-                    const today = new Date();
-                    const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                    const diffTime = today - applicationDate;
-                    if (diffTime < 0) return 0;
-                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                    return diffDays;
-                } catch (e) {
-                    return 'N/A';
-                }
-            },
-            saveBrocamento() {
-                if (!App.ui.validateFields(['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'])) { 
-                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); 
-                    return; 
-                }
-                
-                const { broca } = App.elements;
-                const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
-                if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
-                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
-                
-                if (!talhao) {
-                    App.ui.showAlert(`Talhão "${broca.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                    return;
-                }
-
-                const newEntry = {
-                    codigo: farm.code, fazenda: farm.name, data: broca.data.value,
-                    talhao: broca.talhao.value.trim(),
-                    corte: talhao ? talhao.corte : null,
-                    entrenos: parseInt(broca.entrenos.value),
-                    base: parseInt(broca.base.value),
-                    meio: parseInt(broca.meio.value),
-                    topo: parseInt(broca.topo.value),
-                    brocado: parseInt(broca.brocado.value),
-                    brocamento: (((parseInt(broca.brocado.value) || 0) / (parseInt(broca.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
-                    usuario: App.state.currentUser.username
-                };
-
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', () => {
-                    App.ui.clearForm(broca.form);
-                    App.ui.setDefaultDatesForEntryForms();
-
-                    App.data.addDocument('registros', newEntry)
-                        .then(() => {
-                            if (navigator.onLine) {
-                                App.ui.showAlert('Inspeção guardada com sucesso!');
-                            } else {
-                                App.ui.showAlert('Inspeção guardada offline. Será enviada quando houver conexão.', 'info');
-                            }
-                            this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
-                        })
-                        .catch((e) => {
-                            App.ui.showAlert('Erro ao guardar inspeção.', "error");
-                            console.error("Erro ao salvar brocamento:", e);
-                        });
-                });
-            },
-            
-            savePerda() {
-                if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) { 
-                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); 
-                    return; 
-                }
-                
-                const { perda } = App.elements;
-                const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
-                const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
-                if (!operator) {
-                    App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
-                    return;
-                }
-                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === perda.talhao.value.trim().toUpperCase());
-
-                if (!talhao) {
-                    App.ui.showAlert(`Talhão "${perda.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                    return;
-                }
-                
-                const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
-                const total = Object.values(fields).reduce((s, v) => s + v, 0);
-                const newEntry = {
-                    ...fields,
-                    data: perda.data.value,
-                    codigo: farm ? farm.code : 'N/A',
-                    fazenda: farm ? farm.name : 'Desconhecida',
-                    frenteServico: perda.frente.value.trim(),
-                    turno: perda.turno.value,
-                    talhao: perda.talhao.value.trim(),
-                    frota: perda.frota.value.trim(),
-                    matricula: operator.matricula,
-                    operador: operator.name,
-                    total,
-                    media: (total / 6).toFixed(2).replace('.', ','),
-                    usuario: App.state.currentUser.username
-                };
-                
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', () => {
-                    App.ui.clearForm(perda.form);
-                    App.ui.setDefaultDatesForEntryForms();
-
-                    App.data.addDocument('perdas', newEntry)
-                        .then(() => {
-                            if (navigator.onLine) {
-                                App.ui.showAlert('Lançamento de perda guardado com sucesso!');
-                            } else {
-                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviado quando houver conexão.', 'info');
-                            }
-                            this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
-                        })
-                        .catch((e) => {
-                            App.ui.showAlert('Erro ao guardar lançamento de perda.', "error");
-                            console.error("Erro ao salvar perda:", e);
-                        });
-                });
-            },
-            
-            deleteEntry(type, id) {
-                App.ui.showConfirmationModal('Tem a certeza que deseja excluir este registo?', async () => {
-                    if (type === 'brocamento') { await App.data.deleteDocument('registros', id); }
-                    else if (type === 'perda') { await App.data.deleteDocument('perdas', id); }
-                    App.ui.showAlert('Registo excluído com sucesso!');
-                });
-            },
-            async importFarmsFromCSV(file) {
-                 if (!file) return;
-                 const reader = new FileReader();
-                 reader.onload = async (event) => {
-                     const CHUNK_SIZE = 400; 
-                     const PAUSE_DURATION = 50;
-                     
-                     try {
-                         const csv = event.target.result;
-                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                         const totalLines = lines.length - 1;
-
-                         if (totalLines <= 0) {
-                             App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
-                         }
-                         
-                         App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
-                         await new Promise(resolve => setTimeout(resolve, 100));
-
-                         const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-                         const headerIndexes = {
-                             farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
-                             talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
-                             talhao_producao: fileHeaders.indexOf('PRODUCAO'), talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
-                             talhao_corte: fileHeaders.indexOf('CORTE'),
-                             talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
-                             talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
-                         };
-
-                         if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
-                             App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
-                             App.ui.setLoading(false);
-                             return;
-                         }
-                         
-                         const fazendasToUpdate = {};
-                         for (let i = 1; i < lines.length; i++) {
-                             const data = lines[i].split(';');
-                             if (data.length < 2) continue;
-                             const farmCode = data[headerIndexes.farm_code]?.trim();
-                             if (!farmCode) continue;
-
-                             if (!fazendasToUpdate[farmCode]) {
-                                 let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
-                                 fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
-                                     code: farmCode,
-                                     name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
-                                     talhoes: []
-                                 };
-                             }
-
-                             const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
-                             if(!talhaoName) continue;
-
-                             let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
-                             if (talhao) { 
-                                 talhao.area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || talhao.area;
-                                 talhao.producao = parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || talhao.producao;
-                                 talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
-                                 talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
-                                 talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
-                                 talhao.dataUltimaColheita = data[headerIndexes.talhao_ultima_colheita]?.trim() || talhao.dataUltimaColheita;
-                             } else { 
-                                 fazendasToUpdate[farmCode].talhoes.push({
-                                     id: Date.now() + i, name: talhaoName,
-                                     area: parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0,
-                                     producao: parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || 0,
-                                     variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
-                                     corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
-                                     distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
-                                     dataUltimaColheita: data[headerIndexes.talhao_ultima_colheita]?.trim() || '',
-                                 });
-                             }
-                         }
-                         
-                         const farmCodes = Object.keys(fazendasToUpdate);
-                         for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
-                             const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
-                             const batch = writeBatch(db);
-                             
-                             chunk.forEach(code => {
-                                 const farmData = fazendasToUpdate[code];
-                                 const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
-                                 batch.set(docRef, farmData, { merge: true });
-                             });
-
-                             await batch.commit();
-                             const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
-                             App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
-                             await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                         }
-
-                         App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
-
-                     } catch (e) {
-                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                         console.error(e);
-                     } finally {
-                         App.ui.setLoading(false);
-                         App.elements.cadastros.csvFileInput.value = '';
-                     }
-                 };
-                 reader.readAsText(file, 'ISO-8859-1');
-            },
-            downloadCsvTemplate() {
-                const headers = "Cód;FAZENDA;TALHÃO;Área;Produção;Variedade;Corte;Distancia;DataUltimaColheita";
-                const exampleRow = "4012;FAZ LAGOA CERCADA;T-01;50;4000;RB867515;2;10;2024-07-15";
-                const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", "modelo_cadastro_fazendas.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            },
-            async importPersonnelFromCSV(file) {
-                 if (!file) return;
-                 const reader = new FileReader();
-                 reader.onload = async (event) => {
-                     const CHUNK_SIZE = 400;
-                     const PAUSE_DURATION = 50;
-                     try {
-                         const csv = event.target.result;
-                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                         const totalLines = lines.length - 1;
-                         if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
-                         
-                         App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
-                         await new Promise(resolve => setTimeout(resolve, 100));
-
-                         const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
-                         const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
-
-                         if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
-                             App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
-                             App.ui.setLoading(false);
-                             return;
-                         }
-
-                         const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
-                         
-                         for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
-                             const chunk = lines.slice(i, i + CHUNK_SIZE);
-                             const batch = writeBatch(db);
-                             let updatedCountInChunk = 0;
-                             let newCountInChunk = 0;
-
-                             chunk.forEach(line => {
-                                 const data = line.split(';');
-                                 if (data.length < 2) return;
-                                 const matricula = data[headerIndexes.matricula]?.trim();
-                                 const name = data[headerIndexes.name]?.trim();
-                                 if (!matricula || !name) return;
-
-                                 let person = localPersonnel.find(p => p.matricula === matricula);
-                                 if (person) {
-                                     const personRef = doc(db, 'personnel', person.id);
-                                     batch.update(personRef, { name: name });
-                                     updatedCountInChunk++;
-                                 } else {
-                                     const newPersonRef = doc(collection(db, 'personnel'));
-                                     batch.set(newPersonRef, { matricula, name });
-                                     newCountInChunk++;
-                                 }
-                             });
-
-                             await batch.commit();
-                             const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
-                             App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
-                             await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                         }
-                         
-                         App.ui.showAlert(`Importação concluída!`, 'success');
-                     } catch (e) {
-                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                         console.error(e);
-                     } finally {
-                         App.ui.setLoading(false);
-                         App.elements.personnel.csvFileInput.value = '';
-                     }
-                 };
-                 reader.readAsText(file, 'ISO-8859-1');
-            },
-            downloadPersonnelCsvTemplate() {
-                const headers = "Matricula;Nome";
-                const exampleRow = "12345;José Almeida";
-                const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", "modelo_cadastro_pessoas.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }
-        },
-        
-        gemini: {
-            getOptimizedHarvestSequence() {
-                if (!App.state.activeHarvestPlan || App.state.activeHarvestPlan.sequence.length === 0) {
-                    App.ui.showAlert("Adicione fazendas à sequência antes de otimizar.", "warning");
-                    return;
-                }
-                
-                App.ui.setLoading(true, "A otimizar com IA...");
-
-                setTimeout(() => {
-                    App.state.activeHarvestPlan.sequence.sort((a, b) => (b.atr || 0) - (a.atr || 0));
+                },
+                handleDragAndDrop() {
+                    const tableBody = App.elements.planejamentoColheita.tableBody;
+                    const rows = tableBody.querySelectorAll('tr');
                     
-                    App.ui.setLoading(false);
-                    App.ui.renderHarvestSequence();
-                    App.ui.showAlert("Sequência de colheita otimizada pela IA (priorizando maior ATR)!", "info");
-                }, 2000);
-            },
-            getDashboardAnalysis() {
-                App.ui.showAlert("A análise do dashboard com IA ainda não foi implementada.", "info");
-            },
-            getPlanningSuggestions() {
-                App.ui.showAlert("A sugestão de planeamento com IA ainda não foi implementada.", "info");
-            }
-        },
-
-        charts: {
-            renderAll() {
-                this.renderKpiCards();
-                this.renderTopBrocamentoChart();
-                this.renderTopPerdaChart();
-                this.renderEvolucaoMensalChart();
-                this.renderInspecoesResponsavelChart();
-                this.renderPerdaPorTipoChart();
-                this.renderTopOperadoresChart();
-            },
-            _getThemeColors() {
-                const styles = getComputedStyle(document.documentElement);
-                return {
-                    primary: styles.getPropertyValue('--color-primary').trim(),
-                    primaryDark: styles.getPropertyValue('--color-primary-dark').trim(),
-                    accent: styles.getPropertyValue('--color-accent').trim(),
-                    text: styles.getPropertyValue('--color-text').trim(),
-                    border: styles.getPropertyValue('--color-border').trim(),
-                    danger: styles.getPropertyValue('--color-danger').trim(),
-                    warning: styles.getPropertyValue('--color-warning').trim(),
-                    info: styles.getPropertyValue('--color-info').trim(),
-                    purple: styles.getPropertyValue('--color-purple').trim(),
-                };
-            },
-            _createOrUpdateChart(id, config, isExpanded = false) { 
-                const canvasId = isExpanded ? 'expandedChartCanvas' : id;
-                const ctx = document.getElementById(canvasId)?.getContext('2d'); 
-                if(!ctx) return; 
-
-                const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
-                if (chartInstance) { 
-                    chartInstance.destroy(); 
-                } 
-                
-                const newChart = new Chart(ctx, config);
-                if (isExpanded) {
-                    App.state.expandedChart = newChart;
-                } else {
-                    App.state.charts[id] = newChart;
-                }
-            },
-            openChartModal(chartId) {
-                const originalChart = App.state.charts[chartId];
-                if (!originalChart) return;
-
-                const modal = App.elements.chartModal;
-                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).nextElementSibling.textContent;
-                
-                modal.title.textContent = originalTitle;
-                modal.overlay.classList.add('show');
-                
-                const config = JSON.parse(JSON.stringify(originalChart.config._config));
-                config.options.maintainAspectRatio = false;
-                this._createOrUpdateChart(chartId, config, true);
-            },
-            closeChartModal() {
-                const modal = App.elements.chartModal;
-                modal.overlay.classList.remove('show');
-                if (App.state.expandedChart) {
-                    App.state.expandedChart.destroy();
-                    App.state.expandedChart = null;
-                }
-            },
-            renderKpiCards() {
-                const { kpiBrocamento, kpiPerda, kpiInspecoes, kpiFazendas } = App.elements.dashboard;
-
-                const totalBrocado = App.state.registros.reduce((sum, reg) => sum + reg.brocado, 0);
-                const totalEntrenos = App.state.registros.reduce((sum, reg) => sum + reg.entrenos, 0);
-                const mediaPonderadaBroca = totalEntrenos > 0 ? ((totalBrocado / totalEntrenos) * 100) : 0;
-
-                const totalPerda = App.state.perdas.reduce((sum, p) => sum + p.total, 0);
-                const mediaPerda = App.state.perdas.length > 0 ? (totalPerda / App.state.perdas.length) : 0;
-
-                const totalInspecoes = App.state.registros.length + App.state.perdas.length;
-                const totalFazendas = App.state.fazendas.length;
-                
-                kpiBrocamento.innerHTML = `<div class="icon" style="background-color: var(--color-danger);"><i class="fas fa-bug"></i></div><div class="text"><div class="value">${mediaPonderadaBroca.toFixed(2)}%</div><div class="label">Média Brocamento</div></div>`;
-                kpiPerda.innerHTML = `<div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-chart-line"></i></div><div class="text"><div class="value">${mediaPerda.toFixed(2)} kg</div><div class="label">Média de Perda</div></div>`;
-                kpiInspecoes.innerHTML = `<div class="icon" style="background-color: var(--color-info);"><i class="fas fa-clipboard-check"></i></div><div class="text"><div class="value">${totalInspecoes}</div><div class="label">Total Inspeções</div></div>`;
-                kpiFazendas.innerHTML = `<div class="icon" style="background-color: var(--color-primary);"><i class="fas fa-tractor"></i></div><div class="text"><div class="value">${totalFazendas}</div><div class="label">Fazendas Cadastradas</div></div>`;
-            },
-            renderTopBrocamentoChart() {
-                const themeColors = this._getThemeColors();
-                const dadosPorFazenda = App.state.registros.reduce((acc, reg) => {
-                    const fazendaKey = `${reg.codigo} - ${reg.fazenda}`;
-                    if (!acc[fazendaKey]) {
-                        acc[fazendaKey] = { totalBrocado: 0, totalEntrenos: 0 };
-                    }
-                    acc[fazendaKey].totalBrocado += reg.brocado;
-                    acc[fazendaKey].totalEntrenos += reg.entrenos;
-                    return acc;
-                }, {});
-
-                const mediasPonderadas = Object.entries(dadosPorFazenda).map(([key, value]) => ({
-                    fazenda: key,
-                    media: value.totalEntrenos > 0 ? (value.totalBrocado / value.totalEntrenos) * 100 : 0
-                }));
-
-                const top5 = mediasPonderadas.sort((a, b) => b.media - a.media).slice(0, 5);
-                const labels = top5.map(item => item.fazenda);
-                const data = top5.map(item => item.media.toFixed(2));
-
-                this._createOrUpdateChart('graficoBrocamento', { type: 'bar', data: { labels, datasets: [{ label: 'Brocamento Ponderado (%)', data, backgroundColor: themeColors.danger }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { display: false } } } });
-            },
-            renderTopPerdaChart() {
-                const themeColors = this._getThemeColors();
-                const dadosPorFazenda = App.state.perdas.reduce((acc, p) => {
-                    const fazendaKey = `${p.codigo} - ${p.fazenda}`;
-                    if (!acc[fazendaKey]) {
-                        acc[fazendaKey] = { totalPerda: 0, count: 0 };
-                    }
-                    acc[fazendaKey].totalPerda += p.total;
-                    acc[fazendaKey].count++;
-                    return acc;
-                }, {});
-
-                const medias = Object.entries(dadosPorFazenda).map(([key, value]) => ({
-                    fazenda: key,
-                    media: value.count > 0 ? value.totalPerda / value.count : 0
-                }));
-                
-                const top5 = medias.sort((a, b) => b.media - a.media).slice(0, 5);
-                const labels = top5.map(item => item.fazenda);
-                const data = top5.map(item => item.media.toFixed(2));
-
-                this._createOrUpdateChart('graficoPerda', { type: 'bar', data: { labels, datasets: [{ label: 'Média de Perda (kg)', data, backgroundColor: themeColors.warning }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { display: false } } } });
-            },
-            renderEvolucaoMensalChart() {
-                const themeColors = this._getThemeColors();
-                const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                
-                const dadosBroca = App.state.registros.reduce((acc, reg) => {
-                    const mes = new Date(reg.data + 'T03:00:00Z').getMonth();
-                    if (!acc[mes]) acc[mes] = { totalBrocado: 0, totalEntrenos: 0 };
-                    acc[mes].totalBrocado += reg.brocado;
-                    acc[mes].totalEntrenos += reg.entrenos;
-                    return acc;
-                }, {});
-
-                const dadosPerda = App.state.perdas.reduce((acc, p) => {
-                    const mes = new Date(p.data + 'T03:00:00Z').getMonth();
-                    if (!acc[mes]) acc[mes] = { totalPerda: 0, count: 0 };
-                    acc[mes].totalPerda += p.total;
-                    acc[mes].count++;
-                    return acc;
-                }, {});
-
-                const mediasBroca = meses.map((_, i) => dadosBroca[i] ? ((dadosBroca[i].totalBrocado / dadosBroca[i].totalEntrenos) * 100).toFixed(2) : 0);
-                const mediasPerda = meses.map((_, i) => dadosPerda[i] ? (dadosPerda[i].totalPerda / dadosPerda[i].count).toFixed(2) : 0);
-
-                this._createOrUpdateChart('graficoEvolucaoMensal', {
-                    type: 'line',
-                    data: {
-                        labels: meses,
-                        datasets: [
-                            { label: 'Brocamento (%)', data: mediasBroca, borderColor: themeColors.danger, backgroundColor: 'transparent', yAxisID: 'yBroca' },
-                            { label: 'Perda (kg)', data: mediasPerda, borderColor: themeColors.warning, backgroundColor: 'transparent', yAxisID: 'yPerda' }
-                        ]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: {
-                            yBroca: { type: 'linear', position: 'left', beginAtZero: true, ticks: { color: themeColors.danger }, grid: { drawOnChartArea: false } },
-                            yPerda: { type: 'linear', position: 'right', beginAtZero: true, ticks: { color: themeColors.warning }, grid: { drawOnChartArea: false } },
-                            x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } }
-                        },
-                        plugins: { legend: { labels: { color: themeColors.text } } }
-                    }
-                });
-            },
-            renderInspecoesResponsavelChart() {
-                const themeColors = this._getThemeColors();
-                const dadosPorResponsavel = [...App.state.registros, ...App.state.perdas].reduce((acc, item) => {
-                    const responsavel = item.usuario || 'Não identificado';
-                    acc[responsavel] = (acc[responsavel] || 0) + 1;
-                    return acc;
-                }, {});
-                
-                const labels = Object.keys(dadosPorResponsavel);
-                const data = Object.values(dadosPorResponsavel);
-
-                this._createOrUpdateChart('graficoInspecoesResponsavel', {
-                    type: 'doughnut',
-                    data: { labels, datasets: [{ data, backgroundColor: [themeColors.primary, themeColors.accent, themeColors.primaryDark, themeColors.info, themeColors.purple] }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: themeColors.text } }, datalabels: { color: '#fff', font: { weight: 'bold' } } } },
-                    plugins: [ChartDataLabels]
-                });
-            },
-            renderPerdaPorTipoChart() {
-                const themeColors = this._getThemeColors();
-                const perdaPorTipo = App.state.perdas.reduce((acc, p) => {
-                    acc.canaInteira += p.canaInteira || 0;
-                    acc.tolete += p.tolete || 0;
-                    acc.toco += p.toco || 0;
-                    acc.ponta += p.ponta || 0;
-                    acc.estilhaco += p.estilhaco || 0;
-                    acc.pedaco += p.pedaco || 0;
-                    return acc;
-                }, { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0 });
-
-                const labels = ['Cana Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
-                const data = Object.values(perdaPorTipo);
-                const backgroundColors = [themeColors.danger, themeColors.warning, themeColors.purple, themeColors.info, themeColors.accent, themeColors.primaryDark];
-
-                this._createOrUpdateChart('graficoPerdaPorTipo', {
-                    type: 'pie',
-                    data: { labels, datasets: [{ label: 'Perda por Tipo (kg)', data, backgroundColor: backgroundColors }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: themeColors.text } }, datalabels: { formatter: (value, ctx) => { let sum = 0; let dataArr = ctx.chart.data.datasets[0].data; dataArr.map(data => { sum += data; }); let percentage = (value*100 / sum).toFixed(2)+"%"; return percentage; }, color: '#fff' } } },
-                    plugins: [ChartDataLabels]
-                });
-            },
-            renderTopOperadoresChart() {
-                const themeColors = this._getThemeColors();
-                const dadosPorOperador = App.state.perdas.reduce((acc, p) => {
-                    const operadorKey = p.operador || 'Não Identificado';
-                    if (!acc[operadorKey]) {
-                        acc[operadorKey] = { totalPerda: 0, count: 0 };
-                    }
-                    acc[operadorKey].totalPerda += p.total;
-                    acc[operadorKey].count++;
-                    return acc;
-                }, {});
-
-                const medias = Object.entries(dadosPorOperador).map(([key, value]) => ({
-                    operador: key,
-                    media: value.count > 0 ? value.totalPerda / value.count : 0
-                }));
-
-                const top5 = medias.sort((a, b) => b.media - a.media).slice(0, 5);
-                const labels = top5.map(item => item.operador);
-                const data = top5.map(item => item.media.toFixed(2));
-
-                this._createOrUpdateChart('graficoTopOperadores', {
-                    type: 'bar',
-                    data: { labels, datasets: [{ label: 'Perda Média por Operador (kg)', data, backgroundColor: themeColors.primary }] },
-                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { labels: { color: themeColors.text } } } }
-                });
-            }
-        },
-
-        // ===================================================================
-        // NOVA SEÇÃO DE RELATÓRIOS - APONTANDO PARA O BACKEND
-        // ===================================================================
-        reports: {
-            _fetchAndDownloadReport(endpoint, filters, filename) {
-                const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
-                // Adiciona o nome de usuário do App.state.currentUser aos filtros
-                cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
-
-                const params = new URLSearchParams(cleanFilters);
-                const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
-        
-                App.ui.setLoading(true, "A gerar relatório no servidor...");
-        
-                fetch(apiUrl)
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
-                        }
-                        return response.blob();
-                    })
-                    .then(blob => {
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.style.display = 'none';
-                        a.href = url;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                        a.remove();
-                        App.ui.showAlert('Relatório gerado com sucesso!');
-                    })
-                    .catch(error => {
-                        console.error('Erro ao gerar relatório via API:', error);
-                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
-                    })
-                    .finally(() => {
-                        App.ui.setLoading(false);
+                    rows.forEach(row => {
+                        row.addEventListener('dragstart', (e) => {
+                           App.state.draggedElement = e.target;
+                           e.dataTransfer.effectAllowed = 'move';
+                           e.dataTransfer.setData('text/html', e.target.innerHTML);
+                           setTimeout(() => e.target.classList.add('dragging'), 0);
+                        });
+                        row.addEventListener('dragend', (e) => {
+                            e.target.classList.remove('dragging');
+                        });
+                        row.addEventListener('dragover', (e) => {
+                            e.preventDefault();
+                            const targetRow = e.target.closest('tr');
+                            if (targetRow && targetRow !== App.state.draggedElement) {
+                                const rect = targetRow.getBoundingClientRect();
+                                const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > .5;
+                                tableBody.insertBefore(App.state.draggedElement, (next && targetRow.nextSibling) || targetRow);
+                            }
+                        });
                     });
-            },
-        
-            generateBrocamentoPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value
-                };
-                this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
-            },
-        
-            generateBrocamentoCSV() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value
-                };
-                this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
-            },
-        
-            generatePerdaPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    talhao: filtroTalhao.value,
-                    matricula: filtroOperador.value,
-                    frenteServico: filtroFrente.value,
-                    tipoRelatorio: tipoRelatorio.value
-                };
-                this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
-            },
-        
-            generatePerdaCSV() {
-                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value
-                };
-                this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
-            },
-        
-            // [ALTERAÇÃO]: generateCustomHarvestReport agora chama o backend
-            generateCustomHarvestReport(format) {
-                const { select, optionsContainer } = App.elements.relatorioColheita;
-                const planId = select.value;
-                if (!planId) {
-                    App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
-                    return;
-                }
-        
-                const selectedColumns = {};
-                optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    selectedColumns[cb.dataset.column] = cb.checked;
-                });
 
-                const filters = {
-                    planId: planId,
-                    selectedColumns: JSON.stringify(selectedColumns) // Envia como string JSON
-                };
-                
-                this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_custom.${format}`);
+                    tableBody.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        const newSequence = [];
+                        const newRows = tableBody.querySelectorAll('tr');
+                        newRows.forEach(row => {
+                            const groupId = row.dataset.groupId;
+                            const group = App.state.editingHarvestPlan.sequencia.find(g => g.id === groupId);
+                            if (group) newSequence.push(group);
+                        });
+                        App.state.editingHarvestPlan.sequencia = newSequence;
+                        this.renderSequenceTable();
+                    });
+                },
+            },
+            gerenciarUsuarios: { 
+                bindEvents() {
+                    const elements = App.elements.gerenciarUsuarios;
+                    elements.btnCreateUser.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.createUser();
+                    });
+                },
+                async createUser() {
+                    const elements = App.elements.gerenciarUsuarios;
+                    const email = elements.newUserUsername.value;
+                    const password = elements.newUserPassword.value;
+                    const role = elements.newUserRole.value;
+                    const permissions = this._getPermissionsFromCheckboxes(elements.permissionCheckboxes);
+            
+                    if (!email || !password || !role) {
+                        App.ui.showAlert('Email, Senha e Função são obrigatórios.', 'error');
+                        return;
+                    }
+            
+                    App.ui.showLoading(true, "A criar utilizador...");
+                    try {
+                        const backendUrl = 'https://agrovetor-backend-phi.vercel.app/create-user';
+                        const response = await fetch(backendUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email, password, role, permissions })
+                        });
+
+                        const result = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(result.error || 'Erro desconhecido do servidor');
+                        }
+                        
+                        App.ui.showAlert(`Utilizador ${email} criado com sucesso!`, 'success');
+                        elements.form.reset();
+
+                    } catch (error) {
+                        console.error("Erro ao criar utilizador:", error);
+                        App.ui.showAlert(error.message, 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                },
+                editUser(user) {
+                    const modal = App.elements.modals.userEdit;
+                    modal.title.textContent = `Editar Utilizador: ${user.email}`;
+                    modal.userId.value = user.id;
+                    modal.username.value = user.email;
+                    modal.role.value = user.role;
+                    this._setCheckboxesFromPermissions(user.permissions || {}, modal.permissionGrid.querySelectorAll('input[type="checkbox"]'));
+                    App.ui.modals.show('userEdit');
+                },
+                _getPermissionsFromCheckboxes(checkboxes) {
+                    const permissions = {};
+                    checkboxes.forEach(cb => {
+                        permissions[cb.name] = cb.checked;
+                    });
+                    return permissions;
+                },
+                _setCheckboxesFromPermissions(permissions, checkboxes) {
+                    checkboxes.forEach(cb => {
+                        cb.checked = !!permissions[cb.name];
+                    });
+                }
+            },
+            cadastrarPessoas: {
+                bindEvents() {
+                    const elements = App.elements.cadastrarPessoas;
+                    elements.btnSave.addEventListener('click', (e) => { e.preventDefault(); this.savePersonnel(); });
+                    elements.csvUploadArea.addEventListener('click', () => elements.csvInput.click());
+                    elements.csvInput.addEventListener('change', (e) => this.handleCsvUpload(e.target.files[0]));
+                    elements.btnDownloadTemplate.addEventListener('click', () => this.downloadCsvTemplate());
+                },
+                async savePersonnel() {
+                    const elements = App.elements.cadastrarPessoas;
+                    const id = elements.personnelId.value;
+                    const matricula = elements.matricula.value;
+                    const nome = elements.name.value;
+
+                    if (!matricula || !nome) {
+                        App.ui.showAlert('Matrícula e Nome são obrigatórios.', 'error');
+                        return;
+                    }
+                    
+                    const data = { matricula, nome };
+                    App.ui.showLoading(true);
+                    try {
+                        if (id) {
+                            await setDoc(doc(App.db, 'pessoas', id), data);
+                            App.ui.showAlert('Pessoa atualizada com sucesso!', 'success');
+                        } else {
+                            await addDoc(collection(App.db, 'pessoas'), data);
+                             App.ui.showAlert('Pessoa cadastrada com sucesso!', 'success');
+                        }
+                        this.resetForm();
+                    } catch (error) {
+                         console.error("Erro ao salvar pessoa:", error);
+                         App.ui.showAlert('Erro ao salvar pessoa.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                },
+                edit(person) {
+                    const elements = App.elements.cadastrarPessoas;
+                    elements.personnelId.value = person.id;
+                    elements.matricula.value = person.matricula;
+                    elements.name.value = person.nome;
+                },
+                delete(personId) {
+                    App.ui.modals.showConfirmation(
+                        'Confirmar Exclusão',
+                        `Tem a certeza de que deseja excluir esta pessoa?`,
+                        async () => {
+                            try {
+                                App.ui.showLoading(true);
+                                await deleteDoc(doc(App.db, 'pessoas', personId));
+                                App.ui.showAlert('Pessoa excluída com sucesso!', 'success');
+                            } catch (error) {
+                                console.error("Erro ao excluir pessoa:", error);
+                                App.ui.showAlert('Erro ao excluir pessoa.', 'error');
+                            } finally {
+                                App.ui.showLoading(false);
+                            }
+                        }
+                    );
+                },
+                handleCsvUpload(file) {
+                    if (!file || !file.type.match('text/csv')) {
+                        App.ui.showAlert('Por favor, selecione um ficheiro CSV.', 'error');
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        const csv = event.target.result;
+                        const lines = csv.split('\n').filter(line => line.trim() !== '');
+                        if (lines.length <= 1) {
+                            App.ui.showAlert('Ficheiro CSV vazio ou inválido.', 'error');
+                            return;
+                        }
+                        App.ui.showLoading(true, 'A processar CSV de Pessoas...');
+                        try {
+                            const batch = writeBatch(App.db);
+                            const headers = lines[0].trim().split(',').map(h => h.trim());
+                            const matriculaIndex = headers.indexOf('Matricula');
+                            const nomeIndex = headers.indexOf('Nome');
+
+                            if(matriculaIndex === -1 || nomeIndex === -1) {
+                                throw new Error('Cabeçalho do CSV deve conter "Matricula" e "Nome".');
+                            }
+
+                            for (let i = 1; i < lines.length; i++) {
+                                const values = lines[i].trim().split(',');
+                                const matricula = values[matriculaIndex];
+                                const nome = values[nomeIndex];
+                                if (matricula && nome) {
+                                    const newDocRef = doc(collection(App.db, "pessoas"));
+                                    batch.set(newDocRef, { matricula, nome });
+                                }
+                            }
+                            await batch.commit();
+                            App.ui.showAlert(`${lines.length - 1} pessoas importadas com sucesso!`, 'success');
+                        } catch (error) {
+                            console.error("Erro ao importar CSV de pessoas:", error);
+                            App.ui.showAlert(`Erro ao importar: ${error.message}`, 'error');
+                        } finally {
+                            App.ui.showLoading(false);
+                            App.elements.cadastrarPessoas.csvInput.value = '';
+                        }
+                    };
+                    reader.readAsText(file);
+                },
+                downloadCsvTemplate() {
+                    const csvContent = "data:text/csv;charset=utf-8," + "Matricula,Nome\n12345,João da Silva\n";
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "template_pessoas.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+                resetForm() {
+                    App.elements.cadastrarPessoas.form.reset();
+                    App.elements.cadastrarPessoas.personnelId.value = '';
+                }
+            },
+            configuracoesEmpresa: { 
+                bindEvents() {
+                    const elements = App.elements.configuracoesEmpresa;
+                    elements.logoUploadArea.addEventListener('click', () => elements.logoInput.click());
+                    elements.logoInput.addEventListener('change', (e) => this.handleLogoUpload(e.target.files[0]));
+                    elements.removeLogoBtn.addEventListener('click', () => this.removeLogo());
+                },
+                handleLogoUpload(file) {
+                    if (!file || !file.type.match('image.*')) {
+                        App.ui.showAlert('Por favor, selecione um ficheiro de imagem.', 'error');
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const base64String = e.target.result;
+                        this.saveLogo(base64String);
+                    };
+                    reader.readAsDataURL(file);
+                },
+                async saveLogo(base64String) {
+                    App.ui.showLoading(true, 'A enviar logo...');
+                    try {
+                        const backendUrl = 'https://agrovetor-backend-phi.vercel.app/upload-logo'; 
+                        await fetch(backendUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ logo: base64String })
+                        });
+                        App.ui.showAlert('Logo atualizado com sucesso!', 'success');
+                        await App.db_ops.fetchCompanyConfig();
+                    } catch (error) {
+                        console.error("Erro ao enviar logo:", error);
+                        App.ui.showAlert('Erro ao enviar o logo.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                },
+                async removeLogo() {
+                     App.ui.modals.showConfirmation(
+                        'Remover Logo',
+                        'Tem a certeza de que deseja remover o logo da empresa?',
+                        async () => {
+                            App.ui.showLoading(true, 'A remover logo...');
+                            try {
+                                const configRef = doc(App.db, 'configuracoes', 'empresa');
+                                await updateDoc(configRef, { logoUrl: deleteField() });
+                                App.ui.showAlert('Logo removido com sucesso.', 'success');
+                                App.state.companyConfig.logoUrl = null;
+                                App.ui.renderCompanyConfig();
+                            } catch (error) {
+                                console.error("Erro ao remover logo:", error);
+                                App.ui.showAlert('Erro ao remover o logo.', 'error');
+                            } finally {
+                                App.ui.showLoading(false);
+                            }
+                        }
+                     );
+                }
+            },
+            modals: {
+                bindEvents() {
+                    const modals = App.elements.modals;
+                    modals.userEdit.closeBtn.addEventListener('click', () => App.ui.modals.hide('userEdit'));
+                    modals.confirmation.closeBtn.addEventListener('click', () => App.ui.modals.hide('confirmation'));
+                    modals.confirmation.cancelBtn.addEventListener('click', () => App.ui.modals.hide('confirmation'));
+                    modals.changePassword.closeBtn.addEventListener('click', () => App.ui.modals.hide('changePassword'));
+                    modals.changePassword.cancelBtn.addEventListener('click', () => App.ui.modals.hide('changePassword'));
+                    modals.adminPassword.closeBtn.addEventListener('click', () => App.ui.modals.hide('adminPassword'));
+                    modals.adminPassword.cancelBtn.addEventListener('click', () => App.ui.modals.hide('adminPassword'));
+                    modals.chart.closeBtn.addEventListener('click', () => App.ui.modals.hide('chart'));
+
+                    modals.userEdit.btnSave.addEventListener('click', () => this.saveUserChanges());
+                    modals.userEdit.btnResetPass.addEventListener('click', () => this.resetUserPassword());
+                    modals.userEdit.btnDelete.addEventListener('click', () => this.deleteUser());
+                    modals.changePassword.saveBtn.addEventListener('click', () => this.changePassword());
+                    modals.adminPassword.confirmBtn.addEventListener('click', async () => {
+                        const password = App.elements.modals.adminPassword.passwordInput.value;
+                        if (!password) {
+                            App.ui.showAlert('Por favor, insira a senha de administrador.', 'error');
+                            return;
+                        }
+                        
+                        try {
+                            const user = App.auth.currentUser;
+                            const credential = EmailAuthProvider.credential(user.email, password);
+                            await reauthenticateWithCredential(user, credential);
+                            
+                            if (typeof App.state.adminActionCallback === 'function') {
+                                App.state.adminActionCallback();
+                            }
+                        } catch(error) {
+                            App.ui.showAlert('Senha de administrador incorreta.', 'error');
+                        } finally {
+                             App.ui.modals.hide('adminPassword');
+                             App.elements.modals.adminPassword.passwordInput.value = '';
+                             App.state.adminActionCallback = null;
+                        }
+                    });
+                },
+                async saveUserChanges() {
+                    const modal = App.elements.modals.userEdit;
+                    const userId = modal.userId.value;
+                    const role = modal.role.value;
+                    const permissions = App.forms.gerenciarUsuarios._getPermissionsFromCheckboxes(modal.permissionGrid.querySelectorAll('input'));
+
+                    App.ui.showLoading(true, 'A salvar alterações...');
+                    try {
+                        const userRef = doc(App.db, 'usuarios', userId);
+                        await updateDoc(userRef, { role, permissions });
+                        App.ui.showAlert('Utilizador atualizado com sucesso!', 'success');
+                        App.ui.modals.hide('userEdit');
+                    } catch (error) {
+                        console.error("Erro ao atualizar utilizador:", error);
+                        App.ui.showAlert('Erro ao atualizar utilizador.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                },
+                async resetUserPassword() {
+                    const email = App.elements.modals.userEdit.username.value;
+                    App.ui.modals.showConfirmation(
+                        'Redefinir Senha',
+                        `Um email para redefinição de senha será enviado para ${email}. Confirma?`,
+                        async () => {
+                            try {
+                                App.ui.showLoading(true);
+                                await sendPasswordResetEmail(App.auth, email);
+                                App.ui.showAlert(`Email de redefinição enviado para ${email}.`, 'success');
+                            } catch (error) {
+                                console.error("Erro ao redefinir senha:", error);
+                                App.ui.showAlert('Erro ao enviar email de redefinição.', 'error');
+                            } finally {
+                                App.ui.showLoading(false);
+                            }
+                        }
+                    );
+                },
+                async deleteUser() {
+                    const userId = App.elements.modals.userEdit.userId.value;
+                    const email = App.elements.modals.userEdit.username.value;
+                     App.ui.modals.showConfirmation(
+                        'EXCLUIR UTILIZADOR',
+                        `Esta ação é IRREVERSÍVEL. Tem a CERTEZA de que deseja excluir o utilizador ${email}?`,
+                        async () => {
+                            App.ui.showLoading(true, `A excluir ${email}...`);
+                            try {
+                                const backendUrl = 'https://agrovetor-backend-phi.vercel.app/delete-user';
+                                const response = await fetch(backendUrl, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ uid: userId })
+                                });
+                                if (!response.ok) {
+                                    const result = await response.json();
+                                    throw new Error(result.error);
+                                }
+                                App.ui.showAlert('Utilizador excluído com sucesso.', 'success');
+                                App.ui.modals.hide('userEdit');
+                            } catch(error) {
+                                console.error("Erro ao excluir utilizador:", error);
+                                App.ui.showAlert(`Erro ao excluir utilizador: ${error.message}`, 'error');
+                            } finally {
+                                App.ui.showLoading(false);
+                            }
+                        }
+                    );
+                },
+                async changePassword() {
+                    const modal = App.elements.modals.changePassword;
+                    const currentPassword = modal.currentPassword.value;
+                    const newPassword = modal.newPassword.value;
+                    const confirmNewPassword = modal.confirmNewPassword.value;
+
+                    if (newPassword !== confirmNewPassword) {
+                        App.ui.showAlert('As novas senhas não coincidem.', 'error');
+                        return;
+                    }
+                    if (newPassword.length < 6) {
+                        App.ui.showAlert('A nova senha deve ter pelo menos 6 caracteres.', 'error');
+                        return;
+                    }
+
+                    App.ui.showLoading(true, 'A alterar senha...');
+                    try {
+                        const user = App.auth.currentUser;
+                        const credential = EmailAuthProvider.credential(user.email, currentPassword);
+                        await reauthenticateWithCredential(user, credential);
+                        await updatePassword(user, newPassword);
+                        App.ui.showAlert('Senha alterada com sucesso!', 'success');
+                        App.ui.modals.hide('changePassword');
+                        modal.overlay.querySelector('form').reset();
+                    } catch (error) {
+                        console.error("Erro ao alterar senha:", error);
+                        App.ui.showAlert('Erro ao alterar senha. Verifique a sua senha atual.', 'error');
+                    } finally {
+                        App.ui.showLoading(false);
+                    }
+                }
             }
         },
+        
+        relatorios: {
+            bindAll() {
+                this.broca.bindEvents();
+                this.perda.bindEvents();
+                this.colheitaCustom.bindEvents();
+            },
+            async _fetchAndDownloadReport(endpoint, filters, filename) {
+                App.ui.showLoading(true, `A gerar ${filename}...`);
+                try {
+                     const backendUrl = `https://agrovetor-backend-phi.vercel.app/${endpoint}`;
+                     const response = await fetch(backendUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(filters)
+                    });
+            
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `Falha no servidor: ${response.statusText}`);
+                    }
+            
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } catch (error) {
+                    console.error(`Erro ao gerar relatório ${filename}:`, error);
+                    App.ui.showAlert(`Erro ao gerar relatório: ${error.message}`, 'error');
+                } finally {
+                    App.ui.showLoading(false);
+                }
+            },
+            broca: { 
+                bindEvents() {
+                    App.elements.btnPDFBrocamento.addEventListener('click', () => this.generate('pdf'));
+                    App.elements.btnExcelBrocamento.addEventListener('click', () => this.generate('csv'));
+                },
+                generate(format) {
+                    const filters = {
+                        fazenda: App.elements.fazendaFiltroBrocamento.value,
+                        inicio: App.elements.inicioBrocamento.value,
+                        fim: App.elements.fimBrocamento.value,
+                        tipo: App.elements.tipoRelatorioBroca.value,
+                        logoUrl: App.state.companyConfig.logoUrl || null
+                    };
+                    App.relatorios._fetchAndDownloadReport(`relatorio/broca/${format}`, filters, `relatorio_broca.${format}`);
+                }
+            },
+            perda: { 
+                bindEvents() {
+                    App.elements.btnPDFPerda.addEventListener('click', () => this.generate('pdf'));
+                    App.elements.btnExcelPerda.addEventListener('click', () => this.generate('csv'));
+                },
+                generate(format) {
+                    const filters = {
+                        fazenda: App.elements.fazendaFiltroPerda.value,
+                        talhao: App.elements.talhaoFiltroPerda.value,
+                        operador: App.elements.operadorFiltroPerda.value,
+                        frente: App.elements.frenteFiltroPerda.value,
+                        inicio: App.elements.inicioPerda.value,
+                        fim: App.elements.fimPerda.value,
+                        tipo: App.elements.tipoRelatorioPerda.value,
+                        logoUrl: App.state.companyConfig.logoUrl || null
+                    };
+                    App.relatorios._fetchAndDownloadReport(`relatorio/perda/${format}`, filters, `relatorio_perda.${format}`);
+                }
+            },
+            colheitaCustom: {
+                bindEvents() {
+                    App.elements.relatorioColheitaCustom.planoSelect.addEventListener('change', (e) => this.renderOptions(e.target.value));
+                    App.elements.relatorioColheitaCustom.btnPDF.addEventListener('click', () => this.generate('pdf'));
+                    App.elements.relatorioColheitaCustom.btnExcel.addEventListener('click', () => this.generate('csv'));
+                },
+                renderOptions(planId) {
+                    const container = App.elements.relatorioColheitaCustom.optionsContainer;
+                    container.innerHTML = '';
+                    if (!planId) return;
 
+                    const headers = [
+                        { id: 'ordem', label: 'Ordem', checked: true },
+                        { id: 'fazenda', label: 'Fazenda', checked: true },
+                        { id: 'talhao', label: 'Talhão', checked: true },
+                        { id: 'area', label: 'Área (ha)', checked: true },
+                        { id: 'producao', label: 'Produção (t)', checked: true },
+                        { id: 'variedade', label: 'Variedade', checked: true },
+                        { id: 'idade', label: 'Idade (Corte)', checked: true },
+                        { id: 'atr', label: 'ATR', checked: false },
+                        { id: 'maturador', label: 'Maturador', checked: false },
+                        { id: 'diasAplicacao', label: 'Dias Aplic.', checked: false },
+                        { id: 'entrada', label: 'Entrada Colheita', checked: true },
+                        { id: 'saida', label: 'Saída Colheita', checked: true }
+                    ];
+
+                    headers.forEach(header => {
+                        container.innerHTML += `
+                            <div>
+                                <input type="checkbox" id="col-${header.id}" data-column="${header.id}" ${header.checked ? 'checked' : ''}>
+                                <label for="col-${header.id}">${header.label}</label>
+                            </div>
+                        `;
+                    });
+                },
+                generate(format) {
+                    const planId = App.elements.relatorioColheitaCustom.planoSelect.value;
+                    if (!planId) {
+                        App.ui.showAlert('Selecione um plano de colheita.', 'error');
+                        return;
+                    }
+
+                    const selectedColumns = {};
+                    App.elements.relatorioColheitaCustom.optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                        selectedColumns[cb.dataset.column] = cb.checked;
+                    });
+
+                    const filters = {
+                        planId: planId,
+                        selectedColumns: JSON.stringify(selectedColumns),
+                        logoUrl: App.state.companyConfig.logoUrl || null
+                    };
+                    
+                    App.relatorios._fetchAndDownloadReport(`relatorio/colheita/${format}`, filters, `relatorio_colheita_custom.${format}`);
+                }
+            }
+        },
+        
         pwa: {
             registerServiceWorker() {
                 if ('serviceWorker' in navigator) {
                     window.addEventListener('load', () => {
                         navigator.serviceWorker.register('./service-worker.js')
-                            .then(registration => {
-                                console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                            })
-                            .catch(error => {
-                                console.log('ServiceWorker registration failed: ', error);
-                            });
+                            .then(reg => console.log('ServiceWorker registration successful.', reg))
+                            .catch(err => console.log('ServiceWorker registration failed: ', err));
                     });
-
                     window.addEventListener('beforeinstallprompt', (e) => {
                         e.preventDefault();
                         App.state.deferredInstallPrompt = e;
-                        App.elements.installAppBtn.style.display = 'flex';
-                        console.log(`'beforeinstallprompt' event was fired.`);
+                        if(App.elements.installAppBtn) App.elements.installAppBtn.style.display = 'flex';
                     });
                 }
+            },
+            install() {
+                if (App.state.deferredInstallPrompt) {
+                    App.state.deferredInstallPrompt.prompt();
+                    App.state.deferredInstallPrompt.userChoice.then(choiceResult => {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('User accepted the A2HS prompt');
+                        }
+                        App.state.deferredInstallPrompt = null;
+                        if(App.elements.installAppBtn) App.elements.installAppBtn.style.display = 'none';
+                    });
+                }
+            }
+        },
+
+        auth_guards: {
+             canView(tabId) { return !!App.state.currentUser?.permissions?.[tabId]; },
+             isAdmin() { return App.state.currentUser?.role === 'admin'; },
+        },
+        
+        helpers: {
+            getFazendaNome(codigo) {
+                const fazenda = App.state.fazendas.find(f => f.id === codigo);
+                return fazenda ? fazenda.nome : `Cód: ${codigo}`;
+            },
+             getPersonNameByMatricula(matricula) {
+                const pessoa = App.state.pessoas.find(p => p.matricula === matricula);
+                return pessoa ? pessoa.nome : `Matrícula: ${matricula}`;
+            },
+            getFirebaseAuthErrorMessage(error) {
+                switch (error.code) {
+                    case 'auth/user-not-found': return 'Utilizador não encontrado.';
+                    case 'auth/wrong-password': return 'Senha incorreta.';
+                    case 'auth/invalid-email': return 'Email inválido.';
+                    case 'auth/network-request-failed': return 'Falha na rede. Verifique a sua conexão.';
+                    case 'auth/email-already-in-use': return 'Este email já está a ser utilizado por outra conta.';
+                    default: return `Ocorreu um erro: ${error.message}`;
+                }
+            },
+            debounce(func, delay) {
+                let timeout;
+                return function(...args) {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), delay);
+                };
             }
         }
     };
 
-    // Inicia a aplicação
     App.init();
 });
