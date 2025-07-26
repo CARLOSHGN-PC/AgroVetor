@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements: {},
         state: {
             currentUser: null,
-            activeTab: null,
+            activeTab: 'dashboard', // Iniciar na dashboard por defeito
             fazendas: [],
             lancamentosBroca: [],
             lancamentosPerda: [],
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeCharts: {},
             editingHarvestPlan: null,
             editingHarvestPlanId: null,
-            isOffline: false,
+            isOffline: !navigator.onLine,
             deferredInstallPrompt: null,
             companyConfig: {},
             isDragging: false,
@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.auth = getAuth(firebaseApp);
 
                 enableIndexedDbPersistence(this.db)
+                    .then(() => console.log("Persistência offline habilitada."))
                     .catch((err) => {
                         if (err.code == 'failed-precondition') {
                             console.warn("Persistência não pôde ser habilitada, múltiplas abas abertas.");
@@ -61,6 +62,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.bindEvents();
                 this.auth.handleAuthStateChange();
                 this.pwa.registerServiceWorker();
+                
+                // Set default date for date inputs
+                this.ui.setDefaultDates();
 
             } catch (error) {
                 console.error("Erro ao inicializar o Firebase:", error);
@@ -180,8 +184,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 talhaoProducao: document.getElementById('talhaoProducao'),
                 talhaoVariedade: document.getElementById('talhaoVariedade'),
                 talhaoCorte: document.getElementById('talhaoCorte'),
-                talhaoDistancia: document.getElementById('talhaoDistancia'),
-                talhaoUltimaColheita: document.getElementById('talhaoUltimaColheita'),
+                distancia: document.getElementById('talhaoDistancia'),
+                ultimaColheita: document.getElementById('talhaoUltimaColheita'),
                 btnSaveTalhao: document.getElementById('btnSaveTalhao'),
             };
 
@@ -308,8 +312,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- EVENTOS ---
         bindEvents() {
-            this.elements.btnLogin.addEventListener('click', () => this.auth.login());
-            this.elements.loginPass.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.auth.login(); });
+            this.elements.btnLogin.addEventListener('click', (e) => { e.preventDefault(); this.auth.login(); });
+            this.elements.loginPass.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.auth.login(); }});
             this.elements.logoutBtn.addEventListener('click', () => this.auth.logout());
             this.elements.btnToggleMenu.addEventListener('click', () => this.ui.toggleMenu());
             
@@ -504,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         },
         
-        // --- DASHBOARD ---
+        // --- [NOVO] LÓGICA DO DASHBOARD ---
         dashboard: {
             bindEvents() {
                 App.elements.cardBroca.addEventListener('click', () => this.show('broca'));
@@ -537,21 +541,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'aerea':
                         App.elements.dashboardAerea.style.display = 'block';
-                        App.charts.destroyAll();
+                        App.charts.destroyAll(); // Ainda sem gráficos para Aérea
                         break;
                 }
             },
             
             renderCharts(type) {
-                if (type === 'broca') {
-                    App.charts.renderBrocaDashboardCharts();
-                } else if (type === 'perda') {
-                    App.charts.renderPerdaDashboardCharts();
-                }
+                // Adiciona um pequeno delay para garantir que a transição de tela concluiu antes de desenhar.
+                setTimeout(() => {
+                    if (type === 'broca') {
+                        App.charts.renderBrocaDashboardCharts();
+                    } else if (type === 'perda') {
+                        App.charts.renderPerdaDashboardCharts();
+                    }
+                }, 100);
             }
         },
 
-        // --- INTERFACE (UI) ---
+        // --- LÓGICA DA INTERFACE (UI) ---
         ui: {
             showTab(tabId) {
                 if (!App.auth_guards.canView(tabId)) {
@@ -571,9 +578,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (btn.dataset.tab === tabId) btn.classList.add('active');
                     });
                     
+                    // Lógica específica para cada aba
                     switch (tabId) {
                         case 'dashboard':
-                           App.dashboard.show('broca');
+                           App.dashboard.show('broca'); // [ALTERADO] Inicia no dashboard de broca
                            break;
                         case 'excluirDados':
                            this.renderExclusionList();
@@ -585,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.forms.cadastros.resetTalhaoView();
                             break;
                         default:
-                            App.charts.destroyAll();
+                            App.charts.destroyAll(); // Destrói gráficos ao sair de uma aba que os usa
                             break;
                     }
                 } else {
@@ -602,7 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (firstTab) {
                     this.showTab(firstTab);
                 } else {
-                    this.showTab('dashboard'); 
+                    this.showTab('dashboard'); // Default fallback
                     this.showAlert("Não tem permissão para visualizar nenhuma secção.", "error");
                 }
             },
@@ -937,6 +945,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.configuracoesEmpresa.logoPreview.style.display = 'none';
                     App.elements.configuracoesEmpresa.removeLogoBtn.style.display = 'none';
                 }
+            },
+            
+            setDefaultDates() {
+                const today = new Date().toISOString().split('T')[0];
+                const dateInputs = [
+                    this.elements.formBroca.data,
+                    this.elements.formPerda.dataPerda,
+                    this.elements.inicioBrocamento,
+                    this.elements.fimBrocamento,
+                    this.elements.inicioPerda,
+                    this.elements.fimPerda,
+                    this.elements.planejamento.data,
+                    this.elements.planejamentoColheita.startDate,
+                    this.elements.planejamentoColheita.maturadorDate
+                ];
+                dateInputs.forEach(input => {
+                    if(input && !input.value) input.value = today;
+                });
             },
             
             modals: {
@@ -1312,6 +1338,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.formBroca.resultado.textContent = 'Resultado: 0,00%';
                     App.elements.formBroca.varietyDisplay.textContent = 'Variedade: N/D';
                     App.ui.populateSelect(App.elements.formBroca.talhao, [], 'id', 'nome', 'Selecione a fazenda');
+                    App.ui.setDefaultDates();
                 }
             },
             perda: { 
@@ -1402,6 +1429,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.formPerda.varietyDisplayPerda.textContent = 'Variedade: N/D';
                     App.elements.formPerda.operadorNome.textContent = 'Nome:';
                     App.ui.populateSelect(App.elements.formPerda.talhaoPerda, [], 'id', 'nome', 'Selecione a fazenda');
+                    App.ui.setDefaultDates();
                 }
             },
             cadastros: { 
@@ -1683,6 +1711,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 resetForm() {
                     App.elements.planejamento.form.reset();
                     App.ui.populateSelect(App.elements.planejamento.talhao, [], 'id', 'nome', 'Selecione a fazenda primeiro');
+                    App.ui.setDefaultDates();
                 }
             },
             planejamentoColheita: { 
@@ -1729,6 +1758,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             sequencia: []
                         };
                     }
+                    App.ui.setDefaultDates();
                 },
                 populateTalhaoSelection() {
                     const elements = App.elements.planejamentoColheita;
@@ -2038,6 +2068,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
                     App.ui.showLoading(true, "A criar utilizador...");
                     try {
+                        // Utiliza a rota do backend para criar o utilizador
                         const backendUrl = 'https://agrovetor-backend-phi.vercel.app/create-user';
                         const response = await fetch(backendUrl, {
                             method: 'POST',
