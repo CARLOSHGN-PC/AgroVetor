@@ -345,8 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
-        
-        auth: { // (CÓDIGO ORIGINAL MANTIDO)
+              auth: {
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
@@ -357,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showAppScreen();
                             App.data.listenToAllData();
                         } else {
-                            this.logout();
+                            await this.logout(); // Use await para garantir o logout completo
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
@@ -380,6 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A autenticar...");
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
+                    // O onAuthStateChanged vai tratar de mostrar o app
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showLoginMessage("E-mail ou senha inválidos.");
@@ -387,8 +387,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showLoginMessage("Erro de rede. Verifique sua conexão e tente novamente.");
                     } else {
                         App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
+                        console.error("Erro de login não tratado:", error); // Log para depuração
                     }
-                    console.error("Erro de login:", error.code, error.message);
                 } finally {
                     App.ui.setLoading(false);
                 }
@@ -404,7 +404,11 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             async logout() {
                 if (navigator.onLine) {
-                    await signOut(auth);
+                    try {
+                        await signOut(auth);
+                    } catch (error) {
+                        console.error("Erro ao fazer signOut:", error);
+                    }
                 }
                 App.data.cleanupListeners();
                 App.state.currentUser = null;
@@ -527,8 +531,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showAlert("Alterações guardadas com sucesso!");
                 App.ui.closeUserEditModal();
             }
-        },
-
+        }
+       
         data: { // (CÓDIGO ORIGINAL MANTIDO)
             cleanupListeners() {
                 App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
