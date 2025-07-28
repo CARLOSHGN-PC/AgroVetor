@@ -117,11 +117,8 @@ try {
         const cellWidth = customWidths[i] - (textPadding * 2);
         const textOptions = { width: cellWidth, align: 'left', continued: false };
 
-        // Verifica se o conteúdo é numérico (para permitir quebra de linha)
-        const isNumericContent = !isNaN(parseFloat(String(cell))) && isFinite(String(cell));
-        
-        // Lógica de quebra de linha: permite para 'talhoes' e conteúdo numérico
-        if (columnId === 'talhoes' || isNumericContent) {
+        // Lógica de quebra de linha: permite apenas para colunas específicas
+        if (['talhoes', 'variedade'].includes(columnId)) {
             textOptions.lineBreak = true; // Permite quebra de linha
             textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
         } else {
@@ -460,19 +457,19 @@ try {
 
       // [CORREÇÃO] Ajuste nas larguras mínimas para evitar quebra de linha nos títulos
       const allPossibleHeadersConfig = [
-          { id: 'seq', title: 'Seq.', minWidth: 25 },
-          { id: 'fazenda', title: 'Fazenda', minWidth: 100 }, 
-          { id: 'talhoes', title: 'Talhões', minWidth: 150 }, 
-          { id: 'area', title: 'Área (ha)', minWidth: 45 },
-          { id: 'producao', title: 'Prod. (ton)', minWidth: 50 },
-          { id: 'variedade', title: 'Variedade', minWidth: 120 }, 
-          { id: 'idade', title: 'Idade (m)', minWidth: 50 }, // Aumentado
+          { id: 'seq', title: 'Seq.', minWidth: 30 },
+          { id: 'fazenda', title: 'Fazenda', minWidth: 120 }, 
+          { id: 'talhoes', title: 'Talhões', minWidth: 160 }, 
+          { id: 'area', title: 'Área (ha)', minWidth: 50 },
+          { id: 'producao', title: 'Prod. (ton)', minWidth: 55 },
+          { id: 'variedade', title: 'Variedade', minWidth: 130 }, 
+          { id: 'idade', title: 'Idade (m)', minWidth: 55 }, 
           { id: 'atr', title: 'ATR', minWidth: 40 }, 
-          { id: 'maturador', title: 'Maturador', minWidth: 70 }, 
-          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 60 }, // Aumentado
-          { id: 'distancia', title: 'Dist. (km)', minWidth: 55 }, // Aumentado
-          { id: 'entrada', title: 'Entrada', minWidth: 60 }, 
-          { id: 'saida', title: 'Saída', minWidth: 60 }    
+          { id: 'maturador', title: 'Maturador', minWidth: 80 }, 
+          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 70 }, 
+          { id: 'distancia', title: 'Dist. (km)', minWidth: 60 },
+          { id: 'entrada', title: 'Entrada', minWidth: 65 }, 
+          { id: 'saida', title: 'Saída', minWidth: 65 }    
       ];
 
       // Filtra os cabeçalhos selecionados
@@ -626,10 +623,15 @@ try {
       doc.y = currentY;
       
       const totalRowData = new Array(finalHeaders.length).fill('');
+      const fazendaIndex = finalHeaders.findIndex(h => h.id === 'fazenda');
       const areaIndex = finalHeaders.findIndex(h => h.id === 'area');
       const prodIndex = finalHeaders.findIndex(h => h.id === 'producao');
 
-      totalRowData[0] = 'Total Geral'; // Sempre na primeira coluna (Seq.)
+      if (fazendaIndex !== -1) {
+          totalRowData[fazendaIndex] = 'Total Geral';
+      } else {
+          totalRowData[1] = 'Total Geral'; // Fallback para a segunda coluna
+      }
 
       if (areaIndex !== -1) {
           totalRowData[areaIndex] = grandTotalArea.toFixed(2);
