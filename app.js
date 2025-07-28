@@ -657,8 +657,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const createMenuItem = (item) => {
                     const hasPermission = item.submenu ? 
-                                        item.submenu.some(sub => currentUser.permissions[sub.permission]) : 
-                                        currentUser.permissions[item.permission];
+                                         item.submenu.some(sub => currentUser.permissions[sub.permission]) : 
+                                         currentUser.permissions[item.permission];
 
                     if (!hasPermission) return null;
                     
@@ -1342,8 +1342,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const chartModal = App.elements.chartModal;
                 chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
                 chartModal.overlay.addEventListener('click', e => { if(e.target === chartModal.overlay) App.charts.closeChartModal(); });
-                document.querySelectorAll('.btn-expand-chart').forEach(btn => {
-                    btn.addEventListener('click', () => App.charts.openChartModal(btn.dataset.chartId));
+                
+                // Event listener para todos os botões de expandir
+                document.addEventListener('click', (e) => {
+                    if (e.target.closest('.btn-expand-chart')) {
+                        const button = e.target.closest('.btn-expand-chart');
+                        App.charts.openChartModal(button.dataset.chartId);
+                    }
                 });
 
                 if(App.elements.dashboard.btnAnalisar) App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
@@ -2408,8 +2413,24 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         charts: {
+            // Paleta de cores de alto contraste para os gráficos
+            CHART_COLORS: {
+                red: 'rgb(255, 99, 132)',
+                orange: 'rgb(255, 159, 64)',
+                yellow: 'rgb(255, 205, 86)',
+                green: 'rgb(75, 192, 192)',
+                blue: 'rgb(54, 162, 235)',
+                purple: 'rgb(153, 102, 255)',
+                grey: 'rgb(201, 203, 207)',
+                teal: 'rgb(0, 128, 128)',
+                maroon: 'rgb(128, 0, 0)',
+                lime: 'rgb(0, 255, 0)',
+                navy: 'rgb(0, 0, 128)',
+                olive: 'rgb(128, 128, 0)'
+            },
+
             renderAll() {
-                // Esta função está agora vazia, a renderização é chamada por `showDashboardView`
+                // A renderização agora é chamada por `showDashboardView` para evitar renderizações desnecessárias
             },
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
@@ -2459,11 +2480,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!originalChart) return;
 
                 const modal = App.elements.chartModal;
-                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).nextElementSibling.textContent;
+                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).closest('.chart-card').querySelector('.chart-title').textContent;
                 
                 modal.title.textContent = originalTitle;
                 modal.overlay.classList.add('show');
                 
+                // Clona a configuração para não afetar o gráfico original
                 const config = JSON.parse(JSON.stringify(originalChart.config._config));
                 config.options.maintainAspectRatio = false;
                 this._createOrUpdateChart(chartId, config, true);
@@ -2477,7 +2499,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             
-            // --- [NOVAS FUNÇÕES PARA O DASHBOARD DE CARDS] ---
+            // --- Funções de Renderização dos Gráficos do Dashboard ---
             renderBrocaDashboardCharts() {
                 if(App.state.registros.length > 0) {
                     this.renderTop10FazendasBroca();
@@ -2505,28 +2527,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazenda.totalEntrenos += Number(item.entrenos);
                     fazenda.totalBrocado += Number(item.brocado);
                 });
-            
+                
                 const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, data]) => {
                     const indice = data.totalEntrenos > 0 ? (data.totalBrocado / data.totalEntrenos) * 100 : 0;
                     return { nome, indice };
                 });
-            
+                
                 fazendasArray.sort((a, b) => b.indice - a.indice);
-                const top10 = fazendasArray.slice(0, 10).reverse();
-            
+                const top10 = fazendasArray.slice(0, 10);
+                
                 this._createOrUpdateChart('graficoTop10FazendasBroca', {
-                    type: 'bar',
+                    type: 'bar', // Gráfico de barras vertical
                     data: {
                         labels: top10.map(f => f.nome),
                         datasets: [{
                             label: 'Índice de Broca Ponderado (%)',
                             data: top10.map(f => f.indice.toFixed(2)),
-                            backgroundColor: 'rgba(211, 47, 47, 0.6)',
-                            borderColor: 'rgba(211, 47, 47, 1)',
+                            backgroundColor: this.CHART_COLORS.red,
+                            borderColor: this.CHART_COLORS.red,
                             borderWidth: 1
                         }]
                     },
-                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
+                    options: { 
+                        indexAxis: 'x', // Eixo X para as fazendas (vertical)
+                        responsive: true, 
+                        maintainAspectRatio: false 
+                    }
                 });
             },
             renderBrocaMensal() {
@@ -2559,8 +2585,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             label: 'Índice Mensal (%)',
                             data,
                             fill: true,
-                            borderColor: 'rgba(211, 47, 47, 1)',
-                            backgroundColor: 'rgba(211, 47, 47, 0.2)',
+                            borderColor: this.CHART_COLORS.blue,
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
                             tension: 0.4
                         }]
                     },
@@ -2579,7 +2605,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         datasets: [{
                             label: 'Posição da Broca (Nº de Insetos)',
                             data: [totalBase, totalMeio, totalTopo],
-                            backgroundColor: ['#d32f2f', '#c62828', '#b71c1c']
+                            backgroundColor: [
+                                this.CHART_COLORS.orange,
+                                this.CHART_COLORS.yellow,
+                                this.CHART_COLORS.purple
+                            ]
                         }]
                     },
                     options: { responsive: true, maintainAspectRatio: false }
@@ -2603,14 +2633,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 this._createOrUpdateChart('graficoAreaAvaliadaBroca', {
-                    type: 'bar',
+                    type: 'pie', // Alterado para pizza
                     data: {
-                        labels: ['Área Total'],
+                        labels: ['Área Inspecionada (ha)', 'Área Não Inspecionada (ha)'],
                         datasets: [{
-                            label: 'Área Inspecionada (ha)',
-                            data: [areaTotal.toFixed(2)],
-                            backgroundColor: 'rgba(211, 47, 47, 0.6)',
-                            maxBarThickness: 100
+                            label: 'Área (ha)',
+                            data: [areaTotal.toFixed(2), 0], // Adicionado um valor 0 para a segunda parte, pode ser ajustado se tiver o total
+                            backgroundColor: [this.CHART_COLORS.green, this.CHART_COLORS.grey],
                         }]
                     },
                     options: { responsive: true, maintainAspectRatio: false }
@@ -2628,21 +2657,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, data]) => ({ nome, media: data.count > 0 ? data.totalPerda / data.count : 0 }));
                 fazendasArray.sort((a, b) => b.media - a.media);
-                const top10 = fazendasArray.slice(0, 10).reverse();
+                const top10 = fazendasArray.slice(0, 10);
 
                 this._createOrUpdateChart('graficoTop10FazendasPerda', {
-                    type: 'bar',
+                    type: 'bar', // Gráfico de barras vertical
                     data: {
                         labels: top10.map(f => f.nome),
                         datasets: [{
                             label: 'Perda Média (kg)',
                             data: top10.map(f => f.media.toFixed(2)),
-                            backgroundColor: 'rgba(245, 124, 0, 0.6)',
-                            borderColor: 'rgba(245, 124, 0, 1)',
+                            backgroundColor: this.CHART_COLORS.orange,
+                            borderColor: this.CHART_COLORS.orange,
                             borderWidth: 1
                         }]
                     },
-                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
+                    options: { 
+                        indexAxis: 'x', // Eixo X para as fazendas (vertical)
+                        responsive: true, 
+                        maintainAspectRatio: false 
+                    }
                 });
             },
             renderPerdaPorTipoDetalhado() {
@@ -2657,7 +2690,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         datasets: [{
                             label: 'Composição da Perda (kg)',
                             data: Object.values(totais),
-                            backgroundColor: ['#f57c00', '#fb8c00', '#ff9800', '#ffa726', '#ffb74d', '#ffcc80']
+                            backgroundColor: [
+                                this.CHART_COLORS.red,
+                                this.CHART_COLORS.orange,
+                                this.CHART_COLORS.yellow,
+                                this.CHART_COLORS.green,
+                                this.CHART_COLORS.blue,
+                                this.CHART_COLORS.purple
+                            ]
                         }]
                     },
                     options: { responsive: true, maintainAspectRatio: false }
@@ -2687,8 +2727,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             label: 'Perda Média Mensal (kg)',
                             data,
                             fill: true,
-                            borderColor: 'rgba(245, 124, 0, 1)',
-                            backgroundColor: 'rgba(245, 124, 0, 0.2)',
+                            borderColor: this.CHART_COLORS.teal,
+                            backgroundColor: 'rgba(0, 128, 128, 0.2)',
                             tension: 0.4
                         }]
                     },
@@ -2712,14 +2752,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 this._createOrUpdateChart('graficoAreaAvaliadaPerda', {
-                    type: 'bar',
+                    type: 'pie', // Alterado para pizza
                     data: {
-                        labels: ['Área Total'],
+                        labels: ['Área com Aferição (ha)', 'Área Sem Aferição (ha)'],
                         datasets: [{
-                            label: 'Área com Aferição (ha)',
-                            data: [areaTotal.toFixed(2)],
-                            backgroundColor: 'rgba(245, 124, 0, 0.6)',
-                            maxBarThickness: 100
+                            label: 'Área (ha)',
+                            data: [areaTotal.toFixed(2), 0], // Adicionado um valor 0 para a segunda parte
+                            backgroundColor: [this.CHART_COLORS.maroon, this.CHART_COLORS.grey],
                         }]
                     },
                     options: { responsive: true, maintainAspectRatio: false }
