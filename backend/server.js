@@ -53,17 +53,14 @@ try {
   const getFilteredData = async (collectionName, filters) => {
     let query = db.collection(collectionName);
 
-    // Aplica filtros de data primeiro, que são sempre necessários
-    if (filters.inicio) query = query.where('data', '>=', filters.inicio);
-    if (filters.fim) query = query.where('data', '<=', filters.fim);
+    // 1. Determinar quais códigos de fazenda devem ser filtrados
+    let farmCodesToFilter = null;
 
-    // Lógica para filtros de fazenda e tipo
     if (filters.fazendaCodigo) {
-        // Se uma fazenda específica é selecionada, ela tem prioridade sobre o tipo
-        query = query.where('codigo', '==', filters.fazendaCodigo);
+        // Se uma fazenda específica é selecionada, ela tem prioridade total
+        farmCodesToFilter = [filters.fazendaCodigo];
     } else if (filters.tipos) {
-        // Se tipos de fazenda são selecionados (e nenhuma fazenda específica)
-        const selectedTypes = filters.tipos.split(',');
+        const selectedTypes = filters.tipos.split(',').filter(t => t); // Garante que não haja strings vazias
         if (selectedTypes.length > 0) {
             let farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
             const farmsSnapshot = await farmsQuery.get();
@@ -74,18 +71,31 @@ try {
             });
 
             if (matchingFarmCodes.length > 0) {
-                query = query.where('codigo', 'in', matchingFarmCodes);
+                farmCodesToFilter = matchingFarmCodes;
             } else {
                 // Se nenhum fazenda corresponde aos tipos, retorna um array vazio
                 return [];
             }
         }
     }
+
+    // 2. Construir a query principal
+    let mainQuery = db.collection(collectionName);
+
+    // Aplica filtros de data
+    if (filters.inicio) mainQuery = mainQuery.where('data', '>=', filters.inicio);
+    if (filters.fim) mainQuery = mainQuery.where('data', '<=', filters.fim);
     
-    // Filtros adicionais que não são de fazenda
-    if (filters.matricula) query = query.where('matricula', '==', filters.matricula);
+    // Aplica o filtro de códigos de fazenda se ele foi determinado
+    if (farmCodesToFilter && farmCodesToFilter.length > 0) {
+        // Firestore 'in' query supports up to 30 elements. Se precisar de mais, terá que fazer múltiplas queries.
+        mainQuery = mainQuery.where('codigo', 'in', farmCodesToFilter);
+    }
     
-    const snapshot = await query.get();
+    // Filtros adicionais
+    if (filters.matricula) mainQuery = mainQuery.where('matricula', '==', filters.matricula);
+    
+    const snapshot = await mainQuery.get();
     let data = [];
     snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
 
