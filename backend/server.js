@@ -460,16 +460,17 @@ try {
 
       // Define todos os cabeçalhos possíveis com suas larguras mínimas ideais
       const allPossibleHeadersConfig = [
-          { id: 'seq', title: 'Seq.', minWidth: 30 },
-          { id: 'fazenda', title: 'Fazenda', minWidth: 80 }, 
-          { id: 'talhoes', title: 'Talhões', minWidth: 100 }, 
-          { id: 'area', title: 'Área (ha)', minWidth: 50 },
+          { id: 'seq', title: 'Seq.', minWidth: 25 },
+          { id: 'fazenda', title: 'Fazenda', minWidth: 100 }, 
+          { id: 'talhoes', title: 'Talhões', minWidth: 150 }, 
+          { id: 'area', title: 'Área (ha)', minWidth: 45 },
           { id: 'producao', title: 'Prod. (ton)', minWidth: 50 },
-          { id: 'variedade', title: 'Variedade', minWidth: 70 }, 
-          { id: 'idade', title: 'Idade (m)', minWidth: 45 }, 
+          { id: 'variedade', title: 'Variedade', minWidth: 120 }, 
+          { id: 'idade', title: 'Idade (m)', minWidth: 40 }, 
           { id: 'atr', title: 'ATR', minWidth: 40 }, 
           { id: 'maturador', title: 'Maturador', minWidth: 70 }, 
-          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 55 }, 
+          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 45 }, 
+          { id: 'distancia', title: 'Dist. (km)', minWidth: 45 },
           { id: 'entrada', title: 'Entrada', minWidth: 60 }, 
           { id: 'saida', title: 'Saída', minWidth: 60 }    
       ];
@@ -549,15 +550,22 @@ try {
         grandTotalProducao += group.totalProducao;
         grandTotalArea += group.totalArea;
 
-        const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
+        const diasNecessarios = dailyTon > 0 ? Math.ceil(group.totalProducao / dailyTon) : 0;
         const dataEntrada = new Date(currentDate.getTime());
-        currentDate.setDate(currentDate.getDate() + diasNecessarios);
-        const dataSaida = new Date(currentDate.getTime());
+        
+        // Calcula a data de saída baseada nos dias necessários
+        let dataSaida = new Date(dataEntrada.getTime());
+        dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
 
-        // Calcula Idade Média e Dias de Aplicação
-        let totalAgeInDays = 0;
-        let plotsWithDate = 0;
+        // Prepara a data de início para a próxima iteração
+        currentDate = new Date(dataSaida.getTime());
+        currentDate.setDate(currentDate.getDate() + 1);
+
+        // Calcula Idade Média, Dias de Aplicação e Distância
+        let totalAgeInDays = 0, plotsWithDate = 0;
+        let totalDistancia = 0, plotsWithDistancia = 0;
         const allVarieties = new Set();
+
         group.plots.forEach(plot => {
             const farm = fazendasData[group.fazendaCodigo];
             const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
@@ -569,26 +577,27 @@ try {
                         plotsWithDate++;
                     }
                 }
-                if (talhao.variedade) {
-                    allVarieties.add(talhao.variedade);
+                if (talhao.variedade) allVarieties.add(talhao.variedade);
+                if (typeof talhao.distancia === 'number') {
+                    totalDistancia += talhao.distancia;
+                    plotsWithDistancia++;
                 }
             }
         });
 
-        const idadeMediaMeses = plotsWithDate > 0 ? (Math.ceil(totalAgeInDays / plotsWithDate) / 30).toFixed(1) : 'N/A';
+        const idadeMediaMeses = plotsWithDate > 0 ? ((totalAgeInDays / plotsWithDate) / (1000 * 60 * 60 * 24 * 30)).toFixed(1) : 'N/A';
+        const avgDistancia = plotsWithDistancia > 0 ? (totalDistancia / plotsWithDistancia).toFixed(2) : 'N/A';
         
         let diasAplicacao = 'N/A';
         if (group.maturadorDate) {
             try {
-                const today = new Date(); // Considera "hoje" como a data de geração do relatório
+                const today = new Date();
                 const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
                 const diffTime = today - applicationDate;
-                if (diffTime >= 0) { // Só calcula se a data de aplicação já passou
+                if (diffTime >= 0) {
                     diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 }
-            } catch (e) {
-                diasAplicacao = 'N/A';
-            }
+            } catch (e) { diasAplicacao = 'N/A'; }
         }
 
         const rowDataMap = {
@@ -602,6 +611,7 @@ try {
             atr: group.atr || 'N/A',
             maturador: group.maturador || 'N/A',
             diasAplicacao: diasAplicacao,
+            distancia: avgDistancia,
             entrada: dataEntrada.toLocaleDateString('pt-BR'),
             saida: dataSaida.toLocaleDateString('pt-BR')
         };
@@ -617,20 +627,31 @@ try {
       doc.y = currentY;
       
       const totalRowData = [];
-      let totalGeneralTextAdded = false;
+      const totalGeralText = 'Total Geral';
+      let textPlaced = false;
 
-      finalHeaders.forEach((header, index) => {
-          if (index === 0 && !totalGeneralTextAdded) { // Primeira coluna para "Total Geral"
-              totalRowData.push('Total Geral');
-              totalGeneralTextAdded = true;
+      finalHeaders.forEach((header) => {
+          if (header.id === 'talhoes' && !textPlaced) {
+              totalRowData.push(totalGeralText);
+              textPlaced = true;
           } else if (header.id === 'area') {
               totalRowData.push(grandTotalArea.toFixed(2));
           } else if (header.id === 'producao') {
               totalRowData.push(grandTotalProducao.toFixed(2));
           } else {
-              totalRowData.push(''); // Preenche com vazio para outras colunas
+              totalRowData.push('');
           }
       });
+
+      // Fallback caso a coluna 'talhoes' não esteja presente
+      if (!textPlaced) {
+        const fazendaIndex = finalHeaders.findIndex(h => h.id === 'fazenda');
+        if(fazendaIndex !== -1) {
+            totalRowData[fazendaIndex] = totalGeralText;
+        } else {
+            totalRowData[1] = totalGeralText; // Coloca na segunda coluna como fallback
+        }
+      }
 
       drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders);
 
@@ -677,6 +698,7 @@ try {
         { id: 'atr', title: 'ATR' },
         { id: 'maturador', title: 'Maturador Aplicado' },
         { id: 'diasAplicacao', title: 'Dias desde Aplicação' },
+        { id: 'distancia', title: 'Distância (km)' },
         { id: 'entrada', title: 'Entrada' }, // Sempre no final
         { id: 'saida', title: 'Saída' }    // Sempre no final
       ];
@@ -716,14 +738,16 @@ try {
       const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
 
       harvestPlan.sequence.forEach((group, index) => {
-        const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
+        const diasNecessarios = dailyTon > 0 ? Math.ceil(group.totalProducao / dailyTon) : 0;
         const dataEntrada = new Date(currentDate.getTime());
-        currentDate.setDate(currentDate.getDate() + diasNecessarios);
-        const dataSaida = new Date(currentDate.getTime());
+        let dataSaida = new Date(dataEntrada.getTime());
+        dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
+        currentDate = new Date(dataSaida.getTime());
+        currentDate.setDate(currentDate.getDate() + 1);
 
-        // Calcula Idade Média e Dias de Aplicação
-        let totalAgeInDays = 0;
-        let plotsWithDate = 0;
+        // Calcula Idade Média, Dias de Aplicação e Distância
+        let totalAgeInDays = 0, plotsWithDate = 0;
+        let totalDistancia = 0, plotsWithDistancia = 0;
         const allVarieties = new Set();
         group.plots.forEach(plot => {
             const farm = fazendasData[group.fazendaCodigo];
@@ -736,26 +760,27 @@ try {
                         plotsWithDate++;
                     }
                 }
-                if (talhao.variedade) {
-                    allVarieties.add(talhao.variedade);
+                if (talhao.variedade) allVarieties.add(talhao.variedade);
+                if (typeof talhao.distancia === 'number') {
+                    totalDistancia += talhao.distancia;
+                    plotsWithDistancia++;
                 }
             }
         });
 
-        const idadeMediaMeses = plotsWithDate > 0 ? (Math.ceil(totalAgeInDays / plotsWithDate) / 30).toFixed(1) : 'N/A';
+        const idadeMediaMeses = plotsWithDate > 0 ? ((totalAgeInDays / plotsWithDate) / (1000 * 60 * 60 * 24 * 30)).toFixed(1) : 'N/A';
+        const avgDistancia = plotsWithDistancia > 0 ? (totalDistancia / plotsWithDistancia).toFixed(2) : 'N/A';
         
         let diasAplicacao = 'N/A';
         if (group.maturadorDate) {
             try {
-                const today = new Date(); // Considera "hoje" como a data de geração do relatório
+                const today = new Date();
                 const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
                 const diffTime = today - applicationDate;
-                if (diffTime >= 0) { // Só calcula se a data de aplicação já passou
+                if (diffTime >= 0) {
                     diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 }
-            } catch (e) {
-                diasAplicacao = 'N/A';
-            }
+            } catch (e) { diasAplicacao = 'N/A'; }
         }
 
         const record = {};
@@ -772,6 +797,7 @@ try {
                 case 'atr': record.atr = group.atr || 'N/A'; break;
                 case 'maturador': record.maturador = group.maturador || 'N/A'; break;
                 case 'diasAplicacao': record.diasAplicacao = diasAplicacao; break;
+                case 'distancia': record.distancia = avgDistancia; break;
                 case 'entrada': record.entrada = dataEntrada.toLocaleDateString('pt-BR'); break;
                 case 'saida': record.saida = dataSaida.toLocaleDateString('pt-BR'); break;
                 default: record[header.id] = ''; // Fallback for any unexpected header
