@@ -161,6 +161,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeBtn: document.getElementById('chartModalCloseBtn'),
                 canvas: document.getElementById('expandedChartCanvas'),
             },
+            editFarmModal: {
+                overlay: document.getElementById('editFarmModal'),
+                closeBtn: document.getElementById('editFarmModalCloseBtn'),
+                cancelBtn: document.getElementById('editFarmModalCancelBtn'),
+                saveBtn: document.getElementById('editFarmModalSaveBtn'),
+                nameInput: document.getElementById('editFarmNameInput'),
+                editingFarmId: document.getElementById('editingFarmId'),
+            },
             companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
                 logoInput: document.getElementById('logoInput'),
@@ -213,7 +221,9 @@ document.addEventListener('DOMContentLoaded', () => {
             cadastros: {
                 farmCode: document.getElementById('farmCode'),
                 farmName: document.getElementById('farmName'),
+                farmTypeCheckboxes: document.querySelectorAll('#farmTypeCheckboxes input[type="checkbox"]'),
                 btnSaveFarm: document.getElementById('btnSaveFarm'),
+                btnDeleteAllFarms: document.getElementById('btnDeleteAllFarms'),
                 farmSelect: document.getElementById('farmSelect'),
                 talhaoManagementContainer: document.getElementById('talhaoManagementContainer'),
                 selectedFarmName: document.getElementById('selectedFarmName'),
@@ -322,7 +332,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 select: document.getElementById('planoRelatorioSelect'),
                 optionsContainer: document.querySelector('#relatorioColheitaCustom #reportOptionsContainer'),
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
-                btnExcel: document.getElementById('btnGerarRelatorioCustomExcel')
+                btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
+                distanciaMaxFiltro: document.getElementById('distanciaMaxFiltro'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
         },
@@ -893,8 +904,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 talhaoManagementContainer.style.display = 'block';
-                selectedFarmName.innerHTML = `${farm.code} - ${farm.name} <button id="btnEditFarmName" class="btn-excluir" style="background:var(--color-info); margin-left:10px;"><i class="fas fa-edit"></i></button>`;
-                document.getElementById('btnEditFarmName').addEventListener('click', () => App.actions.editFarmName(farm.id));
+                selectedFarmName.innerHTML = `
+                    ${farm.code} - ${farm.name}
+                    <div style="display: inline-flex; gap: 5px; margin-left: 10px;">
+                        <button class="btn-excluir" style="background:var(--color-info); margin-left: 0;" data-action="edit-farm" data-id="${farm.id}"><i class="fas fa-edit"></i></button>
+                        <button class="btn-excluir" data-action="delete-farm" data-id="${farm.id}"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
 
                 if (!farm.talhoes || farm.talhoes.length === 0) {
                     talhaoList.innerHTML = '<p>Nenhum talhão cadastrado para esta fazenda.</p>';
@@ -907,9 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tbody = table.querySelector('tbody');
                 farm.talhoes.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const row = tbody.insertRow();
-                    const dataColheita = talhao.dataUltimaColheita && !isNaN(new Date(talhao.dataUltimaColheita)) 
-                        ? new Date(talhao.dataUltimaColheita + 'T03:00:00Z').toLocaleDateString('pt-BR') 
-                        : 'N/A';
+                    const dataColheita = App.actions.formatDateForDisplay(talhao.dataUltimaColheita);
 
                     row.innerHTML = `
                         <td data-label="Nome">${talhao.name}</td>
@@ -1277,6 +1291,18 @@ document.addEventListener('DOMContentLoaded', () => {
             closeUserEditModal() {
                 App.elements.userEditModal.overlay.classList.remove('show');
             },
+            openEditFarmModal(farmId) {
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm) return;
+                const modal = App.elements.editFarmModal;
+                modal.editingFarmId.value = farm.id;
+                modal.nameInput.value = farm.name;
+                modal.overlay.classList.add('show');
+                modal.nameInput.focus();
+            },
+            closeEditFarmModal() {
+                App.elements.editFarmModal.overlay.classList.remove('show');
+            },
             applyTheme(theme) {
                 document.body.className = theme;
                 App.elements.userMenu.themeButtons.forEach(btn => {
@@ -1414,12 +1440,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
                 App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
+                App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
                 App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
-                App.elements.cadastros.talhaoList.addEventListener('click', e => { const btn = e.target.closest('button'); if(!btn) return; const { action, id } = btn.dataset; if(action === 'edit-talhao') App.actions.editTalhao(id); if(action === 'delete-talhao') App.actions.deleteTalhao(id); });
+                App.elements.cadastros.talhaoList.addEventListener('click', e => { 
+                    const btn = e.target.closest('button'); 
+                    if(!btn) return; 
+                    const { action, id } = btn.dataset; 
+                    if(action === 'edit-talhao') App.actions.editTalhao(id); 
+                    if(action === 'delete-talhao') App.actions.deleteTalhao(id);
+                    if(action === 'edit-farm') this.openEditFarmModal(id);
+                    if(action === 'delete-farm') App.actions.deleteFarm(id);
+                });
                 App.elements.cadastros.btnSaveTalhao.addEventListener('click', () => App.actions.saveTalhao());
                 App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
                 App.elements.cadastros.csvFileInput.addEventListener('change', (e) => App.actions.importFarmsFromCSV(e.target.files[0]));
                 App.elements.cadastros.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadCsvTemplate());
+                
+                const editFarmModalEls = App.elements.editFarmModal;
+                editFarmModalEls.closeBtn.addEventListener('click', () => this.closeEditFarmModal());
+                editFarmModalEls.cancelBtn.addEventListener('click', () => this.closeEditFarmModal());
+                editFarmModalEls.saveBtn.addEventListener('click', () => App.actions.saveFarmNameChanges());
+
                 App.elements.planejamento.btnAgendar.addEventListener('click', () => App.actions.agendarInspecao());
                 App.elements.planejamento.btnSugerir.addEventListener('click', () => App.gemini.getPlanningSuggestions());
                 App.elements.planejamento.lista.addEventListener('click', (e) => { const button = e.target.closest('button[data-action]'); if(!button) return; const { action, id } = button.dataset; if (action === 'concluir') App.actions.marcarPlanoComoConcluido(id); if (action === 'excluir') App.actions.excluirPlano(id); });
@@ -1507,6 +1548,35 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+            // [NOVO] Função para formatar datas corretamente
+            formatDateForInput(dateString) {
+                if (!dateString || typeof dateString !== 'string') return '';
+                // Tenta corrigir formatos como DD/MM/YYYY para YYYY-MM-DD
+                if (dateString.includes('/')) {
+                    const parts = dateString.split('/');
+                    if (parts.length === 3) {
+                        // Assume DD/MM/YYYY
+                        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                    }
+                }
+                // Se já estiver no formato correto ou outro formato, tenta usar o construtor Date
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) {
+                    return ''; // Retorna vazio se a data for inválida
+                }
+                // Adiciona o fuso horário para evitar problemas de um dia a menos
+                const offset = date.getTimezoneOffset();
+                const adjustedDate = new Date(date.getTime() - (offset*60*1000));
+                return adjustedDate.toISOString().split('T')[0];
+            },
+            formatDateForDisplay(dateString) {
+                if (!dateString) return 'N/A';
+                const date = new Date(dateString + 'T03:00:00Z');
+                if (isNaN(date.getTime())) {
+                    return 'Data Inválida';
+                }
+                return date.toLocaleDateString('pt-BR');
+            },
             resetInactivityTimer() {
                 clearTimeout(App.state.inactivityTimer);
                 if (App.state.currentUser) {
@@ -1597,9 +1667,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return Array.from(assignedIds);
             },
             async saveFarm() {
-                const { farmCode, farmName } = App.elements.cadastros;
+                const { farmCode, farmName, farmTypeCheckboxes } = App.elements.cadastros;
                 const code = farmCode.value.trim();
                 const name = farmName.value.trim().toUpperCase();
+                const types = Array.from(farmTypeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
+
                 if (!code || !name) { App.ui.showAlert("Código e Nome da fazenda são obrigatórios.", "error"); return; }
                 
                 const existingFarm = App.state.fazendas.find(f => f.code === code);
@@ -1610,25 +1682,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.showConfirmationModal(`Tem a certeza que deseja guardar a fazenda ${name}?`, async () => {
                     try {
-                        await App.data.addDocument('fazendas', { code, name, talhoes: [] });
+                        await App.data.addDocument('fazendas', { code, name, types, talhoes: [] });
                         App.ui.showAlert("Fazenda adicionada com sucesso!");
-                        farmCode.value = ''; farmName.value = '';
+                        farmCode.value = ''; 
+                        farmName.value = '';
+                        farmTypeCheckboxes.forEach(cb => cb.checked = false);
                     } catch (error) {
                         App.ui.showAlert("Erro ao guardar fazenda.", "error");
                     }
                 });
             },
-            async editFarmName(farmId) {
+            async saveFarmNameChanges() {
+                const modal = App.elements.editFarmModal;
+                const farmId = modal.editingFarmId.value;
+                const newName = modal.nameInput.value.trim().toUpperCase();
+
+                if (!newName) {
+                    App.ui.showAlert("O nome da fazenda não pode ficar em branco.", "error");
+                    return;
+                }
+
+                try {
+                    await App.data.updateDocument('fazendas', farmId, { name: newName });
+                    App.ui.showAlert("Nome da fazenda atualizado com sucesso!");
+                    App.ui.closeEditFarmModal();
+                } catch (error) {
+                    App.ui.showAlert("Erro ao atualizar o nome da fazenda.", "error");
+                    console.error(error);
+                }
+            },
+            deleteFarm(farmId) {
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm) return;
-
-                const newName = prompt("Digite o novo nome para a fazenda:", farm.name);
-                if (newName && newName.trim() !== '') {
-                    App.ui.showConfirmationModal(`Tem a certeza que deseja alterar o nome da fazenda para "${newName.toUpperCase()}"?`, async () => {
-                        await App.data.updateDocument('fazendas', farmId, { name: newName.toUpperCase() });
-                        App.ui.showAlert("Nome da fazenda atualizado com sucesso!");
-                    });
-                }
+            
+                App.ui.showConfirmationModal(`Tem a certeza que deseja excluir a fazenda "${farm.name}" e todos os seus talhões? Esta ação é irreversível.`, async () => {
+                    try {
+                        await App.data.deleteDocument('fazendas', farmId);
+                        App.ui.showAlert('Fazenda excluída com sucesso.', 'info');
+                        App.elements.cadastros.farmSelect.value = '';
+                        App.elements.cadastros.talhaoManagementContainer.style.display = 'none';
+                    } catch (error) {
+                        App.ui.showAlert('Erro ao excluir a fazenda.', 'error');
+                        console.error(error);
+                    }
+                });
+            },
+            deleteAllFarms() {
+                App.ui.showConfirmationModal("ATENÇÃO! Você está prestes a excluir TODAS as fazendas e talhões cadastrados. Esta ação é IRREVERSÍVEL. Digite 'EXCLUIR TUDO' para confirmar.", async (confirmationInput) => {
+                    if (confirmationInput !== 'EXCLUIR TUDO') {
+                        App.ui.showAlert("A confirmação não corresponde. Ação cancelada.", "warning");
+                        return;
+                    }
+            
+                    App.ui.setLoading(true, "Excluindo todas as fazendas...");
+                    try {
+                        const batch = writeBatch(db);
+                        App.state.fazendas.forEach(farm => {
+                            const docRef = doc(db, 'fazendas', farm.id);
+                            batch.delete(docRef);
+                        });
+                        await batch.commit();
+                        App.ui.showAlert('Todas as fazendas foram excluídas com sucesso.', 'success');
+                    } catch (error) {
+                        App.ui.showAlert('Erro ao excluir todas as fazendas.', 'error');
+                        console.error(error);
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                }, true); // O 'true' indica que é uma confirmação com input de texto
             },
             async saveTalhao() {
                 const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
@@ -1646,7 +1767,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     corte: parseInt(talhaoCorte.value) || 1,
                     variedade: talhaoVariedade.value.trim(),
                     distancia: parseFloat(talhaoDistancia.value) || 0,
-                    dataUltimaColheita: talhaoUltimaColheita.value
+                    dataUltimaColheita: this.formatDateForInput(talhaoUltimaColheita.value) // CORREÇÃO DA DATA
                 };
                 if (!talhaoData.name || isNaN(talhaoData.area) || isNaN(talhaoData.producao)) { App.ui.showAlert("Nome, Área e Produção do talhão são obrigatórios e devem ser números válidos.", "error"); return; }
                 
@@ -1683,7 +1804,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     talhaoEls.talhaoCorte.value = talhao.corte;
                     talhaoEls.talhaoVariedade.value = talhao.variedade;
                     talhaoEls.talhaoDistancia.value = talhao.distancia;
-                    talhaoEls.talhaoUltimaColheita.value = talhao.dataUltimaColheita;
+                    talhaoEls.talhaoUltimaColheita.value = this.formatDateForInput(talhao.dataUltimaColheita); // CORREÇÃO DA DATA
                     talhaoEls.talhaoName.focus();
                 }
             },
@@ -2219,6 +2340,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
                          const headerIndexes = {
                              farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
+                             farm_type: fileHeaders.indexOf('TIPO'),
                              talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
                              talhao_producao: fileHeaders.indexOf('PRODUCAO'), talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
                              talhao_corte: fileHeaders.indexOf('CORTE'),
@@ -2244,6 +2366,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                  fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
                                      code: farmCode,
                                      name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
+                                     types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
                                      talhoes: []
                                  };
                              }
@@ -2258,7 +2381,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                  talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
                                  talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
                                  talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
-                                 talhao.dataUltimaColheita = data[headerIndexes.talhao_ultima_colheita]?.trim() || talhao.dataUltimaColheita;
+                                 talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
                              } else { 
                                  fazendasToUpdate[farmCode].talhoes.push({
                                      id: Date.now() + i, name: talhaoName,
@@ -2267,7 +2390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                      variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
                                      corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
                                      distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
-                                     dataUltimaColheita: data[headerIndexes.talhao_ultima_colheita]?.trim() || '',
+                                     dataUltimaColheita: this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || '',
                                  });
                              }
                          }
@@ -2302,8 +2425,8 @@ document.addEventListener('DOMContentLoaded', () => {
                  reader.readAsText(file, 'ISO-8859-1');
             },
             downloadCsvTemplate() {
-                const headers = "Cód;FAZENDA;TALHÃO;Área;Produção;Variedade;Corte;Distancia;DataUltimaColheita";
-                const exampleRow = "4012;FAZ LAGOA CERCADA;T-01;50;4000;RB867515;2;10;2024-07-15";
+                const headers = "Cód;FAZENDA;TIPO;TALHÃO;Área;Produção;Variedade;Corte;Distancia;DataUltimaColheita";
+                const exampleRow = "4012;FAZ LAGOA CERCADA;Própria,Parceira;T-01;50;4000;RB867515;2;10;15/07/2024";
                 const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
@@ -2874,7 +2997,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         
             generateCustomHarvestReport(format) {
-                const { select, optionsContainer } = App.elements.relatorioColheita;
+                const { select, optionsContainer, distanciaMaxFiltro } = App.elements.relatorioColheita;
                 const planId = select.value;
                 if (!planId) {
                     App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
@@ -2888,7 +3011,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const filters = {
                     planId: planId,
-                    selectedColumns: JSON.stringify(selectedColumns)
+                    selectedColumns: JSON.stringify(selectedColumns),
+                    distanciaMax: distanciaMaxFiltro.value || ''
                 };
                 
                 this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_custom.${format}`);
