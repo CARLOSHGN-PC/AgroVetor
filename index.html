@@ -498,25 +498,23 @@
       }
       .report-options-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Tamanho mínimo menor */
           gap: 15px;
           align-items: stretch;
       }
       .report-option-item {
           position: relative;
-          display: flex; /* Alterado para flex para melhor alinhamento interno */
-          flex-direction: column; /* Alinha o conteúdo verticalmente */
-          justify-content: center; /* Centraliza o conteúdo */
-          height: 100%; /* Garante que todos os cards tenham a mesma altura */
+          display: flex;
           align-items: center;
           gap: 12px;
-          padding: 12px 16px;
+          padding: 12px; /* Padding reduzido */
           background-color: var(--color-bg);
           border: 1px solid var(--color-border);
           border-radius: var(--border-radius);
           cursor: pointer;
           transition: var(--transition);
           user-select: none;
+          height: 100%;
       }
       .report-option-item:hover {
           border-color: var(--color-accent);
@@ -529,9 +527,6 @@
           height: 0;
       }
       .report-option-item .checkbox-visual {
-          position: absolute;
-          top: 10px;
-          left: 10px;
           flex-shrink: 0;
           width: 20px;
           height: 20px;
@@ -558,11 +553,9 @@
       }
       .report-option-item .option-content {
           display: flex;
-          flex-direction: column; /* Alinha ícone e texto verticalmente */
           align-items: center;
-          gap: 8px;
+          gap: 10px;
           font-weight: 500;
-          text-align: center;
       }
       .report-option-item .option-content i {
           color: var(--color-primary);
@@ -1116,11 +1109,14 @@
                         <div class="form-row">
                             <div class="form-col"><label for="talhaoName" class="required">Nome do Talhão:</label><input type="text" id="talhaoName"></div>
                             <div class="form-col"><label for="talhaoArea" class="required">Área (ha):</label><input type="number" id="talhaoArea"></div>
-                            <div class="form-col"><label for="talhaoProducao" class="required">Produção (ton):</label><input type="number" id="talhaoProducao"></div>
-                                <div class="form-col"><label for="talhaoCorte">Corte:</label><input type="number" id="talhaoCorte" min="1" placeholder="Ex: 1"></div>
+                            <div class="form-col"><label for="talhaoTCH" class="required">TCH (ton/ha):</label><input type="number" id="talhaoTCH"></div>
                         </div>
                         <div class="form-row">
+                            <div class="form-col"><label for="talhaoProducao" class="required">Produção (ton):</label><input type="number" id="talhaoProducao" readonly></div>
+                            <div class="form-col"><label for="talhaoCorte">Corte:</label><input type="number" id="talhaoCorte" min="1" placeholder="Ex: 1"></div>
                             <div class="form-col"><label for="talhaoVariedade">Variedade:</label><input type="text" id="talhaoVariedade"></div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-col"><label for="talhaoDistancia">Distância (km):</label><input type="number" id="talhaoDistancia"></div>
                             <div class="form-col"><label for="talhaoUltimaColheita">Data da Última Colheita:</label><input type="date" id="talhaoUltimaColheita"></div>
                         </div>
@@ -1348,13 +1344,23 @@
         <div id="editFarmModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>Editar Nome da Fazenda</h2>
+                    <h2>Editar Fazenda</h2>
                     <button id="editFarmModalCloseBtn" class="modal-close-btn">&times;</button>
                 </div>
                 <input type="hidden" id="editingFarmId">
                 <div class="input-group">
-                    <label for="editFarmNameInput" class="required">Novo Nome da Fazenda:</label>
+                    <label for="editFarmNameInput" class="required">Nome da Fazenda:</label>
                     <input type="text" id="editFarmNameInput" required>
+                </div>
+                <div class="checkbox-group-container">
+                    <label>Tipo da Fazenda:</label>
+                    <div class="checkbox-group-grid" id="editFarmTypeCheckboxes">
+                        <label class="report-option-item"><input type="checkbox" name="editFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="editFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="editFarmType" value="Fornecedor"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Fornecedor</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="editFarmType" value="Acionista"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Acionista</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="editFarmType" value="Arrendatário"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Arrendatário</span></label>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button id="editFarmModalCancelBtn" class="btn-secondary">Cancelar</button>
