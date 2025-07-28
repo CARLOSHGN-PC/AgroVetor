@@ -64,7 +64,6 @@
       html { scroll-behavior: smooth; }
       body { margin: 0; font-family: var(--font-family); background-color: var(--color-bg); color: var(--color-text); min-height: 100vh; display: flex; flex-direction: column; line-height: 1.5; -webkit-font-smoothing: antialiased; }
       
-      /* [ALTERADO] Estilo da tela de login com imagem de fundo local */
       #loginScreen { 
           flex: 1; 
           background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('./icons/imagens.png');
@@ -77,12 +76,12 @@
           padding: 20px; 
       }
       
-      /* [ALTERADO] Card de login com mais transparência para efeito de vidro */
+      /* [ALTERADO] Card de login com mais transparência e desfoque para efeito de vidro */
       #loginBox { 
-          background: rgba(255, 255, 255, 0.75); /* Fallback para navegadores antigos */
-          background: color-mix(in srgb, var(--color-surface) 75%, transparent);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
+          background: rgba(255, 255, 255, 0.6); /* Fallback com mais transparência */
+          background: color-mix(in srgb, var(--color-surface) 60%, transparent); /* Mais transparente */
+          backdrop-filter: blur(12px); /* Um pouco mais de desfoque */
+          -webkit-backdrop-filter: blur(12px);
           border: 1px solid rgba(255, 255, 255, 0.2);
           box-shadow: var(--shadow-xl); 
           border-radius: var(--border-radius-xl); 
