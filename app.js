@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const firebaseApp = initializeApp(firebaseConfig);
     const db = getFirestore(firebaseApp);
     const auth = getAuth(firebaseApp);
+    const secondaryApp = initializeApp(firebaseConfig, "secondary");
+    const secondaryAuth = getAuth(secondaryApp);
+
     // Removido: const storage = getStorage(firebaseApp);
 
     // Habilita a persistência offline (CÓDIGO ORIGINAL MANTIDO)
