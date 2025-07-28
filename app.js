@@ -590,17 +590,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
                 App.elements.loadingProgressText.textContent = progressText;
             },
-            showLoginScreen() {
+           showLoginScreen() {
                 App.elements.loginForm.style.display = 'block';
                 App.elements.offlineUserSelection.style.display = 'none';
                 App.elements.loginScreen.style.display = 'flex';
                 App.elements.appScreen.style.display = 'none';
-                App.elements.userMenu.container.style.display = 'none';
+                
+                // [CORREÇÃO] Adiciona uma verificação para garantir que o elemento existe
+                if (App.elements.userMenu && App.elements.userMenu.container) {
+                    App.elements.userMenu.container.style.display = 'none';
+                }
+
                 App.elements.loginUser.value = '';
                 App.elements.loginPass.value = '';
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
             },
+            
             showOfflineUserSelection(profiles) {
                 App.elements.loginForm.style.display = 'none';
                 App.elements.offlineUserSelection.style.display = 'block';
