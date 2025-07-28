@@ -49,22 +49,53 @@ try {
 
   // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS ---
 
+  // [CORREÇÃO CRÍTICA] Função de filtragem de dados reescrita
   const getFilteredData = async (collectionName, filters) => {
     let query = db.collection(collectionName);
+
+    // Aplica filtros de data primeiro, que são sempre necessários
     if (filters.inicio) query = query.where('data', '>=', filters.inicio);
     if (filters.fim) query = query.where('data', '<=', filters.fim);
-    if (filters.fazendaCodigo) query = query.where('codigo', '==', filters.fazendaCodigo);
+
+    // Lógica para filtros de fazenda e tipo
+    if (filters.fazendaCodigo) {
+        // Se uma fazenda específica é selecionada, ela tem prioridade sobre o tipo
+        query = query.where('codigo', '==', filters.fazendaCodigo);
+    } else if (filters.tipos) {
+        // Se tipos de fazenda são selecionados (e nenhuma fazenda específica)
+        const selectedTypes = filters.tipos.split(',');
+        if (selectedTypes.length > 0) {
+            let farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
+            const farmsSnapshot = await farmsQuery.get();
+            
+            const matchingFarmCodes = [];
+            farmsSnapshot.forEach(doc => {
+                matchingFarmCodes.push(doc.data().code);
+            });
+
+            if (matchingFarmCodes.length > 0) {
+                query = query.where('codigo', 'in', matchingFarmCodes);
+            } else {
+                // Se nenhum fazenda corresponde aos tipos, retorna um array vazio
+                return [];
+            }
+        }
+    }
+    
+    // Filtros adicionais que não são de fazenda
     if (filters.matricula) query = query.where('matricula', '==', filters.matricula);
     
     const snapshot = await query.get();
     let data = [];
     snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
 
-    if (filters.talhao) data = data.filter(d => d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
-    if (filters.frenteServico) data = data.filter(d => d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
+    // Filtros de texto que são aplicados após a busca no banco de dados
+    if (filters.talhao) data = data.filter(d => d.talhao && d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
+    if (filters.frenteServico) data = data.filter(d => d.frenteServico && d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
     
     return data.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
+
 
   const generatePdfHeader = async (doc, title, generatedBy = 'N/A') => {
     try {
@@ -461,7 +492,7 @@ try {
           { id: 'idade', title: 'Idade (m)', minWidth: 55 }, 
           { id: 'atr', title: 'ATR', minWidth: 40 }, 
           { id: 'maturador', title: 'Matur.', minWidth: 60 }, 
-          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 60 }, 
+          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 70 }, 
           { id: 'distancia', title: 'KM', minWidth: 40 },
           { id: 'entrada', title: 'Entrada', minWidth: 65 }, 
           { id: 'saida', title: 'Saída', minWidth: 65 }    
@@ -497,7 +528,7 @@ try {
 
       finalHeaders.forEach(header => {
           totalMinWidth += header.minWidth;
-          // Considerar 'fazenda', 'talhoes', 'variedade', 'maturador' como colunas flexíveis
+          // Considerar 'fazenda', 'talhoes', 'variedade' como colunas flexíveis
           if (['fazenda', 'talhoes', 'variedade'].includes(header.id)) {
               flexibleColumnsCount++;
           }
