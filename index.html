@@ -160,6 +160,7 @@
           display: flex;
           flex-direction: column;
           transition: var(--transition);
+          position: relative; /* Adicionado para posicionar o botão de expandir */
       }
       .kpi-card:hover, .chart-card:hover {
         transform: translateY(-4px);
@@ -195,26 +196,26 @@
       }
       .chart-card {
           padding: 24px;
-          min-height: 450px; /* Aumenta a altura mínima para melhor visualização */
-          grid-column: span 2; /* Faz os gráficos ocuparem mais espaço */
+          min-height: 450px; 
+          grid-column: span 2; 
       }
       .chart-container { 
           position: relative; 
           flex-grow: 1;
           width: 100%;
-          height: 100%; /* Garante que o container ocupe o espaço */
+          height: 100%; 
       }
       .chart-title { 
           text-align: center; 
           margin-bottom: 15px; 
-          font-weight: 600; /* Destaque no título */
-          font-size: 18px; /* Tamanho maior */
+          font-weight: 600;
+          font-size: 18px;
           color: var(--color-primary); 
       }
       .btn-expand-chart { 
           position: absolute; 
-          top: -10px; 
-          right: -10px; 
+          top: 10px; /* Ajustado para dentro do card */
+          right: 10px; /* Ajustado para dentro do card */
           background: var(--color-bg); 
           border: 1px solid var(--color-border); 
           color: var(--color-text-light); 
@@ -591,18 +592,22 @@
                     <div class="dashboard-grid">
                         <div class="chart-card">
                             <h3 class="chart-title">Top 10 Fazendas com Maior Índice de Broca (Ponderado)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoTop10FazendasBroca" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoTop10FazendasBroca"></canvas></div>
                         </div>
                          <div class="chart-card">
                             <h3 class="chart-title">Evolução Mensal do Índice de Broca (%)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoBrocaMensal" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoBrocaMensal"></canvas></div>
                         </div>
                         <div class="chart-card">
                             <h3 class="chart-title">Posição de Maior Incidência da Broca</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoBrocaPosicao" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoBrocaPosicao"></canvas></div>
                         </div>
                          <div class="chart-card">
                             <h3 class="chart-title">Área Total de Inspeção de Broca (ha)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoAreaAvaliadaBroca" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoAreaAvaliadaBroca"></canvas></div>
                         </div>
                     </div>
@@ -617,18 +622,22 @@
                     <div class="dashboard-grid">
                         <div class="chart-card">
                             <h3 class="chart-title">Top 10 Fazendas com Maiores Perdas (Média kg)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoTop10FazendasPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoTop10FazendasPerda"></canvas></div>
                         </div>
                          <div class="chart-card">
                             <h3 class="chart-title">Composição da Perda Total (kg)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorTipoDetalhado" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoPerdaPorTipoDetalhado"></canvas></div>
                         </div>
                         <div class="chart-card">
                             <h3 class="chart-title">Evolução Mensal da Perda Média (kg)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoPerdaMensal" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoPerdaMensal"></canvas></div>
                         </div>
                          <div class="chart-card">
                             <h3 class="chart-title">Área Total com Aferição de Perdas (ha)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoAreaAvaliadaPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoAreaAvaliadaPerda"></canvas></div>
                         </div>
                     </div>
