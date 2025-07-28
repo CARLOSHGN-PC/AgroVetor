@@ -170,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 saveBtn: document.getElementById('editFarmModalSaveBtn'),
                 nameInput: document.getElementById('editFarmNameInput'),
                 editingFarmId: document.getElementById('editingFarmId'),
+                typeCheckboxes: document.querySelectorAll('#editFarmTypeCheckboxes input[type="checkbox"]'),
             },
             companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
@@ -233,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 talhaoId: document.getElementById('talhaoId'),
                 talhaoName: document.getElementById('talhaoName'),
                 talhaoArea: document.getElementById('talhaoArea'),
+                talhaoTCH: document.getElementById('talhaoTCH'),
                 talhaoProducao: document.getElementById('talhaoProducao'),
                 talhaoCorte: document.getElementById('talhaoCorte'),
                 talhaoVariedade: document.getElementById('talhaoVariedade'),
@@ -922,7 +924,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const table = document.createElement('table');
                 table.id = 'personnelTable';
                 table.className = 'harvestPlanTable';
-                table.innerHTML = `<thead><tr><th>Nome</th><th>Área</th><th>Produção</th><th>Variedade</th><th>Corte</th><th>Distância</th><th>Última Colheita</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                table.innerHTML = `<thead><tr><th>Nome</th><th>Área</th><th>TCH</th><th>Produção</th><th>Variedade</th><th>Corte</th><th>Distância</th><th>Última Colheita</th><th>Ações</th></tr></thead><tbody></tbody>`;
                 const tbody = table.querySelector('tbody');
                 farm.talhoes.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const row = tbody.insertRow();
@@ -931,6 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     row.innerHTML = `
                         <td data-label="Nome">${talhao.name}</td>
                         <td data-label="Área">${talhao.area || ''}</td>
+                        <td data-label="TCH">${talhao.tch || ''}</td>
                         <td data-label="Produção">${talhao.producao || ''}</td>
                         <td data-label="Variedade">${talhao.variedade || ''}</td>
                         <td data-label="Corte">${talhao.corte || ''}</td>
@@ -1071,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { lista } = App.elements.planejamento; lista.innerHTML = '';
                 const hoje = new Date(); hoje.setHours(0,0,0,0);
                 const planosOrdenados = [...App.state.planos].sort((a,b) => new Date(a.dataPrevista) - new Date(b.dataPrevista));
-                if(planosOrdenados.length === 0) { lista.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma inspeção planeada.</p>'; return; }
+                if(planosOrdenados.length === 0) { lista.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma inspeção planejada.</p>'; return; }
                 planosOrdenados.forEach(plano => {
                     let status = plano.status;
                     const dataPlano = new Date(plano.dataPrevista + 'T03:00:00Z');
@@ -1309,6 +1312,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const modal = App.elements.editFarmModal;
                 modal.editingFarmId.value = farm.id;
                 modal.nameInput.value = farm.name;
+
+                // Popula os checkboxes de tipo
+                modal.typeCheckboxes.forEach(cb => {
+                    cb.checked = farm.types && farm.types.includes(cb.value);
+                });
+
                 modal.overlay.classList.add('show');
                 modal.nameInput.focus();
             },
@@ -1467,11 +1476,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
                 App.elements.cadastros.csvFileInput.addEventListener('change', (e) => App.actions.importFarmsFromCSV(e.target.files[0]));
                 App.elements.cadastros.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadCsvTemplate());
+                App.elements.cadastros.talhaoArea.addEventListener('input', App.actions.calculateTalhaoProducao);
+                App.elements.cadastros.talhaoTCH.addEventListener('input', App.actions.calculateTalhaoProducao);
                 
                 const editFarmModalEls = App.elements.editFarmModal;
                 editFarmModalEls.closeBtn.addEventListener('click', () => this.closeEditFarmModal());
                 editFarmModalEls.cancelBtn.addEventListener('click', () => this.closeEditFarmModal());
-                editFarmModalEls.saveBtn.addEventListener('click', () => App.actions.saveFarmNameChanges());
+                editFarmModalEls.saveBtn.addEventListener('click', () => App.actions.saveFarmChanges());
 
                 App.elements.planejamento.btnAgendar.addEventListener('click', () => App.actions.agendarInspecao());
                 App.elements.planejamento.btnSugerir.addEventListener('click', () => App.gemini.getPlanningSuggestions());
@@ -1708,6 +1719,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const modal = App.elements.editFarmModal;
                 const farmId = modal.editingFarmId.value;
                 const newName = modal.nameInput.value.trim().toUpperCase();
+                const newTypes = Array.from(modal.typeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
 
                 if (!newName) {
                     App.ui.showAlert("O nome da fazenda não pode ficar em branco.", "error");
@@ -1715,11 +1727,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
-                    await App.data.updateDocument('fazendas', farmId, { name: newName });
-                    App.ui.showAlert("Nome da fazenda atualizado com sucesso!");
+                    await App.data.updateDocument('fazendas', farmId, { name: newName, types: newTypes });
+                    App.ui.showAlert("Dados da fazenda atualizados com sucesso!");
                     App.ui.closeEditFarmModal();
                 } catch (error) {
-                    App.ui.showAlert("Erro ao atualizar o nome da fazenda.", "error");
+                    App.ui.showAlert("Erro ao atualizar os dados da fazenda.", "error");
                     console.error(error);
                 }
             },
@@ -1763,8 +1775,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }, true); // O 'true' indica que é uma confirmação com input de texto
             },
+            calculateTalhaoProducao() {
+                const { talhaoArea, talhaoTCH, talhaoProducao } = App.elements.cadastros;
+                const area = parseFloat(talhaoArea.value) || 0;
+                const tch = parseFloat(talhaoTCH.value) || 0;
+                talhaoProducao.value = (area * tch).toFixed(2);
+            },
             async saveTalhao() {
-                const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
+                const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoTCH, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
                 const farmId = farmSelect.value;
                 if (!farmId) { App.ui.showAlert("Selecione uma fazenda.", "error"); return; }
                 
@@ -1775,13 +1793,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     id: talhaoId.value ? parseInt(talhaoId.value) : Date.now(),
                     name: talhaoName.value.trim().toUpperCase(),
                     area: parseFloat(talhaoArea.value) || 0,
+                    tch: parseFloat(talhaoTCH.value) || 0,
                     producao: parseFloat(talhaoProducao.value) || 0,
                     corte: parseInt(talhaoCorte.value) || 1,
                     variedade: talhaoVariedade.value.trim(),
                     distancia: parseFloat(talhaoDistancia.value) || 0,
                     dataUltimaColheita: this.formatDateForInput(talhaoUltimaColheita.value) // CORREÇÃO DA DATA
                 };
-                if (!talhaoData.name || isNaN(talhaoData.area) || isNaN(talhaoData.producao)) { App.ui.showAlert("Nome, Área e Produção do talhão são obrigatórios e devem ser números válidos.", "error"); return; }
+                if (!talhaoData.name || isNaN(talhaoData.area) || isNaN(talhaoData.tch)) { App.ui.showAlert("Nome, Área e TCH do talhão são obrigatórios.", "error"); return; }
                 
                 App.ui.showConfirmationModal(`Tem a certeza que deseja guardar o talhão ${talhaoData.name}?`, async () => {
                     let updatedTalhoes = farm.talhoes ? [...farm.talhoes] : [];
@@ -1796,7 +1815,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         await App.data.updateDocument('fazendas', farm.id, { talhoes: updatedTalhoes });
                         App.ui.showAlert("Talhão guardado com sucesso!");
-                        [talhaoId, talhaoName, talhaoArea, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita].forEach(el => el.value = '');
+                        [talhaoId, talhaoName, talhaoArea, talhaoTCH, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita].forEach(el => el.value = '');
                         App.elements.cadastros.talhaoName.focus();
                     } catch(error) {
                         App.ui.showAlert("Erro ao guardar talhão.", "error");
@@ -1812,6 +1831,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     talhaoEls.talhaoId.value = talhao.id;
                     talhaoEls.talhaoName.value = talhao.name;
                     talhaoEls.talhaoArea.value = talhao.area;
+                    talhaoEls.talhaoTCH.value = talhao.tch;
                     talhaoEls.talhaoProducao.value = talhao.producao;
                     talhaoEls.talhaoCorte.value = talhao.corte;
                     talhaoEls.talhaoVariedade.value = talhao.variedade;
@@ -1961,7 +1981,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const planoPendente = App.state.planos.find(p => p.status === 'Pendente' && p.tipo === tipo && p.fazendaCodigo === fazendaCodigo && p.talhao.toLowerCase() === talhao.toLowerCase());
                 if (planoPendente) {
                     await this.marcarPlanoComoConcluido(planoPendente.id);
-                    App.ui.showAlert(`Planeamento correspondente para ${talhao} foi concluído automaticamente.`, 'info');
+                    App.ui.showAlert(`Planejamento correspondente para ${talhao} foi concluído automaticamente.`, 'info');
                 }
             },
             findVarietyForTalhao(section) {
