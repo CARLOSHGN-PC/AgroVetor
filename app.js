@@ -2409,13 +2409,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         charts: {
             renderAll() {
-                this.renderKpiCards();
-                this.renderTopBrocamentoChart();
-                this.renderTopPerdaChart();
-                this.renderEvolucaoMensalChart();
-                this.renderInspecoesResponsavelChart();
-                this.renderPerdaPorTipoChart();
-                this.renderTopOperadoresChart();
+                // Esta função está agora vazia, a renderização é chamada por `showDashboardView`
             },
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
@@ -2482,181 +2476,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.expandedChart = null;
                 }
             },
-            renderKpiCards() {
-                const { kpiBrocamento, kpiPerda, kpiInspecoes, kpiFazendas } = App.elements.dashboard;
-
-                const totalBrocado = App.state.registros.reduce((sum, reg) => sum + reg.brocado, 0);
-                const totalEntrenos = App.state.registros.reduce((sum, reg) => sum + reg.entrenos, 0);
-                const mediaPonderadaBroca = totalEntrenos > 0 ? ((totalBrocado / totalEntrenos) * 100) : 0;
-
-                const totalPerda = App.state.perdas.reduce((sum, p) => sum + p.total, 0);
-                const mediaPerda = App.state.perdas.length > 0 ? (totalPerda / App.state.perdas.length) : 0;
-
-                const totalInspecoes = App.state.registros.length + App.state.perdas.length;
-                const totalFazendas = App.state.fazendas.length;
-                
-                kpiBrocamento.innerHTML = `<div class="icon" style="background-color: var(--color-danger);"><i class="fas fa-bug"></i></div><div class="text"><div class="value">${mediaPonderadaBroca.toFixed(2)}%</div><div class="label">Média Brocamento</div></div>`;
-                kpiPerda.innerHTML = `<div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-chart-line"></i></div><div class="text"><div class="value">${mediaPerda.toFixed(2)} kg</div><div class="label">Média de Perda</div></div>`;
-                kpiInspecoes.innerHTML = `<div class="icon" style="background-color: var(--color-info);"><i class="fas fa-clipboard-check"></i></div><div class="text"><div class="value">${totalInspecoes}</div><div class="label">Total Inspeções</div></div>`;
-                kpiFazendas.innerHTML = `<div class="icon" style="background-color: var(--color-primary);"><i class="fas fa-tractor"></i></div><div class="text"><div class="value">${totalFazendas}</div><div class="label">Fazendas Cadastradas</div></div>`;
-            },
-            renderTopBrocamentoChart() {
-                const themeColors = this._getThemeColors();
-                const dadosPorFazenda = App.state.registros.reduce((acc, reg) => {
-                    const fazendaKey = `${reg.codigo} - ${reg.fazenda}`;
-                    if (!acc[fazendaKey]) {
-                        acc[fazendaKey] = { totalBrocado: 0, totalEntrenos: 0 };
-                    }
-                    acc[fazendaKey].totalBrocado += reg.brocado;
-                    acc[fazendaKey].totalEntrenos += reg.entrenos;
-                    return acc;
-                }, {});
-
-                const mediasPonderadas = Object.entries(dadosPorFazenda).map(([key, value]) => ({
-                    fazenda: key,
-                    media: value.totalEntrenos > 0 ? (value.totalBrocado / value.totalEntrenos) * 100 : 0
-                }));
-
-                const top5 = mediasPonderadas.sort((a, b) => b.media - a.media).slice(0, 5);
-                const labels = top5.map(item => item.fazenda);
-                const data = top5.map(item => item.media.toFixed(2));
-
-                this._createOrUpdateChart('graficoBrocamento', { type: 'bar', data: { labels, datasets: [{ label: 'Brocamento Ponderado (%)', data, backgroundColor: themeColors.danger }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { display: false } } } });
-            },
-            renderTopPerdaChart() {
-                const themeColors = this._getThemeColors();
-                const dadosPorFazenda = App.state.perdas.reduce((acc, p) => {
-                    const fazendaKey = `${p.codigo} - ${p.fazenda}`;
-                    if (!acc[fazendaKey]) {
-                        acc[fazendaKey] = { totalPerda: 0, count: 0 };
-                    }
-                    acc[fazendaKey].totalPerda += p.total;
-                    acc[fazendaKey].count++;
-                    return acc;
-                }, {});
-
-                const medias = Object.entries(dadosPorFazenda).map(([key, value]) => ({
-                    fazenda: key,
-                    media: value.count > 0 ? value.totalPerda / value.count : 0
-                }));
-                
-                const top5 = medias.sort((a, b) => b.media - a.media).slice(0, 5);
-                const labels = top5.map(item => item.fazenda);
-                const data = top5.map(item => item.media.toFixed(2));
-
-                this._createOrUpdateChart('graficoPerda', { type: 'bar', data: { labels, datasets: [{ label: 'Média de Perda (kg)', data, backgroundColor: themeColors.warning }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { display: false } } } });
-            },
-            renderEvolucaoMensalChart() {
-                const themeColors = this._getThemeColors();
-                const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                
-                const dadosBroca = App.state.registros.reduce((acc, reg) => {
-                    const mes = new Date(reg.data + 'T03:00:00Z').getMonth();
-                    if (!acc[mes]) acc[mes] = { totalBrocado: 0, totalEntrenos: 0 };
-                    acc[mes].totalBrocado += reg.brocado;
-                    acc[mes].totalEntrenos += reg.entrenos;
-                    return acc;
-                }, {});
-
-                const dadosPerda = App.state.perdas.reduce((acc, p) => {
-                    const mes = new Date(p.data + 'T03:00:00Z').getMonth();
-                    if (!acc[mes]) acc[mes] = { totalPerda: 0, count: 0 };
-                    acc[mes].totalPerda += p.total;
-                    acc[mes].count++;
-                    return acc;
-                }, {});
-
-                const mediasBroca = meses.map((_, i) => dadosBroca[i] ? ((dadosBroca[i].totalBrocado / dadosBroca[i].totalEntrenos) * 100).toFixed(2) : 0);
-                const mediasPerda = meses.map((_, i) => dadosPerda[i] ? (dadosPerda[i].totalPerda / dadosPerda[i].count).toFixed(2) : 0);
-
-                this._createOrUpdateChart('graficoEvolucaoMensal', {
-                    type: 'line',
-                    data: {
-                        labels: meses,
-                        datasets: [
-                            { label: 'Brocamento (%)', data: mediasBroca, borderColor: themeColors.danger, backgroundColor: 'transparent', yAxisID: 'yBroca' },
-                            { label: 'Perda (kg)', data: mediasPerda, borderColor: themeColors.warning, backgroundColor: 'transparent', yAxisID: 'yPerda' }
-                        ]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: {
-                            yBroca: { type: 'linear', position: 'left', beginAtZero: true, ticks: { color: themeColors.danger }, grid: { drawOnChartArea: false } },
-                            yPerda: { type: 'linear', position: 'right', beginAtZero: true, ticks: { color: themeColors.warning }, grid: { drawOnChartArea: false } },
-                            x: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } }
-                        },
-                        plugins: { legend: { labels: { color: themeColors.text } } }
-                    }
-                });
-            },
-            renderInspecoesResponsavelChart() {
-                const themeColors = this._getThemeColors();
-                const dadosPorResponsavel = [...App.state.registros, ...App.state.perdas].reduce((acc, item) => {
-                    const responsavel = item.usuario || 'Não identificado';
-                    acc[responsavel] = (acc[responsavel] || 0) + 1;
-                    return acc;
-                }, {});
-                
-                const labels = Object.keys(dadosPorResponsavel);
-                const data = Object.values(dadosPorResponsavel);
-
-                this._createOrUpdateChart('graficoInspecoesResponsavel', {
-                    type: 'doughnut',
-                    data: { labels, datasets: [{ data, backgroundColor: [themeColors.primary, themeColors.accent, themeColors.primaryDark, themeColors.info, themeColors.purple] }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: themeColors.text } }, datalabels: { color: '#fff', font: { weight: 'bold' } } } },
-                    plugins: [ChartDataLabels]
-                });
-            },
-            renderPerdaPorTipoChart() {
-                const themeColors = this._getThemeColors();
-                const perdaPorTipo = App.state.perdas.reduce((acc, p) => {
-                    acc.canaInteira += p.canaInteira || 0;
-                    acc.tolete += p.tolete || 0;
-                    acc.toco += p.toco || 0;
-                    acc.ponta += p.ponta || 0;
-                    acc.estilhaco += p.estilhaco || 0;
-                    acc.pedaco += p.pedaco || 0;
-                    return acc;
-                }, { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0 });
-
-                const labels = ['Cana Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
-                const data = Object.values(perdaPorTipo);
-                const backgroundColors = [themeColors.danger, themeColors.warning, themeColors.purple, themeColors.info, themeColors.accent, themeColors.primaryDark];
-
-                this._createOrUpdateChart('graficoPerdaPorTipo', {
-                    type: 'pie',
-                    data: { labels, datasets: [{ label: 'Perda por Tipo (kg)', data, backgroundColor: backgroundColors }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: themeColors.text } }, datalabels: { formatter: (value, ctx) => { let sum = 0; let dataArr = ctx.chart.data.datasets[0].data; dataArr.map(data => { sum += data; }); let percentage = (value*100 / sum).toFixed(2)+"%"; return percentage; }, color: '#fff' } } },
-                    plugins: [ChartDataLabels]
-                });
-            },
-            renderTopOperadoresChart() {
-                const themeColors = this._getThemeColors();
-                const dadosPorOperador = App.state.perdas.reduce((acc, p) => {
-                    const operadorKey = p.operador || 'Não Identificado';
-                    if (!acc[operadorKey]) {
-                        acc[operadorKey] = { totalPerda: 0, count: 0 };
-                    }
-                    acc[operadorKey].totalPerda += p.total;
-                    acc[operadorKey].count++;
-                    return acc;
-                }, {});
-
-                const medias = Object.entries(dadosPorOperador).map(([key, value]) => ({
-                    operador: key,
-                    media: value.count > 0 ? value.totalPerda / value.count : 0
-                }));
-
-                const top5 = medias.sort((a, b) => b.media - a.media).slice(0, 5);
-                const labels = top5.map(item => item.operador);
-                const data = top5.map(item => item.media.toFixed(2));
-
-                this._createOrUpdateChart('graficoTopOperadores', {
-                    type: 'bar',
-                    data: { labels, datasets: [{ label: 'Perda Média por Operador (kg)', data, backgroundColor: themeColors.primary }] },
-                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: themeColors.text }, grid: { color: themeColors.border } }, x: { beginAtZero: true, ticks: { color: themeColors.text }, grid: { color: themeColors.border } } }, plugins: { legend: { labels: { color: themeColors.text } } } }
-                });
-            },
             
             // --- [NOVAS FUNÇÕES PARA O DASHBOARD DE CARDS] ---
             renderBrocaDashboardCharts() {
@@ -2680,16 +2499,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.registros.forEach(item => {
                     const fazendaKey = `${item.codigo} - ${item.fazenda}`;
                     if (!fazendasMap.has(fazendaKey)) {
-                        fazendasMap.set(fazendaKey, { totalEntrenos: 0, totalBrocadoPonderado: 0 });
+                        fazendasMap.set(fazendaKey, { totalEntrenos: 0, totalBrocado: 0 });
                     }
                     const fazenda = fazendasMap.get(fazendaKey);
                     fazenda.totalEntrenos += Number(item.entrenos);
-                    const brocadoPonderado = (Number(item.base) * 1) + (Number(item.meio) * 2) + (Number(item.topo) * 3);
-                    fazenda.totalBrocadoPonderado += brocadoPonderado;
+                    fazenda.totalBrocado += Number(item.brocado);
                 });
             
                 const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, data]) => {
-                    const indice = data.totalEntrenos > 0 ? (data.totalBrocadoPonderado / (data.totalEntrenos * 3)) * 100 : 0;
+                    const indice = data.totalEntrenos > 0 ? (data.totalBrocado / data.totalEntrenos) * 100 : 0;
                     return { nome, indice };
                 });
             
@@ -2708,7 +2526,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             borderWidth: 1
                         }]
                     },
-                    options: { indexAxis: 'y' }
+                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
                 });
             },
             renderBrocaMensal() {
@@ -2720,18 +2538,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const monthLabel = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
                     
                     if (!dataByMonth[monthKey]) {
-                        dataByMonth[monthKey] = { totalBrocadoPonderado: 0, totalEntrenos: 0, label: monthLabel };
+                        dataByMonth[monthKey] = { totalBrocado: 0, totalEntrenos: 0, label: monthLabel };
                     }
-                    const brocadoPonderado = (Number(item.base) * 1) + (Number(item.meio) * 2) + (Number(item.topo) * 3);
-                    dataByMonth[monthKey].totalBrocadoPonderado += brocadoPonderado;
-                    dataByMonth[monthKey].totalEntrenos += (Number(item.entrenos) * 3);
+                    dataByMonth[monthKey].totalBrocado += Number(item.brocado);
+                    dataByMonth[monthKey].totalEntrenos += Number(item.entrenos);
                 });
 
                 const sortedMonths = Object.keys(dataByMonth).sort();
                 const labels = sortedMonths.map(key => dataByMonth[key].label);
                 const data = sortedMonths.map(key => {
                     const monthData = dataByMonth[key];
-                    return monthData.totalEntrenos > 0 ? ((monthData.totalBrocadoPonderado / monthData.totalEntrenos) * 100).toFixed(2) : 0;
+                    return monthData.totalEntrenos > 0 ? ((monthData.totalBrocado / monthData.totalEntrenos) * 100).toFixed(2) : 0;
                 });
 
                 this._createOrUpdateChart('graficoBrocaMensal', {
@@ -2739,14 +2556,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: {
                         labels,
                         datasets: [{
-                            label: 'Índice Ponderado Mensal (%)',
+                            label: 'Índice Mensal (%)',
                             data,
                             fill: true,
                             borderColor: 'rgba(211, 47, 47, 1)',
                             backgroundColor: 'rgba(211, 47, 47, 0.2)',
                             tension: 0.4
                         }]
-                    }
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             },
             renderBrocaPosicao() {
@@ -2763,7 +2581,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             data: [totalBase, totalMeio, totalTopo],
                             backgroundColor: ['#d32f2f', '#c62828', '#b71c1c']
                         }]
-                    }
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             },
             renderAreaAvaliadaBroca() {
@@ -2786,14 +2605,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._createOrUpdateChart('graficoAreaAvaliadaBroca', {
                     type: 'bar',
                     data: {
-                        labels: [''],
+                        labels: ['Área Total'],
                         datasets: [{
                             label: 'Área Inspecionada (ha)',
                             data: [areaTotal.toFixed(2)],
                             backgroundColor: 'rgba(211, 47, 47, 0.6)',
                             maxBarThickness: 100
                         }]
-                    }
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             },
             renderTop10FazendasPerda() {
@@ -2822,7 +2642,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             borderWidth: 1
                         }]
                     },
-                    options: { indexAxis: 'y' }
+                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
                 });
             },
             renderPerdaPorTipoDetalhado() {
@@ -2835,11 +2655,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: {
                         labels: ['Cana Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'],
                         datasets: [{
-                            label: 'Composição da Perda (Amostras)',
+                            label: 'Composição da Perda (kg)',
                             data: Object.values(totais),
                             backgroundColor: ['#f57c00', '#fb8c00', '#ff9800', '#ffa726', '#ffb74d', '#ffcc80']
                         }]
-                    }
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             },
             renderPerdaMensal() {
@@ -2870,7 +2691,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             backgroundColor: 'rgba(245, 124, 0, 0.2)',
                             tension: 0.4
                         }]
-                    }
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             },
             renderAreaAvaliadaPerda() {
@@ -2892,14 +2714,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._createOrUpdateChart('graficoAreaAvaliadaPerda', {
                     type: 'bar',
                     data: {
-                        labels: [''],
+                        labels: ['Área Total'],
                         datasets: [{
                             label: 'Área com Aferição (ha)',
                             data: [areaTotal.toFixed(2)],
                             backgroundColor: 'rgba(245, 124, 0, 0.6)',
                             maxBarThickness: 100
                         }]
-                    }
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             }
         },
@@ -3049,3 +2872,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Inicia a aplicação
     App.init();
+});
