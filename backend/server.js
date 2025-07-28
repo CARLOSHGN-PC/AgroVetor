@@ -8,17 +8,12 @@ const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
-// Removido: const multer = require('multer'); // Não é mais necessário para upload de Base64
-// Removido: const { table } = require('pdfkit-table'); // Removido esta linha que causava o erro
 
 const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Aumenta o limite para receber strings Base64 grandes
-
-// Removido: const storage = multer.memoryStorage();
-// Removido: const upload = multer({ storage: storage });
 
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -455,19 +450,19 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      // [CORREÇÃO] Ajuste nas larguras mínimas para evitar quebra de linha nos títulos
+      // [CORREÇÃO] Ajuste nas larguras mínimas e títulos para evitar quebra de linha
       const allPossibleHeadersConfig = [
-          { id: 'seq', title: 'Seq.', minWidth: 30 },
+          { id: 'seq', title: 'Seq.', minWidth: 35 },
           { id: 'fazenda', title: 'Fazenda', minWidth: 120 }, 
           { id: 'talhoes', title: 'Talhões', minWidth: 160 }, 
           { id: 'area', title: 'Área (ha)', minWidth: 50 },
-          { id: 'producao', title: 'Prod. (ton)', minWidth: 55 },
+          { id: 'producao', title: 'Prod. (ton)', minWidth: 60 },
           { id: 'variedade', title: 'Variedade', minWidth: 130 }, 
           { id: 'idade', title: 'Idade (m)', minWidth: 55 }, 
           { id: 'atr', title: 'ATR', minWidth: 40 }, 
-          { id: 'maturador', title: 'Maturador', minWidth: 80 }, 
-          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 70 }, 
-          { id: 'distancia', title: 'Dist. (km)', minWidth: 60 },
+          { id: 'maturador', title: 'Matur.', minWidth: 60 }, 
+          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 60 }, 
+          { id: 'distancia', title: 'KM', minWidth: 40 },
           { id: 'entrada', title: 'Entrada', minWidth: 65 }, 
           { id: 'saida', title: 'Saída', minWidth: 65 }    
       ];
@@ -503,7 +498,7 @@ try {
       finalHeaders.forEach(header => {
           totalMinWidth += header.minWidth;
           // Considerar 'fazenda', 'talhoes', 'variedade', 'maturador' como colunas flexíveis
-          if (['fazenda', 'talhoes', 'variedade', 'maturador'].includes(header.id)) {
+          if (['fazenda', 'talhoes', 'variedade'].includes(header.id)) {
               flexibleColumnsCount++;
           }
       });
@@ -513,7 +508,7 @@ try {
 
       let finalColumnWidths = finalHeaders.map(header => {
           let width = header.minWidth;
-          if (['fazenda', 'talhoes', 'variedade', 'maturador'].includes(header.id)) {
+          if (['fazenda', 'talhoes', 'variedade'].includes(header.id)) {
               width += flexibleColumnExtraWidth;
           }
           return width;
@@ -524,7 +519,7 @@ try {
       const difference = pageWidth - currentTotalWidth;
       // Distribui a diferença (pequenos erros de arredondamento) na primeira coluna flexível
       if (difference !== 0 && flexibleColumnsCount > 0) {
-          const firstFlexibleIndex = finalHeaders.findIndex(h => ['fazenda', 'talhoes', 'variedade', 'maturador'].includes(h.id));
+          const firstFlexibleIndex = finalHeaders.findIndex(h => ['fazenda', 'talhoes', 'variedade'].includes(h.id));
           if (firstFlexibleIndex !== -1) {
               finalColumnWidths[firstFlexibleIndex] += difference;
           }
