@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const App = {
         config: {
-            appName: "Inspeção e Planeamento de Cana com IA",
+            appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
             inactivityTimeout: 15 * 60 * 1000, // 15 minutos
             menuConfig: [
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
                     submenu: [
-                        { label: 'Planeamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
+                        { label: 'Planejamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
                     ]
                 },
                 {
@@ -1137,10 +1137,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     grandTotalProducao += group.totalProducao;
                     grandTotalArea += group.totalArea;
 
-                    const diasNecessarios = dailyTon > 0 ? group.totalProducao / dailyTon : 0;
+                    const diasNecessarios = dailyTon > 0 ? Math.ceil(group.totalProducao / dailyTon) : 0;
                     const dataEntrada = new Date(currentDate.getTime());
-                    currentDate.setDate(currentDate.getDate() + diasNecessarios);
-                    const dataSaida = new Date(currentDate.getTime());
+                    
+                    let dataSaida = new Date(dataEntrada.getTime());
+                    dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
+
+                    // [CORREÇÃO] A data de início da próxima fazenda é o dia seguinte à saída da anterior
+                    currentDate = new Date(dataSaida.getTime());
+                    currentDate.setDate(currentDate.getDate() + 1);
                     
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, startDate);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
@@ -1168,7 +1173,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Entrada">${dataEntrada.toLocaleDateString('pt-BR')}</td>
                         <td data-label="Saída">${dataSaida.toLocaleDateString('pt-BR')}</td>
                     `;
-                    currentDate.setDate(currentDate.getDate() + 1);
                 });
 
                 if (sequence.length > 0) {
@@ -2549,7 +2553,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showAlert("A análise do dashboard com IA ainda não foi implementada.", "info");
             },
             getPlanningSuggestions() {
-                App.ui.showAlert("A sugestão de planeamento com IA ainda não foi implementada.", "info");
+                App.ui.showAlert("A sugestão de planejamento com IA ainda não foi implementada.", "info");
             }
         },
 
