@@ -387,15 +387,15 @@
           border-radius: 50%;
       }
 
-      .permission-item input:checked ~ .slider {
+      .permission-item input:checked ~ .toggle-switch .slider {
           background-color: var(--color-primary);
       }
       
-      body.theme-dark .permission-item input:checked ~ .slider {
+      body.theme-dark .permission-item input:checked ~ .toggle-switch .slider {
           background-color: var(--color-accent);
       }
 
-      .permission-item input:checked ~ .slider:before {
+      .permission-item input:checked ~ .toggle-switch .slider:before {
           transform: translateX(20px);
       }
 
@@ -457,7 +457,7 @@
       .modal-footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 15px; }
       .modal-footer .danger-zone { margin-right: auto; display: flex; gap: 10px; }
       .modal-footer button { margin-top: 0; }
-      #confirmationModal .modal-content, #adminPasswordConfirmModal .modal-content { max-width: 450px; }
+      #confirmationModal .modal-content, #adminPasswordConfirmModal .modal-content, #editFarmModal .modal-content { max-width: 450px; }
       #confirmationModal p, #adminPasswordConfirmModal p { color: var(--color-text-light); line-height: 1.6; }
       .csv-format-info { word-break: break-all; overflow-wrap: break-word; }
       
@@ -487,11 +487,14 @@
           border-color: var(--color-accent);
       }
 
-      /* [NOVO] Estilos para as checkboxes customizadas do relatório */
-      .report-options-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 15px;
+      /* Estilos para checkboxes customizadas */
+      .checkbox-group-container {
+        margin-top: 10px;
+      }
+      .checkbox-group-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
       }
       .report-option-item {
           position: relative;
@@ -930,12 +933,16 @@
                             <label for="planoRelatorioSelect" class="required">Selecione um Plano de Colheita:</label>
                             <select id="planoRelatorioSelect" required></select>
                         </div>
+                        <div class="form-col">
+                            <label for="distanciaMaxFiltro">Distância Máxima (km):</label>
+                            <input type="number" id="distanciaMaxFiltro" placeholder="Ex: 50">
+                        </div>
                     </div>
                 </div>
                 
                 <div class="card" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-check-square"></i> 2. Selecione as Colunas para o Relatório</h3>
-                    <div id="reportOptionsContainer" class="report-options-grid">
+                    <div class="checkbox-group-grid" id="reportOptionsContainer">
                         <label class="report-option-item">
                             <input type="checkbox" data-column="variedade" checked>
                             <span class="checkbox-visual"><i class="fas fa-check"></i></span>
@@ -1040,14 +1047,27 @@
                     </div>
                     <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
                     <button id="btnDownloadCsvTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
-                    <small class="csv-format-info">Formato esperado: Cód;FAZENDA;TALHÃO;Área;Produção;Variedade;Corte;Distancia;DataUltimaColheita</small>
+                    <small class="csv-format-info">Formato: Cód;FAZENDA;TIPO;TALHÃO;Área;Produção;Variedade;Corte;Distancia;DataUltimaColheita</small>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
-                    <h3><i class="fas fa-tractor"></i> Gerir Fazendas e Talhões (Manual)</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+                        <h3><i class="fas fa-tractor"></i> Gerir Fazendas e Talhões (Manual)</h3>
+                        <button id="btnDeleteAllFarms" class="btn-excluir" style="margin-left: 0;"><i class="fas fa-exclamation-triangle"></i> Excluir Todas</button>
+                    </div>
                     <div class="form-row">
                         <div class="form-col"><label for="farmCode" class="required">Código da Fazenda:</label><input type="number" id="farmCode" placeholder="Ex: 4012"></div>
                         <div class="form-col"><label for="farmName" class="required">Nome da Fazenda:</label><input type="text" id="farmName" placeholder="Ex: FAZ. LAGOA CERCADA"></div>
+                    </div>
+                    <div class="checkbox-group-container">
+                        <label>Tipo da Fazenda:</label>
+                        <div class="checkbox-group-grid" id="farmTypeCheckboxes">
+                            <label class="report-option-item"><input type="checkbox" name="farmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
+                            <label class="report-option-item"><input type="checkbox" name="farmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
+                            <label class="report-option-item"><input type="checkbox" name="farmType" value="Fornecedor"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Fornecedor</span></label>
+                            <label class="report-option-item"><input type="checkbox" name="farmType" value="Acionista"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Acionista</span></label>
+                            <label class="report-option-item"><input type="checkbox" name="farmType" value="Arrendatário"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Arrendatário</span></label>
+                        </div>
                     </div>
                     <button id="btnSaveFarm" class="save" style="max-width: 250px;"><i class="fas fa-plus-circle"></i> Guardar Fazenda</button>
                     <hr style="margin: 20px 0;">
@@ -1282,6 +1302,25 @@
                 </div>
                 <div id="expandedChartContainer">
                     <canvas id="expandedChartCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- [NOVO] Modal para Editar Nome da Fazenda -->
+        <div id="editFarmModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Editar Nome da Fazenda</h2>
+                    <button id="editFarmModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <input type="hidden" id="editingFarmId">
+                <div class="input-group">
+                    <label for="editFarmNameInput" class="required">Novo Nome da Fazenda:</label>
+                    <input type="text" id="editFarmNameInput" required>
+                </div>
+                <div class="modal-footer">
+                    <button id="editFarmModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="editFarmModalSaveBtn" class="save">Guardar Alterações</button>
                 </div>
             </div>
         </div>
