@@ -63,8 +63,38 @@
       * { box-sizing: border-box; margin: 0; padding: 0; }
       html { scroll-behavior: smooth; }
       body { margin: 0; font-family: var(--font-family); background-color: var(--color-bg); color: var(--color-text); min-height: 100vh; display: flex; flex-direction: column; line-height: 1.5; -webkit-font-smoothing: antialiased; }
-      #loginScreen { flex: 1; background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)); display: flex; justify-content: center; align-items: center; padding: 20px; }
-      #loginBox { background: var(--color-surface); box-shadow: var(--shadow-xl); border-radius: var(--border-radius-xl); padding: 40px; width: 100%; max-width: 400px; text-align: center; animation: fadeIn 0.5s ease-out; position: relative; overflow: hidden; }
+      
+      /* [ALTERADO] Estilo da tela de login com imagem de fundo local */
+      #loginScreen { 
+          flex: 1; 
+          background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('./icons/imagens.png');
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          display: flex; 
+          justify-content: center; 
+          align-items: center; 
+          padding: 20px; 
+      }
+      
+      /* [ALTERADO] Card de login com mais transparência para efeito de vidro */
+      #loginBox { 
+          background: rgba(255, 255, 255, 0.75); /* Fallback para navegadores antigos */
+          background: color-mix(in srgb, var(--color-surface) 75%, transparent);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          box-shadow: var(--shadow-xl); 
+          border-radius: var(--border-radius-xl); 
+          padding: 40px; 
+          width: 100%; 
+          max-width: 400px; 
+          text-align: center; 
+          animation: fadeIn 0.5s ease-out; 
+          position: relative; 
+          overflow: hidden; 
+      }
+
       #loginBox::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(to right, var(--color-primary), var(--color-accent)); }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
       #loginBox h2 { margin-bottom: 24px; color: var(--color-primary); font-weight: 600; font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 10px; }
