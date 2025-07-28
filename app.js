@@ -138,6 +138,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('confirmationModalConfirmBtn'),
                 cancelBtn: document.getElementById('confirmationModalCancelBtn'),
                 closeBtn: document.getElementById('confirmationModalCloseBtn'),
+                inputContainer: document.getElementById('confirmationModalInputContainer'),
+                input: document.getElementById('confirmationModalInput'),
             },
             changePasswordModal: {
                 overlay: document.getElementById('changePasswordModal'),
@@ -293,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tipoRelatorio: document.getElementById('tipoRelatorioBroca'),
                 filtroInicio: document.getElementById('inicioBrocamento'),
                 filtroFim: document.getElementById('fimBrocamento'),
+                farmTypeFilter: document.querySelectorAll('#brocaReportFarmTypeFilter input[type="checkbox"]'),
                 btnPDF: document.getElementById('btnPDFBrocamento'),
                 btnExcel: document.getElementById('btnExcelBrocamento'),
             },
@@ -321,6 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 filtroFrente: document.getElementById('frenteFiltroPerda'),
                 filtroInicio: document.getElementById('inicioPerda'),
                 filtroFim: document.getElementById('fimPerda'),
+                farmTypeFilter: document.querySelectorAll('#perdaReportFarmTypeFilter input[type="checkbox"]'),
                 tipoRelatorio: document.getElementById('tipoRelatorioPerda'),
                 btnPDF: document.getElementById('btnPDFPerda'),
                 btnExcel: document.getElementById('btnExcelPerda'),
@@ -331,9 +335,9 @@ document.addEventListener('DOMContentLoaded', () => {
             relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
                 optionsContainer: document.querySelector('#relatorioColheitaCustom #reportOptionsContainer'),
+                farmTypeFilter: document.querySelectorAll('#harvestReportFarmTypeFilter input[type="checkbox"]'),
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
-                distanciaMaxFiltro: document.getElementById('distanciaMaxFiltro'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
         },
@@ -1221,25 +1225,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 const total = fields.reduce((sum, id) => sum + (parseFloat(document.getElementById(id).value) || 0), 0);
                 App.elements.perda.resultado.textContent = `Total Perda: ${total.toFixed(2).replace('.', ',')} kg`;
             },
-            showConfirmationModal(message, onConfirm) {
-                const { overlay, message: msgEl, confirmBtn, cancelBtn, closeBtn } = App.elements.confirmationModal;
+            showConfirmationModal(message, onConfirm, needsInput = false) {
+                const { overlay, message: msgEl, confirmBtn, cancelBtn, closeBtn, inputContainer, input } = App.elements.confirmationModal;
                 msgEl.textContent = message;
-
+                input.value = '';
+                inputContainer.style.display = needsInput ? 'block' : 'none';
+            
                 const confirmHandler = () => {
-                    onConfirm();
+                    const inputValue = needsInput ? input.value : null;
+                    onConfirm(inputValue);
                     closeHandler();
                 };
+            
                 const closeHandler = () => {
                     overlay.classList.remove('show');
                     confirmBtn.removeEventListener('click', confirmHandler);
                     cancelBtn.removeEventListener('click', closeHandler);
                     closeBtn.removeEventListener('click', closeHandler);
                 };
-
+            
                 confirmBtn.addEventListener('click', confirmHandler);
                 cancelBtn.addEventListener('click', closeHandler);
                 closeBtn.addEventListener('click', closeHandler);
                 overlay.classList.add('show');
+                if(needsInput) input.focus();
             },
             showAdminPasswordConfirmModal() {
                 App.elements.adminPasswordConfirmModal.overlay.classList.add('show');
@@ -2938,38 +2947,43 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         
             generateBrocamentoPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
                     fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
                 };
                 this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
             },
         
             generateBrocamentoCSV() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
                     fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
                 };
                 this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
             },
         
             generatePerdaPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
+                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
@@ -2977,27 +2991,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     talhao: filtroTalhao.value,
                     matricula: filtroOperador.value,
                     frenteServico: filtroFrente.value,
-                    tipoRelatorio: tipoRelatorio.value
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
                 };
                 this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
             },
         
             generatePerdaCSV() {
-                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.perda;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
                 const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
                     fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
                 };
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
         
             generateCustomHarvestReport(format) {
-                const { select, optionsContainer, distanciaMaxFiltro } = App.elements.relatorioColheita;
+                const { select, optionsContainer, farmTypeFilter } = App.elements.relatorioColheita;
                 const planId = select.value;
                 if (!planId) {
                     App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
@@ -3009,10 +3026,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectedColumns[cb.dataset.column] = cb.checked;
                 });
 
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+
                 const filters = {
                     planId: planId,
                     selectedColumns: JSON.stringify(selectedColumns),
-                    distanciaMax: distanciaMaxFiltro.value || ''
+                    tipos: selectedTypes.join(',')
                 };
                 
                 this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_custom.${format}`);
