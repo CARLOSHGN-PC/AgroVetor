@@ -2,11 +2,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-// Removido: import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // FIREBASE: Configuração e inicialização do Firebase (CÓDIGO ORIGINAL MANTIDO)
+    // FIREBASE: Configuração e inicialização do Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY", // Substitua pela sua chave de API
         authDomain: "agrovetor-v2.firebaseapp.com",
@@ -17,16 +16,16 @@ document.addEventListener('DOMContentLoaded', () => {
         measurementId: "G-JN4MSW63JR"
     };
 
-    // Aplicação principal do Firebase (CÓDIGO ORIGINAL MANTIDO)
+    // Aplicação principal do Firebase
     const firebaseApp = initializeApp(firebaseConfig);
     const db = getFirestore(firebaseApp);
     const auth = getAuth(firebaseApp);
+    
+    // [CORREÇÃO LOGIN] Inicializa uma segunda app para autenticação secundária (criação de utilizador)
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
-    // Removido: const storage = getStorage(firebaseApp);
-
-    // Habilita a persistência offline (CÓDIGO ORIGINAL MANTIDO)
+    // Habilita a persistência offline
     enableIndexedDbPersistence(db)
         .catch((err) => {
             if (err.code == 'failed-precondition') {
@@ -36,9 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-
     const App = {
-        config: { // (CÓDIGO ORIGINAL MANTIDO)
+        config: {
             appName: "Inspeção e Planeamento de Cana com IA",
             themeKey: 'canaAppTheme',
             inactivityTimeout: 15 * 60 * 1000, // 15 minutos
@@ -86,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        state: { // (CÓDIGO ORIGINAL MANTIDO)
+        state: {
             currentUser: null,
             users: [],
             registros: [],
@@ -94,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
             planos: [],
             fazendas: [],
             personnel: [],
-            companyLogo: null, // Agora armazenará a string Base64
+            companyLogo: null,
             activeSubmenu: null,
             charts: {},
             harvestPlans: [],
@@ -106,7 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
             expandedChart: null,
         },
         
-        elements: { // (ADICIONADO ELEMENTOS DO NOVO DASHBOARD)
+        elements: {
             loadingOverlay: document.getElementById('loading-overlay'),
             loadingProgressText: document.getElementById('loading-progress-text'),
             loginScreen: document.getElementById('loginScreen'),
@@ -170,16 +168,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 removeLogoBtn: document.getElementById('removeLogoBtn'),
             },
             dashboard: {
-                // Elementos do dashboard antigo mantidos caso sejam reutilizados
-                kpiBrocamento: document.getElementById('kpi-brocamento'),
-                kpiPerda: document.getElementById('kpi-perda'),
-                kpiInspecoes: document.getElementById('kpi-inspecoes'),
-                kpiFazendas: document.getElementById('kpi-fazendas'),
-                btnAnalisar: document.getElementById('btnAnalisarDashboard'),
-                aiCard: document.getElementById('ai-analysis-card'),
-                aiContent: document.getElementById('ai-analysis-content'),
-                
-                // [NOVO] Elementos do novo dashboard de cards
                 selector: document.getElementById('dashboard-selector'),
                 brocaView: document.getElementById('dashboard-broca'),
                 perdaView: document.getElementById('dashboard-perda'),
@@ -339,196 +327,197 @@ document.addEventListener('DOMContentLoaded', () => {
             installAppBtn: document.getElementById('installAppBtn'),
         },
 
-        init() { // (CÓDIGO ORIGINAL MANTIDO)
+        init() {
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
-                    auth: {
-            async checkSession() {
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        const userDoc = await App.data.getUserData(user.uid);
-                        if (userDoc && userDoc.active) {
-                            App.state.currentUser = { ...user, ...userDoc };
-                            App.actions.saveUserProfileLocally(App.state.currentUser);
-                            App.ui.showAppScreen();
-                            App.data.listenToAllData();
-                        } else {
-                            this.logout();
-                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
-                        }
-                    } else {
-                        const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection(localProfiles);
-                        } else {
-                            App.ui.showLoginScreen();
-                        }
-                    }
-                });
-            },
-            async login() {
-                const email = App.elements.loginUser.value.trim();
-                const password = App.elements.loginPass.value;
-                if (!email || !password) {
-                    App.ui.showLoginMessage("Preencha e-mail e senha.");
-                    return;
-                }
-                App.ui.setLoading(true, "A autenticar...");
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                } catch (error) {
-                    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                        App.ui.showLoginMessage("E-mail ou senha inválidos.");
-                    } else if (error.code === 'auth/network-request-failed') {
-                        App.ui.showLoginMessage("Erro de rede. Verifique sua conexão e tente novamente.");
-                    } else {
-                        App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
-                    }
-                    console.error("Erro de login:", error.code, error.message);
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-            async loginOffline(userId) {
-                const localProfiles = App.actions.getLocalUserProfiles();
-                const userProfile = localProfiles.find(p => p.uid === userId);
-                if (userProfile) {
-                    App.state.currentUser = userProfile;
-                    App.ui.showAppScreen();
-                    App.data.listenToAllData();
-                }
-            },
-            async logout() {
-                if (navigator.onLine) {
-                    await signOut(auth);
-                }
-                App.data.cleanupListeners();
-                App.state.currentUser = null;
-                clearTimeout(App.state.inactivityTimer);
-                App.ui.showLoginScreen();
-            },
-            initiateUserCreation() {
-                const els = App.elements.users;
-                const email = els.username.value.trim();
-                const password = els.password.value;
-                const role = els.role.value;
-                if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
-
-                const permissions = {};
-                els.permissionCheckboxes.forEach(cb => {
-                    permissions[cb.dataset.permission] = cb.checked;
-                });
-
-                App.state.newUserCreationData = { email, password, role, permissions };
-                App.ui.showAdminPasswordConfirmModal();
-            },
-            async createUserAfterAdminConfirmation() {
-                const { email, password, role, permissions } = App.state.newUserCreationData;
-                const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
-
-                if (!adminPassword) {
-                    App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error");
-                    return;
-                }
-
-                App.ui.setLoading(true, "A criar utilizador...");
-                try {
-                    const adminUser = auth.currentUser;
-                    const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
-                    await reauthenticateWithCredential(adminUser, credential);
-                    
-                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-                    const newUser = userCredential.user;
-
-                    await signOut(secondaryAuth);
-
-                    const userData = {
-                        username: email.split('@')[0],
-                        email: email,
-                        role: role,
-                        active: true,
-                        permissions: permissions
-                    };
-                    await App.data.createUserData(newUser.uid, userData);
-                    
-                    App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
-                    App.elements.users.username.value = ''; 
-                    App.elements.users.password.value = ''; 
-                    App.elements.users.role.value = 'user';
-                    App.ui.updatePermissionsForRole('user');
-                    App.ui.closeAdminPasswordConfirmModal();
-
-                } catch (error) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                        App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
-                    } else if (error.code === 'auth/email-already-in-use') {
-                        App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
-                    } else if (error.code === 'auth/weak-password') {
-                        App.ui.showAlert("A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
-                    } else {
-                        App.ui.showAlert("Erro ao criar utilizador.", "error");
-                        console.error("Erro ao criar utilizador:", error);
-                    }
-                } finally {
-                    App.state.newUserCreationData = null;
-                    App.elements.adminPasswordConfirmModal.passwordInput.value = '';
-                    App.ui.setLoading(false);
-                }
-            },
-            async deleteUser(userId) {
-                const userToDelete = App.state.users.find(u => u.id === userId);
-                if (!userToDelete) return;
-                
-                App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
-                    try {
-                        await App.data.updateDocument('users', userId, { active: false });
-                        App.actions.removeUserProfileLocally(userId);
-                        App.ui.showAlert(`Utilizador ${userToDelete.username} desativado.`);
-                        App.ui.closeUserEditModal();
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao desativar utilizador.", "error");
-                    }
-                });
-            },
-            async toggleUserStatus(userId) {
-                const user = App.state.users.find(u => u.id === userId);
-                if (!user) return;
-                const newStatus = !user.active;
-                await App.data.updateDocument('users', userId, { active: newStatus });
-                App.ui.showAlert(`Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
-            },
-            async resetUserPassword(userId) {
-                const user = App.state.users.find(u => u.id === userId);
-                if (!user || !user.email) return;
-
-                App.ui.showConfirmationModal(`Deseja enviar um e-mail de redefinição de senha para ${user.email}?`, async () => {
-                    try {
-                        await sendPasswordResetEmail(auth, user.email);
-                        App.ui.showAlert(`E-mail de redefinição enviado para ${user.email}.`, 'success');
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao enviar e-mail de redefinição.", "error");
-                        console.error(error);
-                    }
-                });
-            },
-            async saveUserChanges(userId) {
-                const modalEls = App.elements.userEditModal;
-                const role = modalEls.role.value;
-                const permissions = {};
-                modalEls.permissionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    permissions[cb.dataset.permission] = cb.checked;
-                });
-                
-                await App.data.updateDocument('users', userId, { role, permissions });
-                App.ui.showAlert("Alterações guardadas com sucesso!");
-                App.ui.closeUserEditModal();
-            }
-        },
         
-        data: { // (CÓDIGO ORIGINAL MANTIDO)
+        auth: {
+            async checkSession() {
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        const userDoc = await App.data.getUserData(user.uid);
+                        if (userDoc && userDoc.active) {
+                            App.state.currentUser = { ...user, ...userDoc };
+                            App.actions.saveUserProfileLocally(App.state.currentUser);
+                            App.ui.showAppScreen();
+                            App.data.listenToAllData();
+                        } else {
+                            this.logout();
+                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
+                        }
+                    } else {
+                        const localProfiles = App.actions.getLocalUserProfiles();
+                        if (localProfiles.length > 0 && !navigator.onLine) {
+                            App.ui.showOfflineUserSelection(localProfiles);
+                        } else {
+                            App.ui.showLoginScreen();
+                        }
+                    }
+                });
+            },
+            async login() {
+                const email = App.elements.loginUser.value.trim();
+                const password = App.elements.loginPass.value;
+                if (!email || !password) {
+                    App.ui.showLoginMessage("Preencha e-mail e senha.");
+                    return;
+                }
+                App.ui.setLoading(true, "A autenticar...");
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                        App.ui.showLoginMessage("E-mail ou senha inválidos.");
+                    } else if (error.code === 'auth/network-request-failed') {
+                        App.ui.showLoginMessage("Erro de rede. Verifique sua conexão e tente novamente.");
+                    } else {
+                        App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
+                    }
+                    console.error("Erro de login:", error.code, error.message);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+            async loginOffline(userId) {
+                const localProfiles = App.actions.getLocalUserProfiles();
+                const userProfile = localProfiles.find(p => p.uid === userId);
+                if (userProfile) {
+                    App.state.currentUser = userProfile;
+                    App.ui.showAppScreen();
+                    App.data.listenToAllData();
+                }
+            },
+            async logout() {
+                if (navigator.onLine) {
+                    await signOut(auth);
+                }
+                App.data.cleanupListeners();
+                App.state.currentUser = null;
+                clearTimeout(App.state.inactivityTimer);
+                App.ui.showLoginScreen();
+            },
+            initiateUserCreation() {
+                const els = App.elements.users;
+                const email = els.username.value.trim();
+                const password = els.password.value;
+                const role = els.role.value;
+                if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
+
+                const permissions = {};
+                els.permissionCheckboxes.forEach(cb => {
+                    permissions[cb.dataset.permission] = cb.checked;
+                });
+
+                App.state.newUserCreationData = { email, password, role, permissions };
+                App.ui.showAdminPasswordConfirmModal();
+            },
+            async createUserAfterAdminConfirmation() {
+                const { email, password, role, permissions } = App.state.newUserCreationData;
+                const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
+
+                if (!adminPassword) {
+                    App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A criar utilizador...");
+                try {
+                    const adminUser = auth.currentUser;
+                    const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
+                    await reauthenticateWithCredential(adminUser, credential);
+                    
+                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                    const newUser = userCredential.user;
+
+                    await signOut(secondaryAuth);
+
+                    const userData = {
+                        username: email.split('@')[0],
+                        email: email,
+                        role: role,
+                        active: true,
+                        permissions: permissions
+                    };
+                    await App.data.createUserData(newUser.uid, userData);
+                    
+                    App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
+                    App.elements.users.username.value = ''; 
+                    App.elements.users.password.value = ''; 
+                    App.elements.users.role.value = 'user';
+                    App.ui.updatePermissionsForRole('user');
+                    App.ui.closeAdminPasswordConfirmModal();
+
+                } catch (error) {
+                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                        App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
+                    } else if (error.code === 'auth/email-already-in-use') {
+                        App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
+                    } else if (error.code === 'auth/weak-password') {
+                        App.ui.showAlert("A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
+                    } else {
+                        App.ui.showAlert("Erro ao criar utilizador.", "error");
+                        console.error("Erro ao criar utilizador:", error);
+                    }
+                } finally {
+                    App.state.newUserCreationData = null;
+                    App.elements.adminPasswordConfirmModal.passwordInput.value = '';
+                    App.ui.setLoading(false);
+                }
+            },
+            async deleteUser(userId) {
+                const userToDelete = App.state.users.find(u => u.id === userId);
+                if (!userToDelete) return;
+                
+                App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
+                    try {
+                        await App.data.updateDocument('users', userId, { active: false });
+                        App.actions.removeUserProfileLocally(userId);
+                        App.ui.showAlert(`Utilizador ${userToDelete.username} desativado.`);
+                        App.ui.closeUserEditModal();
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao desativar utilizador.", "error");
+                    }
+                });
+            },
+            async toggleUserStatus(userId) {
+                const user = App.state.users.find(u => u.id === userId);
+                if (!user) return;
+                const newStatus = !user.active;
+                await App.data.updateDocument('users', userId, { active: newStatus });
+                App.ui.showAlert(`Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
+            },
+            async resetUserPassword(userId) {
+                const user = App.state.users.find(u => u.id === userId);
+                if (!user || !user.email) return;
+
+                App.ui.showConfirmationModal(`Deseja enviar um e-mail de redefinição de senha para ${user.email}?`, async () => {
+                    try {
+                        await sendPasswordResetEmail(auth, user.email);
+                        App.ui.showAlert(`E-mail de redefinição enviado para ${user.email}.`, 'success');
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao enviar e-mail de redefinição.", "error");
+                        console.error(error);
+                    }
+                });
+            },
+            async saveUserChanges(userId) {
+                const modalEls = App.elements.userEditModal;
+                const role = modalEls.role.value;
+                const permissions = {};
+                modalEls.permissionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    permissions[cb.dataset.permission] = cb.checked;
+                });
+                
+                await App.data.updateDocument('users', userId, { role, permissions });
+                App.ui.showAlert("Alterações guardadas com sucesso!");
+                App.ui.closeUserEditModal();
+            }
+        },
+
+        data: {
             cleanupListeners() {
                 App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
                 App.state.unsubscribeListeners = [];
@@ -555,7 +544,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const configDocRef = doc(db, 'config', 'company');
                 const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
-                    // Agora, companyLogo armazena a string Base64 diretamente
                     App.state.companyLogo = doc.exists() ? doc.data().logoBase64 : null; 
                     App.ui.renderLogoPreview();
                 });
@@ -586,18 +574,17 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         },
         
-        ui: { // (MODIFICADO showTab E ADICIONADO showDashboardView)
+        ui: {
             setLoading(isLoading, progressText = "A processar...") {
                 App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
                 App.elements.loadingProgressText.textContent = progressText;
             },
-           showLoginScreen() {
+            showLoginScreen() {
                 App.elements.loginForm.style.display = 'block';
                 App.elements.offlineUserSelection.style.display = 'none';
                 App.elements.loginScreen.style.display = 'flex';
                 App.elements.appScreen.style.display = 'none';
                 
-                // [CORREÇÃO] Adiciona uma verificação para garantir que o elemento existe
                 if (App.elements.userMenu && App.elements.userMenu.container) {
                     App.elements.userMenu.container.style.display = 'none';
                 }
@@ -607,7 +594,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
             },
-            
             showOfflineUserSelection(profiles) {
                 App.elements.loginForm.style.display = 'none';
                 App.elements.offlineUserSelection.style.display = 'block';
@@ -647,9 +633,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderPlanejamento();
                 this.showHarvestPlanList();
                 this.populateHarvestPlanSelect();
-                // [ALTERADO] A renderização dos gráficos agora é controlada por showTab/showDashboardView
+                
                 if (document.getElementById('dashboard').classList.contains('active')) {
-                   this.showDashboardView('broca'); // Inicia no de broca por padrão
+                   this.showDashboardView('broca');
                 }
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
@@ -748,7 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 select.value = savedValue;
             },
-            showTab(id) { // [MODIFICADO]
+            showTab(id) {
                 document.querySelectorAll('.tab-content').forEach(tab => {
                     tab.classList.remove('active');
                     tab.hidden = true;
@@ -757,15 +743,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (tab) {
                     tab.classList.add('active');
                     tab.hidden = false;
-
-                    // [ALTERADO] Lógica do dashboard movida para sua própria função
+                    
                     if (id === 'dashboard') {
-                        this.showDashboardView('broca'); // Inicia direto no dashboard de broca
+                        this.showDashboardView('broca'); 
                     } else {
-                        App.charts.destroyAll(); // Destrói gráficos ao sair do dashboard
+                        App.charts.destroyAll(); 
                     }
                     
-                    // Lógica original mantida para as outras abas
                     if (id === 'excluirDados') this.renderExclusao();
                     if (id === 'gerenciarUsuarios') this.renderUsersList();
                     if (id === 'cadastros') this.renderFarmSelect();
@@ -778,16 +762,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 this.closeAllMenus();
             },
-            // [NOVO] Função para controlar a visualização dentro do dashboard
             showDashboardView(viewName) {
                 const dashEls = App.elements.dashboard;
-                // Esconde todas as visualizações do dashboard
                 dashEls.selector.style.display = 'none';
                 dashEls.brocaView.style.display = 'none';
                 dashEls.perdaView.style.display = 'none';
                 dashEls.aereaView.style.display = 'none';
                 
-                App.charts.destroyAll(); // Limpa gráficos antigos antes de desenhar novos
+                App.charts.destroyAll();
 
                 switch(viewName) {
                     case 'selector':
@@ -795,7 +777,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
-                        // Adiciona um pequeno delay para garantir que a UI atualizou
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                         break;
                     case 'perda':
@@ -804,7 +785,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'aerea':
                         dashEls.aereaView.style.display = 'block';
-                        // Nenhum gráfico para aerea ainda
                         break;
                 }
             },
@@ -831,7 +811,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputs.forEach(input => {
                     if (input.type === 'checkbox' || input.type === 'radio') {
                         input.checked = false;
-                    } else if (input.type !== 'date') { // Não limpa o campo de data
+                    } else if (input.type !== 'date') {
                         input.value = '';
                     }
                 });
@@ -1049,7 +1029,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             renderLogoPreview() {
                 const { logoPreview, removeLogoBtn } = App.elements.companyConfig;
-                // Agora, companyLogo é a string Base64
                 if (App.state.companyLogo) {
                     logoPreview.src = App.state.companyLogo;
                     logoPreview.style.display = 'block';
@@ -1332,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!App.elements.menu.contains(e.target) && !App.elements.btnToggleMenu.contains(e.target)) {
                         this.closeAllMenus();
                     }
-                    if (!App.elements.userMenu.container.contains(e.target)) {
+                    if (App.elements.userMenu.container && !App.elements.userMenu.container.contains(e.target)) {
                         App.elements.userMenu.dropdown.classList.remove('show');
                         App.elements.userMenu.toggle.classList.remove('open');
                         App.elements.userMenu.toggle.setAttribute('aria-expanded', 'false');
@@ -1352,7 +1331,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.addEventListener('click', () => this.applyTheme(btn.id));
                 });
                 
-                // [NOVO] Event listeners para os cards e botões de voltar do dashboard
                 const dashEls = App.elements.dashboard;
                 dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
                 dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
@@ -1361,7 +1339,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 dashEls.btnBackToSelectorPerda.addEventListener('click', () => this.showDashboardView('selector'));
                 dashEls.btnBackToSelectorAerea.addEventListener('click', () => this.showDashboardView('selector'));
                 
-                // Resto dos event listeners originais mantidos
                 const chartModal = App.elements.chartModal;
                 chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
                 chartModal.overlay.addEventListener('click', e => { if(e.target === chartModal.overlay) App.charts.closeChartModal(); });
@@ -1369,7 +1346,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.addEventListener('click', () => App.charts.openChartModal(btn.dataset.chartId));
                 });
 
-                App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
+                if(App.elements.dashboard.btnAnalisar) App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
@@ -1487,7 +1464,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
                 
                 const customReportEls = App.elements.relatorioColheita;
-                // [ALTERAÇÃO]: Chamar a função de geração de relatório do backend
                 customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
                 
@@ -1515,7 +1491,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         
-        actions: { // (CÓDIGO ORIGINAL MANTIDO)
+        actions: {
             resetInactivityTimer() {
                 clearTimeout(App.state.inactivityTimer);
                 if (App.state.currentUser) {
@@ -1760,7 +1736,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const MAX_SIZE_MB = 1; // Reduzido para 1MB para armazenamento no Firestore
+                const MAX_SIZE_MB = 1;
                 if (file.size > MAX_SIZE_MB * 1024 * 1024) {
                     App.ui.showAlert(`O ficheiro é muito grande. O tamanho máximo é de ${MAX_SIZE_MB}MB para armazenamento direto.`, 'error');
                     input.value = '';
@@ -1771,7 +1747,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const reader = new FileReader();
                 reader.onload = async (event) => {
-                    const base64String = event.target.result; // Data URL (Base64)
+                    const base64String = event.target.result;
                     try {
                         await App.data.setDocument('config', 'company', { logoBase64: base64String });
                         App.ui.showAlert('Logo carregado com sucesso!');
@@ -1780,7 +1756,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showAlert(`Erro ao carregar o logo: ${error.message}`, 'error');
                     } finally {
                         App.ui.setLoading(false);
-                        input.value = ''; 
+                        input.value = '';
                     }
                 };
                 reader.onerror = (error) => {
@@ -2406,7 +2382,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         
-        gemini: { // (CÓDIGO ORIGINAL MANTIDO)
+        gemini: {
             getOptimizedHarvestSequence() {
                 if (!App.state.activeHarvestPlan || App.state.activeHarvestPlan.sequence.length === 0) {
                     App.ui.showAlert("Adicione fazendas à sequência antes de otimizar.", "warning");
@@ -2431,8 +2407,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        charts: { // (MODIFICADO renderAll E ADICIONADO NOVAS FUNÇÕES)
-            renderAll() { // Esta função agora renderiza os gráficos do dashboard antigo
+        charts: {
+            renderAll() {
                 this.renderKpiCards();
                 this.renderTopBrocamentoChart();
                 this.renderTopPerdaChart();
@@ -2441,7 +2417,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderPerdaPorTipoChart();
                 this.renderTopOperadoresChart();
             },
-             _getThemeColors() {
+            _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
                 return {
                     primary: styles.getPropertyValue('--color-primary').trim(),
@@ -2460,7 +2436,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ctx = document.getElementById(canvasId)?.getContext('2d'); 
                 if(!ctx) return; 
 
-                // [ALTERADO] Usa o novo nome App.state.charts para o objeto de estado
                 const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
                 if (chartInstance) { 
                     chartInstance.destroy(); 
@@ -2473,18 +2448,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.charts[id] = newChart;
                 }
             },
-            // [NOVO] Função para destruir todos os gráficos ativos
             destroyAll() {
-                 Object.keys(App.state.charts).forEach(id => {
+                Object.keys(App.state.charts).forEach(id => {
                     if (App.state.charts[id]) {
                         App.state.charts[id].destroy();
                         delete App.state.charts[id];
                     }
-                 });
-                 if (App.state.expandedChart) {
+                });
+                if (App.state.expandedChart) {
                     App.state.expandedChart.destroy();
                     App.state.expandedChart = null;
-                 }
+                }
             },
             openChartModal(chartId) {
                 const originalChart = App.state.charts[chartId];
@@ -2703,7 +2677,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             renderTop10FazendasBroca() {
                 const fazendasMap = new Map();
-                // Usa App.state.registros
                 App.state.registros.forEach(item => {
                     const fazendaKey = `${item.codigo} - ${item.fazenda}`;
                     if (!fazendasMap.has(fazendaKey)) {
@@ -2740,7 +2713,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             renderBrocaMensal() {
                 const dataByMonth = {};
-                // Usa App.state.registros
                 App.state.registros.forEach(item => {
                     if (!item.data) return;
                     const date = new Date(item.data + 'T03:00:00Z');
@@ -2778,7 +2750,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             renderBrocaPosicao() {
-                // Usa App.state.registros
                 const totalBase = App.state.registros.reduce((sum, item) => sum + Number(item.base), 0);
                 const totalMeio = App.state.registros.reduce((sum, item) => sum + Number(item.meio), 0);
                 const totalTopo = App.state.registros.reduce((sum, item) => sum + Number(item.topo), 0);
@@ -2796,68 +2767,65 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             renderAreaAvaliadaBroca() {
-                 const talhoesAvaliados = new Map();
-                 // Usa App.state.registros
-                 App.state.registros.forEach(l => {
-                     const fazenda = App.state.fazendas.find(f => f.code === l.codigo);
-                     if (!fazenda) return;
-                     const key = `${fazenda.id}-${l.talhao.toUpperCase().trim()}`;
-                     talhoesAvaliados.set(key, { fazendaId: fazenda.id, talhaoNome: l.talhao.toUpperCase().trim() });
-                 });
-                 
-                 let areaTotal = 0;
-                 for (const talhaoInfo of talhoesAvaliados.values()) {
-                     const fazendaData = App.state.fazendas.find(f => f.id === talhaoInfo.fazendaId);
-                     if (fazendaData && fazendaData.talhoes) {
-                         const talhaoData = fazendaData.talhoes.find(t => t.name.toUpperCase().trim() === talhaoInfo.talhaoNome);
-                         if(talhaoData && talhaoData.area) areaTotal += Number(talhaoData.area);
-                     }
-                 }
-                 this._createOrUpdateChart('graficoAreaAvaliadaBroca', {
-                     type: 'bar',
-                     data: {
-                         labels: [''],
-                         datasets: [{
-                             label: 'Área Inspecionada (ha)',
-                             data: [areaTotal.toFixed(2)],
-                             backgroundColor: 'rgba(211, 47, 47, 0.6)',
-                             maxBarThickness: 100
-                         }]
-                     }
-                 });
+                const talhoesAvaliados = new Map();
+                App.state.registros.forEach(l => {
+                    const fazenda = App.state.fazendas.find(f => f.code === l.codigo);
+                    if (!fazenda) return;
+                    const key = `${fazenda.id}-${l.talhao.toUpperCase().trim()}`;
+                    talhoesAvaliados.set(key, { fazendaId: fazenda.id, talhaoNome: l.talhao.toUpperCase().trim() });
+                });
+                
+                let areaTotal = 0;
+                for (const talhaoInfo of talhoesAvaliados.values()) {
+                    const fazendaData = App.state.fazendas.find(f => f.id === talhaoInfo.fazendaId);
+                    if (fazendaData && fazendaData.talhoes) {
+                        const talhaoData = fazendaData.talhoes.find(t => t.name.toUpperCase().trim() === talhaoInfo.talhaoNome);
+                        if(talhaoData && talhaoData.area) areaTotal += Number(talhaoData.area);
+                    }
+                }
+                this._createOrUpdateChart('graficoAreaAvaliadaBroca', {
+                    type: 'bar',
+                    data: {
+                        labels: [''],
+                        datasets: [{
+                            label: 'Área Inspecionada (ha)',
+                            data: [areaTotal.toFixed(2)],
+                            backgroundColor: 'rgba(211, 47, 47, 0.6)',
+                            maxBarThickness: 100
+                        }]
+                    }
+                });
             },
             renderTop10FazendasPerda() {
-                 const fazendasMap = new Map();
-                 // Usa App.state.perdas
-                 App.state.perdas.forEach(item => {
-                     const fazendaKey = `${item.codigo} - ${item.fazenda}`;
-                     if (!fazendasMap.has(fazendaKey)) fazendasMap.set(fazendaKey, { totalPerda: 0, count: 0 });
-                     const fazenda = fazendasMap.get(fazendaKey);
-                     fazenda.totalPerda += parseFloat(item.total);
-                     fazenda.count++;
-                 });
-                 
-                 const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, data]) => ({ nome, media: data.count > 0 ? data.totalPerda / data.count : 0 }));
-                 fazendasArray.sort((a, b) => b.media - a.media);
-                 const top10 = fazendasArray.slice(0, 10).reverse();
+                const fazendasMap = new Map();
+                App.state.perdas.forEach(item => {
+                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
+                    if (!fazendasMap.has(fazendaKey)) fazendasMap.set(fazendaKey, { totalPerda: 0, count: 0 });
+                    const fazenda = fazendasMap.get(fazendaKey);
+                    fazenda.totalPerda += parseFloat(item.total);
+                    fazenda.count++;
+                });
+                
+                const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, data]) => ({ nome, media: data.count > 0 ? data.totalPerda / data.count : 0 }));
+                fazendasArray.sort((a, b) => b.media - a.media);
+                const top10 = fazendasArray.slice(0, 10).reverse();
 
-                 this._createOrUpdateChart('graficoTop10FazendasPerda', {
-                     type: 'bar',
-                     data: {
-                         labels: top10.map(f => f.nome),
-                         datasets: [{
-                             label: 'Perda Média (kg)',
-                             data: top10.map(f => f.media.toFixed(2)),
-                             backgroundColor: 'rgba(245, 124, 0, 0.6)',
-                             borderColor: 'rgba(245, 124, 0, 1)',
-                             borderWidth: 1
-                         }]
-                     },
-                     options: { indexAxis: 'y' }
-                 });
+                this._createOrUpdateChart('graficoTop10FazendasPerda', {
+                    type: 'bar',
+                    data: {
+                        labels: top10.map(f => f.nome),
+                        datasets: [{
+                            label: 'Perda Média (kg)',
+                            data: top10.map(f => f.media.toFixed(2)),
+                            backgroundColor: 'rgba(245, 124, 0, 0.6)',
+                            borderColor: 'rgba(245, 124, 0, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: { indexAxis: 'y' }
+                });
             },
             renderPerdaPorTipoDetalhado() {
-                // Usa App.state.perdas
                 const totais = { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0 };
                 App.state.perdas.forEach(item => {
                     for (const tipo in totais) totais[tipo] += Number(item[tipo] || 0);
@@ -2875,9 +2843,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             renderPerdaMensal() {
-                 const dataByMonth = {};
-                 // Usa App.state.perdas
-                 App.state.perdas.forEach(item => {
+                const dataByMonth = {};
+                App.state.perdas.forEach(item => {
                     if (!item.data) return;
                     const date = new Date(item.data + 'T03:00:00Z');
                     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -2907,38 +2874,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             renderAreaAvaliadaPerda() {
-                 const talhoesAvaliados = new Map();
-                 // Usa App.state.perdas
-                 App.state.perdas.forEach(l => {
-                     const fazenda = App.state.fazendas.find(f => f.code === l.codigo);
-                     if (!fazenda) return;
-                     const key = `${fazenda.id}-${l.talhao.toUpperCase().trim()}`;
-                     talhoesAvaliados.set(key, { fazendaId: fazenda.id, talhaoNome: l.talhao.toUpperCase().trim() });
-                 });
-                 let areaTotal = 0;
-                 for (const talhaoInfo of talhoesAvaliados.values()) {
-                     const fazendaData = App.state.fazendas.find(f => f.id === talhaoInfo.fazendaId);
-                     if (fazendaData && fazendaData.talhoes) {
-                         const talhaoData = fazendaData.talhoes.find(t => t.name.toUpperCase().trim() === talhaoInfo.talhaoNome);
-                         if (talhaoData && talhaoData.area) areaTotal += Number(talhaoData.area);
-                     }
-                 }
-                 this._createOrUpdateChart('graficoAreaAvaliadaPerda', {
-                     type: 'bar',
-                     data: {
-                         labels: [''],
-                         datasets: [{
-                             label: 'Área com Aferição (ha)',
-                             data: [areaTotal.toFixed(2)],
-                             backgroundColor: 'rgba(245, 124, 0, 0.6)',
-                             maxBarThickness: 100
-                         }]
-                     }
-                 });
+                const talhoesAvaliados = new Map();
+                App.state.perdas.forEach(l => {
+                    const fazenda = App.state.fazendas.find(f => f.code === l.codigo);
+                    if (!fazenda) return;
+                    const key = `${fazenda.id}-${l.talhao.toUpperCase().trim()}`;
+                    talhoesAvaliados.set(key, { fazendaId: fazenda.id, talhaoNome: l.talhao.toUpperCase().trim() });
+                });
+                let areaTotal = 0;
+                for (const talhaoInfo of talhoesAvaliados.values()) {
+                    const fazendaData = App.state.fazendas.find(f => f.id === talhaoInfo.fazendaId);
+                    if (fazendaData && fazendaData.talhoes) {
+                        const talhaoData = fazendaData.talhoes.find(t => t.name.toUpperCase().trim() === talhaoInfo.talhaoNome);
+                        if (talhaoData && talhaoData.area) areaTotal += Number(talhaoData.area);
+                    }
+                }
+                this._createOrUpdateChart('graficoAreaAvaliadaPerda', {
+                    type: 'bar',
+                    data: {
+                        labels: [''],
+                        datasets: [{
+                            label: 'Área com Aferição (ha)',
+                            data: [areaTotal.toFixed(2)],
+                            backgroundColor: 'rgba(245, 124, 0, 0.6)',
+                            maxBarThickness: 100
+                        }]
+                    }
+                });
             }
         },
 
-        reports: { // (CÓDIGO ORIGINAL MANTIDO)
+        reports: {
             _fetchAndDownloadReport(endpoint, filters, filename) {
                 const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                 cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
@@ -2975,6 +2941,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.setLoading(false);
                     });
             },
+        
             generateBrocamentoPDF() {
                 const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
@@ -2988,6 +2955,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
             },
+        
             generateBrocamentoCSV() {
                 const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
@@ -3001,6 +2969,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
             },
+        
             generatePerdaPDF() {
                 const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
@@ -3017,6 +2986,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
             },
+        
             generatePerdaCSV() {
                 const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio } = App.elements.perda;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
@@ -3030,6 +3000,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
+        
             generateCustomHarvestReport(format) {
                 const { select, optionsContainer } = App.elements.relatorioColheita;
                 const planId = select.value;
@@ -3052,7 +3023,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        pwa: { // (CÓDIGO ORIGINAL MANTIDO)
+        pwa: {
             registerServiceWorker() {
                 if ('serviceWorker' in navigator) {
                     window.addEventListener('load', () => {
@@ -3076,6 +3047,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Inicia a aplicação (CÓDIGO ORIGINAL MANTIDO)
+    // Inicia a aplicação
     App.init();
-});
