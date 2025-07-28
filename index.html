@@ -907,7 +907,17 @@
                     <div class="form-col"><label for="inicioBrocamento" class="required">Data Início:</label><input type="date" id="inicioBrocamento" /></div>
                     <div class="form-col"><label for="fimBrocamento" class="required">Data Fim:</label><input type="date" id="fimBrocamento" /></div>
                 </div>
-                    <div class="form-row">
+                <div class="checkbox-group-container">
+                    <label>Filtrar por Tipo de Fazenda:</label>
+                    <div class="checkbox-group-grid" id="brocaReportFarmTypeFilter">
+                        <label class="report-option-item"><input type="checkbox" name="brocaFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="brocaFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="brocaFarmType" value="Fornecedor"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Fornecedor</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="brocaFarmType" value="Acionista"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Acionista</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="brocaFarmType" value="Arrendatário"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Arrendatário</span></label>
+                    </div>
+                </div>
+                <div class="form-row">
                     <div class="form-col">
                         <label for="tipoRelatorioBroca">Tipo de Relatório:</label>
                         <select id="tipoRelatorioBroca">
@@ -933,9 +943,15 @@
                             <label for="planoRelatorioSelect" class="required">Selecione um Plano de Colheita:</label>
                             <select id="planoRelatorioSelect" required></select>
                         </div>
-                        <div class="form-col">
-                            <label for="distanciaMaxFiltro">Distância Máxima (km):</label>
-                            <input type="number" id="distanciaMaxFiltro" placeholder="Ex: 50">
+                    </div>
+                    <div class="checkbox-group-container">
+                        <label>Filtrar por Tipo de Fazenda:</label>
+                        <div class="checkbox-group-grid" id="harvestReportFarmTypeFilter">
+                            <label class="report-option-item"><input type="checkbox" name="harvestFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
+                            <label class="report-option-item"><input type="checkbox" name="harvestFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
+                            <label class="report-option-item"><input type="checkbox" name="harvestFarmType" value="Fornecedor"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Fornecedor</span></label>
+                            <label class="report-option-item"><input type="checkbox" name="harvestFarmType" value="Acionista"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Acionista</span></label>
+                            <label class="report-option-item"><input type="checkbox" name="harvestFarmType" value="Arrendatário"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Arrendatário</span></label>
                         </div>
                     </div>
                 </div>
@@ -967,6 +983,11 @@
                             <input type="checkbox" data-column="diasAplicacao" checked>
                             <span class="checkbox-visual"><i class="fas fa-check"></i></span>
                             <span class="option-content"><i class="fas fa-calendar-day"></i> Dias desde Aplicação</span>
+                        </label>
+                        <label class="report-option-item">
+                            <input type="checkbox" data-column="distancia" checked>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content"><i class="fas fa-road"></i> Distância (km)</span>
                         </label>
                     </div>
                 </div>
@@ -1021,6 +1042,16 @@
                     <div class="form-col"><label for="frenteFiltroPerda">Filtrar por Frente de Serviço:</label><input type="text" id="frenteFiltroPerda" placeholder="Digite Frente de Serviço" /></div>
                     <div class="form-col"><label for="inicioPerda" class="required">Data Início:</label><input type="date" id="inicioPerda" /></div>
                     <div class="form-col"><label for="fimPerda" class="required">Data Fim:</label><input type="date"id="fimPerda" /></div>
+                </div>
+                <div class="checkbox-group-container">
+                    <label>Filtrar por Tipo de Fazenda:</label>
+                    <div class="checkbox-group-grid" id="perdaReportFarmTypeFilter">
+                        <label class="report-option-item"><input type="checkbox" name="perdaFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="perdaFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="perdaFarmType" value="Fornecedor"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Fornecedor</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="perdaFarmType" value="Acionista"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Acionista</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="perdaFarmType" value="Arrendatário"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Arrendatário</span></label>
+                    </div>
                 </div>
                 <div class="form-row"><div class="form-col"><label for="tipoRelatorioPerda">Tipo de Relatório:</label><select id="tipoRelatorioPerda"><option value="A">Modelo A - Resumido</option><option value="B">Modelo B - Detalhado</option></select></div></div>
                 <div class="botoes-relatorio">
@@ -1244,6 +1275,9 @@
                         <button id="confirmationModalCloseBtn" class="modal-close-btn">&times;</button>
                 </div>
                 <p id="confirmationModalMessage">Tem a certeza que deseja guardar este lançamento?</p>
+                <div id="confirmationModalInputContainer" style="display: none; margin-top: 15px;">
+                    <input type="text" id="confirmationModalInput" placeholder="Digite para confirmar">
+                </div>
                 <div class="modal-footer">
                     <button id="confirmationModalCancelBtn" class="btn-secondary">Cancelar</button>
                     <button id="confirmationModalConfirmBtn" class="save">Confirmar</button>
