@@ -1972,9 +1972,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             excluirPlano(id) {
-                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este planeamento?", async () => {
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este planejamento?", async () => {
                     await App.data.deleteDocument('planos', id);
-                    App.ui.showAlert("Planeamento excluído.", "info");
+                    App.ui.showAlert("Planejamento excluído.", "info");
                 });
             },
             async verificarEAtualizarPlano(tipo, fazendaCodigo, talhao) {
@@ -2374,6 +2374,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
                              farm_type: fileHeaders.indexOf('TIPO'),
                              talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
+                             talhao_tch: fileHeaders.indexOf('TCH'),
                              talhao_producao: fileHeaders.indexOf('PRODUCAO'), talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
                              talhao_corte: fileHeaders.indexOf('CORTE'),
                              talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
@@ -2409,6 +2410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
                              if (talhao) { 
                                  talhao.area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || talhao.area;
+                                 talhao.tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || talhao.tch;
                                  talhao.producao = parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || talhao.producao;
                                  talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
                                  talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
@@ -2418,6 +2420,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                  fazendasToUpdate[farmCode].talhoes.push({
                                      id: Date.now() + i, name: talhaoName,
                                      area: parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0,
+                                     tch: parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0,
                                      producao: parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || 0,
                                      variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
                                      corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
@@ -2457,8 +2460,8 @@ document.addEventListener('DOMContentLoaded', () => {
                  reader.readAsText(file, 'ISO-8859-1');
             },
             downloadCsvTemplate() {
-                const headers = "Cód;FAZENDA;TIPO;TALHÃO;Área;Produção;Variedade;Corte;Distancia;DataUltimaColheita";
-                const exampleRow = "4012;FAZ LAGOA CERCADA;Própria,Parceira;T-01;50;4000;RB867515;2;10;15/07/2024";
+                const headers = "Cód;FAZENDA;TIPO;TALHÃO;Área;TCH;Produção;Variedade;Corte;Distancia;DataUltimaColheita";
+                const exampleRow = "4012;FAZ LAGOA CERCADA;Própria,Parceira;T-01;50;80;4000;RB867515;2;10;15/07/2024";
                 const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
