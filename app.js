@@ -407,7 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
 
                 const permissions = {};
-                els.permissionCheckboxes.forEach(cb => {
+                els.permissionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                     permissions[cb.dataset.permission] = cb.checked;
                 });
 
@@ -1258,7 +1258,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isChecked = user.permissions[perm.permission];
                     const label = document.createElement('label');
                     label.className = 'permission-item';
-                    label.innerHTML = `<input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}> <i class="${perm.icon}"></i> ${perm.label}`;
+                    // [ALTERADO] Usa a nova estrutura de toggle switch
+                    label.innerHTML = `
+                        <div class="permission-content">
+                            <i class="${perm.icon}"></i>
+                            <span>${perm.label}</span>
+                        </div>
+                        <div class="toggle-switch">
+                            <input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}>
+                            <span class="slider"></span>
+                        </div>
+                    `;
                     modalEls.permissionGrid.appendChild(label);
                 });
 
