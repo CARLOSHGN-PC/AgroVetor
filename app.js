@@ -335,7 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
             relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
                 optionsContainer: document.querySelector('#relatorioColheitaCustom #reportOptionsContainer'),
-                farmTypeFilter: document.querySelectorAll('#harvestReportFarmTypeFilter input[type="checkbox"]'),
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
             },
@@ -2309,7 +2308,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (navigator.onLine) {
                                 App.ui.showAlert('Lançamento de perda guardado com sucesso!');
                             } else {
-                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviado quando houver conexão.', 'info');
+                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
                             }
                             this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
                         })
@@ -3014,7 +3013,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         
             generateCustomHarvestReport(format) {
-                const { select, optionsContainer, farmTypeFilter } = App.elements.relatorioColheita;
+                const { select, optionsContainer } = App.elements.relatorioColheita;
                 const planId = select.value;
                 if (!planId) {
                     App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
@@ -3026,12 +3025,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectedColumns[cb.dataset.column] = cb.checked;
                 });
 
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-
                 const filters = {
                     planId: planId,
-                    selectedColumns: JSON.stringify(selectedColumns),
-                    tipos: selectedTypes.join(',')
+                    selectedColumns: JSON.stringify(selectedColumns)
                 };
                 
                 this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_custom.${format}`);
