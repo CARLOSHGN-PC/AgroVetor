@@ -345,188 +345,189 @@ document.addEventListener('DOMContentLoaded', () => {
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
-              auth: {
-            async checkSession() {
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        const userDoc = await App.data.getUserData(user.uid);
-                        if (userDoc && userDoc.active) {
-                            App.state.currentUser = { ...user, ...userDoc };
-                            App.actions.saveUserProfileLocally(App.state.currentUser);
-                            App.ui.showAppScreen();
-                            App.data.listenToAllData();
-                        } else {
-                            this.logout();
-                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
-                        }
-                    } else {
-                        const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection(localProfiles);
-                        } else {
-                            App.ui.showLoginScreen();
-                        }
-                    }
-                });
-            },
-            async login() {
-                const email = App.elements.loginUser.value.trim();
-                const password = App.elements.loginPass.value;
-                if (!email || !password) {
-                    App.ui.showLoginMessage("Preencha e-mail e senha.");
-                    return;
-                }
-                App.ui.setLoading(true, "A autenticar...");
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                } catch (error) {
-                    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                        App.ui.showLoginMessage("E-mail ou senha inválidos.");
-                    } else if (error.code === 'auth/network-request-failed') {
-                        App.ui.showLoginMessage("Erro de rede. Verifique sua conexão e tente novamente.");
-                    } else {
-                        App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
-                    }
-                    console.error("Erro de login:", error.code, error.message);
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-            async loginOffline(userId) {
-                const localProfiles = App.actions.getLocalUserProfiles();
-                const userProfile = localProfiles.find(p => p.uid === userId);
-                if (userProfile) {
-                    App.state.currentUser = userProfile;
-                    App.ui.showAppScreen();
-                    App.data.listenToAllData();
-                }
-            },
-            async logout() {
-                if (navigator.onLine) {
-                    await signOut(auth);
-                }
-                App.data.cleanupListeners();
-                App.state.currentUser = null;
-                clearTimeout(App.state.inactivityTimer);
-                App.ui.showLoginScreen();
-            },
-            initiateUserCreation() {
-                const els = App.elements.users;
-                const email = els.username.value.trim();
-                const password = els.password.value;
-                const role = els.role.value;
-                if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
+                    auth: {
+            async checkSession() {
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        const userDoc = await App.data.getUserData(user.uid);
+                        if (userDoc && userDoc.active) {
+                            App.state.currentUser = { ...user, ...userDoc };
+                            App.actions.saveUserProfileLocally(App.state.currentUser);
+                            App.ui.showAppScreen();
+                            App.data.listenToAllData();
+                        } else {
+                            this.logout();
+                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
+                        }
+                    } else {
+                        const localProfiles = App.actions.getLocalUserProfiles();
+                        if (localProfiles.length > 0 && !navigator.onLine) {
+                            App.ui.showOfflineUserSelection(localProfiles);
+                        } else {
+                            App.ui.showLoginScreen();
+                        }
+                    }
+                });
+            },
+            async login() {
+                const email = App.elements.loginUser.value.trim();
+                const password = App.elements.loginPass.value;
+                if (!email || !password) {
+                    App.ui.showLoginMessage("Preencha e-mail e senha.");
+                    return;
+                }
+                App.ui.setLoading(true, "A autenticar...");
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                        App.ui.showLoginMessage("E-mail ou senha inválidos.");
+                    } else if (error.code === 'auth/network-request-failed') {
+                        App.ui.showLoginMessage("Erro de rede. Verifique sua conexão e tente novamente.");
+                    } else {
+                        App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
+                    }
+                    console.error("Erro de login:", error.code, error.message);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+            async loginOffline(userId) {
+                const localProfiles = App.actions.getLocalUserProfiles();
+                const userProfile = localProfiles.find(p => p.uid === userId);
+                if (userProfile) {
+                    App.state.currentUser = userProfile;
+                    App.ui.showAppScreen();
+                    App.data.listenToAllData();
+                }
+            },
+            async logout() {
+                if (navigator.onLine) {
+                    await signOut(auth);
+                }
+                App.data.cleanupListeners();
+                App.state.currentUser = null;
+                clearTimeout(App.state.inactivityTimer);
+                App.ui.showLoginScreen();
+            },
+            initiateUserCreation() {
+                const els = App.elements.users;
+                const email = els.username.value.trim();
+                const password = els.password.value;
+                const role = els.role.value;
+                if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
 
-                const permissions = {};
-                els.permissionCheckboxes.forEach(cb => {
-                    permissions[cb.dataset.permission] = cb.checked;
-                });
+                const permissions = {};
+                els.permissionCheckboxes.forEach(cb => {
+                    permissions[cb.dataset.permission] = cb.checked;
+                });
 
-                App.state.newUserCreationData = { email, password, role, permissions };
-                App.ui.showAdminPasswordConfirmModal();
-            },
-            async createUserAfterAdminConfirmation() {
-                const { email, password, role, permissions } = App.state.newUserCreationData;
-                const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
+                App.state.newUserCreationData = { email, password, role, permissions };
+                App.ui.showAdminPasswordConfirmModal();
+            },
+            async createUserAfterAdminConfirmation() {
+                const { email, password, role, permissions } = App.state.newUserCreationData;
+                const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
 
-                if (!adminPassword) {
-                    App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error");
-                    return;
-                }
+                if (!adminPassword) {
+                    App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error");
+                    return;
+                }
 
-                App.ui.setLoading(true, "A criar utilizador...");
-                try {
-                    const adminUser = auth.currentUser;
-                    const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
-                    await reauthenticateWithCredential(adminUser, credential);
-                    
-                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-                    const newUser = userCredential.user;
+                App.ui.setLoading(true, "A criar utilizador...");
+                try {
+                    const adminUser = auth.currentUser;
+                    const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
+                    await reauthenticateWithCredential(adminUser, credential);
+                    
+                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                    const newUser = userCredential.user;
 
-                    await signOut(secondaryAuth);
+                    await signOut(secondaryAuth);
 
-                    const userData = {
-                        username: email.split('@')[0],
-                        email: email,
-                        role: role,
-                        active: true,
-                        permissions: permissions
-                    };
-                    await App.data.createUserData(newUser.uid, userData);
-                    
-                    App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
-                    App.elements.users.username.value = ''; 
-                    App.elements.users.password.value = ''; 
-                    App.elements.users.role.value = 'user';
-                    App.ui.updatePermissionsForRole('user');
-                    App.ui.closeAdminPasswordConfirmModal();
+                    const userData = {
+                        username: email.split('@')[0],
+                        email: email,
+                        role: role,
+                        active: true,
+                        permissions: permissions
+                    };
+                    await App.data.createUserData(newUser.uid, userData);
+                    
+                    App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
+                    App.elements.users.username.value = ''; 
+                    App.elements.users.password.value = ''; 
+                    App.elements.users.role.value = 'user';
+                    App.ui.updatePermissionsForRole('user');
+                    App.ui.closeAdminPasswordConfirmModal();
 
-                } catch (error) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                        App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
-                    } else if (error.code === 'auth/email-already-in-use') {
-                        App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
-                    } else if (error.code === 'auth/weak-password') {
-                        App.ui.showAlert("A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
-                    } else {
-                        App.ui.showAlert("Erro ao criar utilizador.", "error");
-                        console.error("Erro ao criar utilizador:", error);
-                    }
-                } finally {
-                    App.state.newUserCreationData = null;
-                    App.elements.adminPasswordConfirmModal.passwordInput.value = '';
-                    App.ui.setLoading(false);
-                }
-            },
-            async deleteUser(userId) {
-                const userToDelete = App.state.users.find(u => u.id === userId);
-                if (!userToDelete) return;
-                
-                App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
-                    try {
-                        await App.data.updateDocument('users', userId, { active: false });
-                        App.actions.removeUserProfileLocally(userId);
-                        App.ui.showAlert(`Utilizador ${userToDelete.username} desativado.`);
-                        App.ui.closeUserEditModal();
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao desativar utilizador.", "error");
-                    }
-                });
-            },
-            async toggleUserStatus(userId) {
-                const user = App.state.users.find(u => u.id === userId);
-                if (!user) return;
-                const newStatus = !user.active;
-                await App.data.updateDocument('users', userId, { active: newStatus });
-                App.ui.showAlert(`Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
-            },
-            async resetUserPassword(userId) {
-                const user = App.state.users.find(u => u.id === userId);
-                if (!user || !user.email) return;
+                } catch (error) {
+                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                        App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
+                    } else if (error.code === 'auth/email-already-in-use') {
+                        App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
+                    } else if (error.code === 'auth/weak-password') {
+                        App.ui.showAlert("A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
+                    } else {
+                        App.ui.showAlert("Erro ao criar utilizador.", "error");
+                        console.error("Erro ao criar utilizador:", error);
+                    }
+                } finally {
+                    App.state.newUserCreationData = null;
+                    App.elements.adminPasswordConfirmModal.passwordInput.value = '';
+                    App.ui.setLoading(false);
+                }
+            },
+            async deleteUser(userId) {
+                const userToDelete = App.state.users.find(u => u.id === userId);
+                if (!userToDelete) return;
+                
+                App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
+                    try {
+                        await App.data.updateDocument('users', userId, { active: false });
+                        App.actions.removeUserProfileLocally(userId);
+                        App.ui.showAlert(`Utilizador ${userToDelete.username} desativado.`);
+                        App.ui.closeUserEditModal();
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao desativar utilizador.", "error");
+                    }
+                });
+            },
+            async toggleUserStatus(userId) {
+                const user = App.state.users.find(u => u.id === userId);
+                if (!user) return;
+                const newStatus = !user.active;
+                await App.data.updateDocument('users', userId, { active: newStatus });
+                App.ui.showAlert(`Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
+            },
+            async resetUserPassword(userId) {
+                const user = App.state.users.find(u => u.id === userId);
+                if (!user || !user.email) return;
 
-                App.ui.showConfirmationModal(`Deseja enviar um e-mail de redefinição de senha para ${user.email}?`, async () => {
-                    try {
-                        await sendPasswordResetEmail(auth, user.email);
-                        App.ui.showAlert(`E-mail de redefinição enviado para ${user.email}.`, 'success');
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao enviar e-mail de redefinição.", "error");
-                        console.error(error);
-                    }
-                });
-            },
-            async saveUserChanges(userId) {
-                const modalEls = App.elements.userEditModal;
-                const role = modalEls.role.value;
-                const permissions = {};
-                modalEls.permissionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    permissions[cb.dataset.permission] = cb.checked;
-                });
-                
-                await App.data.updateDocument('users', userId, { role, permissions });
-                App.ui.showAlert("Alterações guardadas com sucesso!");
-                App.ui.closeUserEditModal();
-            }
-        },
+                App.ui.showConfirmationModal(`Deseja enviar um e-mail de redefinição de senha para ${user.email}?`, async () => {
+                    try {
+                        await sendPasswordResetEmail(auth, user.email);
+                        App.ui.showAlert(`E-mail de redefinição enviado para ${user.email}.`, 'success');
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao enviar e-mail de redefinição.", "error");
+                        console.error(error);
+                    }
+                });
+            },
+            async saveUserChanges(userId) {
+                const modalEls = App.elements.userEditModal;
+                const role = modalEls.role.value;
+                const permissions = {};
+                modalEls.permissionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    permissions[cb.dataset.permission] = cb.checked;
+                });
+                
+                await App.data.updateDocument('users', userId, { role, permissions });
+                App.ui.showAlert("Alterações guardadas com sucesso!");
+                App.ui.closeUserEditModal();
+            }
+        },
+        
         data: { // (CÓDIGO ORIGINAL MANTIDO)
             cleanupListeners() {
                 App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
