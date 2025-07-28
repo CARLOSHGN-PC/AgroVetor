@@ -504,7 +504,10 @@
       }
       .report-option-item {
           position: relative;
-          display: flex;
+          display: flex; /* Alterado para flex para melhor alinhamento interno */
+          flex-direction: column; /* Alinha o conteúdo verticalmente */
+          justify-content: center; /* Centraliza o conteúdo */
+          height: 100%; /* Garante que todos os cards tenham a mesma altura */
           align-items: center;
           gap: 12px;
           padding: 12px; /* Padding reduzido */
@@ -514,7 +517,6 @@
           cursor: pointer;
           transition: var(--transition);
           user-select: none;
-          height: 100%;
       }
       .report-option-item:hover {
           border-color: var(--color-accent);
@@ -527,6 +529,9 @@
           height: 0;
       }
       .report-option-item .checkbox-visual {
+          position: absolute;
+          top: 10px;
+          left: 10px;
           flex-shrink: 0;
           width: 20px;
           height: 20px;
@@ -553,9 +558,11 @@
       }
       .report-option-item .option-content {
           display: flex;
+          flex-direction: column; /* Alinha ícone e texto verticalmente */
           align-items: center;
-          gap: 10px;
+          gap: 8px;
           font-weight: 500;
+          text-align: center;
       }
       .report-option-item .option-content i {
           color: var(--color-primary);
@@ -599,11 +606,11 @@
                 <h2><i class="fas fa-leaf"></i> AGROVETOR</h2>
                 <div class="input-group">
                     <label for="loginUser">Email</label>
-                    <input id="loginUser" type="email" placeholder="Digite o seu email" aria-label="Campo email" value="admin@agrovetor.com"/>
+                    <input id="loginUser" type="email" placeholder="Digite o seu email" aria-label="Campo email" />
                 </div>
                 <div class="input-group">
                     <label for="loginPass">Senha</label>
-                    <input id="loginPass" type="password" placeholder="Digite a sua senha" aria-label="Campo senha" value="admin123"/>
+                    <input id="loginPass" type="password" placeholder="Digite a sua senha" aria-label="Campo senha" />
                 </div>
                 <button id="btnLogin" aria-label="Botão de login"><i class="fas fa-sign-in-alt"></i> LOGIN</button>
                 <div id="loginMessage" role="alert" aria-live="assertive"></div>
@@ -1075,7 +1082,7 @@
                     </div>
                     <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
                     <button id="btnDownloadCsvTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
-                    <small class="csv-format-info">Formato: Cód;FAZENDA;TIPO;TALHÃO;Área;Produção;Variedade;Corte;Distancia;DataUltimaColheita</small>
+                    <small class="csv-format-info">Formato: Cód;FAZENDA;TIPO;TALHÃO;Área;TCH;Produção;Variedade;Corte;Distancia;DataUltimaColheita</small>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
