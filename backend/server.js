@@ -458,7 +458,7 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      // Define todos os cabeçalhos possíveis com suas larguras mínimas ideais
+      // [CORREÇÃO] Ajuste nas larguras mínimas para evitar quebra de linha nos títulos
       const allPossibleHeadersConfig = [
           { id: 'seq', title: 'Seq.', minWidth: 25 },
           { id: 'fazenda', title: 'Fazenda', minWidth: 100 }, 
@@ -466,11 +466,11 @@ try {
           { id: 'area', title: 'Área (ha)', minWidth: 45 },
           { id: 'producao', title: 'Prod. (ton)', minWidth: 50 },
           { id: 'variedade', title: 'Variedade', minWidth: 120 }, 
-          { id: 'idade', title: 'Idade (m)', minWidth: 40 }, 
+          { id: 'idade', title: 'Idade (m)', minWidth: 50 }, // Aumentado
           { id: 'atr', title: 'ATR', minWidth: 40 }, 
           { id: 'maturador', title: 'Maturador', minWidth: 70 }, 
-          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 45 }, 
-          { id: 'distancia', title: 'Dist. (km)', minWidth: 45 },
+          { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 60 }, // Aumentado
+          { id: 'distancia', title: 'Dist. (km)', minWidth: 55 }, // Aumentado
           { id: 'entrada', title: 'Entrada', minWidth: 60 }, 
           { id: 'saida', title: 'Saída', minWidth: 60 }    
       ];
@@ -553,11 +553,10 @@ try {
         const diasNecessarios = dailyTon > 0 ? Math.ceil(group.totalProducao / dailyTon) : 0;
         const dataEntrada = new Date(currentDate.getTime());
         
-        // Calcula a data de saída baseada nos dias necessários
         let dataSaida = new Date(dataEntrada.getTime());
         dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
 
-        // Prepara a data de início para a próxima iteração
+        // [CORREÇÃO] A data de início da próxima fazenda é o dia seguinte à saída da anterior
         currentDate = new Date(dataSaida.getTime());
         currentDate.setDate(currentDate.getDate() + 1);
 
@@ -611,7 +610,7 @@ try {
             atr: group.atr || 'N/A',
             maturador: group.maturador || 'N/A',
             diasAplicacao: diasAplicacao,
-            distancia: avgDistancia,
+            distancia: avgDistancia, // [CORREÇÃO] Adicionado o valor da distância
             entrada: dataEntrada.toLocaleDateString('pt-BR'),
             saida: dataSaida.toLocaleDateString('pt-BR')
         };
@@ -622,35 +621,21 @@ try {
         currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); 
       }
 
-      // Totais Gerais
+      // [CORREÇÃO] Lógica de alinhamento do Total Geral
       currentY = await checkPageBreak(doc, currentY, title, generatedBy, 40);
       doc.y = currentY;
       
-      const totalRowData = [];
-      const totalGeralText = 'Total Geral';
-      let textPlaced = false;
+      const totalRowData = new Array(finalHeaders.length).fill('');
+      const areaIndex = finalHeaders.findIndex(h => h.id === 'area');
+      const prodIndex = finalHeaders.findIndex(h => h.id === 'producao');
 
-      finalHeaders.forEach((header) => {
-          if (header.id === 'talhoes' && !textPlaced) {
-              totalRowData.push(totalGeralText);
-              textPlaced = true;
-          } else if (header.id === 'area') {
-              totalRowData.push(grandTotalArea.toFixed(2));
-          } else if (header.id === 'producao') {
-              totalRowData.push(grandTotalProducao.toFixed(2));
-          } else {
-              totalRowData.push('');
-          }
-      });
+      totalRowData[0] = 'Total Geral'; // Sempre na primeira coluna (Seq.)
 
-      // Fallback caso a coluna 'talhoes' não esteja presente
-      if (!textPlaced) {
-        const fazendaIndex = finalHeaders.findIndex(h => h.id === 'fazenda');
-        if(fazendaIndex !== -1) {
-            totalRowData[fazendaIndex] = totalGeralText;
-        } else {
-            totalRowData[1] = totalGeralText; // Coloca na segunda coluna como fallback
-        }
+      if (areaIndex !== -1) {
+          totalRowData[areaIndex] = grandTotalArea.toFixed(2);
+      }
+      if (prodIndex !== -1) {
+          totalRowData[prodIndex] = grandTotalProducao.toFixed(2);
       }
 
       drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders);
