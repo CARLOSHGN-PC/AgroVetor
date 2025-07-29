@@ -491,7 +491,7 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      // [CORREÇÃO] Ajuste nas larguras mínimas e títulos para evitar quebra de linha
+      // [ALTERAÇÃO] Lógica para incluir/excluir a coluna de talhões
       const allPossibleHeadersConfig = [
           { id: 'seq', title: 'Seq.', minWidth: 35 },
           { id: 'fazenda', title: 'Fazenda', minWidth: 120 }, 
@@ -505,40 +505,23 @@ try {
           { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 70 }, 
           { id: 'distancia', title: 'KM', minWidth: 40 },
           { id: 'entrada', title: 'Entrada', minWidth: 65 }, 
-          { id: 'saida', title: 'Saída', minWidth: 65 }    
+          { id: 'saida', title: 'Saída', minWidth: 65 }   
       ];
 
-      // Filtra os cabeçalhos selecionados
-      let finalHeaders = [];
-      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
-      const finalFixedHeaders = ['entrada', 'saida'];
-
-      initialFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) finalHeaders.push(header);
-      });
-
-      allPossibleHeadersConfig.forEach(header => {
-          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && !finalFixedHeaders.includes(header.id)) {
-              finalHeaders.push(header);
-          }
-      });
-
-      finalFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) finalHeaders.push(header);
+      let finalHeaders = allPossibleHeadersConfig.filter(header => {
+          const fixedHeaders = ['seq', 'fazenda', 'area', 'producao', 'entrada', 'saida'];
+          if (fixedHeaders.includes(header.id)) return true;
+          return selectedCols[header.id];
       });
 
       const headersText = finalHeaders.map(h => h.title);
-
-      // Calcular larguras das colunas dinamicamente
+      
       const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
       let totalMinWidth = 0;
       let flexibleColumnsCount = 0;
 
       finalHeaders.forEach(header => {
           totalMinWidth += header.minWidth;
-          // Considerar 'fazenda', 'talhoes', 'variedade' como colunas flexíveis
           if (['fazenda', 'talhoes', 'variedade'].includes(header.id)) {
               flexibleColumnsCount++;
           }
@@ -555,10 +538,8 @@ try {
           return width;
       });
 
-      // Ajuste final para garantir que a soma das larguras seja exatamente `pageWidth`
       const currentTotalWidth = finalColumnWidths.reduce((sum, w) => sum + w, 0);
       const difference = pageWidth - currentTotalWidth;
-      // Distribui a diferença (pequenos erros de arredondamento) na primeira coluna flexível
       if (difference !== 0 && flexibleColumnsCount > 0) {
           const firstFlexibleIndex = finalHeaders.findIndex(h => ['fazenda', 'talhoes', 'variedade'].includes(h.id));
           if (firstFlexibleIndex !== -1) {
@@ -570,7 +551,6 @@ try {
       const rowHeight = 18;
       const textPadding = 5;
 
-      // Desenhar cabeçalho da tabela
       currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths, textPadding, rowHeight, finalHeaders);
 
       let grandTotalProducao = 0;
@@ -589,11 +569,9 @@ try {
         let dataSaida = new Date(dataEntrada.getTime());
         dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
 
-        // [CORREÇÃO] A data de início da próxima fazenda é o dia seguinte à saída da anterior
         currentDate = new Date(dataSaida.getTime());
         currentDate.setDate(currentDate.getDate() + 1);
 
-        // Calcula Idade Média, Dias de Aplicação e Distância
         let totalAgeInDays = 0, plotsWithDate = 0;
         let totalDistancia = 0, plotsWithDistancia = 0;
         const allVarieties = new Set();
@@ -635,7 +613,7 @@ try {
         const rowDataMap = {
             seq: i + 1,
             fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
-            talhoes: group.plots.map(p => p.talhaoName).join(', '),
+            talhoes: selectedCols.talhoes ? group.plots.map(p => p.talhaoName).join(', ') : `${group.plots.length} Talhão(ões)`,
             area: group.totalArea.toFixed(2),
             producao: group.totalProducao.toFixed(2),
             variedade: Array.from(allVarieties).join(', ') || 'N/A',
@@ -643,7 +621,7 @@ try {
             atr: group.atr || 'N/A',
             maturador: group.maturador || 'N/A',
             diasAplicacao: diasAplicacao,
-            distancia: avgDistancia, // [CORREÇÃO] Adicionado o valor da distância
+            distancia: avgDistancia,
             entrada: dataEntrada.toLocaleDateString('pt-BR'),
             saida: dataSaida.toLocaleDateString('pt-BR')
         };
@@ -654,7 +632,6 @@ try {
         currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); 
       }
 
-      // [CORREÇÃO] Lógica de alinhamento do Total Geral
       currentY = await checkPageBreak(doc, currentY, title, generatedBy, 40);
       doc.y = currentY;
       
@@ -709,51 +686,27 @@ try {
 
       const filePath = path.join(os.tmpdir(), `colheita_${Date.now()}.csv`);
       
-      // Define todos os cabeçalhos possíveis
+      // [ALTERAÇÃO] Lógica para incluir/excluir a coluna de talhões
       const allPossibleHeadersConfig = [
-        { id: 'seq', title: 'Seq.' },
-        { id: 'fazenda', title: 'Fazenda' },
-        { id: 'talhoes', title: 'Talhões' },
-        { id: 'area', title: 'Área (ha)' },
-        { id: 'producao', title: 'Prod. (ton)' },
-        { id: 'variedade', title: 'Variedade' },
-        { id: 'idade', title: 'Idade Média (meses)' },
-        { id: 'atr', title: 'ATR' },
-        { id: 'maturador', title: 'Maturador Aplicado' },
-        { id: 'diasAplicacao', title: 'Dias desde Aplicação' },
-        { id: 'distancia', title: 'Distância (km)' },
-        { id: 'entrada', title: 'Entrada' }, // Sempre no final
-        { id: 'saida', title: 'Saída' }    // Sempre no final
+          { id: 'seq', title: 'Seq.' },
+          { id: 'fazenda', title: 'Fazenda' },
+          { id: 'talhoes', title: 'Talhões' },
+          { id: 'area', title: 'Área (ha)' },
+          { id: 'producao', title: 'Prod. (ton)' },
+          { id: 'variedade', title: 'Variedade' },
+          { id: 'idade', title: 'Idade Média (meses)' },
+          { id: 'atr', title: 'ATR' },
+          { id: 'maturador', title: 'Maturador Aplicado' },
+          { id: 'diasAplicacao', title: 'Dias desde Aplicação' },
+          { id: 'distancia', title: 'Distância (km)' },
+          { id: 'entrada', title: 'Entrada' },
+          { id: 'saida', title: 'Saída' }
       ];
 
-      // Filtra e ordena os cabeçalhos para o CSV
-      let finalHeaders = [];
-      const tempOptionalHeaders = [];
-
-      // Adiciona os cabeçalhos fixos iniciais
-      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
-      initialFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) {
-              finalHeaders.push(header);
-          }
-      });
-
-      // Adiciona os cabeçalhos opcionais selecionados
-      allPossibleHeadersConfig.forEach(header => {
-          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && header.id !== 'entrada' && header.id !== 'saida') {
-              tempOptionalHeaders.push(header);
-          }
-      });
-      finalHeaders.push(...tempOptionalHeaders);
-
-      // Adiciona os cabeçalhos fixos finais (Entrada e Saída)
-      const finalFixedHeaders = ['entrada', 'saida'];
-      finalFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) {
-              finalHeaders.push(header);
-          }
+      const finalHeaders = allPossibleHeadersConfig.filter(header => {
+          const fixedHeaders = ['seq', 'fazenda', 'area', 'producao', 'entrada', 'saida'];
+          if (fixedHeaders.includes(header.id)) return true;
+          return selectedCols[header.id];
       });
 
       const records = [];
@@ -768,7 +721,6 @@ try {
         currentDate = new Date(dataSaida.getTime());
         currentDate.setDate(currentDate.getDate() + 1);
 
-        // Calcula Idade Média, Dias de Aplicação e Distância
         let totalAgeInDays = 0, plotsWithDate = 0;
         let totalDistancia = 0, plotsWithDistancia = 0;
         const allVarieties = new Set();
@@ -807,12 +759,11 @@ try {
         }
 
         const record = {};
-        // Popula o registro na ordem correta dos cabeçalhos finais
         finalHeaders.forEach(header => {
             switch(header.id) {
                 case 'seq': record.seq = index + 1; break;
                 case 'fazenda': record.fazenda = `${group.fazendaCodigo} - ${group.fazendaName}`; break;
-                case 'talhoes': record.talhoes = group.plots.map(p => p.talhaoName).join(', '); break;
+                case 'talhoes': record.talhoes = selectedCols.talhoes ? group.plots.map(p => p.talhaoName).join(', ') : `${group.plots.length} Talhão(ões)`; break;
                 case 'area': record.area = group.totalArea.toFixed(2); break;
                 case 'producao': record.producao = group.totalProducao.toFixed(2); break;
                 case 'variedade': record.variedade = Array.from(allVarieties).join(', ') || 'N/A'; break;
@@ -823,7 +774,7 @@ try {
                 case 'distancia': record.distancia = avgDistancia; break;
                 case 'entrada': record.entrada = dataEntrada.toLocaleDateString('pt-BR'); break;
                 case 'saida': record.saida = dataSaida.toLocaleDateString('pt-BR'); break;
-                default: record[header.id] = ''; // Fallback for any unexpected header
+                default: record[header.id] = '';
             }
         });
         records.push(record);
