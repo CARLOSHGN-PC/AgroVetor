@@ -39,8 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
-            // [ALTERAÇÃO] Timeout de inatividade removido
-            // inactivityTimeout: 15 * 60 * 1000, // 15 minutos
+            // [ALTERAÇÃO] Timeout de inatividade removido para evitar logout automático
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
@@ -98,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
             charts: {},
             harvestPlans: [],
             activeHarvestPlan: null,
-            inactivityTimer: null,
             unsubscribeListeners: [],
             deferredInstallPrompt: null,
             newUserCreationData: null,
@@ -178,12 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 logoInput: document.getElementById('logoInput'),
                 logoPreview: document.getElementById('logoPreview'),
                 removeLogoBtn: document.getElementById('removeLogoBtn'),
-                progressUploadArea: document.getElementById('harvestReportProgressUploadArea'),
-                progressInput: document.getElementById('harvestReportProgressInput'),
-                btnDownloadProgressTemplate: document.getElementById('btnDownloadProgressTemplate'),
-                closedUploadArea: document.getElementById('harvestReportClosedUploadArea'),
-                closedInput: document.getElementById('harvestReportClosedInput'),
-                btnDownloadClosedTemplate: document.getElementById('btnDownloadClosedTemplate'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -419,8 +411,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.data.cleanupListeners();
                 App.state.currentUser = null;
-                // [ALTERAÇÃO] Linha do timer de inatividade removida
-                // clearTimeout(App.state.inactivityTimer);
                 App.ui.showLoginScreen();
             },
             initiateUserCreation() {
@@ -645,8 +635,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderMenu();
                 this.renderAllDynamicContent();
                 this.showTab('dashboard');
-                // [ALTERAÇÃO] Linha do timer de inatividade removida
-                // App.actions.resetInactivityTimer();
             },
             renderAllDynamicContent() {
                 this.populateFazendaSelects();
@@ -1485,12 +1473,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 companyConfigEls.logoUploadArea.addEventListener('click', () => companyConfigEls.logoInput.click());
                 companyConfigEls.logoInput.addEventListener('change', (e) => App.actions.handleLogoUpload(e));
                 companyConfigEls.removeLogoBtn.addEventListener('click', () => App.actions.removeLogo());
-                companyConfigEls.progressUploadArea.addEventListener('click', () => companyConfigEls.progressInput.click());
-                companyConfigEls.progressInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'progress'));
-                companyConfigEls.btnDownloadProgressTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('progress'));
-                companyConfigEls.closedUploadArea.addEventListener('click', () => companyConfigEls.closedInput.click());
-                companyConfigEls.closedInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'closed'));
-                companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
 
 
                 App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
@@ -1589,11 +1571,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#cadastrarPessoas');
                 this.enableEnterKeyNavigation('#adminPasswordConfirmModal');
 
-                // [ALTERAÇÃO] Listeners de inatividade removidos
-                // ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
-                //     document.addEventListener(event, () => App.actions.resetInactivityTimer());
-                // });
-
                 App.elements.installAppBtn.addEventListener('click', async () => {
                     if (App.state.deferredInstallPrompt) {
                         App.state.deferredInstallPrompt.prompt();
@@ -1630,16 +1607,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return 'Data Inválida';
                 }
                 return date.toLocaleDateString('pt-BR');
-            },
-            // [ALTERAÇÃO] Função de reset do timer de inatividade removida/desativada
-            resetInactivityTimer() {
-                // clearTimeout(App.state.inactivityTimer);
-                // if (App.state.currentUser) {
-                //     App.state.inactivityTimer = setTimeout(() => {
-                //         App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
-                //         App.auth.logout();
-                //     }, App.config.inactivityTimeout);
-                // }
             },
             saveUserProfileLocally(userProfile) {
                 let profiles = this.getLocalUserProfiles();
