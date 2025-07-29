@@ -802,6 +802,18 @@
                     </div>
                 </div>
 
+                <!-- [NOVO] Secção para importação de relatórios de colheita -->
+                <div id="harvest-plan-importer" class="card" style="border-left-color: var(--color-info); margin-top: 20px; display: none;">
+                    <h3><i class="fas fa-file-import"></i> Atualizar Plano com Relatório de Colheita</h3>
+                    <p>Importe um ficheiro CSV com os dados da colheita para atualizar automaticamente o plano selecionado. O sistema irá subtrair áreas/produções ou remover talhões concluídos.</p>
+                    <div class="upload-area" id="harvestReportCsvUploadArea">
+                        <i class="fas fa-file-csv fa-2x" style="color: var(--color-info);"></i>
+                        <p>Clique ou arraste um ficheiro CSV de relatório de colheita aqui</p>
+                    </div>
+                    <input type="file" id="harvestReportCsvInput" accept=".csv" style="display: none;">
+                    <small class="csv-format-info">Formato: CodigoFazenda;Talhao;Status;AreaColhida;ProducaoColhida</small>
+                </div>
+
                 <div id="harvest-plans-list-container">
                     <h3 style="margin-top: 30px;"><i class="fas fa-tasks"></i> Planos Guardados</h3>
                     <div id="harvest-plans-list"></div>
