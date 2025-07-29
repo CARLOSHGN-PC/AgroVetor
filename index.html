@@ -802,18 +802,6 @@
                     </div>
                 </div>
 
-                <!-- [NOVO] Secção para importação de relatórios de colheita -->
-                <div id="harvest-plan-importer" class="card" style="border-left-color: var(--color-info); margin-top: 20px; display: none;">
-                    <h3><i class="fas fa-file-import"></i> Atualizar Plano com Relatório de Colheita</h3>
-                    <p>Importe um ficheiro CSV com os dados da colheita para atualizar automaticamente o plano selecionado. O sistema irá subtrair áreas/produções ou remover talhões concluídos.</p>
-                    <div class="upload-area" id="harvestReportCsvUploadArea">
-                        <i class="fas fa-file-csv fa-2x" style="color: var(--color-info);"></i>
-                        <p>Clique ou arraste um ficheiro CSV de relatório de colheita aqui</p>
-                    </div>
-                    <input type="file" id="harvestReportCsvInput" accept=".csv" style="display: none;">
-                    <small class="csv-format-info">Formato: CodigoFazenda;Talhao;Status;AreaColhida;ProducaoColhida</small>
-                </div>
-
                 <div id="harvest-plans-list-container">
                     <h3 style="margin-top: 30px;"><i class="fas fa-tasks"></i> Planos Guardados</h3>
                     <div id="harvest-plans-list"></div>
@@ -1273,6 +1261,34 @@
                     </div>
                     <input type="file" id="logoInput" accept="image/png, image/jpeg" style="display: none;">
                     <button id="removeLogoBtn" class="btn-secondary" style="background: var(--color-danger); max-width: 200px; display: none;"><i class="fas fa-trash"></i> Remover Logo</button>
+                </div>
+
+                <!-- [NOVO] Seção de Automação do Plano de Colheita -->
+                <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
+                    <h3><i class="fas fa-robot"></i> Automação do Plano de Colheita</h3>
+                    <p>Importe relatórios do seu sistema principal para manter os planos de colheita sempre atualizados com a operação real.</p>
+                    <div class="form-row" style="gap: 30px;">
+                        <div class="form-col">
+                            <h4><i class="fas fa-play-circle"></i> Colheita em Andamento</h4>
+                            <p>Importe um CSV para subtrair áreas e produções já colhidas dos talhões no plano ativo.</p>
+                            <div class="upload-area" id="ongoingHarvestReportUploadArea">
+                                <i class="fas fa-file-csv fa-2x" style="color: var(--color-success);"></i>
+                                <p>Carregar relatório de colheita em andamento</p>
+                            </div>
+                            <input type="file" id="ongoingHarvestReportInput" accept=".csv" style="display: none;">
+                        </div>
+                        <div class="form-col">
+                            <h4><i class="fas fa-stop-circle"></i> Colheita Encerrada</h4>
+                            <p>Importe um CSV para remover completamente os talhões já encerrados do plano de colheita ativo.</p>
+                            <div class="upload-area" id="finishedHarvestReportUploadArea">
+                                <i class="fas fa-file-csv fa-2x" style="color: var(--color-danger);"></i>
+                                <p>Carregar relatório de colheita encerrada</p>
+                            </div>
+                            <input type="file" id="finishedHarvestReportInput" accept=".csv" style="display: none;">
+                        </div>
+                    </div>
+                    <button id="btnDownloadHarvestReportTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV de Atualização</button>
+                    <small class="csv-format-info">Formato: CodigoFazenda;Talhao;AreaColhida;ProducaoColhida</small>
                 </div>
             </section>
         </main>
