@@ -900,7 +900,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cadastros.talhaoManagementContainer.style.display = 'none';
                 }
             },
-            // [CORREÇÃO] Função ajustada para exibir tipos e botões corretamente
             renderTalhaoList(farmId) {
                 const { talhaoList, talhaoManagementContainer, selectedFarmName, selectedFarmTypes } = App.elements.cadastros;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -913,10 +912,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 talhaoManagementContainer.style.display = 'block';
                 
-                // Exibe o nome e os botões
+                // Exibe o nome da fazenda
                 selectedFarmName.innerHTML = `${farm.code} - ${farm.name}`;
                 
-                // Exibe os tipos da fazenda
+                // [CORREÇÃO] Exibe os tipos da fazenda e os botões de ação
                 const farmTypesHTML = farm.types && farm.types.length > 0 ? `(${farm.types.join(', ')})` : '';
                 selectedFarmTypes.innerHTML = `
                     <span style="font-weight: 500; font-size: 14px; color: var(--color-text-light); margin-left: 10px;">
@@ -1013,10 +1012,12 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePermissionsForRole(role, containerSelector = '#gerenciarUsuarios .permission-grid') {
                 const permissions = App.config.roles[role] || {};
                 const container = document.querySelector(containerSelector);
-                container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    const key = cb.dataset.permission;
-                    cb.checked = !!permissions[key];
-                });
+                if (container) {
+                    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                        const key = cb.dataset.permission;
+                        cb.checked = !!permissions[key];
+                    });
+                }
             },
             _createUserCardHTML(user) {
                 const getRoleInfo = (role) => {
@@ -1157,7 +1158,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     let dataSaida = new Date(dataEntrada.getTime());
                     dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
 
-                    // [CORREÇÃO] A data de início da próxima fazenda é o dia seguinte à saída da anterior
                     currentDate = new Date(dataSaida.getTime());
                     currentDate.setDate(currentDate.getDate() + 1);
                     
@@ -1298,7 +1298,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isChecked = user.permissions[perm.permission];
                     const label = document.createElement('label');
                     label.className = 'permission-item';
-                    // [ALTERADO] Usa a nova estrutura de toggle switch
                     label.innerHTML = `
                         <div class="permission-content">
                             <i class="${perm.icon}"></i>
@@ -1324,7 +1323,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.editingFarmId.value = farm.id;
                 modal.nameInput.value = farm.name;
 
-                // Popula os checkboxes de tipo
                 modal.typeCheckboxes.forEach(cb => {
                     cb.checked = farm.types && farm.types.includes(cb.value);
                 });
@@ -1411,7 +1409,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
                 chartModal.overlay.addEventListener('click', e => { if(e.target === chartModal.overlay) App.charts.closeChartModal(); });
                 
-                // Event listener para todos os botões de expandir
                 document.addEventListener('click', (e) => {
                     if (e.target.closest('.btn-expand-chart')) {
                         const button = e.target.closest('.btn-expand-chart');
@@ -1422,17 +1419,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(App.elements.dashboard.btnAnalisar) App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
-                // [CORREÇÃO] Adiciona listener para os toggles de permissão
-                document.addEventListener('click', (e) => {
-                    const permissionItem = e.target.closest('.permission-item');
-                    if (permissionItem) {
-                        const checkbox = permissionItem.querySelector('input[type="checkbox"]');
-                        if (checkbox && e.target.tagName !== 'INPUT') {
-                            checkbox.checked = !checkbox.checked;
-                        }
-                    }
-                });
-
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
                 App.elements.users.list.addEventListener('click', e => {
@@ -1486,7 +1472,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
                 App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
                 
-                // [CORREÇÃO] Listener para os botões de editar/excluir fazenda e talhão
                 App.elements.cadastros.talhaoManagementContainer.addEventListener('click', e => { 
                     const btn = e.target.closest('button[data-action]'); 
                     if(!btn) return; 
@@ -1596,23 +1581,18 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
-            // [NOVO] Função para formatar datas corretamente
             formatDateForInput(dateString) {
                 if (!dateString || typeof dateString !== 'string') return '';
-                // Tenta corrigir formatos como DD/MM/YYYY para YYYY-MM-DD
                 if (dateString.includes('/')) {
                     const parts = dateString.split('/');
                     if (parts.length === 3) {
-                        // Assume DD/MM/YYYY
                         return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
                     }
                 }
-                // Se já estiver no formato correto ou outro formato, tenta usar o construtor Date
                 const date = new Date(dateString);
                 if (isNaN(date.getTime())) {
-                    return ''; // Retorna vazio se a data for inválida
+                    return '';
                 }
-                // Adiciona o fuso horário para evitar problemas de um dia a menos
                 const offset = date.getTimezoneOffset();
                 const adjustedDate = new Date(date.getTime() - (offset*60*1000));
                 return adjustedDate.toISOString().split('T')[0];
@@ -1798,7 +1778,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } finally {
                         App.ui.setLoading(false);
                     }
-                }, true); // O 'true' indica que é uma confirmação com input de texto
+                }, true);
             },
             calculateTalhaoProducao() {
                 const { talhaoArea, talhaoTCH, talhaoProducao } = App.elements.cadastros;
@@ -1823,7 +1803,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     corte: parseInt(talhaoCorte.value) || 1,
                     variedade: talhaoVariedade.value.trim(),
                     distancia: parseFloat(talhaoDistancia.value) || 0,
-                    dataUltimaColheita: this.formatDateForInput(talhaoUltimaColheita.value) // CORREÇÃO DA DATA
+                    dataUltimaColheita: this.formatDateForInput(talhaoUltimaColheita.value)
                 };
                 if (!talhaoData.name || isNaN(talhaoData.area) || isNaN(talhaoData.tch)) { App.ui.showAlert("Nome, Área e TCH do talhão são obrigatórios.", "error"); return; }
                 
@@ -1861,7 +1841,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     talhaoEls.talhaoCorte.value = talhao.corte;
                     talhaoEls.talhaoVariedade.value = talhao.variedade;
                     talhaoEls.talhaoDistancia.value = talhao.distancia;
-                    talhaoEls.talhaoUltimaColheita.value = this.formatDateForInput(talhao.dataUltimaColheita); // CORREÇÃO DA DATA
+                    talhaoEls.talhaoUltimaColheita.value = this.formatDateForInput(talhao.dataUltimaColheita);
                     talhaoEls.talhaoName.focus();
                 }
             },
@@ -2610,7 +2590,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         charts: {
-            // Paleta de cores de alto contraste para os gráficos
             CHART_COLORS: {
                 red: 'rgb(255, 99, 132)',
                 orange: 'rgb(255, 159, 64)',
@@ -2626,9 +2605,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 olive: 'rgb(128, 128, 0)'
             },
 
-            renderAll() {
-                // A renderização agora é chamada por `showDashboardView` para evitar renderizações desnecessárias
-            },
+            renderAll() {},
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
                 return {
@@ -2682,7 +2659,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.title.textContent = originalTitle;
                 modal.overlay.classList.add('show');
                 
-                // Clona a configuração para não afetar o gráfico original
                 const config = JSON.parse(JSON.stringify(originalChart.config._config));
                 config.options.maintainAspectRatio = false;
                 this._createOrUpdateChart(chartId, config, true);
@@ -2696,7 +2672,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             
-            // --- Funções de Renderização dos Gráficos do Dashboard ---
             renderBrocaDashboardCharts() {
                 if(App.state.registros.length > 0) {
                     this.renderTop10FazendasBroca();
@@ -2734,7 +2709,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const top10 = fazendasArray.slice(0, 10);
                 
                 this._createOrUpdateChart('graficoTop10FazendasBroca', {
-                    type: 'bar', // Gráfico de barras vertical
+                    type: 'bar',
                     data: {
                         labels: top10.map(f => f.nome),
                         datasets: [{
@@ -2746,7 +2721,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: { 
-                        indexAxis: 'x', // Eixo X para as fazendas (vertical)
+                        indexAxis: 'x',
                         responsive: true, 
                         maintainAspectRatio: false 
                     }
@@ -2830,12 +2805,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 this._createOrUpdateChart('graficoAreaAvaliadaBroca', {
-                    type: 'pie', // Alterado para pizza
+                    type: 'pie',
                     data: {
                         labels: ['Área Inspecionada (ha)', 'Área Não Inspecionada (ha)'],
                         datasets: [{
                             label: 'Área (ha)',
-                            data: [areaTotal.toFixed(2), 0], // Adicionado um valor 0 para a segunda parte, pode ser ajustado se tiver o total
+                            data: [areaTotal.toFixed(2), 0],
                             backgroundColor: [this.CHART_COLORS.green, this.CHART_COLORS.grey],
                         }]
                     },
@@ -2857,7 +2832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const top10 = fazendasArray.slice(0, 10);
 
                 this._createOrUpdateChart('graficoTop10FazendasPerda', {
-                    type: 'bar', // Gráfico de barras vertical
+                    type: 'bar',
                     data: {
                         labels: top10.map(f => f.nome),
                         datasets: [{
@@ -2869,7 +2844,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: { 
-                        indexAxis: 'x', // Eixo X para as fazendas (vertical)
+                        indexAxis: 'x',
                         responsive: true, 
                         maintainAspectRatio: false 
                     }
@@ -2949,12 +2924,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 this._createOrUpdateChart('graficoAreaAvaliadaPerda', {
-                    type: 'pie', // Alterado para pizza
+                    type: 'pie',
                     data: {
                         labels: ['Área com Aferição (ha)', 'Área Sem Aferição (ha)'],
                         datasets: [{
                             label: 'Área (ha)',
-                            data: [areaTotal.toFixed(2), 0], // Adicionado um valor 0 para a segunda parte
+                            data: [areaTotal.toFixed(2), 0],
                             backgroundColor: [this.CHART_COLORS.maroon, this.CHART_COLORS.grey],
                         }]
                     },
@@ -2969,7 +2944,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
 
                 const params = new URLSearchParams(cleanFilters);
-                const apiUrl = `http://localhost:3001/reports/${endpoint}?${params.toString()}`;
+                const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
             
                 App.ui.setLoading(true, "A gerar relatório no servidor...");
         
