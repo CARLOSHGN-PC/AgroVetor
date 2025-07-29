@@ -1263,33 +1263,43 @@
                     <button id="removeLogoBtn" class="btn-secondary" style="background: var(--color-danger); max-width: 200px; display: none;"><i class="fas fa-trash"></i> Remover Logo</button>
                 </div>
 
-                <!-- [NOVO] Seção de Automação do Plano de Colheita -->
+                <!-- [NOVO] Secção para importação de relatórios de colheita movida para cá -->
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
-                    <h3><i class="fas fa-robot"></i> Automação do Plano de Colheita</h3>
+                    <h3><i class="fas fa-sync-alt"></i> Sincronização do Plano de Colheita</h3>
                     <p>Importe relatórios do seu sistema principal para manter os planos de colheita sempre atualizados com a operação real.</p>
-                    <div class="form-row" style="gap: 30px;">
+
+                    <div class="form-row" style="margin-top: 20px;">
                         <div class="form-col">
-                            <h4><i class="fas fa-play-circle"></i> Colheita em Andamento</h4>
-                            <p>Importe um CSV para subtrair áreas e produções já colhidas dos talhões no plano ativo.</p>
-                            <div class="upload-area" id="ongoingHarvestReportUploadArea">
-                                <i class="fas fa-file-csv fa-2x" style="color: var(--color-success);"></i>
-                                <p>Carregar relatório de colheita em andamento</p>
-                            </div>
-                            <input type="file" id="ongoingHarvestReportInput" accept=".csv" style="display: none;">
-                        </div>
-                        <div class="form-col">
-                            <h4><i class="fas fa-stop-circle"></i> Colheita Encerrada</h4>
-                            <p>Importe um CSV para remover completamente os talhões já encerrados do plano de colheita ativo.</p>
-                            <div class="upload-area" id="finishedHarvestReportUploadArea">
-                                <i class="fas fa-file-csv fa-2x" style="color: var(--color-danger);"></i>
-                                <p>Carregar relatório de colheita encerrada</p>
-                            </div>
-                            <input type="file" id="finishedHarvestReportInput" accept=".csv" style="display: none;">
+                            <label for="harvestPlanSyncSelect" class="required">Selecione o Plano de Colheita para Sincronizar:</label>
+                            <select id="harvestPlanSyncSelect" required></select>
                         </div>
                     </div>
-                    <button id="btnDownloadHarvestReportTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV de Atualização</button>
-                    <small class="csv-format-info">Formato: CodigoFazenda;Talhao;AreaColhida;ProducaoColhida</small>
+
+                    <div class="card" style="margin-top: 15px; border-left-color: var(--color-warning);">
+                        <h4><i class="fas fa-tasks"></i> Relatório de Colheita em Andamento</h4>
+                        <p>Importe um CSV com dados de colheita parcial. O sistema irá subtrair os valores de área e produção dos talhões correspondentes no plano.</p>
+                        <div class="upload-area" id="harvestReportProgressUploadArea">
+                            <i class="fas fa-file-csv fa-2x" style="color: var(--color-warning);"></i>
+                            <p>Clique ou arraste o relatório de **andamento** aqui</p>
+                        </div>
+                        <input type="file" id="harvestReportProgressInput" accept=".csv" style="display: none;">
+                        <button id="btnDownloadProgressTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-warning);"><i class="fas fa-download"></i> Baixar Modelo (Andamento)</button>
+                        <small class="csv-format-info">Formato: CodigoFazenda;Talhao;AreaColhida;ProducaoColhida</small>
+                    </div>
+
+                    <div class="card" style="margin-top: 25px; border-left-color: var(--color-success);">
+                        <h4><i class="fas fa-check-circle"></i> Relatório de Talhões Encerrados</h4>
+                        <p>Importe um CSV com a lista de talhões já finalizados. O sistema irá removê-los completamente do plano de colheita selecionado.</p>
+                        <div class="upload-area" id="harvestReportClosedUploadArea">
+                            <i class="fas fa-file-csv fa-2x" style="color: var(--color-success);"></i>
+                            <p>Clique ou arraste o relatório de **encerrados** aqui</p>
+                        </div>
+                        <input type="file" id="harvestReportClosedInput" accept=".csv" style="display: none;">
+                        <button id="btnDownloadClosedTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-success);"><i class="fas fa-download"></i> Baixar Modelo (Encerrados)</button>
+                        <small class="csv-format-info">Formato: CodigoFazenda;Talhao</small>
+                    </div>
                 </div>
+
             </section>
         </main>
 
