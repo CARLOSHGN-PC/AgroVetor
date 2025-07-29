@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const db = getFirestore(firebaseApp);
     const auth = getAuth(firebaseApp);
     
-    // [CORREÇÃO LOGIN] Inicializa uma segunda app para autenticação secundária (criação de utilizador)
+    // Inicializa uma segunda app para autenticação secundária (criação de utilizador)
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
@@ -1466,7 +1466,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
                 App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
                 App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
-                App.elements.cadastros.talhaoList.addEventListener('click', e => { 
+                App.elements.cadastros.talhaoManagementContainer.addEventListener('click', e => { 
                     const btn = e.target.closest('button'); 
                     if(!btn) return; 
                     const { action, id } = btn.dataset; 
