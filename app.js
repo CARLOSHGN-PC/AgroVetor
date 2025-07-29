@@ -39,7 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
-            inactivityTimeout: 15 * 60 * 1000, // 15 minutos
+            // [ALTERAÇÃO] Timeout de inatividade removido
+            // inactivityTimeout: 15 * 60 * 1000, // 15 minutos
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
@@ -328,7 +329,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 resultado: document.getElementById('resultadoPerda'),
                 btnSalvar: document.getElementById('btnSalvarPerda'),
                 filtroFazenda: document.getElementById('fazendaFiltroPerda'),
-                filtroTalhao: document.getElementById('talhaoFiltroPerda'),
                 filtroOperador: document.getElementById('operadorFiltroPerda'),
                 filtroFrente: document.getElementById('frenteFiltroPerda'),
                 filtroInicio: document.getElementById('inicioPerda'),
@@ -419,7 +419,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.data.cleanupListeners();
                 App.state.currentUser = null;
-                clearTimeout(App.state.inactivityTimer);
+                // [ALTERAÇÃO] Linha do timer de inatividade removida
+                // clearTimeout(App.state.inactivityTimer);
                 App.ui.showLoginScreen();
             },
             initiateUserCreation() {
@@ -644,7 +645,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderMenu();
                 this.renderAllDynamicContent();
                 this.showTab('dashboard');
-                App.actions.resetInactivityTimer();
+                // [ALTERAÇÃO] Linha do timer de inatividade removida
+                // App.actions.resetInactivityTimer();
             },
             renderAllDynamicContent() {
                 this.populateFazendaSelects();
@@ -1587,9 +1589,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#cadastrarPessoas');
                 this.enableEnterKeyNavigation('#adminPasswordConfirmModal');
 
-                ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
-                    document.addEventListener(event, () => App.actions.resetInactivityTimer());
-                });
+                // [ALTERAÇÃO] Listeners de inatividade removidos
+                // ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
+                //     document.addEventListener(event, () => App.actions.resetInactivityTimer());
+                // });
 
                 App.elements.installAppBtn.addEventListener('click', async () => {
                     if (App.state.deferredInstallPrompt) {
@@ -1628,14 +1631,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return date.toLocaleDateString('pt-BR');
             },
+            // [ALTERAÇÃO] Função de reset do timer de inatividade removida/desativada
             resetInactivityTimer() {
-                clearTimeout(App.state.inactivityTimer);
-                if (App.state.currentUser) {
-                    App.state.inactivityTimer = setTimeout(() => {
-                        App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
-                        App.auth.logout();
-                    }, App.config.inactivityTimeout);
-                }
+                // clearTimeout(App.state.inactivityTimer);
+                // if (App.state.currentUser) {
+                //     App.state.inactivityTimer = setTimeout(() => {
+                //         App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
+                //         App.auth.logout();
+                //     }, App.config.inactivityTimeout);
+                // }
             },
             saveUserProfileLocally(userProfile) {
                 let profiles = this.getLocalUserProfiles();
@@ -1689,7 +1693,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            // [CORREÇÃO CRÍTICA] Lógica ajustada para verificar todos os planos
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
@@ -2573,156 +2576,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            },
-            // [ALTERADO] Função para descarregar modelos de CSV de relatório de colheita
-            downloadHarvestReportTemplate(type) {
-                let headers, exampleRow, filename;
-                if (type === 'progress') {
-                    headers = "CodigoFazenda;Talhao;AreaColhida;ProducaoColhida";
-                    exampleRow = "4012;T-01;10.5;850.7";
-                    filename = "modelo_colheita_andamento.csv";
-                } else { // closed
-                    headers = "CodigoFazenda;Talhao";
-                    exampleRow = "4012;T-02";
-                    filename = "modelo_colheita_encerrados.csv";
-                }
-                const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", filename);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            },
-            // [ALTERADO] Lógica de importação para ser global e gerar resumo
-            async importHarvestReport(file, type) {
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    App.ui.setLoading(true, `A processar relatório de talhões ${type === 'closed' ? 'encerrados' : 'em andamento'}...`);
-                    try {
-                        const csv = event.target.result;
-                        const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                        if (lines.length <= 1) throw new Error("O ficheiro CSV está vazio ou contém apenas o cabeçalho.");
-
-                        const headers = lines[0].split(';').map(h => h.trim().toLowerCase());
-                        const requiredHeaders = type === 'progress' ? ['codigofazenda', 'talhao', 'areacolhida', 'producaocolhida'] : ['codigofazenda', 'talhao'];
-                        if (!requiredHeaders.every(h => headers.includes(h))) {
-                            throw new Error(`Cabeçalhos em falta. O ficheiro deve conter: ${requiredHeaders.join('; ')}`);
-                        }
-
-                        const allPlans = JSON.parse(JSON.stringify(App.state.harvestPlans));
-                        const changesSummary = {};
-                        let notFoundTalhoes = [];
-
-                        for (let i = 1; i < lines.length; i++) {
-                            const data = lines[i].split(';');
-                            const row = headers.reduce((obj, header, index) => {
-                                obj[header] = data[index]?.trim();
-                                return obj;
-                            }, {});
-
-                            const farmCode = row.codigofazenda;
-                            const talhaoName = row.talhao?.toUpperCase();
-                            if (!farmCode || !talhaoName) continue;
-
-                            let talhaoFoundInAnyPlan = false;
-
-                            for (const plan of allPlans) {
-                                for (const group of plan.sequence) {
-                                    if (group.fazendaCodigo === farmCode) {
-                                        const plotIndex = group.plots.findIndex(p => p.talhaoName.toUpperCase() === talhaoName);
-                                        if (plotIndex !== -1) {
-                                            talhaoFoundInAnyPlan = true;
-                                            
-                                            if (!changesSummary[plan.frontName]) {
-                                                changesSummary[plan.frontName] = { updated: [], removed: [] };
-                                            }
-
-                                            if (type === 'closed') {
-                                                group.plots.splice(plotIndex, 1);
-                                                changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
-                                            } else { // progress
-                                                const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
-                                                const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
-                                                group.areaColhida = (group.areaColhida || 0) + areaColhida;
-                                                group.producaoColhida = (group.producaoColhida || 0) + producaoColhida;
-                                                changesSummary[plan.frontName].updated.push(`${farmCode}-${talhaoName} (+${areaColhida} ha, +${producaoColhida} ton)`);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if (!talhaoFoundInAnyPlan) {
-                                notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
-                            }
-                        }
-                        
-                        const batch = writeBatch(db);
-                        allPlans.forEach(plan => {
-                            plan.sequence = plan.sequence.filter(g => g.plots.length > 0);
-                            const docRef = doc(db, 'harvestPlans', plan.id);
-                            batch.set(docRef, plan);
-                        });
-                        await batch.commit();
-
-                        // Gerar e mostrar o resumo
-                        let summaryMessage = "Sincronização Concluída!\n\n";
-                        const updatedPlans = Object.keys(changesSummary);
-
-                        if (updatedPlans.length > 0) {
-                            updatedPlans.forEach(planName => {
-                                summaryMessage += `Plano "${planName}" atualizado:\n`;
-                                const changes = changesSummary[planName];
-                                if (changes.updated.length > 0) {
-                                    summaryMessage += `  - ${changes.updated.length} talhões com progresso atualizado.\n`;
-                                }
-                                if (changes.removed.length > 0) {
-                                    summaryMessage += `  - ${changes.removed.length} talhões removidos (encerrados).\n`;
-                                }
-                            });
-                        } else {
-                            summaryMessage += "Nenhum plano foi alterado.\n";
-                        }
-
-                        if (notFoundTalhoes.length > 0) {
-                            summaryMessage += `\nAviso: ${notFoundTalhoes.length} talhões do relatório não foram encontrados em nenhum plano ativo.`;
-                        }
-
-                        const { confirmationModal } = App.elements;
-                        confirmationModal.title.textContent = "Resumo da Sincronização";
-                        confirmationModal.message.textContent = summaryMessage;
-                        confirmationModal.confirmBtn.textContent = "OK";
-                        confirmationModal.cancelBtn.style.display = 'none';
-                        confirmationModal.overlay.classList.add('show');
-                        
-                        const closeHandler = () => {
-                            confirmationModal.overlay.classList.remove('show');
-                            confirmationModal.confirmBtn.removeEventListener('click', closeHandler);
-                            confirmationModal.closeBtn.removeEventListener('click', closeHandler);
-                            // Reset modal to default
-                            setTimeout(() => {
-                                confirmationModal.confirmBtn.textContent = "Confirmar";
-                                confirmationModal.cancelBtn.style.display = 'inline-flex';
-                            }, 300);
-                        };
-                        confirmationModal.confirmBtn.addEventListener('click', closeHandler);
-                        confirmationModal.closeBtn.addEventListener('click', closeHandler);
-
-
-                    } catch (e) {
-                        App.ui.showAlert(`Erro ao importar: ${e.message}`, "error", 6000);
-                        console.error(e);
-                    } finally {
-                        App.ui.setLoading(false);
-                        const inputToClear = type === 'progress' ? App.elements.companyConfig.progressInput : App.elements.companyConfig.closedInput;
-                        if (inputToClear) inputToClear.value = '';
-                    }
-                };
-                reader.readAsText(file, 'ISO-8859-1');
             }
         },
         
@@ -3171,7 +3024,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         
             generatePerdaPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
+                const { filtroInicio, filtroFim, filtroFazenda, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -3180,7 +3033,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
                     fazendaCodigo: farm ? farm.code : '',
-                    talhao: filtroTalhao.value,
                     matricula: filtroOperador.value,
                     frenteServico: filtroFrente.value,
                     tipoRelatorio: tipoRelatorio.value,
