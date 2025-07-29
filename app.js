@@ -1270,6 +1270,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     confirmBtn.removeEventListener('click', confirmHandler);
                     cancelBtn.removeEventListener('click', closeHandler);
                     closeBtn.removeEventListener('click', closeHandler);
+                    // Reset modal to default
+                    setTimeout(() => {
+                        confirmBtn.textContent = "Confirmar";
+                        cancelBtn.style.display = 'inline-flex';
+                    }, 300);
                 };
                 
                 confirmBtn.addEventListener('click', confirmHandler);
@@ -1684,32 +1689,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
+            // [CORREÇÃO CRÍTICA] Lógica ajustada para verificar todos os planos
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
-                const currentPlanId = App.state.activeHarvestPlan ? App.state.activeHarvestPlan.id : null;
+                const allPlans = App.state.harvestPlans;
 
-                App.state.harvestPlans.forEach(plan => {
-                    if (currentPlanId && plan.id === currentPlanId) {
-                            plan.sequence.forEach(group => {
-                                if (editingGroupId && group.id == editingGroupId) {
-                                    return;
-                                }
-                                group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                            });
-                    } else {
-                        plan.sequence.forEach(group => {
-                            group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                        });
-                    }
-                });
-                if (App.state.activeHarvestPlan) {
-                    App.state.activeHarvestPlan.sequence.forEach(group => {
+                allPlans.forEach(plan => {
+                    plan.sequence.forEach(group => {
+                        // Se estamos a editar um grupo, os seus próprios talhões não contam como "ocupados"
+                        // para que possam ser desmarcados.
                         if (editingGroupId && group.id == editingGroupId) {
                             return;
                         }
                         group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
                     });
-                }
+                });
                 return Array.from(assignedIds);
             },
             async saveFarm() {
