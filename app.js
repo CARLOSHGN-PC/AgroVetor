@@ -900,6 +900,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cadastros.talhaoManagementContainer.style.display = 'none';
                 }
             },
+            // [CORREÇÃO] Função ajustada para exibir tipos e botões corretamente
             renderTalhaoList(farmId) {
                 const { talhaoList, talhaoManagementContainer, selectedFarmName, selectedFarmTypes } = App.elements.cadastros;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -911,9 +912,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 talhaoManagementContainer.style.display = 'block';
-                const farmTypesHTML = farm.types && farm.types.length > 0 ? `<span style="font-weight: 500; font-size: 14px; color: var(--color-text-light); margin-left: 10px;">(${farm.types.join(', ')})</span>` : '';
-                selectedFarmName.innerHTML = `
-                    ${farm.code} - ${farm.name} ${farmTypesHTML}
+                
+                // Exibe o nome e os botões
+                selectedFarmName.innerHTML = `${farm.code} - ${farm.name}`;
+                
+                // Exibe os tipos da fazenda
+                const farmTypesHTML = farm.types && farm.types.length > 0 ? `(${farm.types.join(', ')})` : '';
+                selectedFarmTypes.innerHTML = `
+                    <span style="font-weight: 500; font-size: 14px; color: var(--color-text-light); margin-left: 10px;">
+                        ${farmTypesHTML}
+                    </span>
                     <div style="display: inline-flex; gap: 5px; margin-left: 10px;">
                         <button class="btn-excluir" style="background:var(--color-info); margin-left: 0;" data-action="edit-farm" data-id="${farm.id}"><i class="fas fa-edit"></i></button>
                         <button class="btn-excluir" data-action="delete-farm" data-id="${farm.id}"><i class="fas fa-trash"></i></button>
@@ -1239,20 +1247,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 msgEl.textContent = message;
                 input.value = '';
                 inputContainer.style.display = needsInput ? 'block' : 'none';
-            
+                
                 const confirmHandler = () => {
                     const inputValue = needsInput ? input.value : null;
                     onConfirm(inputValue);
                     closeHandler();
                 };
-            
+                
                 const closeHandler = () => {
                     overlay.classList.remove('show');
                     confirmBtn.removeEventListener('click', confirmHandler);
                     cancelBtn.removeEventListener('click', closeHandler);
                     closeBtn.removeEventListener('click', closeHandler);
                 };
-            
+                
                 confirmBtn.addEventListener('click', confirmHandler);
                 cancelBtn.addEventListener('click', closeHandler);
                 closeBtn.addEventListener('click', closeHandler);
@@ -1414,6 +1422,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(App.elements.dashboard.btnAnalisar) App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
+                // [CORREÇÃO] Adiciona listener para os toggles de permissão
+                document.addEventListener('click', (e) => {
+                    const permissionItem = e.target.closest('.permission-item');
+                    if (permissionItem) {
+                        const checkbox = permissionItem.querySelector('input[type="checkbox"]');
+                        if (checkbox && e.target.tagName !== 'INPUT') {
+                            checkbox.checked = !checkbox.checked;
+                        }
+                    }
+                });
+
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
                 App.elements.users.list.addEventListener('click', e => {
@@ -1466,8 +1485,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
                 App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
                 App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
+                
+                // [CORREÇÃO] Listener para os botões de editar/excluir fazenda e talhão
                 App.elements.cadastros.talhaoManagementContainer.addEventListener('click', e => { 
-                    const btn = e.target.closest('button'); 
+                    const btn = e.target.closest('button[data-action]'); 
                     if(!btn) return; 
                     const { action, id } = btn.dataset; 
                     if(action === 'edit-talhao') App.actions.editTalhao(id); 
@@ -1475,6 +1496,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(action === 'edit-farm') this.openEditFarmModal(id);
                     if(action === 'delete-farm') App.actions.deleteFarm(id);
                 });
+
                 App.elements.cadastros.btnSaveTalhao.addEventListener('click', () => App.actions.saveTalhao());
                 App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
                 App.elements.cadastros.csvFileInput.addEventListener('change', (e) => App.actions.importFarmsFromCSV(e.target.files[0]));
@@ -1718,7 +1740,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
-            async saveFarmNameChanges() {
+            async saveFarmChanges() {
                 const modal = App.elements.editFarmModal;
                 const farmId = modal.editingFarmId.value;
                 const newName = modal.nameInput.value.trim().toUpperCase();
@@ -1741,7 +1763,7 @@ document.addEventListener('DOMContentLoaded', () => {
             deleteFarm(farmId) {
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm) return;
-            
+                
                 App.ui.showConfirmationModal(`Tem a certeza que deseja excluir a fazenda "${farm.name}" e todos os seus talhões? Esta ação é irreversível.`, async () => {
                     try {
                         await App.data.deleteDocument('fazendas', farmId);
@@ -1760,7 +1782,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showAlert("A confirmação não corresponde. Ação cancelada.", "warning");
                         return;
                     }
-            
+                    
                     App.ui.setLoading(true, "Excluindo todas as fazendas...");
                     try {
                         const batch = writeBatch(db);
@@ -2357,112 +2379,112 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (!file) return;
                  const reader = new FileReader();
                  reader.onload = async (event) => {
-                     const CHUNK_SIZE = 400; 
-                     const PAUSE_DURATION = 50;
-                     
-                     try {
-                         const csv = event.target.result;
-                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                         const totalLines = lines.length - 1;
+                      const CHUNK_SIZE = 400; 
+                      const PAUSE_DURATION = 50;
+                      
+                      try {
+                          const csv = event.target.result;
+                          const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                          const totalLines = lines.length - 1;
 
-                         if (totalLines <= 0) {
-                             App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
-                         }
-                         
-                         App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
-                         await new Promise(resolve => setTimeout(resolve, 100));
+                          if (totalLines <= 0) {
+                              App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
+                          }
+                          
+                          App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
+                          await new Promise(resolve => setTimeout(resolve, 100));
 
-                         const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-                         const headerIndexes = {
-                             farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
-                             farm_type: fileHeaders.indexOf('TIPO'),
-                             talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
-                             talhao_tch: fileHeaders.indexOf('TCH'),
-                             talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
-                             talhao_corte: fileHeaders.indexOf('CORTE'),
-                             talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
-                             talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
-                         };
+                          const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+                          const headerIndexes = {
+                              farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
+                              farm_type: fileHeaders.indexOf('TIPO'),
+                              talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
+                              talhao_tch: fileHeaders.indexOf('TCH'),
+                              talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
+                              talhao_corte: fileHeaders.indexOf('CORTE'),
+                              talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
+                              talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
+                          };
 
-                         if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
-                             App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
-                             App.ui.setLoading(false);
-                             return;
-                         }
-                         
-                         const fazendasToUpdate = {};
-                         for (let i = 1; i < lines.length; i++) {
-                             const data = lines[i].split(';');
-                             if (data.length < 2) continue;
-                             const farmCode = data[headerIndexes.farm_code]?.trim();
-                             if (!farmCode) continue;
+                          if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
+                              App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
+                              App.ui.setLoading(false);
+                              return;
+                          }
+                          
+                          const fazendasToUpdate = {};
+                          for (let i = 1; i < lines.length; i++) {
+                              const data = lines[i].split(';');
+                              if (data.length < 2) continue;
+                              const farmCode = data[headerIndexes.farm_code]?.trim();
+                              if (!farmCode) continue;
 
-                             if (!fazendasToUpdate[farmCode]) {
-                                 let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
-                                 fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
-                                     code: farmCode,
-                                     name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
-                                     types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
-                                     talhoes: []
-                                 };
-                             }
+                              if (!fazendasToUpdate[farmCode]) {
+                                  let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
+                                  fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
+                                      code: farmCode,
+                                      name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
+                                      types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
+                                      talhoes: []
+                                  };
+                              }
 
-                             const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
-                             if(!talhaoName) continue;
+                              const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
+                              if(!talhaoName) continue;
 
-                             let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
-                             const area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0;
-                             const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
-                             const producao = area * tch;
+                              let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                              const area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0;
+                              const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
+                              const producao = area * tch;
 
-                             if (talhao) { 
-                                 talhao.area = area;
-                                 talhao.tch = tch;
-                                 talhao.producao = producao;
-                                 talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
-                                 talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
-                                 talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
-                                 talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
-                             } else { 
-                                 fazendasToUpdate[farmCode].talhoes.push({
-                                     id: Date.now() + i, name: talhaoName,
-                                     area: area,
-                                     tch: tch,
-                                     producao: producao,
-                                     variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
-                                     corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
-                                     distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
-                                     dataUltimaColheita: this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || '',
-                                 });
-                             }
-                         }
-                         
-                         const farmCodes = Object.keys(fazendasToUpdate);
-                         for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
-                             const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
-                             const batch = writeBatch(db);
-                             
-                             chunk.forEach(code => {
-                                 const farmData = fazendasToUpdate[code];
-                                 const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
-                                 batch.set(docRef, farmData, { merge: true });
-                             });
+                              if (talhao) { 
+                                  talhao.area = area;
+                                  talhao.tch = tch;
+                                  talhao.producao = producao;
+                                  talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
+                                  talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
+                                  talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
+                                  talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
+                              } else { 
+                                  fazendasToUpdate[farmCode].talhoes.push({
+                                      id: Date.now() + i, name: talhaoName,
+                                      area: area,
+                                      tch: tch,
+                                      producao: producao,
+                                      variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
+                                      corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
+                                      distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
+                                      dataUltimaColheita: this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || '',
+                                  });
+                              }
+                          }
+                          
+                          const farmCodes = Object.keys(fazendasToUpdate);
+                          for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
+                              const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
+                              const batch = writeBatch(db);
+                              
+                              chunk.forEach(code => {
+                                  const farmData = fazendasToUpdate[code];
+                                  const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
+                                  batch.set(docRef, farmData, { merge: true });
+                              });
 
-                             await batch.commit();
-                             const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
-                             App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
-                             await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                         }
+                              await batch.commit();
+                              const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
+                              App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
+                              await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+                          }
 
-                         App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
+                          App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
 
-                     } catch (e) {
-                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                         console.error(e);
-                     } finally {
-                         App.ui.setLoading(false);
-                         App.elements.cadastros.csvFileInput.value = '';
-                     }
+                       } catch (e) {
+                           App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
+                           console.error(e);
+                       } finally {
+                           App.ui.setLoading(false);
+                           App.elements.cadastros.csvFileInput.value = '';
+                       }
                  };
                  reader.readAsText(file, 'ISO-8859-1');
             },
@@ -2483,67 +2505,67 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (!file) return;
                  const reader = new FileReader();
                  reader.onload = async (event) => {
-                     const CHUNK_SIZE = 400;
-                     const PAUSE_DURATION = 50;
-                     try {
-                         const csv = event.target.result;
-                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                         const totalLines = lines.length - 1;
-                         if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
-                         
-                         App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
-                         await new Promise(resolve => setTimeout(resolve, 100));
+                      const CHUNK_SIZE = 400;
+                      const PAUSE_DURATION = 50;
+                      try {
+                          const csv = event.target.result;
+                          const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                          const totalLines = lines.length - 1;
+                          if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
+                          
+                          App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
+                          await new Promise(resolve => setTimeout(resolve, 100));
 
-                         const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
-                         const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
+                          const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
+                          const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
 
-                         if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
-                             App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
-                             App.ui.setLoading(false);
-                             return;
-                         }
+                          if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
+                              App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
+                              App.ui.setLoading(false);
+                              return;
+                          }
 
-                         const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
-                         
-                         for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
-                             const chunk = lines.slice(i, i + CHUNK_SIZE);
-                             const batch = writeBatch(db);
-                             let updatedCountInChunk = 0;
-                             let newCountInChunk = 0;
+                          const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
+                          
+                          for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
+                              const chunk = lines.slice(i, i + CHUNK_SIZE);
+                              const batch = writeBatch(db);
+                              let updatedCountInChunk = 0;
+                              let newCountInChunk = 0;
 
-                             chunk.forEach(line => {
-                                 const data = line.split(';');
-                                 if (data.length < 2) return;
-                                 const matricula = data[headerIndexes.matricula]?.trim();
-                                 const name = data[headerIndexes.name]?.trim();
-                                 if (!matricula || !name) return;
+                              chunk.forEach(line => {
+                                  const data = line.split(';');
+                                  if (data.length < 2) return;
+                                  const matricula = data[headerIndexes.matricula]?.trim();
+                                  const name = data[headerIndexes.name]?.trim();
+                                  if (!matricula || !name) return;
 
-                                 let person = localPersonnel.find(p => p.matricula === matricula);
-                                 if (person) {
-                                     const personRef = doc(db, 'personnel', person.id);
-                                     batch.update(personRef, { name: name });
-                                     updatedCountInChunk++;
-                                 } else {
-                                     const newPersonRef = doc(collection(db, 'personnel'));
-                                     batch.set(newPersonRef, { matricula, name });
-                                     newCountInChunk++;
-                                 }
-                             });
+                                  let person = localPersonnel.find(p => p.matricula === matricula);
+                                  if (person) {
+                                      const personRef = doc(db, 'personnel', person.id);
+                                      batch.update(personRef, { name: name });
+                                      updatedCountInChunk++;
+                                  } else {
+                                      const newPersonRef = doc(collection(db, 'personnel'));
+                                      batch.set(newPersonRef, { matricula, name });
+                                      newCountInChunk++;
+                                  }
+                              });
 
-                             await batch.commit();
-                             const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
-                             App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
-                             await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                         }
-                         
-                         App.ui.showAlert(`Importação concluída!`, 'success');
-                     } catch (e) {
-                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                         console.error(e);
-                     } finally {
-                         App.ui.setLoading(false);
-                         App.elements.personnel.csvFileInput.value = '';
-                     }
+                              await batch.commit();
+                              const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
+                              App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
+                              await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+                          }
+                          
+                          App.ui.showAlert(`Importação concluída!`, 'success');
+                       } catch (e) {
+                           App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
+                           console.error(e);
+                       } finally {
+                           App.ui.setLoading(false);
+                           App.elements.personnel.csvFileInput.value = '';
+                       }
                  };
                  reader.readAsText(file, 'ISO-8859-1');
             },
@@ -2947,8 +2969,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
 
                 const params = new URLSearchParams(cleanFilters);
-                const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
-        
+                const apiUrl = `http://localhost:3001/reports/${endpoint}?${params.toString()}`;
+            
                 App.ui.setLoading(true, "A gerar relatório no servidor...");
         
                 fetch(apiUrl)
@@ -3053,7 +3075,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
                     return;
                 }
-        
+                
                 const selectedColumns = {};
                 optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                     selectedColumns[cb.dataset.column] = cb.checked;
