@@ -76,7 +76,6 @@
           padding: 20px; 
       }
       
-      /* [ALTERADO] Card de login com mais transparência e desfoque para efeito de vidro */
       #loginBox { 
           background: rgba(255, 255, 255, 0.6); /* Fallback com mais transparência */
           background: color-mix(in srgb, var(--color-surface) 60%, transparent); /* Mais transparente */
@@ -1111,7 +1110,7 @@
                     </div>
                     <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
                     <button id="btnDownloadCsvTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
-                    <small class="csv-format-info">Formato: Cód;FAZENDA;TIPO;TALHÃO;Área;TCH;Produção;Variedade;Corte;Distancia;DataUltimaColheita</small>
+                    <small class="csv-format-info">Formato: Cód;FAZENDA;TIPO;TALHÃO;Área;TCH;Variedade;Corte;Distancia;DataUltimaColheita</small>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
@@ -1138,7 +1137,7 @@
                     <label for="farmSelect">Selecione uma Fazenda para gerir os seus talhões:</label>
                     <select id="farmSelect"></select>
                     <div id="talhaoManagementContainer" style="display:none;">
-                        <h4>Talhões da Fazenda <span id="selectedFarmName"></span></h4>
+                        <h4>Talhões da Fazenda <span id="selectedFarmName"></span> <span id="selectedFarmTypes"></span></h4>
                         <div id="talhaoList" class="table-responsive"></div>
                         <h5 style="margin-top:20px;">Adicionar/Editar Talhão</h5>
                         <input type="hidden" id="talhaoId">
