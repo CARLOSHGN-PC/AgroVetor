@@ -177,6 +177,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 logoInput: document.getElementById('logoInput'),
                 logoPreview: document.getElementById('logoPreview'),
                 removeLogoBtn: document.getElementById('removeLogoBtn'),
+                harvestPlanSyncSelect: document.getElementById('harvestPlanSyncSelect'),
+                progressUploadArea: document.getElementById('harvestReportProgressUploadArea'),
+                progressInput: document.getElementById('harvestReportProgressInput'),
+                btnDownloadProgressTemplate: document.getElementById('btnDownloadProgressTemplate'),
+                closedUploadArea: document.getElementById('harvestReportClosedUploadArea'),
+                closedInput: document.getElementById('harvestReportClosedInput'),
+                btnDownloadClosedTemplate: document.getElementById('btnDownloadClosedTemplate'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -280,9 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnOptimize: document.getElementById('btnOptimizeHarvest'),
                 tableBody: document.querySelector('#harvestPlanTable tbody'),
                 summary: document.getElementById('harvestSummary'),
-                importer: document.getElementById('harvest-plan-importer'),
-                importerUploadArea: document.getElementById('harvestReportCsvUploadArea'),
-                importerInput: document.getElementById('harvestReportCsvInput'),
             },
             broca: {
                 form: document.getElementById('lancamentoBroca'),
@@ -653,6 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderPlanejamento();
                 this.showHarvestPlanList();
                 this.populateHarvestPlanSelect();
+                this.populateHarvestPlanSyncSelect();
                 
                 if (document.getElementById('dashboard').classList.contains('active')) {
                    this.showDashboardView('broca');
@@ -754,6 +759,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 select.value = savedValue;
             },
+            // [NOVO] Popula o select de planos na tela de configurações
+            populateHarvestPlanSyncSelect() {
+                const { harvestPlanSyncSelect } = App.elements.companyConfig;
+                const savedValue = harvestPlanSyncSelect.value;
+                harvestPlanSyncSelect.innerHTML = '<option value="">Selecione um plano para atualizar...</option>';
+                if (App.state.harvestPlans.length === 0) {
+                    harvestPlanSyncSelect.innerHTML += '<option value="" disabled>Nenhum plano salvo encontrado</option>';
+                } else {
+                    App.state.harvestPlans.forEach(plan => {
+                        harvestPlanSyncSelect.innerHTML += `<option value="${plan.id}">${plan.frontName}</option>`;
+                    });
+                }
+                harvestPlanSyncSelect.value = savedValue;
+            },
             showTab(id) {
                 document.querySelectorAll('.tab-content').forEach(tab => {
                     tab.classList.remove('active');
@@ -778,6 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (id === 'planejamentoColheita') this.showHarvestPlanList();
                     if (id === 'relatorioBroca' || id === 'relatorioPerda') this.setDefaultDatesForReportForms();
                     if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
+                    if (id === 'configuracoesEmpresa') this.populateHarvestPlanSyncSelect(); // [NOVO]
                     if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 }
                 this.closeAllMenus();
@@ -1105,13 +1125,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.activeHarvestPlan = null;
                 App.elements.harvest.plansListContainer.style.display = 'block';
                 App.elements.harvest.planEditor.style.display = 'none';
-                App.elements.harvest.importer.style.display = 'none'; // Esconde o importador
                 this.renderHarvestPlansList();
             },
             showHarvestPlanEditor() {
                 App.elements.harvest.plansListContainer.style.display = 'none';
                 App.elements.harvest.planEditor.style.display = 'block';
-                App.elements.harvest.importer.style.display = 'block'; // Mostra o importador
             },
             renderHarvestPlansList() {
                 const { plansList } = App.elements.harvest;
@@ -1154,7 +1172,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dailyTon = parseFloat(dailyRate) || 1;
 
                 sequence.forEach((group, index) => {
-                    // [ALTERAÇÃO] Considera a produção já colhida para o cálculo
                     const producaoRestante = group.totalProducao - (group.producaoColhida || 0);
                     grandTotalProducao += group.totalProducao;
                     grandTotalArea += group.totalArea;
@@ -1171,11 +1188,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, startDate);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
 
-                    // [NOVO] Lógica para exibir progresso
                     const areaColhida = group.areaColhida || 0;
                     const producaoColhida = group.producaoColhida || 0;
-                    const areaProgress = group.totalArea > 0 ? (areaColhida / group.totalArea) * 100 : 0;
-                    const producaoProgress = group.totalProducao > 0 ? (producaoColhida / group.totalProducao) * 100 : 0;
 
                     const row = tableBody.insertRow();
                     row.draggable = true;
@@ -1476,9 +1490,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.personnel.csvFileInput.addEventListener('change', (e) => App.actions.importPersonnelFromCSV(e.target.files[0]));
                 App.elements.personnel.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadPersonnelCsvTemplate());
                 
-                App.elements.companyConfig.logoUploadArea.addEventListener('click', () => App.elements.companyConfig.logoInput.click());
-                App.elements.companyConfig.logoInput.addEventListener('change', (e) => App.actions.handleLogoUpload(e));
-                App.elements.companyConfig.removeLogoBtn.addEventListener('click', () => App.actions.removeLogo());
+                const companyConfigEls = App.elements.companyConfig;
+                companyConfigEls.logoUploadArea.addEventListener('click', () => companyConfigEls.logoInput.click());
+                companyConfigEls.logoInput.addEventListener('change', (e) => App.actions.handleLogoUpload(e));
+                companyConfigEls.removeLogoBtn.addEventListener('click', () => App.actions.removeLogo());
+                companyConfigEls.progressUploadArea.addEventListener('click', () => companyConfigEls.progressInput.click());
+                companyConfigEls.progressInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'progress'));
+                companyConfigEls.btnDownloadProgressTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('progress'));
+                companyConfigEls.closedUploadArea.addEventListener('click', () => companyConfigEls.closedInput.click());
+                companyConfigEls.closedInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'closed'));
+                companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
 
 
                 App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
@@ -1535,11 +1556,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 [App.elements.harvest.frontName, App.elements.harvest.startDate, App.elements.harvest.dailyRate].forEach(el => el.addEventListener('input', () => App.actions.updateActiveHarvestPlanDetails()));
                 
-                // [NOVO] Event Listeners para o importador de relatórios de colheita
-                App.elements.harvest.importerUploadArea.addEventListener('click', () => App.elements.harvest.importerInput.click());
-                App.elements.harvest.importerInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0]));
-
-
                 let dragSrcEl = null;
                 App.elements.harvest.tableBody.addEventListener('dragstart', e => { dragSrcEl = e.target; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/html', e.target.innerHTML); });
                 App.elements.harvest.tableBody.addEventListener('dragover', e => { e.preventDefault(); return false; });
@@ -2580,11 +2596,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
+            // [NOVO] Função para descarregar modelos de CSV de relatório de colheita
+            downloadHarvestReportTemplate(type) {
+                let headers, exampleRow, filename;
+                if (type === 'progress') {
+                    headers = "CodigoFazenda;Talhao;AreaColhida;ProducaoColhida";
+                    exampleRow = "4012;T-01;10.5;850.7";
+                    filename = "modelo_colheita_andamento.csv";
+                } else { // closed
+                    headers = "CodigoFazenda;Talhao";
+                    exampleRow = "4012;T-02";
+                    filename = "modelo_colheita_encerrados.csv";
+                }
+                const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            },
             // [NOVO] Função para importar e processar relatório de colheita
-            async importHarvestReport(file) {
+            async importHarvestReport(file, type) {
                 if (!file) return;
-                if (!App.state.activeHarvestPlan) {
-                    App.ui.showAlert("Nenhum plano de colheita ativo para atualizar. Edite um plano primeiro.", "error");
+                const { harvestPlanSyncSelect } = App.elements.companyConfig;
+                const planId = harvestPlanSyncSelect.value;
+
+                if (!planId) {
+                    App.ui.showAlert("Selecione um plano de colheita para sincronizar antes de importar.", "error");
+                    return;
+                }
+
+                const planToUpdate = App.state.harvestPlans.find(p => p.id === planId);
+                if (!planToUpdate) {
+                    App.ui.showAlert("Plano de colheita selecionado não foi encontrado.", "error");
                     return;
                 }
 
@@ -2594,21 +2641,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         const csv = event.target.result;
                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                        if (lines.length <= 1) {
-                            throw new Error("O ficheiro CSV está vazio ou contém apenas o cabeçalho.");
-                        }
+                        if (lines.length <= 1) throw new Error("O ficheiro CSV está vazio ou contém apenas o cabeçalho.");
 
                         const headers = lines[0].split(';').map(h => h.trim().toLowerCase());
-                        const requiredHeaders = ['codigofazenda', 'talhao', 'status', 'areacolhida', 'producaocolhida'];
+                        const requiredHeaders = type === 'progress' ? ['codigofazenda', 'talhao', 'areacolhida', 'producaocolhida'] : ['codigofazenda', 'talhao'];
                         if (!requiredHeaders.every(h => headers.includes(h))) {
                             throw new Error(`Cabeçalhos em falta. O ficheiro deve conter: ${requiredHeaders.join('; ')}`);
                         }
 
-                        let updatedCount = 0;
-                        let removedCount = 0;
-                        let notFoundCount = 0;
-
-                        const plan = App.state.activeHarvestPlan;
+                        let updatedCount = 0, removedCount = 0, notFoundCount = 0;
+                        const plan = JSON.parse(JSON.stringify(planToUpdate)); // Cria uma cópia para manipular
 
                         for (let i = 1; i < lines.length; i++) {
                             const data = lines[i].split(';');
@@ -2619,9 +2661,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             const farmCode = row.codigofazenda;
                             const talhaoName = row.talhao.toUpperCase();
-                            const status = row.status.toLowerCase();
-                            const areaColhida = parseFloat(row.areacolhida.replace(',', '.')) || 0;
-                            const producaoColhida = parseFloat(row.producaocolhida.replace(',', '.')) || 0;
+                            if (!farmCode || !talhaoName) continue;
 
                             let found = false;
                             for (const group of plan.sequence) {
@@ -2629,38 +2669,39 @@ document.addEventListener('DOMContentLoaded', () => {
                                     const plotIndex = group.plots.findIndex(p => p.talhaoName.toUpperCase() === talhaoName);
                                     if (plotIndex !== -1) {
                                         found = true;
-                                        if (status === 'encerrado') {
+                                        if (type === 'closed') {
                                             group.plots.splice(plotIndex, 1);
                                             removedCount++;
-                                        } else {
-                                            // Atualiza a área e produção colhida
+                                        } else { // progress
+                                            const areaColhida = parseFloat(row.areacolhida.replace(',', '.')) || 0;
+                                            const producaoColhida = parseFloat(row.producaocolhida.replace(',', '.')) || 0;
                                             group.areaColhida = (group.areaColhida || 0) + areaColhida;
                                             group.producaoColhida = (group.producaoColhida || 0) + producaoColhida;
                                             updatedCount++;
                                         }
-                                        break; // Para de procurar nos grupos
+                                        break; 
                                     }
                                 }
                             }
                             if (!found) notFoundCount++;
                         }
                         
-                        // Remove grupos que ficaram sem talhões
                         plan.sequence = plan.sequence.filter(g => g.plots.length > 0);
 
-                        App.ui.renderHarvestSequence();
-                        App.ui.showAlert(`Relatório processado: ${updatedCount} talhões atualizados, ${removedCount} removidos. ${notFoundCount > 0 ? `${notFoundCount} não encontrados.` : ''}`, "success", 5000);
+                        await App.data.setDocument('harvestPlans', plan.id, plan);
+                        App.ui.showAlert(`Plano "${plan.frontName}" atualizado! ${updatedCount} talhões com progresso, ${removedCount} encerrados. ${notFoundCount > 0 ? `${notFoundCount} não encontrados.` : ''}`, "success", 6000);
 
                     } catch (e) {
-                        App.ui.showAlert(`Erro ao importar: ${e.message}`, "error", 5000);
+                        App.ui.showAlert(`Erro ao importar: ${e.message}`, "error", 6000);
                         console.error(e);
                     } finally {
                         App.ui.setLoading(false);
-                        App.elements.harvest.importerInput.value = ''; // Limpa o input de ficheiro
+                        if (type === 'progress') App.elements.companyConfig.progressInput.value = '';
+                        else App.elements.companyConfig.closedInput.value = '';
                     }
                 };
                 reader.readAsText(file, 'ISO-8859-1');
-            }
+            },
         },
         
         gemini: {
