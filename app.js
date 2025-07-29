@@ -230,6 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 farmSelect: document.getElementById('farmSelect'),
                 talhaoManagementContainer: document.getElementById('talhaoManagementContainer'),
                 selectedFarmName: document.getElementById('selectedFarmName'),
+                selectedFarmTypes: document.getElementById('selectedFarmTypes'),
                 talhaoList: document.getElementById('talhaoList'),
                 talhaoId: document.getElementById('talhaoId'),
                 talhaoName: document.getElementById('talhaoName'),
@@ -900,17 +901,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             renderTalhaoList(farmId) {
-                const { talhaoList, talhaoManagementContainer, selectedFarmName } = App.elements.cadastros;
+                const { talhaoList, talhaoManagementContainer, selectedFarmName, selectedFarmTypes } = App.elements.cadastros;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 talhaoList.innerHTML = '';
                 if (!farm) {
                     talhaoManagementContainer.style.display = 'none';
                     selectedFarmName.innerHTML = '';
+                    selectedFarmTypes.innerHTML = '';
                     return;
                 }
                 talhaoManagementContainer.style.display = 'block';
+                const farmTypesHTML = farm.types && farm.types.length > 0 ? `<span style="font-weight: 500; font-size: 14px; color: var(--color-text-light); margin-left: 10px;">(${farm.types.join(', ')})</span>` : '';
                 selectedFarmName.innerHTML = `
-                    ${farm.code} - ${farm.name}
+                    ${farm.code} - ${farm.name} ${farmTypesHTML}
                     <div style="display: inline-flex; gap: 5px; margin-left: 10px;">
                         <button class="btn-excluir" style="background:var(--color-info); margin-left: 0;" data-action="edit-farm" data-id="${farm.id}"><i class="fas fa-edit"></i></button>
                         <button class="btn-excluir" data-action="delete-farm" data-id="${farm.id}"><i class="fas fa-trash"></i></button>
@@ -2375,7 +2378,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              farm_type: fileHeaders.indexOf('TIPO'),
                              talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
                              talhao_tch: fileHeaders.indexOf('TCH'),
-                             talhao_producao: fileHeaders.indexOf('PRODUCAO'), talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
+                             talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
                              talhao_corte: fileHeaders.indexOf('CORTE'),
                              talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
                              talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
@@ -2408,10 +2411,14 @@ document.addEventListener('DOMContentLoaded', () => {
                              if(!talhaoName) continue;
 
                              let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                             const area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0;
+                             const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
+                             const producao = area * tch;
+
                              if (talhao) { 
-                                 talhao.area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || talhao.area;
-                                 talhao.tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || talhao.tch;
-                                 talhao.producao = parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || talhao.producao;
+                                 talhao.area = area;
+                                 talhao.tch = tch;
+                                 talhao.producao = producao;
                                  talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
                                  talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
                                  talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
@@ -2419,9 +2426,9 @@ document.addEventListener('DOMContentLoaded', () => {
                              } else { 
                                  fazendasToUpdate[farmCode].talhoes.push({
                                      id: Date.now() + i, name: talhaoName,
-                                     area: parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0,
-                                     tch: parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0,
-                                     producao: parseFloat(data[headerIndexes.talhao_producao]?.trim().replace(',', '.')) || 0,
+                                     area: area,
+                                     tch: tch,
+                                     producao: producao,
                                      variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
                                      corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
                                      distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
@@ -2460,8 +2467,8 @@ document.addEventListener('DOMContentLoaded', () => {
                  reader.readAsText(file, 'ISO-8859-1');
             },
             downloadCsvTemplate() {
-                const headers = "Cód;FAZENDA;TIPO;TALHÃO;Área;TCH;Produção;Variedade;Corte;Distancia;DataUltimaColheita";
-                const exampleRow = "4012;FAZ LAGOA CERCADA;Própria,Parceira;T-01;50;80;4000;RB867515;2;10;15/07/2024";
+                const headers = "Cód;FAZENDA;TIPO;TALHÃO;Área;TCH;Variedade;Corte;Distancia;DataUltimaColheita";
+                const exampleRow = "4012;FAZ LAGOA CERCADA;Própria,Parceira;T-01;50;80;RB867515;2;10;15/07/2024";
                 const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
