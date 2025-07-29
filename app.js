@@ -177,7 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 logoInput: document.getElementById('logoInput'),
                 logoPreview: document.getElementById('logoPreview'),
                 removeLogoBtn: document.getElementById('removeLogoBtn'),
-                harvestPlanSyncSelect: document.getElementById('harvestPlanSyncSelect'),
                 progressUploadArea: document.getElementById('harvestReportProgressUploadArea'),
                 progressInput: document.getElementById('harvestReportProgressInput'),
                 btnDownloadProgressTemplate: document.getElementById('btnDownloadProgressTemplate'),
@@ -657,7 +656,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderPlanejamento();
                 this.showHarvestPlanList();
                 this.populateHarvestPlanSelect();
-                this.populateHarvestPlanSyncSelect();
                 
                 if (document.getElementById('dashboard').classList.contains('active')) {
                    this.showDashboardView('broca');
@@ -759,20 +757,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 select.value = savedValue;
             },
-            // [NOVO] Popula o select de planos na tela de configurações
-            populateHarvestPlanSyncSelect() {
-                const { harvestPlanSyncSelect } = App.elements.companyConfig;
-                const savedValue = harvestPlanSyncSelect.value;
-                harvestPlanSyncSelect.innerHTML = '<option value="">Selecione um plano para atualizar...</option>';
-                if (App.state.harvestPlans.length === 0) {
-                    harvestPlanSyncSelect.innerHTML += '<option value="" disabled>Nenhum plano salvo encontrado</option>';
-                } else {
-                    App.state.harvestPlans.forEach(plan => {
-                        harvestPlanSyncSelect.innerHTML += `<option value="${plan.id}">${plan.frontName}</option>`;
-                    });
-                }
-                harvestPlanSyncSelect.value = savedValue;
-            },
             showTab(id) {
                 document.querySelectorAll('.tab-content').forEach(tab => {
                     tab.classList.remove('active');
@@ -797,7 +781,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (id === 'planejamentoColheita') this.showHarvestPlanList();
                     if (id === 'relatorioBroca' || id === 'relatorioPerda') this.setDefaultDatesForReportForms();
                     if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
-                    if (id === 'configuracoesEmpresa') this.populateHarvestPlanSyncSelect(); // [NOVO]
                     if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 }
                 this.closeAllMenus();
@@ -1270,7 +1253,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.perda.resultado.textContent = `Total Perda: ${total.toFixed(2).replace('.', ',')} kg`;
             },
             showConfirmationModal(message, onConfirm, needsInput = false) {
-                const { overlay, message: msgEl, confirmBtn, cancelBtn, closeBtn, inputContainer, input } = App.elements.confirmationModal;
+                const { overlay, title, message: msgEl, confirmBtn, cancelBtn, closeBtn, inputContainer, input } = App.elements.confirmationModal;
+                title.textContent = "Confirmar Ação";
                 msgEl.textContent = message;
                 input.value = '';
                 inputContainer.style.display = needsInput ? 'block' : 'none';
@@ -2596,7 +2580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
-            // [NOVO] Função para descarregar modelos de CSV de relatório de colheita
+            // [ALTERADO] Função para descarregar modelos de CSV de relatório de colheita
             downloadHarvestReportTemplate(type) {
                 let headers, exampleRow, filename;
                 if (type === 'progress') {
@@ -2618,26 +2602,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
-            // [NOVO] Função para importar e processar relatório de colheita
+            // [ALTERADO] Lógica de importação para ser global e gerar resumo
             async importHarvestReport(file, type) {
                 if (!file) return;
-                const { harvestPlanSyncSelect } = App.elements.companyConfig;
-                const planId = harvestPlanSyncSelect.value;
-
-                if (!planId) {
-                    App.ui.showAlert("Selecione um plano de colheita para sincronizar antes de importar.", "error");
-                    return;
-                }
-
-                const planToUpdate = App.state.harvestPlans.find(p => p.id === planId);
-                if (!planToUpdate) {
-                    App.ui.showAlert("Plano de colheita selecionado não foi encontrado.", "error");
-                    return;
-                }
 
                 const reader = new FileReader();
                 reader.onload = async (event) => {
-                    App.ui.setLoading(true, "A processar relatório de colheita...");
+                    App.ui.setLoading(true, `A processar relatório de talhões ${type === 'closed' ? 'encerrados' : 'em andamento'}...`);
                     try {
                         const csv = event.target.result;
                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
@@ -2649,8 +2620,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             throw new Error(`Cabeçalhos em falta. O ficheiro deve conter: ${requiredHeaders.join('; ')}`);
                         }
 
-                        let updatedCount = 0, removedCount = 0, notFoundCount = 0;
-                        const plan = JSON.parse(JSON.stringify(planToUpdate)); // Cria uma cópia para manipular
+                        const allPlans = JSON.parse(JSON.stringify(App.state.harvestPlans));
+                        const changesSummary = {};
+                        let notFoundTalhoes = [];
 
                         for (let i = 1; i < lines.length; i++) {
                             const data = lines[i].split(';');
@@ -2660,48 +2632,104 @@ document.addEventListener('DOMContentLoaded', () => {
                             }, {});
 
                             const farmCode = row.codigofazenda;
-                            const talhaoName = row.talhao.toUpperCase();
+                            const talhaoName = row.talhao?.toUpperCase();
                             if (!farmCode || !talhaoName) continue;
 
-                            let found = false;
-                            for (const group of plan.sequence) {
-                                if (group.fazendaCodigo === farmCode) {
-                                    const plotIndex = group.plots.findIndex(p => p.talhaoName.toUpperCase() === talhaoName);
-                                    if (plotIndex !== -1) {
-                                        found = true;
-                                        if (type === 'closed') {
-                                            group.plots.splice(plotIndex, 1);
-                                            removedCount++;
-                                        } else { // progress
-                                            const areaColhida = parseFloat(row.areacolhida.replace(',', '.')) || 0;
-                                            const producaoColhida = parseFloat(row.producaocolhida.replace(',', '.')) || 0;
-                                            group.areaColhida = (group.areaColhida || 0) + areaColhida;
-                                            group.producaoColhida = (group.producaoColhida || 0) + producaoColhida;
-                                            updatedCount++;
+                            let talhaoFoundInAnyPlan = false;
+
+                            for (const plan of allPlans) {
+                                for (const group of plan.sequence) {
+                                    if (group.fazendaCodigo === farmCode) {
+                                        const plotIndex = group.plots.findIndex(p => p.talhaoName.toUpperCase() === talhaoName);
+                                        if (plotIndex !== -1) {
+                                            talhaoFoundInAnyPlan = true;
+                                            
+                                            if (!changesSummary[plan.frontName]) {
+                                                changesSummary[plan.frontName] = { updated: [], removed: [] };
+                                            }
+
+                                            if (type === 'closed') {
+                                                group.plots.splice(plotIndex, 1);
+                                                changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
+                                            } else { // progress
+                                                const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
+                                                const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
+                                                group.areaColhida = (group.areaColhida || 0) + areaColhida;
+                                                group.producaoColhida = (group.producaoColhida || 0) + producaoColhida;
+                                                changesSummary[plan.frontName].updated.push(`${farmCode}-${talhaoName} (+${areaColhida} ha, +${producaoColhida} ton)`);
+                                            }
                                         }
-                                        break; 
                                     }
                                 }
                             }
-                            if (!found) notFoundCount++;
+                            if (!talhaoFoundInAnyPlan) {
+                                notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
+                            }
                         }
                         
-                        plan.sequence = plan.sequence.filter(g => g.plots.length > 0);
+                        const batch = writeBatch(db);
+                        allPlans.forEach(plan => {
+                            plan.sequence = plan.sequence.filter(g => g.plots.length > 0);
+                            const docRef = doc(db, 'harvestPlans', plan.id);
+                            batch.set(docRef, plan);
+                        });
+                        await batch.commit();
 
-                        await App.data.setDocument('harvestPlans', plan.id, plan);
-                        App.ui.showAlert(`Plano "${plan.frontName}" atualizado! ${updatedCount} talhões com progresso, ${removedCount} encerrados. ${notFoundCount > 0 ? `${notFoundCount} não encontrados.` : ''}`, "success", 6000);
+                        // Gerar e mostrar o resumo
+                        let summaryMessage = "Sincronização Concluída!\n\n";
+                        const updatedPlans = Object.keys(changesSummary);
+
+                        if (updatedPlans.length > 0) {
+                            updatedPlans.forEach(planName => {
+                                summaryMessage += `Plano "${planName}" atualizado:\n`;
+                                const changes = changesSummary[planName];
+                                if (changes.updated.length > 0) {
+                                    summaryMessage += `  - ${changes.updated.length} talhões com progresso atualizado.\n`;
+                                }
+                                if (changes.removed.length > 0) {
+                                    summaryMessage += `  - ${changes.removed.length} talhões removidos (encerrados).\n`;
+                                }
+                            });
+                        } else {
+                            summaryMessage += "Nenhum plano foi alterado.\n";
+                        }
+
+                        if (notFoundTalhoes.length > 0) {
+                            summaryMessage += `\nAviso: ${notFoundTalhoes.length} talhões do relatório não foram encontrados em nenhum plano ativo.`;
+                        }
+
+                        const { confirmationModal } = App.elements;
+                        confirmationModal.title.textContent = "Resumo da Sincronização";
+                        confirmationModal.message.textContent = summaryMessage;
+                        confirmationModal.confirmBtn.textContent = "OK";
+                        confirmationModal.cancelBtn.style.display = 'none';
+                        confirmationModal.overlay.classList.add('show');
+                        
+                        const closeHandler = () => {
+                            confirmationModal.overlay.classList.remove('show');
+                            confirmationModal.confirmBtn.removeEventListener('click', closeHandler);
+                            confirmationModal.closeBtn.removeEventListener('click', closeHandler);
+                            // Reset modal to default
+                            setTimeout(() => {
+                                confirmationModal.confirmBtn.textContent = "Confirmar";
+                                confirmationModal.cancelBtn.style.display = 'inline-flex';
+                            }, 300);
+                        };
+                        confirmationModal.confirmBtn.addEventListener('click', closeHandler);
+                        confirmationModal.closeBtn.addEventListener('click', closeHandler);
+
 
                     } catch (e) {
                         App.ui.showAlert(`Erro ao importar: ${e.message}`, "error", 6000);
                         console.error(e);
                     } finally {
                         App.ui.setLoading(false);
-                        if (type === 'progress') App.elements.companyConfig.progressInput.value = '';
-                        else App.elements.companyConfig.closedInput.value = '';
+                        const inputToClear = type === 'progress' ? App.elements.companyConfig.progressInput : App.elements.companyConfig.closedInput;
+                        if (inputToClear) inputToClear.value = '';
                     }
                 };
                 reader.readAsText(file, 'ISO-8859-1');
-            },
+            }
         },
         
         gemini: {
