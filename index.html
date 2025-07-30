@@ -315,7 +315,7 @@
         margin-bottom: 20px;
       }
        .dashboard-header h2 {
-         margin: 0;
+        margin: 0;
        }
       .btn-back-dashboard {
         background: var(--color-bg);
@@ -837,7 +837,7 @@
                         </div>
                         
                         <div id="harvestTalhaoSelectionContainer">
-                            <label>Talhões Disponíveis:</label>
+                            <label>Talhões Disponíveis: <input type="checkbox" id="selectAllTalhoes" style="width: auto; margin-left: 10px;"> <span style="font-size: 14px; color: var(--color-text-light);">Selecionar Todos</span></label>
                             <div id="harvestTalhaoSelectionList" class="talhao-selection-list"></div>
                         </div>
                         <div class="form-row" style="align-items: flex-end;">
@@ -991,6 +991,12 @@
                 <div class="card" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-check-square"></i> 2. Selecione as Colunas para o Relatório</h3>
                     <div class="report-options-grid" id="reportOptionsContainer">
+                        <!-- NOVO CARD DE TALHÃO -->
+                        <label class="report-option-item">
+                            <input type="checkbox" data-column="talhoes" checked>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content"><i class="fas fa-th-large"></i><span>Talhão</span></span>
+                        </label>
                         <label class="report-option-item">
                             <input type="checkbox" data-column="variedade" checked>
                             <span class="checkbox-visual"><i class="fas fa-check"></i></span>
