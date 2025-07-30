@@ -111,7 +111,6 @@ try {
       return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
-  // [ALTERADO] Função de cabeçalho para não incluir mais a informação do gerador
   const generatePdfHeader = async (doc, title) => {
     try {
       const configDoc = await db.collection('config').doc('company').get();
@@ -127,19 +126,25 @@ try {
     doc.moveDown(2);
     return doc.y;
   };
-
-  // [NOVO] Função para gerar o rodapé
+  
+  // [CORREÇÃO] Função de rodapé agora é chamada para cada página
   const generatePdfFooter = (doc, generatedBy = 'N/A') => {
     const pageCount = doc.bufferedPageRange().count;
     for (let i = 0; i < pageCount; i++) {
         doc.switchToPage(i);
         
-        // Adiciona a informação do gerador no canto inferior esquerdo
         const footerY = doc.page.height - doc.page.margins.bottom + 10;
-        doc.fontSize(8).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, doc.page.margins.left, footerY, { align: 'left' });
+        doc.fontSize(8).font('Helvetica')
+           .text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, 
+                 doc.page.margins.left, 
+                 footerY, 
+                 { align: 'left', lineBreak: false });
 
-        // Adiciona o número da página no canto inferior direito
-        doc.fontSize(8).font('Helvetica').text(`Página ${i + 1} de ${pageCount}`, 0, footerY, { align: 'right' });
+        doc.fontSize(8).font('Helvetica')
+           .text(`Página ${i + 1} de ${pageCount}`, 
+                 0, 
+                 footerY, 
+                 { align: 'right', width: doc.page.width - doc.page.margins.right });
     }
   };
 
@@ -208,7 +213,7 @@ try {
       if (data.length === 0) {
         await generatePdfHeader(doc, title);
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
-        generatePdfFooter(doc, filters.generatedBy); // Adiciona rodapé mesmo em relatório vazio
+        generatePdfFooter(doc, filters.generatedBy);
         doc.end();
         return;
       }
