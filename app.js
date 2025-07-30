@@ -919,10 +919,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 talhaoManagementContainer.style.display = 'block';
                 
-                // Exibe o nome da fazenda
                 selectedFarmName.innerHTML = `${farm.code} - ${farm.name}`;
                 
-                // Exibe os tipos da fazenda e os botões de ação
                 const farmTypesHTML = farm.types && farm.types.length > 0 ? `(${farm.types.join(', ')})` : '';
                 selectedFarmTypes.innerHTML = `
                     <span style="font-weight: 500; font-size: 14px; color: var(--color-text-light); margin-left: 10px;">
@@ -979,8 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
-                // BUGFIX #3: A lista de talhões encerrados agora é consultada de todos os planos para garantir que um talhão encerrado não apareça em nenhum lugar
+                const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value, App.state.activeHarvestPlan.id);
                 const permanentlyClosedTalhaoIds = App.actions.getGloballyClosedTalhaoIds();
                 
                 const availableTalhoes = farm.talhoes.filter(t => 
@@ -988,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
 
                 if (availableTalhoes.length === 0 && plotIdsToCheck.length === 0) {
-                        talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados neste plano.</p>';
+                        talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
                         return;
                 }
                 
@@ -1000,16 +997,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const uniqueTalhoesToShow = [...new Map(talhoesToShow.map(item => [item['id'], item])).values()];
 
-
                 uniqueTalhoesToShow.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const isChecked = plotIdsToCheck.includes(talhao.id);
                     
                     const label = document.createElement('label');
                     label.className = 'talhao-selection-item';
                     
-                    // BUGFIX #1: Removido o atributo 'for' e adicionado um event listener explícito para garantir a marcação/desmarcação correta do checkbox.
                     label.addEventListener('click', (e) => {
-                        // Previne que o evento de clique na label dispare duas vezes a mudança do checkbox
                         e.preventDefault();
                         const checkbox = label.querySelector('input[type="checkbox"]');
                         if (checkbox) {
@@ -1040,19 +1034,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             },
+            // [CORREÇÃO #3] - Lógica do card de utilizador redesenhada para melhor interatividade
             _createUserCardHTML(user) {
                 const getRoleInfo = (role) => {
                     const roles = { admin: ['Administrador', 'var(--color-primary)'], supervisor: ['Supervisor', 'var(--color-warning)'], tecnico: ['Técnico', 'var(--color-accent)'], colaborador: ['Colaborador', 'var(--color-purple)'], user: ['Utilizador', '#718096'] };
                     return roles[role] || ['Desconhecido', '#718096'];
                 };
                 const [roleName, roleColor] = getRoleInfo(user.role);
-                const buttonsHTML = user.email.toLowerCase() === 'admin@agrovetor.com' ? '' : `
-                    <button class="btn-excluir" style="background: ${user.active ? '#718096' : 'var(--color-success)'};" data-action="toggle" data-id="${user.id}">${user.active ? '<i class="fas fa-ban"></i> Desativar' : '<i class="fas fa-check"></i> Ativar'}</button>
-                    <button class="btn-excluir" style="background: var(--color-info);" data-action="edit" data-id="${user.id}"><i class="fas fa-edit"></i> Editar</button>
+                const isSuperAdmin = user.email.toLowerCase() === 'admin@agrovetor.com';
+
+                const buttonsHTML = isSuperAdmin ? '' : `
+                    <button class="btn-excluir" style="background: ${user.active ? '#718096' : 'var(--color-success)'};" data-action="toggle" data-id="${user.id}" title="${user.active ? 'Desativar' : 'Ativar'}">${user.active ? '<i class="fas fa-ban"></i>' : '<i class="fas fa-check"></i>'}</button>
                 `;
-                return `<div class="user-card"><div class="user-header"><div class="user-title">${user.username || user.email}<span class="user-role-badge" style="background: ${roleColor}; margin-left:10px; padding: 2px 8px; font-size: 12px; color: white; border-radius: 10px;">${roleName}</span></div><div class="user-status ${user.active ? '' : 'inactive'}" style="color: ${user.active ? 'var(--color-success)' : 'var(--color-danger)'}"><i class="fas fa-circle"></i> ${user.active ? 'Ativo' : 'Inativo'}</div></div><div class="user-actions" style="margin-top: 10px; display: flex; gap: 10px; justify-content: flex-end;">${buttonsHTML}</div></div>`;
+
+                return `
+                <div class="user-card ${!user.active ? 'inactive-card' : ''}" data-action="edit" data-id="${user.id}" title="Clique para editar">
+                    <div class="user-header">
+                        <div class="user-info">
+                            <span class="user-title">${user.username || user.email}</span>
+                            <span class="user-role-badge" style="background-color: ${roleColor};">${roleName}</span>
+                        </div>
+                        <div class="user-status-actions">
+                            <div class="user-status ${user.active ? 'active' : 'inactive'}">
+                                <i class="fas fa-circle"></i> ${user.active ? 'Ativo' : 'Inativo'}
+                            </div>
+                            <div class="user-actions">
+                                ${buttonsHTML}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
             },
-            renderUsersList() { const { list } = App.elements.users; list.innerHTML = App.state.users.map((u) => this._createUserCardHTML(u)).join(''); },
+            renderUsersList() { 
+                const { list } = App.elements.users; 
+                list.innerHTML = App.state.users
+                    .sort((a,b) => (a.username || a.email).localeCompare(b.username || b.email))
+                    .map((u) => this._createUserCardHTML(u)).join(''); 
+            },
             renderPersonnelList() {
                 const { list } = App.elements.personnel;
                 list.innerHTML = '';
@@ -1285,7 +1303,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     confirmBtn.removeEventListener('click', confirmHandler);
                     cancelBtn.removeEventListener('click', closeHandler);
                     closeBtn.removeEventListener('click', closeHandler);
-                    // Reset modal to default
                     setTimeout(() => {
                         confirmBtn.textContent = "Confirmar";
                         cancelBtn.style.display = 'inline-flex';
@@ -1450,29 +1467,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(App.elements.dashboard.btnAnalisar) App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
-                // BUGFIX #2: Removido o event listener de clique que causava o "duplo clique" nos toggles de permissão.
-                // A funcionalidade nativa da tag <label> é suficiente para alternar o checkbox.
-                // O código abaixo foi REMOVIDO:
-                /*
-                App.elements.users.permissionsContainer.addEventListener('click', e => {
-                    const item = e.target.closest('.permission-item');
-                    if (item) {
-                        const checkbox = item.querySelector('input[type="checkbox"]');
-                        if (checkbox) {
-                            checkbox.checked = !checkbox.checked;
-                        }
-                    }
-                });
-                */
-
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
+                // [CORREÇÃO #3] - Event listener para os cards de utilizador
                 App.elements.users.list.addEventListener('click', e => {
+                    const card = e.target.closest('.user-card');
                     const button = e.target.closest('button[data-action]');
-                    if (!button) return;
-                    const { action, id } = button.dataset;
-                    if (action === 'edit') this.openUserEditModal(id);
-                    if (action === 'toggle') App.auth.toggleUserStatus(id);
+                    
+                    if (button) { // Se um botão dentro do card foi clicado
+                        e.stopPropagation(); // Impede que o clique no botão ative o clique no card
+                        const { action, id } = button.dataset;
+                        if (action === 'toggle') App.auth.toggleUserStatus(id);
+                    } else if (card) { // Se qualquer outra parte do card foi clicada
+                        const { id } = card.dataset;
+                        this.openUserEditModal(id);
+                    }
                 });
 
                 const adminModal = App.elements.adminPasswordConfirmModal;
@@ -1563,7 +1572,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 App.elements.harvest.fazenda.addEventListener('change', e => this.renderHarvestTalhaoSelection(e.target.value));
                 
-                // BUGFIX #1: O event listener do "Selecionar Todos" está correto, o problema estava na renderização dos talhões.
                 App.elements.harvest.selectAllTalhoes.addEventListener('change', (e) => {
                     const isChecked = e.target.checked;
                     const talhaoCheckboxes = App.elements.harvest.talhaoSelectionList.querySelectorAll('input[type="checkbox"]');
@@ -1625,8 +1633,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#cadastrarPessoas');
                 this.enableEnterKeyNavigation('#adminPasswordConfirmModal');
 
-                // BUGFIX #4: Alterado o listener para 'window' e usando a fase de captura (true)
-                // para garantir que a atividade do utilizador seja detetada de forma mais fiável, prevenindo o logout inesperado.
+                // [CORREÇÃO #4] - Timer de inatividade agora ouve eventos na 'window' para ser mais fiável.
                 ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
                     window.addEventListener(event, () => App.actions.resetInactivityTimer(), true);
                 });
@@ -1729,21 +1736,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            getAssignedTalhaoIds(editingGroupId = null) {
+            // [CORREÇÃO #1] - Lógica ajustada para verificar apenas o plano atual se estiver a editar, ou todos os outros planos se estiver a adicionar
+            getAssignedTalhaoIds(editingGroupId = null, currentPlanId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
 
                 allPlans.forEach(plan => {
-                    plan.sequence.forEach(group => {
-                        if (editingGroupId && group.id == editingGroupId) {
-                            return;
-                        }
-                        group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                    });
+                    // Se estamos a editar um grupo, só ignoramos os talhões de outros planos
+                    // ou de outros grupos no mesmo plano.
+                    if (plan.id !== currentPlanId && currentPlanId !== null) {
+                         plan.sequence.forEach(group => {
+                            group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
+                        });
+                    } else if (plan.id === currentPlanId) {
+                         plan.sequence.forEach(group => {
+                            if (group.id != editingGroupId) {
+                                group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
+                            }
+                        });
+                    }
                 });
                 return Array.from(assignedIds);
             },
-            // BUGFIX #3: Nova função para obter uma lista global de todos os talhões marcados como encerrados em qualquer plano.
+            // [CORREÇÃO #1] - Nova função para obter uma lista global de todos os talhões marcados como encerrados em qualquer plano.
             getGloballyClosedTalhaoIds() {
                 const closedIds = new Set();
                 App.state.harvestPlans.forEach(plan => {
@@ -2643,7 +2658,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
-            // BUGFIX #3: Lógica de importação de talhões encerrados foi reescrita para ser global
             async importHarvestReport(file, type) {
                 if (!file) return;
 
@@ -3157,45 +3171,131 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         reports: {
-            _getReportData(collectionName, filters) {
-                // Esta função é um fallback para quando o backend não está disponível.
-                // A lógica de filtragem aqui é simplificada.
-                let data = App.state[collectionName];
-                if (filters.inicio) data = data.filter(d => d.data >= filters.inicio);
-                if (filters.fim) data = data.filter(d => d.data <= filters.fim);
-                if (filters.fazendaCodigo) data = data.filter(d => d.codigo === filters.fazendaCodigo);
-                // Adicione mais filtros conforme necessário
-                return data;
+             // [CORREÇÃO #2] - Função de comunicação com o backend restaurada
+            _fetchAndDownloadReport(endpoint, filters, filename) {
+                const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
+                cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
+
+                const params = new URLSearchParams(cleanFilters);
+                // A URL do seu backend Render.com
+                const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
+            
+                App.ui.setLoading(true, "A gerar relatório no servidor...");
+        
+                fetch(apiUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        a.remove();
+                        App.ui.showAlert('Relatório gerado com sucesso!');
+                    })
+                    .catch(error => {
+                        console.error('Erro ao gerar relatório via API:', error);
+                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
+                    })
+                    .finally(() => {
+                        App.ui.setLoading(false);
+                    });
             },
+        
             generateBrocamentoPDF() {
                 const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const farmId = filtroFazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-
-                const data = this._getReportData('registros', {
+                const filters = {
                     inicio: filtroInicio.value,
                     fim: filtroFim.value,
                     fazendaCodigo: farm ? farm.code : '',
+                    tipoRelatorio: tipoRelatorio.value,
                     tipos: selectedTypes.join(',')
+                };
+                this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
+            },
+        
+            generateBrocamentoCSV() {
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: farm ? farm.code : '',
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
+                };
+                this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
+            },
+        
+            generatePerdaPDF() {
+                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: farm ? farm.code : '',
+                    talhao: filtroTalhao.value,
+                    matricula: filtroOperador.value,
+                    frenteServico: filtroFrente.value,
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
+                };
+                this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
+            },
+        
+            generatePerdaCSV() {
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.perda;
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: farm ? farm.code : '',
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
+                };
+                this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
+            },
+        
+            generateCustomHarvestReport(format) {
+                const { select, optionsContainer } = App.elements.relatorioColheita;
+                const planId = select.value;
+                if (!planId) {
+                    App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
+                    return;
+                }
+                
+                const selectedColumns = {};
+                optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    selectedColumns[cb.dataset.column] = cb.checked;
                 });
 
-                // Lógica de geração de PDF local (simplificada)
-                App.ui.showAlert("A geração de PDF via backend não está disponível. Gerando uma versão local simplificada.", "info");
-                // ... (código de geração de PDF local pode ser adicionado aqui)
-            },
-            generateBrocamentoCSV() {
-                 // ... (implementação similar)
-            },
-            generatePerdaPDF() {
-                 // ... (implementação similar)
-            },
-            generatePerdaCSV() {
-                 // ... (implementação similar)
-            },
-            generateCustomHarvestReport(format) {
-                // ... (implementação similar)
+                const filters = {
+                    planId: planId,
+                    selectedColumns: JSON.stringify(selectedColumns)
+                };
+                
+                this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_custom.${format}`);
             }
         },
 
