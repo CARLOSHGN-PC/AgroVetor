@@ -127,7 +127,7 @@ try {
     return doc.y;
   };
   
-  // [ALTERAÇÃO FINAL] Função de rodapé agora só mostra a paginação se houver mais de 1 página
+  // [CORREÇÃO FINAL] Função de rodapé agora SEM paginação
   const generatePdfFooter = (doc, generatedBy = 'N/A') => {
     const pageCount = doc.bufferedPageRange().count;
     for (let i = 0; i < pageCount; i++) {
@@ -139,15 +139,6 @@ try {
                  doc.page.margins.left, 
                  footerY, 
                  { align: 'left', lineBreak: false });
-
-        // Só adiciona a paginação se houver mais de uma página
-        if (pageCount > 1) {
-            doc.fontSize(8).font('Helvetica')
-               .text(`Página ${i + 1} de ${pageCount}`, 
-                     0, 
-                     footerY, 
-                     { align: 'right', width: doc.page.width - doc.page.margins.right });
-        }
     }
   };
 
