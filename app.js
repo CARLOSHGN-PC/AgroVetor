@@ -947,12 +947,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     row.innerHTML = `
                         <td data-label="Nome">${talhao.name}</td>
-                        <td data-label="Área">${talhao.area || ''}</td>
-                        <td data-label="TCH">${talhao.tch || ''}</td>
+                        <td data-label="Área">${talhao.area ? talhao.area.toFixed(2) : ''}</td>
+                        <td data-label="TCH">${talhao.tch ? talhao.tch.toFixed(2) : ''}</td>
                         <td data-label="Produção">${talhao.producao ? talhao.producao.toFixed(2) : ''}</td>
                         <td data-label="Variedade">${talhao.variedade || ''}</td>
                         <td data-label="Corte">${talhao.corte || ''}</td>
-                        <td data-label="Distância">${talhao.distancia || ''}</td>
+                        <td data-label="Distância">${talhao.distancia ? talhao.distancia.toFixed(2) : ''}</td>
                         <td data-label="Última Colheita">${dataColheita}</td>
                         <td data-label="Ações">
                             <div style="display: flex; justify-content: flex-end; gap: 5px;">
@@ -967,7 +967,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderHarvestTalhaoSelection(farmId, plotIdsToCheck = []) {
                 const { talhaoSelectionList, editingGroupId, selectAllTalhoes } = App.elements.harvest;
                 talhaoSelectionList.innerHTML = '';
-                selectAllTalhoes.checked = false; 
+                selectAllTalhoes.checked = false;
 
                 if (!App.state.activeHarvestPlan) return;
 
@@ -977,15 +977,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value, App.state.activeHarvestPlan.id);
-                const permanentlyClosedTalhaoIds = App.actions.getGloballyClosedTalhaoIds();
+                const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
+                const permanentlyClosedTalhaoIds = App.state.activeHarvestPlan.closedTalhaoIds || [];
                 
                 const availableTalhoes = farm.talhoes.filter(t => 
                     !allAssignedTalhaoIds.includes(t.id) && !permanentlyClosedTalhaoIds.includes(t.id)
                 );
 
                 if (availableTalhoes.length === 0 && plotIdsToCheck.length === 0) {
-                        talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
+                        talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados neste plano.</p>';
                         return;
                 }
                 
@@ -997,19 +997,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const uniqueTalhoesToShow = [...new Map(talhoesToShow.map(item => [item['id'], item])).values()];
 
+
                 uniqueTalhoesToShow.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const isChecked = plotIdsToCheck.includes(talhao.id);
                     
                     const label = document.createElement('label');
                     label.className = 'talhao-selection-item';
-                    
-                    label.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        const checkbox = label.querySelector('input[type="checkbox"]');
-                        if (checkbox) {
-                            checkbox.checked = !checkbox.checked;
-                        }
-                    });
+                    label.htmlFor = `talhao-select-${talhao.id}`;
 
                     label.innerHTML = `
                         <input type="checkbox" id="talhao-select-${talhao.id}" data-talhao-id="${talhao.id}" ${isChecked ? 'checked' : ''}>
@@ -1034,43 +1028,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             },
-            // [CORREÇÃO #3] - Lógica do card de utilizador redesenhada para melhor interatividade
             _createUserCardHTML(user) {
                 const getRoleInfo = (role) => {
                     const roles = { admin: ['Administrador', 'var(--color-primary)'], supervisor: ['Supervisor', 'var(--color-warning)'], tecnico: ['Técnico', 'var(--color-accent)'], colaborador: ['Colaborador', 'var(--color-purple)'], user: ['Utilizador', '#718096'] };
                     return roles[role] || ['Desconhecido', '#718096'];
                 };
                 const [roleName, roleColor] = getRoleInfo(user.role);
-                const isSuperAdmin = user.email.toLowerCase() === 'admin@agrovetor.com';
-
-                const buttonsHTML = isSuperAdmin ? '' : `
-                    <button class="btn-excluir" style="background: ${user.active ? '#718096' : 'var(--color-success)'};" data-action="toggle" data-id="${user.id}" title="${user.active ? 'Desativar' : 'Ativar'}">${user.active ? '<i class="fas fa-ban"></i>' : '<i class="fas fa-check"></i>'}</button>
+                const buttonsHTML = user.email.toLowerCase() === 'admin@agrovetor.com' ? '' : `
+                    <button class="btn-excluir" style="background: ${user.active ? '#718096' : 'var(--color-success)'};" data-action="toggle" data-id="${user.id}">${user.active ? '<i class="fas fa-ban"></i> Desativar' : '<i class="fas fa-check"></i> Ativar'}</button>
+                    <button class="btn-excluir" style="background: var(--color-info);" data-action="edit" data-id="${user.id}"><i class="fas fa-edit"></i> Editar</button>
                 `;
-
-                return `
-                <div class="user-card ${!user.active ? 'inactive-card' : ''}" data-action="edit" data-id="${user.id}" title="Clique para editar">
-                    <div class="user-header">
-                        <div class="user-info">
-                            <span class="user-title">${user.username || user.email}</span>
-                            <span class="user-role-badge" style="background-color: ${roleColor};">${roleName}</span>
-                        </div>
-                        <div class="user-status-actions">
-                            <div class="user-status ${user.active ? 'active' : 'inactive'}">
-                                <i class="fas fa-circle"></i> ${user.active ? 'Ativo' : 'Inativo'}
-                            </div>
-                            <div class="user-actions">
-                                ${buttonsHTML}
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
+                return `<div class="user-card"><div class="user-header"><div class="user-title">${user.username || user.email}<span class="user-role-badge" style="background: ${roleColor}; margin-left:10px; padding: 2px 8px; font-size: 12px; color: white; border-radius: 10px;">${roleName}</span></div><div class="user-status ${user.active ? '' : 'inactive'}" style="color: ${user.active ? 'var(--color-success)' : 'var(--color-danger)'}"><i class="fas fa-circle"></i> ${user.active ? 'Ativo' : 'Inativo'}</div></div><div class="user-actions" style="margin-top: 10px; display: flex; gap: 10px; justify-content: flex-end;">${buttonsHTML}</div></div>`;
             },
-            renderUsersList() { 
-                const { list } = App.elements.users; 
-                list.innerHTML = App.state.users
-                    .sort((a,b) => (a.username || a.email).localeCompare(b.username || b.email))
-                    .map((u) => this._createUserCardHTML(u)).join(''); 
-            },
+            renderUsersList() { const { list } = App.elements.users; list.innerHTML = App.state.users.map((u) => this._createUserCardHTML(u)).join(''); },
             renderPersonnelList() {
                 const { list } = App.elements.personnel;
                 list.innerHTML = '';
@@ -1303,6 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     confirmBtn.removeEventListener('click', confirmHandler);
                     cancelBtn.removeEventListener('click', closeHandler);
                     closeBtn.removeEventListener('click', closeHandler);
+                    // Reset modal to default
                     setTimeout(() => {
                         confirmBtn.textContent = "Confirmar";
                         cancelBtn.style.display = 'inline-flex';
@@ -1467,21 +1438,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(App.elements.dashboard.btnAnalisar) App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
+                App.elements.users.permissionsContainer.addEventListener('click', e => {
+                    const item = e.target.closest('.permission-item');
+                    if (item) {
+                        const checkbox = item.querySelector('input[type="checkbox"]');
+                        if (checkbox && e.target.tagName !== 'INPUT') { // Evita duplo toggle
+                            checkbox.checked = !checkbox.checked;
+                        }
+                    }
+                });
+                
+                App.elements.userEditModal.permissionGrid.addEventListener('click', e => {
+                    const item = e.target.closest('.permission-item');
+                    if (item) {
+                        const checkbox = item.querySelector('input[type="checkbox"]');
+                        if (checkbox && e.target.tagName !== 'INPUT') { // Evita duplo toggle
+                            checkbox.checked = !checkbox.checked;
+                        }
+                    }
+                });
+
+
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
-                // [CORREÇÃO #3] - Event listener para os cards de utilizador
                 App.elements.users.list.addEventListener('click', e => {
-                    const card = e.target.closest('.user-card');
                     const button = e.target.closest('button[data-action]');
-                    
-                    if (button) { // Se um botão dentro do card foi clicado
-                        e.stopPropagation(); // Impede que o clique no botão ative o clique no card
-                        const { action, id } = button.dataset;
-                        if (action === 'toggle') App.auth.toggleUserStatus(id);
-                    } else if (card) { // Se qualquer outra parte do card foi clicada
-                        const { id } = card.dataset;
-                        this.openUserEditModal(id);
-                    }
+                    if (!button) return;
+                    const { action, id } = button.dataset;
+                    if (action === 'edit') this.openUserEditModal(id);
+                    if (action === 'toggle') App.auth.toggleUserStatus(id);
                 });
 
                 const adminModal = App.elements.adminPasswordConfirmModal;
@@ -1633,9 +1618,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#cadastrarPessoas');
                 this.enableEnterKeyNavigation('#adminPasswordConfirmModal');
 
-                // [CORREÇÃO #4] - Timer de inatividade agora ouve eventos na 'window' para ser mais fiável.
                 ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
-                    window.addEventListener(event, () => App.actions.resetInactivityTimer(), true);
+                    document.addEventListener(event, () => App.actions.resetInactivityTimer());
                 });
 
                 App.elements.installAppBtn.addEventListener('click', async () => {
@@ -1736,37 +1720,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            // [CORREÇÃO #1] - Lógica ajustada para verificar apenas o plano atual se estiver a editar, ou todos os outros planos se estiver a adicionar
-            getAssignedTalhaoIds(editingGroupId = null, currentPlanId = null) {
+            getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
 
                 allPlans.forEach(plan => {
-                    // Se estamos a editar um grupo, só ignoramos os talhões de outros planos
-                    // ou de outros grupos no mesmo plano.
-                    if (plan.id !== currentPlanId && currentPlanId !== null) {
-                         plan.sequence.forEach(group => {
-                            group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                        });
-                    } else if (plan.id === currentPlanId) {
-                         plan.sequence.forEach(group => {
-                            if (group.id != editingGroupId) {
-                                group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                            }
-                        });
-                    }
+                    plan.sequence.forEach(group => {
+                        if (editingGroupId && group.id == editingGroupId) {
+                            return;
+                        }
+                        group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
+                    });
                 });
                 return Array.from(assignedIds);
-            },
-            // [CORREÇÃO #1] - Nova função para obter uma lista global de todos os talhões marcados como encerrados em qualquer plano.
-            getGloballyClosedTalhaoIds() {
-                const closedIds = new Set();
-                App.state.harvestPlans.forEach(plan => {
-                    if (plan.closedTalhaoIds) {
-                        plan.closedTalhaoIds.forEach(id => closedIds.add(id));
-                    }
-                });
-                return Array.from(closedIds);
             },
             async saveFarm() {
                 const { farmCode, farmName, farmTypeCheckboxes } = App.elements.cadastros;
@@ -2107,7 +2073,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         startDate: new Date().toISOString().split('T')[0],
                         dailyRate: 750,
                         sequence: [],
-                        closedTalhaoIds: []
+                        closedTalhaoIds: [] 
                     };
                 }
                 
@@ -2434,112 +2400,112 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (!file) return;
                  const reader = new FileReader();
                  reader.onload = async (event) => {
-                         const CHUNK_SIZE = 400; 
-                         const PAUSE_DURATION = 50;
-                         
-                         try {
-                             const csv = event.target.result;
-                             const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                             const totalLines = lines.length - 1;
+                        const CHUNK_SIZE = 400; 
+                        const PAUSE_DURATION = 50;
+                        
+                        try {
+                            const csv = event.target.result;
+                            const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                            const totalLines = lines.length - 1;
 
-                             if (totalLines <= 0) {
-                                 App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
-                             }
-                             
-                             App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
-                             await new Promise(resolve => setTimeout(resolve, 100));
+                            if (totalLines <= 0) {
+                                App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
+                            }
+                            
+                            App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
+                            await new Promise(resolve => setTimeout(resolve, 100));
 
-                             const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-                             const headerIndexes = {
-                                 farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
-                                 farm_type: fileHeaders.indexOf('TIPO'),
-                                 talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
-                                 talhao_tch: fileHeaders.indexOf('TCH'),
-                                 talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
-                                 talhao_corte: fileHeaders.indexOf('CORTE'),
-                                 talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
-                                 talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
-                             };
+                            const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+                            const headerIndexes = {
+                                farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
+                                farm_type: fileHeaders.indexOf('TIPO'),
+                                talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
+                                talhao_tch: fileHeaders.indexOf('TCH'),
+                                talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
+                                talhao_corte: fileHeaders.indexOf('CORTE'),
+                                talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
+                                talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
+                            };
 
-                             if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
-                                 App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
-                                 App.ui.setLoading(false);
-                                 return;
-                             }
-                             
-                             const fazendasToUpdate = {};
-                             for (let i = 1; i < lines.length; i++) {
-                                 const data = lines[i].split(';');
-                                 if (data.length < 2) continue;
-                                 const farmCode = data[headerIndexes.farm_code]?.trim();
-                                 if (!farmCode) continue;
+                            if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
+                                App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
+                                App.ui.setLoading(false);
+                                return;
+                            }
+                            
+                            const fazendasToUpdate = {};
+                            for (let i = 1; i < lines.length; i++) {
+                                const data = lines[i].split(';');
+                                if (data.length < 2) continue;
+                                const farmCode = data[headerIndexes.farm_code]?.trim();
+                                if (!farmCode) continue;
 
-                                 if (!fazendasToUpdate[farmCode]) {
-                                     let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
-                                     fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
-                                         code: farmCode,
-                                         name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
-                                         types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
-                                         talhoes: []
-                                     };
-                                 }
+                                if (!fazendasToUpdate[farmCode]) {
+                                    let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
+                                    fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
+                                        code: farmCode,
+                                        name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
+                                        types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
+                                        talhoes: []
+                                    };
+                                }
 
-                                 const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
-                                 if(!talhaoName) continue;
+                                const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
+                                if(!talhaoName) continue;
 
-                                 let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
-                                 const area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0;
-                                 const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
-                                 const producao = area * tch;
+                                let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                                const area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0;
+                                const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
+                                const producao = area * tch;
 
-                                 if (talhao) { 
-                                     talhao.area = area;
-                                     talhao.tch = tch;
-                                     talhao.producao = producao;
-                                     talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
-                                     talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
-                                     talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
-                                     talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
-                                 } else { 
-                                     fazendasToUpdate[farmCode].talhoes.push({
-                                         id: Date.now() + i, name: talhaoName,
-                                         area: area,
-                                         tch: tch,
-                                         producao: producao,
-                                         variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
-                                         corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
-                                         distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
-                                         dataUltimaColheita: this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || '',
-                                     });
-                                 }
-                             }
-                             
-                             const farmCodes = Object.keys(fazendasToUpdate);
-                             for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
-                                 const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
-                                 const batch = writeBatch(db);
-                                 
-                                 chunk.forEach(code => {
-                                     const farmData = fazendasToUpdate[code];
-                                     const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
-                                     batch.set(docRef, farmData, { merge: true });
-                                 });
+                                if (talhao) { 
+                                    talhao.area = area;
+                                    talhao.tch = tch;
+                                    talhao.producao = producao;
+                                    talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
+                                    talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
+                                    talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
+                                    talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
+                                } else { 
+                                    fazendasToUpdate[farmCode].talhoes.push({
+                                        id: Date.now() + i, name: talhaoName,
+                                        area: area,
+                                        tch: tch,
+                                        producao: producao,
+                                        variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
+                                        corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
+                                        distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
+                                        dataUltimaColheita: this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || '',
+                                    });
+                                }
+                            }
+                            
+                            const farmCodes = Object.keys(fazendasToUpdate);
+                            for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
+                                const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
+                                const batch = writeBatch(db);
+                                
+                                chunk.forEach(code => {
+                                    const farmData = fazendasToUpdate[code];
+                                    const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
+                                    batch.set(docRef, farmData, { merge: true });
+                                });
 
-                                 await batch.commit();
-                                 const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
-                                 App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
-                                 await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                             }
+                                await batch.commit();
+                                const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
+                                App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
+                                await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+                            }
 
-                             App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
+                            App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
 
-                         } catch (e) {
-                             App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                             console.error(e);
-                         } finally {
-                             App.ui.setLoading(false);
-                             App.elements.cadastros.csvFileInput.value = '';
-                         }
+                        } catch (e) {
+                            App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
+                            console.error(e);
+                        } finally {
+                            App.ui.setLoading(false);
+                            App.elements.cadastros.csvFileInput.value = '';
+                        }
                  };
                  reader.readAsText(file, 'ISO-8859-1');
             },
@@ -2560,67 +2526,67 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (!file) return;
                  const reader = new FileReader();
                  reader.onload = async (event) => {
-                         const CHUNK_SIZE = 400;
-                         const PAUSE_DURATION = 50;
-                         try {
-                             const csv = event.target.result;
-                             const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                             const totalLines = lines.length - 1;
-                             if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
-                             
-                             App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
-                             await new Promise(resolve => setTimeout(resolve, 100));
+                        const CHUNK_SIZE = 400;
+                        const PAUSE_DURATION = 50;
+                        try {
+                            const csv = event.target.result;
+                            const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                            const totalLines = lines.length - 1;
+                            if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
+                            
+                            App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
+                            await new Promise(resolve => setTimeout(resolve, 100));
 
-                             const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
-                             const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
+                            const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
+                            const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
 
-                             if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
-                                 App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
-                                 App.ui.setLoading(false);
-                                 return;
-                             }
+                            if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
+                                App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
+                                App.ui.setLoading(false);
+                                return;
+                            }
 
-                             const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
-                             
-                             for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
-                                 const chunk = lines.slice(i, i + CHUNK_SIZE);
-                                 const batch = writeBatch(db);
-                                 let updatedCountInChunk = 0;
-                                 let newCountInChunk = 0;
+                            const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
+                            
+                            for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
+                                const chunk = lines.slice(i, i + CHUNK_SIZE);
+                                const batch = writeBatch(db);
+                                let updatedCountInChunk = 0;
+                                let newCountInChunk = 0;
 
-                                 chunk.forEach(line => {
-                                     const data = line.split(';');
-                                     if (data.length < 2) return;
-                                     const matricula = data[headerIndexes.matricula]?.trim();
-                                     const name = data[headerIndexes.name]?.trim();
-                                     if (!matricula || !name) return;
+                                chunk.forEach(line => {
+                                    const data = line.split(';');
+                                    if (data.length < 2) return;
+                                    const matricula = data[headerIndexes.matricula]?.trim();
+                                    const name = data[headerIndexes.name]?.trim();
+                                    if (!matricula || !name) return;
 
-                                     let person = localPersonnel.find(p => p.matricula === matricula);
-                                     if (person) {
-                                         const personRef = doc(db, 'personnel', person.id);
-                                         batch.update(personRef, { name: name });
-                                         updatedCountInChunk++;
-                                     } else {
-                                         const newPersonRef = doc(collection(db, 'personnel'));
-                                         batch.set(newPersonRef, { matricula, name });
-                                         newCountInChunk++;
-                                     }
-                                 });
+                                    let person = localPersonnel.find(p => p.matricula === matricula);
+                                    if (person) {
+                                        const personRef = doc(db, 'personnel', person.id);
+                                        batch.update(personRef, { name: name });
+                                        updatedCountInChunk++;
+                                    } else {
+                                        const newPersonRef = doc(collection(db, 'personnel'));
+                                        batch.set(newPersonRef, { matricula, name });
+                                        newCountInChunk++;
+                                    }
+                                });
 
-                                 await batch.commit();
-                                 const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
-                                 App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
-                                 await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                             }
-                             
-                             App.ui.showAlert(`Importação concluída!`, 'success');
-                         } catch (e) {
-                             App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                             console.error(e);
-                         } finally {
-                             App.ui.setLoading(false);
-                             App.elements.personnel.csvFileInput.value = '';
-                         }
+                                await batch.commit();
+                                const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
+                                App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
+                                await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+                            }
+                            
+                            App.ui.showAlert(`Importação concluída!`, 'success');
+                        } catch (e) {
+                            App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
+                            console.error(e);
+                        } finally {
+                            App.ui.setLoading(false);
+                            App.elements.personnel.csvFileInput.value = '';
+                        }
                  };
                  reader.readAsText(file, 'ISO-8859-1');
             },
@@ -2691,33 +2657,25 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (!farmCode || !talhaoName) continue;
 
                             let talhaoFoundInAnyPlan = false;
-                            const farm = App.state.fazendas.find(f => f.code === farmCode);
-                            const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === talhaoName);
 
                             for (const plan of allPlans) {
-                                if (type === 'closed') {
-                                    if (talhao) {
-                                        talhaoFoundInAnyPlan = true;
-                                        if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
-                                        if (!plan.closedTalhaoIds.includes(talhao.id)) {
-                                            plan.closedTalhaoIds.push(talhao.id);
-                                        }
-                                        for (const group of plan.sequence) {
-                                            const plotIndex = group.plots.findIndex(p => p.talhaoId === talhao.id);
-                                            if (plotIndex !== -1) {
-                                                group.plots.splice(plotIndex, 1);
-                                                if (!changesSummary[plan.frontName]) changesSummary[plan.frontName] = { updated: [], removed: [] };
-                                                changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
+                                for (const group of plan.sequence) {
+                                    if (group.fazendaCodigo === farmCode) {
+                                        const plotIndex = group.plots.findIndex(p => p.talhaoName.toUpperCase() === talhaoName);
+                                        if (plotIndex !== -1) {
+                                            talhaoFoundInAnyPlan = true;
+                                            
+                                            if (!changesSummary[plan.frontName]) {
+                                                changesSummary[plan.frontName] = { updated: [], removed: [] };
                                             }
-                                        }
-                                    }
-                                } else { // progress
-                                    for (const group of plan.sequence) {
-                                        if (group.fazendaCodigo === farmCode) {
-                                            const plotIndex = group.plots.findIndex(p => p.talhaoName.toUpperCase() === talhaoName);
-                                            if (plotIndex !== -1) {
-                                                talhaoFoundInAnyPlan = true;
-                                                if (!changesSummary[plan.frontName]) changesSummary[plan.frontName] = { updated: [], removed: [] };
+
+                                            if (type === 'closed') {
+                                                const removedPlot = group.plots.splice(plotIndex, 1)[0];
+                                                changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
+                                                if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
+                                                plan.closedTalhaoIds.push(removedPlot.talhaoId);
+
+                                            } else { // progress
                                                 const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
                                                 const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
                                                 group.areaColhida = (group.areaColhida || 0) + areaColhida;
@@ -2728,7 +2686,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     }
                                 }
                             }
-                            if (!talhaoFoundInAnyPlan && type === 'closed' && !talhao) {
+                            if (!talhaoFoundInAnyPlan) {
                                 notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
                             }
                         }
@@ -3171,13 +3129,11 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         reports: {
-             // [CORREÇÃO #2] - Função de comunicação com o backend restaurada
             _fetchAndDownloadReport(endpoint, filters, filename) {
                 const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                 cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
 
                 const params = new URLSearchParams(cleanFilters);
-                // A URL do seu backend Render.com
                 const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
             
                 App.ui.setLoading(true, "A gerar relatório no servidor...");
