@@ -60,65 +60,67 @@ try {
     });
   };
 
-  // [CORREÇÃO CRÍTICA] Função de filtragem de dados reescrita e robustecida
+  // [CORREÇÃO FINAL] Função de filtragem de dados para funcionar sem a necessidade de índices compostos complexos.
   const getFilteredData = async (collectionName, filters) => {
-    // 1. Determinar quais códigos de fazenda devem ser filtrados
-    let farmCodesToFilter = null;
+      // 1. Começa a query aplicando apenas os filtros de data, que são eficientes.
+      let query = db.collection(collectionName);
+      if (filters.inicio) {
+          query = query.where('data', '>=', filters.inicio);
+      }
+      if (filters.fim) {
+          query = query.where('data', '<=', filters.fim);
+      }
+      
+      const snapshot = await query.get();
+      let data = [];
+      snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
 
-    if (filters.fazendaCodigo && filters.fazendaCodigo !== '') {
-        // Se uma fazenda específica é selecionada, ela tem prioridade total
-        farmCodesToFilter = [filters.fazendaCodigo];
-    } else if (filters.tipos) {
-        const selectedTypes = filters.tipos.split(',').filter(t => t);
-        if (selectedTypes.length > 0) {
-            let farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
-            const farmsSnapshot = await farmsQuery.get();
-            
-            const matchingFarmCodes = [];
-            farmsSnapshot.forEach(doc => {
-                matchingFarmCodes.push(doc.data().code);
-            });
+      // 2. Prepara a lista de códigos de fazenda para filtrar em memória.
+      let farmCodesToFilter = null;
 
-            if (matchingFarmCodes.length > 0) {
-                farmCodesToFilter = matchingFarmCodes;
-            } else {
-                return []; // Se nenhuma fazenda corresponde aos tipos, retorna um array vazio
-            }
-        }
-    }
+      // Caso 2a: Um código de fazenda específico foi fornecido.
+      if (filters.fazendaCodigo && filters.fazendaCodigo !== '') {
+          farmCodesToFilter = [filters.fazendaCodigo];
+      } 
+      // Caso 2b: Nenhum código específico, mas tipos de fazenda foram fornecidos.
+      else if (filters.tipos) {
+          const selectedTypes = filters.tipos.split(',').filter(t => t); // Garante que não haja strings vazias
+          if (selectedTypes.length > 0) {
+              const farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
+              const farmsSnapshot = await farmsQuery.get();
+              
+              const matchingFarmCodes = [];
+              farmsSnapshot.forEach(doc => {
+                  matchingFarmCodes.push(doc.data().code);
+              });
 
-    // 2. Construir e executar a(s) query(s) principal(is)
-    let allData = [];
-    
-    // Função para executar uma query para um chunk de códigos de fazenda
-    const executeQueryChunk = async (codesChunk) => {
-        let query = db.collection(collectionName);
-        if (filters.inicio) query = query.where('data', '>=', filters.inicio);
-        if (filters.fim) query = query.where('data', '<=', filters.fim);
-        if (codesChunk) query = query.where('codigo', 'in', codesChunk);
-        if (filters.matricula) query = query.where('matricula', '==', filters.matricula);
+              if (matchingFarmCodes.length > 0) {
+                  farmCodesToFilter = matchingFarmCodes;
+              } else {
+                  // Se nenhum fazenda corresponde aos tipos, o resultado final deve ser vazio.
+                  return [];
+              }
+          }
+      }
 
-        const snapshot = await query.get();
-        snapshot.forEach(doc => allData.push({ id: doc.id, ...doc.data() }));
-    };
+      // 3. Aplica os filtros de fazenda e outros filtros em memória sobre os dados já obtidos.
+      let filteredData = data;
 
-    if (farmCodesToFilter) {
-        // Firestore 'in' query supports up to 30 elements. Dividir em chunks se necessário.
-        const CHUNK_SIZE = 30;
-        for (let i = 0; i < farmCodesToFilter.length; i += CHUNK_SIZE) {
-            const chunk = farmCodesToFilter.slice(i, i + CHUNK_SIZE);
-            await executeQueryChunk(chunk);
-        }
-    } else {
-        // Se não há filtro de fazenda, executa a query apenas com os outros filtros
-        await executeQueryChunk(null);
-    }
-    
-    // 3. Filtros de texto que são aplicados após a busca no banco de dados
-    if (filters.talhao) allData = allData.filter(d => d.talhao && d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
-    if (filters.frenteServico) allData = allData.filter(d => d.frenteServico && d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
-    
-    return allData.sort((a, b) => new Date(a.data) - new Date(b.data));
+      if (farmCodesToFilter) {
+          filteredData = filteredData.filter(d => farmCodesToFilter.includes(d.codigo));
+      }
+      
+      if (filters.matricula) {
+          filteredData = filteredData.filter(d => d.matricula === filters.matricula);
+      }
+      if (filters.talhao) {
+          filteredData = filteredData.filter(d => d.talhao && d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
+      }
+      if (filters.frenteServico) {
+          filteredData = filteredData.filter(d => d.frenteServico && d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
+      }
+      
+      return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
 
