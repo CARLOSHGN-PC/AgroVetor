@@ -49,6 +49,18 @@ try {
 
   // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS ---
 
+  // Função para formatar números
+  const formatNumber = (num) => {
+    if (typeof num !== 'number' || isNaN(num)) {
+      return num; // Retorna o valor original se não for um número válido
+    }
+    return parseFloat(num.toFixed(2)).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+
   // [CORREÇÃO CRÍTICA] Função de filtragem de dados reescrita
   const getFilteredData = async (collectionName, filters) => {
     let query = db.collection(collectionName);
@@ -354,7 +366,7 @@ try {
         currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
         for(const p of data) {
             currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-            currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.total], currentY, false, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
+            currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.total)], currentY, false, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
         }
       } else { // Modelo B - Detalhado
         const groupedData = data.reduce((acc, p) => {
@@ -377,7 +389,7 @@ try {
           const farmData = groupedData[fazendaKey];
           for(const p of farmData) {
               currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-              currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, p.canaInteira, p.tolete, p.toco, p.ponta, p.estilhaco, p.pedaco, p.total], currentY, false, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
+              currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco), formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)], currentY, false, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
           }
           
           const subTotalCanaInteira = farmData.reduce((sum, p) => sum + p.canaInteira, 0);
@@ -388,7 +400,7 @@ try {
           const subTotalPedaco = farmData.reduce((sum, p) => sum + p.pedaco, 0);
           const subTotal = farmData.reduce((sum, p) => sum + p.total, 0);
 
-          const subtotalRow = ['', '', '', '', '', 'Sub Total', subTotalCanaInteira, subTotalTolete, subTotalToco, subTotalPonta, subTotalEstilhaco, subTotalPedaco, subTotal];
+          const subtotalRow = ['', '', '', '', '', 'Sub Total', formatNumber(subTotalCanaInteira), formatNumber(subTotalTolete), formatNumber(subTotalToco), formatNumber(subTotalPonta), formatNumber(subTotalEstilhaco), formatNumber(subTotalPedaco), formatNumber(subTotal)];
           currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, textPadding, rowHeight, headersBConfig);
           currentY += 10;
         }
@@ -406,10 +418,10 @@ try {
       doc.y = currentY;
 
       if (!isDetailed) {
-        const totalRowData = ['', '', '', '', '', 'Total Geral', grandTotal];
+        const totalRowData = ['', '', '', '', '', 'Total Geral', formatNumber(grandTotal)];
         drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, textPadding, rowHeight, headersAConfig);
       } else {
-        const totalRowData = ['', '', '', '', '', 'Total Geral', grandTotalCanaInteira, grandTotalTolete, grandTotalToco, grandTotalPonta, grandTotalEstilhaco, grandTotalPedaco, grandTotal];
+        const totalRowData = ['', '', '', '', '', 'Total Geral', formatNumber(grandTotalCanaInteira), formatNumber(grandTotalTolete), formatNumber(grandTotalToco), formatNumber(grandTotalPonta), formatNumber(grandTotalEstilhaco), formatNumber(grandTotalPedaco), formatNumber(grandTotal)];
         drawRow(doc, totalRowData, currentY, false, true, columnWidthsB, textPadding, rowHeight, headersBConfig);
       }
 
@@ -505,25 +517,34 @@ try {
           { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 70 }, 
           { id: 'distancia', title: 'KM', minWidth: 40 },
           { id: 'entrada', title: 'Entrada', minWidth: 65 }, 
-          { id: 'saida', title: 'Saída', minWidth: 65 }    
+          { id: 'saida', title: 'Saída', minWidth: 65 }   
       ];
 
       // Filtra os cabeçalhos selecionados
       let finalHeaders = [];
-      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
+      const initialFixedHeaders = ['seq', 'fazenda', 'area', 'producao'];
       const finalFixedHeaders = ['entrada', 'saida'];
-
+      
+      // Adiciona os cabeçalhos fixos iniciais
       initialFixedHeaders.forEach(id => {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
           if (header) finalHeaders.push(header);
       });
 
+      // Adiciona o cabeçalho de talhões se selecionado
+      if (selectedCols['talhoes']) {
+          const header = allPossibleHeadersConfig.find(h => h.id === 'talhoes');
+          if (header) finalHeaders.push(header);
+      }
+
+      // Adiciona os outros cabeçalhos opcionais
       allPossibleHeadersConfig.forEach(header => {
-          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && !finalFixedHeaders.includes(header.id)) {
+          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && !finalFixedHeaders.includes(header.id) && header.id !== 'talhoes') {
               finalHeaders.push(header);
           }
       });
 
+      // Adiciona os cabeçalhos fixos finais
       finalFixedHeaders.forEach(id => {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
           if (header) finalHeaders.push(header);
@@ -538,7 +559,6 @@ try {
 
       finalHeaders.forEach(header => {
           totalMinWidth += header.minWidth;
-          // Considerar 'fazenda', 'talhoes', 'variedade' como colunas flexíveis
           if (['fazenda', 'talhoes', 'variedade'].includes(header.id)) {
               flexibleColumnsCount++;
           }
@@ -555,10 +575,8 @@ try {
           return width;
       });
 
-      // Ajuste final para garantir que a soma das larguras seja exatamente `pageWidth`
       const currentTotalWidth = finalColumnWidths.reduce((sum, w) => sum + w, 0);
       const difference = pageWidth - currentTotalWidth;
-      // Distribui a diferença (pequenos erros de arredondamento) na primeira coluna flexível
       if (difference !== 0 && flexibleColumnsCount > 0) {
           const firstFlexibleIndex = finalHeaders.findIndex(h => ['fazenda', 'talhoes', 'variedade'].includes(h.id));
           if (firstFlexibleIndex !== -1) {
@@ -589,7 +607,6 @@ try {
         let dataSaida = new Date(dataEntrada.getTime());
         dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
 
-        // [CORREÇÃO] A data de início da próxima fazenda é o dia seguinte à saída da anterior
         currentDate = new Date(dataSaida.getTime());
         currentDate.setDate(currentDate.getDate() + 1);
 
@@ -636,14 +653,14 @@ try {
             seq: i + 1,
             fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
             talhoes: group.plots.map(p => p.talhaoName).join(', '),
-            area: group.totalArea.toFixed(2),
-            producao: group.totalProducao.toFixed(2),
+            area: formatNumber(group.totalArea),
+            producao: formatNumber(group.totalProducao),
             variedade: Array.from(allVarieties).join(', ') || 'N/A',
             idade: idadeMediaMeses,
             atr: group.atr || 'N/A',
             maturador: group.maturador || 'N/A',
             diasAplicacao: diasAplicacao,
-            distancia: avgDistancia, // [CORREÇÃO] Adicionado o valor da distância
+            distancia: avgDistancia,
             entrada: dataEntrada.toLocaleDateString('pt-BR'),
             saida: dataSaida.toLocaleDateString('pt-BR')
         };
@@ -654,7 +671,6 @@ try {
         currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); 
       }
 
-      // [CORREÇÃO] Lógica de alinhamento do Total Geral
       currentY = await checkPageBreak(doc, currentY, title, generatedBy, 40);
       doc.y = currentY;
       
@@ -670,10 +686,10 @@ try {
       }
 
       if (areaIndex !== -1) {
-          totalRowData[areaIndex] = grandTotalArea.toFixed(2);
+          totalRowData[areaIndex] = formatNumber(grandTotalArea);
       }
       if (prodIndex !== -1) {
-          totalRowData[prodIndex] = grandTotalProducao.toFixed(2);
+          totalRowData[prodIndex] = formatNumber(grandTotalProducao);
       }
 
       drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders);
@@ -722,38 +738,30 @@ try {
         { id: 'maturador', title: 'Maturador Aplicado' },
         { id: 'diasAplicacao', title: 'Dias desde Aplicação' },
         { id: 'distancia', title: 'Distância (km)' },
-        { id: 'entrada', title: 'Entrada' }, // Sempre no final
-        { id: 'saida', title: 'Saída' }    // Sempre no final
+        { id: 'entrada', title: 'Entrada' },
+        { id: 'saida', title: 'Saída' }
       ];
 
-      // Filtra e ordena os cabeçalhos para o CSV
       let finalHeaders = [];
-      const tempOptionalHeaders = [];
+      const initialFixedHeaders = ['seq', 'fazenda', 'area', 'producao'];
+      const finalFixedHeaders = ['entrada', 'saida'];
 
-      // Adiciona os cabeçalhos fixos iniciais
-      const initialFixedHeaders = ['seq', 'fazenda', 'talhoes', 'area', 'producao'];
       initialFixedHeaders.forEach(id => {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) {
+          if (header) finalHeaders.push(header);
+      });
+      if (selectedCols['talhoes']) {
+        const header = allPossibleHeadersConfig.find(h => h.id === 'talhoes');
+        if (header) finalHeaders.push(header);
+      }
+      allPossibleHeadersConfig.forEach(header => {
+          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && !finalFixedHeaders.includes(header.id) && header.id !== 'talhoes') {
               finalHeaders.push(header);
           }
       });
-
-      // Adiciona os cabeçalhos opcionais selecionados
-      allPossibleHeadersConfig.forEach(header => {
-          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && header.id !== 'entrada' && header.id !== 'saida') {
-              tempOptionalHeaders.push(header);
-          }
-      });
-      finalHeaders.push(...tempOptionalHeaders);
-
-      // Adiciona os cabeçalhos fixos finais (Entrada e Saída)
-      const finalFixedHeaders = ['entrada', 'saida'];
       finalFixedHeaders.forEach(id => {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) {
-              finalHeaders.push(header);
-          }
+          if (header) finalHeaders.push(header);
       });
 
       const records = [];
@@ -768,7 +776,6 @@ try {
         currentDate = new Date(dataSaida.getTime());
         currentDate.setDate(currentDate.getDate() + 1);
 
-        // Calcula Idade Média, Dias de Aplicação e Distância
         let totalAgeInDays = 0, plotsWithDate = 0;
         let totalDistancia = 0, plotsWithDistancia = 0;
         const allVarieties = new Set();
@@ -807,7 +814,6 @@ try {
         }
 
         const record = {};
-        // Popula o registro na ordem correta dos cabeçalhos finais
         finalHeaders.forEach(header => {
             switch(header.id) {
                 case 'seq': record.seq = index + 1; break;
@@ -823,7 +829,7 @@ try {
                 case 'distancia': record.distancia = avgDistancia; break;
                 case 'entrada': record.entrada = dataEntrada.toLocaleDateString('pt-BR'); break;
                 case 'saida': record.saida = dataSaida.toLocaleDateString('pt-BR'); break;
-                default: record[header.id] = ''; // Fallback for any unexpected header
+                default: record[header.id] = '';
             }
         });
         records.push(record);
