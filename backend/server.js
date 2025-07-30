@@ -13,7 +13,7 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // Aumenta o limite para receber strings Base64 grandes
+app.use(express.json({ limit: '10mb' }));
 
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -28,16 +28,13 @@ try {
     res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
   });
 
-  // ROTA PARA UPLOAD DO LOGO (agora recebe Base64 diretamente)
+  // ROTA PARA UPLOAD DO LOGO
   app.post('/upload-logo', async (req, res) => {
-    const { logoBase64 } = req.body; // Espera a string Base64 no corpo da requisição
-
+    const { logoBase64 } = req.body;
     if (!logoBase64) {
       return res.status(400).send({ message: 'Nenhum dado de imagem Base64 enviado.' });
     }
-
     try {
-      // Salvar a string Base64 diretamente no Firestore
       await db.collection('config').doc('company').set({ logoBase64: logoBase64 }, { merge: true });
       res.status(200).send({ message: 'Logo carregado com sucesso!' });
     } catch (error) {
@@ -46,13 +43,11 @@ try {
     }
   });
 
+  // --- FUNÇÕES AUXILIARES ---
 
-  // --- FUNÇÕES AUXILIARES E OUTRAS ROTAS ---
-
-  // Função para formatar números
   const formatNumber = (num) => {
     if (typeof num !== 'number' || isNaN(num)) {
-      return num; // Retorna o valor original se não for um número válido
+      return num;
     }
     return parseFloat(num.toFixed(2)).toLocaleString('pt-BR', {
       minimumFractionDigits: 2,
@@ -60,9 +55,7 @@ try {
     });
   };
 
-  // [CORREÇÃO FINAL] Função de filtragem de dados para funcionar sem a necessidade de índices compostos complexos.
   const getFilteredData = async (collectionName, filters) => {
-      // 1. Começa a query aplicando apenas os filtros de data, que são eficientes.
       let query = db.collection(collectionName);
       if (filters.inicio) {
           query = query.where('data', '>=', filters.inicio);
@@ -75,16 +68,13 @@ try {
       let data = [];
       snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
 
-      // 2. Prepara a lista de códigos de fazenda para filtrar em memória.
       let farmCodesToFilter = null;
 
-      // Caso 2a: Um código de fazenda específico foi fornecido.
       if (filters.fazendaCodigo && filters.fazendaCodigo !== '') {
           farmCodesToFilter = [filters.fazendaCodigo];
       } 
-      // Caso 2b: Nenhum código específico, mas tipos de fazenda foram fornecidos.
       else if (filters.tipos) {
-          const selectedTypes = filters.tipos.split(',').filter(t => t); // Garante que não haja strings vazias
+          const selectedTypes = filters.tipos.split(',').filter(t => t);
           if (selectedTypes.length > 0) {
               const farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
               const farmsSnapshot = await farmsQuery.get();
@@ -97,13 +87,11 @@ try {
               if (matchingFarmCodes.length > 0) {
                   farmCodesToFilter = matchingFarmCodes;
               } else {
-                  // Se nenhum fazenda corresponde aos tipos, o resultado final deve ser vazio.
                   return [];
               }
           }
       }
 
-      // 3. Aplica os filtros de fazenda e outros filtros em memória sobre os dados já obtidos.
       let filteredData = data;
 
       if (farmCodesToFilter) {
@@ -123,8 +111,8 @@ try {
       return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
-
-  const generatePdfHeader = async (doc, title, generatedBy = 'N/A') => {
+  // [ALTERADO] Função de cabeçalho para não incluir mais a informação do gerador
+  const generatePdfHeader = async (doc, title) => {
     try {
       const configDoc = await db.collection('config').doc('company').get();
       if (configDoc.exists && configDoc.data().logoBase64) {
@@ -136,10 +124,25 @@ try {
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
-    doc.fontSize(10).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
     return doc.y;
   };
+
+  // [NOVO] Função para gerar o rodapé
+  const generatePdfFooter = (doc, generatedBy = 'N/A') => {
+    const pageCount = doc.bufferedPageRange().count;
+    for (let i = 0; i < pageCount; i++) {
+        doc.switchToPage(i);
+        
+        // Adiciona a informação do gerador no canto inferior esquerdo
+        const footerY = doc.page.height - doc.page.margins.bottom + 10;
+        doc.fontSize(8).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, doc.page.margins.left, footerY, { align: 'left' });
+
+        // Adiciona o número da página no canto inferior direito
+        doc.fontSize(8).font('Helvetica').text(`Página ${i + 1} de ${pageCount}`, 0, footerY, { align: 'right' });
+    }
+  };
+
 
   const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeadersConfig = []) => {
     const startX = doc.page.margins.left;
@@ -181,10 +184,10 @@ try {
     return y + maxRowHeight;
   };
 
-  const checkPageBreak = async (doc, y, title, generatedBy, neededSpace = 40) => {
+  const checkPageBreak = async (doc, y, title, neededSpace = 40) => {
     if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
         doc.addPage();
-        return await generatePdfHeader(doc, title, generatedBy);
+        return await generatePdfHeader(doc, title);
     }
     return y;
   };
@@ -200,9 +203,12 @@ try {
     try {
       const filters = req.query;
       const data = await getFilteredData('registros', filters);
+      const title = 'Relatório de Inspeção de Broca';
+
       if (data.length === 0) {
-        await generatePdfHeader(doc, 'Relatório de Inspeção de Broca', filters.generatedBy);
+        await generatePdfHeader(doc, title);
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
+        generatePdfFooter(doc, filters.generatedBy); // Adiciona rodapé mesmo em relatório vazio
         doc.end();
         return;
       }
@@ -220,9 +226,8 @@ try {
       });
 
       const isModelB = filters.tipoRelatorio === 'B';
-      const title = 'Relatório de Inspeção de Broca';
       
-      let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
+      let currentY = await generatePdfHeader(doc, title);
 
       const headersA = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62]; 
@@ -236,7 +241,7 @@ try {
       if (!isModelB) { // Modelo A
         currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, 5, 18, headersAConfig);
         for(const r of enrichedData) {
-            currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+            currentY = await checkPageBreak(doc, currentY, title);
             currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA, 5, 18, headersAConfig);
         }
       } else { // Modelo B
@@ -248,17 +253,17 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+          currentY = await checkPageBreak(doc, currentY, title, 40);
           doc.y = currentY;
           doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
           currentY = doc.y + 5;
 
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+          currentY = await checkPageBreak(doc, currentY, title);
           currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, 5, 18, headersBConfig);
 
           const farmData = groupedData[fazendaKey];
           for(const r of farmData) {
-              currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+              currentY = await checkPageBreak(doc, currentY, title);
               currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB, 5, 18, headersBConfig);
           }
           
@@ -282,7 +287,7 @@ try {
       const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
       const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-      currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+      currentY = await checkPageBreak(doc, currentY, title, 40);
       doc.y = currentY;
       
       if (!isModelB) {
@@ -293,6 +298,7 @@ try {
         drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, 18, headersBConfig);
       }
 
+      generatePdfFooter(doc, filters.generatedBy);
       doc.end();
     } catch (error) { 
         console.error("Erro ao gerar PDF de Brocamento:", error);
@@ -333,17 +339,18 @@ try {
     try {
       const filters = req.query;
       const data = await getFilteredData('perdas', filters);
+      const isDetailed = filters.tipoRelatorio === 'B';
+      const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
+
       if (data.length === 0) {
-        await generatePdfHeader(doc, 'Relatório de Perda', filters.generatedBy);
+        await generatePdfHeader(doc, title);
         doc.text('Nenhum dado encontrado para os filtros selecionados.');
+        generatePdfFooter(doc, filters.generatedBy);
         doc.end();
         return;
       }
-
-      const isDetailed = filters.tipoRelatorio === 'B';
-      const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
       
-      let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
+      let currentY = await generatePdfHeader(doc, title);
 
       const headersA = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
       const columnWidthsA = [80, 160, 80, 100, 60, 120, 80];
@@ -359,7 +366,7 @@ try {
       if (!isDetailed) { // Modelo A - Resumido
         currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
         for(const p of data) {
-            currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+            currentY = await checkPageBreak(doc, currentY, title);
             currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.total)], currentY, false, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
         }
       } else { // Modelo B - Detalhado
@@ -371,17 +378,17 @@ try {
         }, {});
 
         for (const fazendaKey of Object.keys(groupedData).sort()) {
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+          currentY = await checkPageBreak(doc, currentY, title, 40);
           doc.y = currentY;
           doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
           currentY = doc.y + 5;
 
-          currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+          currentY = await checkPageBreak(doc, currentY, title);
           currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
 
           const farmData = groupedData[fazendaKey];
           for(const p of farmData) {
-              currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
+              currentY = await checkPageBreak(doc, currentY, title);
               currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco), formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)], currentY, false, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
           }
           
@@ -407,7 +414,7 @@ try {
       const grandTotalPedaco = data.reduce((sum, p) => sum + p.pedaco, 0);
       const grandTotal = data.reduce((sum, p) => sum + p.total, 0);
 
-      currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy, 40);
+      currentY = await checkPageBreak(doc, currentY, title, 40);
       doc.y = currentY;
 
       if (!isDetailed) {
@@ -418,6 +425,7 @@ try {
         drawRow(doc, totalRowData, currentY, false, true, columnWidthsB, textPadding, rowHeight, headersBConfig);
       }
 
+      generatePdfFooter(doc, filters.generatedBy);
       doc.end();
     } catch (error) { 
         console.error("Erro ao gerar PDF de Perda:", error);
@@ -471,16 +479,18 @@ try {
       const selectedCols = JSON.parse(selectedColumns || '{}');
 
       if (!planId) {
-        await generatePdfHeader(doc, 'Relatório Customizado de Colheita', generatedBy);
+        await generatePdfHeader(doc, 'Relatório Customizado de Colheita');
         doc.text('Nenhum plano de colheita selecionado.');
+        generatePdfFooter(doc, generatedBy);
         doc.end();
         return;
       }
 
       const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
       if (!harvestPlanDoc.exists) {
-        await generatePdfHeader(doc, 'Relatório Customizado de Colheita', generatedBy);
+        await generatePdfHeader(doc, 'Relatório Customizado de Colheita');
         doc.text('Plano de colheita não encontrado.');
+        generatePdfFooter(doc, generatedBy);
         doc.end();
         return;
       }
@@ -494,7 +504,7 @@ try {
       });
 
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
-      let currentY = await generatePdfHeader(doc, title, generatedBy);
+      let currentY = await generatePdfHeader(doc, title);
 
       const allPossibleHeadersConfig = [
           { id: 'seq', title: 'Seq.', minWidth: 35 },
@@ -651,11 +661,11 @@ try {
         
         const rowData = finalHeaders.map(h => rowDataMap[h.id]);
 
-        currentY = await checkPageBreak(doc, currentY, title, generatedBy);
+        currentY = await checkPageBreak(doc, currentY, title);
         currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); 
       }
 
-      currentY = await checkPageBreak(doc, currentY, title, generatedBy, 40);
+      currentY = await checkPageBreak(doc, currentY, title, 40);
       doc.y = currentY;
       
       const totalRowData = new Array(finalHeaders.length).fill('');
@@ -678,6 +688,7 @@ try {
 
       drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders);
 
+      generatePdfFooter(doc, generatedBy);
       doc.end();
     } catch (error) {
         console.error("Erro no PDF de Colheita:", error);
