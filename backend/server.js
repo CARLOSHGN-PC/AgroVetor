@@ -60,19 +60,16 @@ try {
     });
   };
 
-
-  // [CORREÇÃO CRÍTICA] Função de filtragem de dados reescrita
+  // [CORREÇÃO CRÍTICA] Função de filtragem de dados reescrita e robustecida
   const getFilteredData = async (collectionName, filters) => {
-    let query = db.collection(collectionName);
-
     // 1. Determinar quais códigos de fazenda devem ser filtrados
     let farmCodesToFilter = null;
 
-    if (filters.fazendaCodigo) {
+    if (filters.fazendaCodigo && filters.fazendaCodigo !== '') {
         // Se uma fazenda específica é selecionada, ela tem prioridade total
         farmCodesToFilter = [filters.fazendaCodigo];
     } else if (filters.tipos) {
-        const selectedTypes = filters.tipos.split(',').filter(t => t); // Garante que não haja strings vazias
+        const selectedTypes = filters.tipos.split(',').filter(t => t);
         if (selectedTypes.length > 0) {
             let farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
             const farmsSnapshot = await farmsQuery.get();
@@ -85,44 +82,49 @@ try {
             if (matchingFarmCodes.length > 0) {
                 farmCodesToFilter = matchingFarmCodes;
             } else {
-                // Se nenhum fazenda corresponde aos tipos, retorna um array vazio
-                return [];
+                return []; // Se nenhuma fazenda corresponde aos tipos, retorna um array vazio
             }
         }
     }
 
-    // 2. Construir a query principal
-    let mainQuery = db.collection(collectionName);
-
-    // Aplica filtros de data
-    if (filters.inicio) mainQuery = mainQuery.where('data', '>=', filters.inicio);
-    if (filters.fim) mainQuery = mainQuery.where('data', '<=', filters.fim);
+    // 2. Construir e executar a(s) query(s) principal(is)
+    let allData = [];
     
-    // Aplica o filtro de códigos de fazenda se ele foi determinado
-    if (farmCodesToFilter && farmCodesToFilter.length > 0) {
-        // Firestore 'in' query supports up to 30 elements. Se precisar de mais, terá que fazer múltiplas queries.
-        mainQuery = mainQuery.where('codigo', 'in', farmCodesToFilter);
+    // Função para executar uma query para um chunk de códigos de fazenda
+    const executeQueryChunk = async (codesChunk) => {
+        let query = db.collection(collectionName);
+        if (filters.inicio) query = query.where('data', '>=', filters.inicio);
+        if (filters.fim) query = query.where('data', '<=', filters.fim);
+        if (codesChunk) query = query.where('codigo', 'in', codesChunk);
+        if (filters.matricula) query = query.where('matricula', '==', filters.matricula);
+
+        const snapshot = await query.get();
+        snapshot.forEach(doc => allData.push({ id: doc.id, ...doc.data() }));
+    };
+
+    if (farmCodesToFilter) {
+        // Firestore 'in' query supports up to 30 elements. Dividir em chunks se necessário.
+        const CHUNK_SIZE = 30;
+        for (let i = 0; i < farmCodesToFilter.length; i += CHUNK_SIZE) {
+            const chunk = farmCodesToFilter.slice(i, i + CHUNK_SIZE);
+            await executeQueryChunk(chunk);
+        }
+    } else {
+        // Se não há filtro de fazenda, executa a query apenas com os outros filtros
+        await executeQueryChunk(null);
     }
     
-    // Filtros adicionais
-    if (filters.matricula) mainQuery = mainQuery.where('matricula', '==', filters.matricula);
+    // 3. Filtros de texto que são aplicados após a busca no banco de dados
+    if (filters.talhao) allData = allData.filter(d => d.talhao && d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
+    if (filters.frenteServico) allData = allData.filter(d => d.frenteServico && d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
     
-    const snapshot = await mainQuery.get();
-    let data = [];
-    snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
-
-    // Filtros de texto que são aplicados após a busca no banco de dados
-    if (filters.talhao) data = data.filter(d => d.talhao && d.talhao.toLowerCase().includes(filters.talhao.toLowerCase()));
-    if (filters.frenteServico) data = data.filter(d => d.frenteServico && d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
-    
-    return data.sort((a, b) => new Date(a.data) - new Date(b.data));
+    return allData.sort((a, b) => new Date(a.data) - new Date(b.data));
   };
 
 
   const generatePdfHeader = async (doc, title, generatedBy = 'N/A') => {
     try {
       const configDoc = await db.collection('config').doc('company').get();
-      // Verifica se existe o campo 'logoBase64' e o utiliza
       if (configDoc.exists && configDoc.data().logoBase64) {
         const logoBase64 = configDoc.data().logoBase64;
         doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 }); 
@@ -132,18 +134,15 @@ try {
     }
     
     doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
-    // Adicionado o nome do usuário para generatePdfHeader
     doc.fontSize(10).font('Helvetica').text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, { align: 'right' });
     doc.moveDown(2);
     return doc.y;
   };
 
-  // Função auxiliar para desenhar linhas da tabela (agora mais robusta)
   const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeadersConfig = []) => {
     const startX = doc.page.margins.left;
     const fontSize = 8;
     
-    // Define o estilo da fonte para cabeçalho/rodapé ou corpo
     if (isHeader || isFooter) {
         doc.font('Helvetica-Bold').fontSize(fontSize);
         doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
@@ -153,11 +152,10 @@ try {
     }
     
     let currentX = startX;
-    let maxRowHeight = rowHeight; // Altura mínima da linha
+    let maxRowHeight = rowHeight;
 
     rowData.forEach((cell, i) => {
         let columnId = null;
-        // Verifica se columnHeadersConfig é um array e se o índice existe
         if (Array.isArray(columnHeadersConfig) && i < columnHeadersConfig.length && columnHeadersConfig[i]) {
             columnId = columnHeadersConfig[i].id;
         }
@@ -165,25 +163,22 @@ try {
         const cellWidth = customWidths[i] - (textPadding * 2);
         const textOptions = { width: cellWidth, align: 'left', continued: false };
 
-        // Lógica de quebra de linha: permite apenas para colunas específicas
         if (['talhoes', 'variedade'].includes(columnId)) {
-            textOptions.lineBreak = true; // Permite quebra de linha
-            textOptions.lineGap = 2; // Pequeno espaço entre as linhas se houver quebra
+            textOptions.lineBreak = true;
+            textOptions.lineGap = 2;
         } else {
-            textOptions.lineBreak = false; // Impede quebra de linha para outros textos (títulos e nomes)
+            textOptions.lineBreak = false;
         }
         
-        // Calcula a altura necessária para o texto na célula
         const textHeight = doc.heightOfString(String(cell), textOptions);
-        maxRowHeight = Math.max(maxRowHeight, textHeight + textPadding * 2); // Atualiza a altura máxima da linha
+        maxRowHeight = Math.max(maxRowHeight, textHeight + textPadding * 2);
 
         doc.text(String(cell), currentX + textPadding, y + textPadding, textOptions);
         currentX += customWidths[i];
     });
-    return y + maxRowHeight; // Retorna a altura da linha para a próxima posição Y
+    return y + maxRowHeight;
   };
 
-  // Função auxiliar para verificar quebra de página
   const checkPageBreak = async (doc, y, title, generatedBy, neededSpace = 40) => {
     if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
         doc.addPage();
@@ -232,16 +227,15 @@ try {
       const headersB = ['Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
       const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
-      // Definir os cabeçalhos como objetos para a função drawRow
       const headersAConfig = headersA.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
       const headersBConfig = headersB.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
 
 
       if (!isModelB) { // Modelo A
-        currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, 5, 18, headersAConfig); // Passar headersAConfig
+        currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, 5, 18, headersAConfig);
         for(const r of enrichedData) {
             currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-            currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA, 5, 18, headersAConfig); // Passar headersAConfig
+            currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA, 5, 18, headersAConfig);
         }
       } else { // Modelo B
         const groupedData = enrichedData.reduce((acc, reg) => {
@@ -258,12 +252,12 @@ try {
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-          currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
+          currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, 5, 18, headersBConfig);
 
           const farmData = groupedData[fazendaKey];
           for(const r of farmData) {
               currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-              currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
+              currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB, 5, 18, headersBConfig);
           }
           
           const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -274,7 +268,7 @@ try {
           const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
           
           const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
-          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
+          currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, 18, headersBConfig);
           currentY += 10;
         }
       }
@@ -291,10 +285,10 @@ try {
       
       if (!isModelB) {
         const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, 18, headersAConfig); // Passar headersAConfig
+        drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, 18, headersAConfig);
       } else {
         const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-        drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, 18, headersBConfig); // Passar headersBConfig
+        drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, 18, headersBConfig);
       }
 
       doc.end();
@@ -303,7 +297,7 @@ try {
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
-            doc.end(); // Garante que o stream seja fechado
+            doc.end();
         }
     }
   });
@@ -349,13 +343,11 @@ try {
       
       let currentY = await generatePdfHeader(doc, title, filters.generatedBy);
 
-      // Definindo os cabeçalhos e larguras para o relatório de perda
       const headersA = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
       const columnWidthsA = [80, 160, 80, 100, 60, 120, 80];
       const headersB = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaco', 'Pedaco', 'Total'];
       const columnWidthsB = [60, 120, 60, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50];
 
-      // Definir os cabeçalhos como objetos para a função drawRow
       const headersAConfig = headersA.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
       const headersBConfig = headersB.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
       
@@ -383,7 +375,6 @@ try {
           currentY = doc.y + 5;
 
           currentY = await checkPageBreak(doc, currentY, title, filters.generatedBy);
-          // Passar headersBConfig para a função drawRow, e ajustar os dados para não incluir a fazenda
           currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
 
           const farmData = groupedData[fazendaKey];
@@ -431,7 +422,7 @@ try {
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`); 
         } else {
-            doc.end(); // Garante que o stream seja fechado
+            doc.end();
         }
     }
   });
@@ -503,7 +494,6 @@ try {
       const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
       let currentY = await generatePdfHeader(doc, title, generatedBy);
 
-      // [CORREÇÃO] Ajuste nas larguras mínimas e títulos para evitar quebra de linha
       const allPossibleHeadersConfig = [
           { id: 'seq', title: 'Seq.', minWidth: 35 },
           { id: 'fazenda', title: 'Fazenda', minWidth: 120 }, 
@@ -520,31 +510,26 @@ try {
           { id: 'saida', title: 'Saída', minWidth: 65 }   
       ];
 
-      // Filtra os cabeçalhos selecionados
       let finalHeaders = [];
       const initialFixedHeaders = ['seq', 'fazenda', 'area', 'producao'];
       const finalFixedHeaders = ['entrada', 'saida'];
       
-      // Adiciona os cabeçalhos fixos iniciais
       initialFixedHeaders.forEach(id => {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
           if (header) finalHeaders.push(header);
       });
 
-      // Adiciona o cabeçalho de talhões se selecionado
       if (selectedCols['talhoes']) {
           const header = allPossibleHeadersConfig.find(h => h.id === 'talhoes');
           if (header) finalHeaders.push(header);
       }
 
-      // Adiciona os outros cabeçalhos opcionais
       allPossibleHeadersConfig.forEach(header => {
           if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && !finalFixedHeaders.includes(header.id) && header.id !== 'talhoes') {
               finalHeaders.push(header);
           }
       });
 
-      // Adiciona os cabeçalhos fixos finais
       finalFixedHeaders.forEach(id => {
           const header = allPossibleHeadersConfig.find(h => h.id === id);
           if (header) finalHeaders.push(header);
@@ -552,7 +537,6 @@ try {
 
       const headersText = finalHeaders.map(h => h.title);
 
-      // Calcular larguras das colunas dinamicamente
       const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
       let totalMinWidth = 0;
       let flexibleColumnsCount = 0;
@@ -588,7 +572,6 @@ try {
       const rowHeight = 18;
       const textPadding = 5;
 
-      // Desenhar cabeçalho da tabela
       currentY = drawRow(doc, headersText, currentY, true, false, finalColumnWidths, textPadding, rowHeight, finalHeaders);
 
       let grandTotalProducao = 0;
@@ -610,7 +593,6 @@ try {
         currentDate = new Date(dataSaida.getTime());
         currentDate.setDate(currentDate.getDate() + 1);
 
-        // Calcula Idade Média, Dias de Aplicação e Distância
         let totalAgeInDays = 0, plotsWithDate = 0;
         let totalDistancia = 0, plotsWithDistancia = 0;
         const allVarieties = new Set();
@@ -682,7 +664,7 @@ try {
       if (fazendaIndex !== -1) {
           totalRowData[fazendaIndex] = 'Total Geral';
       } else {
-          totalRowData[1] = 'Total Geral'; // Fallback para a segunda coluna
+          totalRowData[1] = 'Total Geral';
       }
 
       if (areaIndex !== -1) {
@@ -700,7 +682,7 @@ try {
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
         } else {
-            doc.end(); // Garante que o stream seja fechado
+            doc.end();
         }
     }
   });
@@ -725,7 +707,6 @@ try {
 
       const filePath = path.join(os.tmpdir(), `colheita_${Date.now()}.csv`);
       
-      // Define todos os cabeçalhos possíveis
       const allPossibleHeadersConfig = [
         { id: 'seq', title: 'Seq.' },
         { id: 'fazenda', title: 'Fazenda' },
