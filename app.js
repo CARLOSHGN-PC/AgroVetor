@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
             harvestPlans: [],
             activeHarvestPlan: null,
             inactivityTimer: null,
-            inactivityWarningTimer: null, // [NOVO] Timer para o aviso de inatividade
+            inactivityWarningTimer: null,
             unsubscribeListeners: [],
             deferredInstallPrompt: null,
             newUserCreationData: null,
@@ -347,8 +347,8 @@ document.addEventListener('DOMContentLoaded', () => {
             relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
                 optionsContainer: document.getElementById('reportOptionsContainer'),
-                colunasDetalhadoContainer: document.getElementById('colunas-detalhado-container'), // [NOVO]
-                tipoRelatorioSelect: document.getElementById('tipoRelatorioColheita'), // [NOVO]
+                colunasDetalhadoContainer: document.getElementById('colunas-detalhado-container'),
+                tipoRelatorioSelect: document.getElementById('tipoRelatorioColheita'),
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
             },
@@ -425,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.data.cleanupListeners();
                 App.state.currentUser = null;
                 clearTimeout(App.state.inactivityTimer);
-                clearTimeout(App.state.inactivityWarningTimer); // [NOVO] Limpa o timer de aviso
+                clearTimeout(App.state.inactivityWarningTimer);
                 App.ui.showLoginScreen();
             },
             initiateUserCreation() {
@@ -969,39 +969,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 talhaoList.appendChild(table);
             },
-            // [ALTERAÇÃO] Lógica de seleção de talhões atualizada
+            // [REVISED] Lógica de seleção de talhões atualizada para indisponibilidade instantânea
             renderHarvestTalhaoSelection(farmId, plotIdsToCheck = []) {
                 const { talhaoSelectionList, editingGroupId, selectAllTalhoes } = App.elements.harvest;
                 talhaoSelectionList.innerHTML = '';
                 selectAllTalhoes.checked = false;
             
-                if (!App.state.activeHarvestPlan) return;
+                if (!farmId) {
+                    talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
+                    return;
+                }
             
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm || !farm.talhoes || farm.talhoes.length === 0) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Nenhum talhão cadastrado nesta fazenda.</p>';
                     return;
                 }
-            
-                // [NOVA LÓGICA] Pega todos os IDs de talhões já alocados em TODOS os planos, exceto os do grupo que está sendo editado.
+                
+                // Pega todos os IDs de talhões já alocados, excluindo os do grupo que está sendo editado.
                 const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
                 
-                const availableTalhoes = farm.talhoes.filter(t => !allAssignedTalhaoIds.includes(t.id));
+                // Talhões disponíveis são os que não estão na lista de alocados
+                const availableTalhoes = farm.talhoes.filter(t => !allAssignedTalhaoIds.has(t.id));
             
-                if (availableTalhoes.length === 0 && plotIdsToCheck.length === 0) {
-                    talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
-                    return;
-                }
-                
+                // Talhões a serem exibidos: os disponíveis + os que já estavam selecionados no grupo atual (para permitir a edição)
                 const talhoesToShow = [...availableTalhoes];
                 if (plotIdsToCheck.length > 0) {
                     const currentlyEditedTalhoes = farm.talhoes.filter(t => plotIdsToCheck.includes(t.id));
-                    talhoesToShow.push(...currentlyEditedTalhoes);
+                    currentlyEditedTalhoes.forEach(t => {
+                        // Garante que não haja duplicatas se um talhão editado também estiver na lista de disponíveis (caso raro)
+                        if (!talhoesToShow.some(ts => ts.id === t.id)) {
+                            talhoesToShow.push(t);
+                        }
+                    });
                 }
             
-                const uniqueTalhoesToShow = [...new Map(talhoesToShow.map(item => [item['id'], item])).values()];
+                if (talhoesToShow.length === 0) {
+                    talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
+                    return;
+                }
             
-                uniqueTalhoesToShow.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
+                talhoesToShow.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
+                    // [FIX] Garante que a verificação de 'checked' funcione corretamente
                     const isChecked = plotIdsToCheck.includes(talhao.id);
                     
                     const label = document.createElement('label');
@@ -1031,7 +1040,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             },
-            // [REDESIGN] Nova função para criar os cards de utilizador modernos
             _createModernUserCardHTML(user) {
                 const getRoleInfo = (role) => {
                     const roles = { 
@@ -1078,7 +1086,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             renderUsersList() { 
                 const { list } = App.elements.users; 
-                // [REDESIGN] Chama a nova função para renderizar os cards
                 list.innerHTML = App.state.users
                     .sort((a,b) => (a.username || '').localeCompare(b.username || ''))
                     .map((u) => this._createModernUserCardHTML(u))
@@ -1214,7 +1221,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentDate = new Date(dataSaida.getTime());
                     currentDate.setDate(currentDate.getDate() + 1);
                     
-                    // [CORREÇÃO] Passa a data de entrada dinâmica para o cálculo da idade
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, dataEntrada);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
 
@@ -1478,7 +1484,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                if(App.elements.dashboard.btnAnalisar) App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
@@ -1505,6 +1510,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 modalEls.btnResetPassword.addEventListener('click', () => App.auth.resetUserPassword(modalEls.editingUserId.value));
                 modalEls.btnDeleteUser.addEventListener('click', () => App.auth.deleteUser(modalEls.editingUserId.value));
                 modalEls.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value, '#editUserPermissionGrid'));
+                // [FIX] Adiciona o event listener para os toggles de permissão no modal de edição
+                modalEls.permissionGrid.addEventListener('click', (e) => {
+                    const item = e.target.closest('.permission-item');
+                    if (item) {
+                        const checkbox = item.querySelector('input[type="checkbox"]');
+                        if (checkbox && e.target.tagName !== 'INPUT') {
+                            checkbox.checked = !checkbox.checked;
+                        }
+                    }
+                });
                 
                 const cpModal = App.elements.changePasswordModal;
                 App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
@@ -1631,7 +1646,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const customReportEls = App.elements.relatorioColheita;
                 customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
-                // [NOVO] Listener para o seletor de tipo de relatório
                 customReportEls.tipoRelatorioSelect.addEventListener('change', (e) => {
                     const isDetalhado = e.target.value === 'detalhado';
                     customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
@@ -1686,7 +1700,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return date.toLocaleDateString('pt-BR');
             },
-            // [CORREÇÃO] Lógica de inatividade com aviso prévio
             resetInactivityTimer() {
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
@@ -1783,26 +1796,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            // [NOVA LÓGICA] Função para buscar talhões já alocados em TODOS os planos
+            // [REVISED] Função para buscar talhões já alocados em TODOS os planos, incluindo o plano ativo
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
             
+                // Adiciona talhões de todos os planos salvos
                 allPlans.forEach(plan => {
-                    // Adiciona talhões que já foram permanentemente encerrados neste plano
                     if (plan.closedTalhaoIds) {
                         plan.closedTalhaoIds.forEach(id => assignedIds.add(id));
                     }
-            
                     plan.sequence.forEach(group => {
-                        // Se estivermos editando este grupo, os seus talhões não contam como "já alocados"
+                        group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
+                    });
+                });
+
+                // Adiciona talhões do plano que está sendo editado no momento
+                if (App.state.activeHarvestPlan) {
+                    App.state.activeHarvestPlan.sequence.forEach(group => {
+                        // Se estivermos editando um grupo, seus talhões não contam como "já alocados" para si mesmos
                         if (editingGroupId && group.id == editingGroupId) {
                             return;
                         }
                         group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
                     });
-                });
-                return Array.from(assignedIds);
+                }
+            
+                return assignedIds;
             },
             async saveFarm() {
                 const { farmCode, farmName, farmTypeCheckboxes } = App.elements.cadastros;
@@ -2314,7 +2334,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 sequence.splice(toIndex, 0, item);
                 App.ui.renderHarvestSequence();
             },
-            // [CORREÇÃO] A função agora recebe a data de entrada do grupo para o cálculo
             calculateAverageAge(group, groupStartDate) {
                 let totalAgeInDays = 0;
                 let plotsWithDate = 0;
@@ -2694,7 +2713,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
-            // [CORREÇÃO] Lógica de importação de relatório de colheita
             async importHarvestReport(file, type) {
                 if (!file) return;
             
@@ -3304,7 +3322,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
         
-            // [NOVO] Lógica para gerar os diferentes relatórios de colheita
             generateCustomHarvestReport(format) {
                 const { select, optionsContainer, tipoRelatorioSelect } = App.elements.relatorioColheita;
                 const planId = select.value;
@@ -3325,7 +3342,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     filters.selectedColumns = JSON.stringify(selectedColumns);
                 } else {
-                    // Se for 'mensal', o endpoint é diferente
                     endpoint = `colheita/mensal/${format}`;
                 }
             
