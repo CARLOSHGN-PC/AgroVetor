@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
             inactivityTimeout: 15 * 60 * 1000, // 15 minutos
+            inactivityWarningTime: 1 * 60 * 1000, // 1 minuto antes do timeout
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
@@ -98,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
             harvestPlans: [],
             activeHarvestPlan: null,
             inactivityTimer: null,
+            inactivityWarningTimer: null, // [NOVO] Timer para o aviso de inatividade
             unsubscribeListeners: [],
             deferredInstallPrompt: null,
             newUserCreationData: null,
@@ -344,8 +346,9 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
-                tipoRelatorio: document.getElementById('tipoRelatorioColheita'), // NOVO
-                optionsContainer: document.getElementById('colunas-relatorio-container'), // NOVO
+                optionsContainer: document.getElementById('reportOptionsContainer'),
+                colunasDetalhadoContainer: document.getElementById('colunas-detalhado-container'), // [NOVO]
+                tipoRelatorioSelect: document.getElementById('tipoRelatorioColheita'), // [NOVO]
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
             },
@@ -422,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.data.cleanupListeners();
                 App.state.currentUser = null;
                 clearTimeout(App.state.inactivityTimer);
+                clearTimeout(App.state.inactivityWarningTimer); // [NOVO] Limpa o timer de aviso
                 App.ui.showLoginScreen();
             },
             initiateUserCreation() {
@@ -775,11 +779,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.charts.destroyAll(); 
                     }
                     
-                    if (id === 'gerenciarUsuarios') {
-                        this.renderPermissionItems(App.elements.users.permissionsContainer);
-                        this.updatePermissionsForRole('user');
-                        this.renderUsersList();
-                    }
+                    if (id === 'excluirDados') this.renderExclusao();
+                    if (id === 'gerenciarUsuarios') this.renderUsersList();
                     if (id === 'cadastros') this.renderFarmSelect();
                     if (id === 'cadastrarPessoas') this.renderPersonnelList();
                     if (id === 'planejamento') this.renderPlanejamento();
@@ -972,25 +973,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { talhaoSelectionList, editingGroupId, selectAllTalhoes } = App.elements.harvest;
                 talhaoSelectionList.innerHTML = '';
                 selectAllTalhoes.checked = false;
-
+            
                 if (!App.state.activeHarvestPlan) return;
-
+            
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm || !farm.talhoes || farm.talhoes.length === 0) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Nenhum talhão cadastrado nesta fazenda.</p>';
                     return;
                 }
-
+            
+                // [CORREÇÃO] Pega todos os IDs de talhões já alocados em TODOS os planos, exceto os do grupo que está sendo editado.
                 const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
-                const permanentlyClosedTalhaoIds = App.state.activeHarvestPlan.closedTalhaoIds || [];
                 
-                const availableTalhoes = farm.talhoes.filter(t => 
-                    !allAssignedTalhaoIds.includes(t.id) && !permanentlyClosedTalhaoIds.includes(t.id)
-                );
-
+                const availableTalhoes = farm.talhoes.filter(t => !allAssignedTalhaoIds.includes(t.id));
+            
                 if (availableTalhoes.length === 0 && plotIdsToCheck.length === 0) {
-                        talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados neste plano.</p>';
-                        return;
+                    talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
+                    return;
                 }
                 
                 const talhoesToShow = [...availableTalhoes];
@@ -998,17 +997,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const currentlyEditedTalhoes = farm.talhoes.filter(t => plotIdsToCheck.includes(t.id));
                     talhoesToShow.push(...currentlyEditedTalhoes);
                 }
-
+            
                 const uniqueTalhoesToShow = [...new Map(talhoesToShow.map(item => [item['id'], item])).values()];
-
-
+            
                 uniqueTalhoesToShow.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const isChecked = plotIdsToCheck.includes(talhao.id);
                     
                     const label = document.createElement('label');
                     label.className = 'talhao-selection-item';
                     label.htmlFor = `talhao-select-${talhao.id}`;
-
+            
                     label.innerHTML = `
                         <input type="checkbox" id="talhao-select-${talhao.id}" data-talhao-id="${talhao.id}" ${isChecked ? 'checked' : ''}>
                         <div class="talhao-name">${talhao.name}</div>
@@ -1032,19 +1030,59 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             },
-            _createUserCardHTML(user) {
+            // [REDESIGN] Nova função para criar os cards de utilizador modernos
+            _createModernUserCardHTML(user) {
                 const getRoleInfo = (role) => {
-                    const roles = { admin: ['Administrador', 'var(--color-primary)'], supervisor: ['Supervisor', 'var(--color-warning)'], tecnico: ['Técnico', 'var(--color-accent)'], colaborador: ['Colaborador', 'var(--color-purple)'], user: ['Utilizador', '#718096'] };
+                    const roles = { 
+                        admin: ['Administrador', 'var(--color-danger)'], 
+                        supervisor: ['Supervisor', 'var(--color-warning)'], 
+                        tecnico: ['Técnico', 'var(--color-info)'], 
+                        colaborador: ['Colaborador', 'var(--color-purple)'], 
+                        user: ['Utilizador', 'var(--color-text-light)'] 
+                    };
                     return roles[role] || ['Desconhecido', '#718096'];
                 };
+            
                 const [roleName, roleColor] = getRoleInfo(user.role);
+                const avatarLetter = (user.username || user.email).charAt(0).toUpperCase();
+            
                 const buttonsHTML = user.email.toLowerCase() === 'admin@agrovetor.com' ? '' : `
-                    <button class="btn-excluir" style="background: ${user.active ? '#718096' : 'var(--color-success)'};" data-action="toggle" data-id="${user.id}">${user.active ? '<i class="fas fa-ban"></i> Desativar' : '<i class="fas fa-check"></i> Ativar'}</button>
-                    <button class="btn-excluir" style="background: var(--color-info);" data-action="edit" data-id="${user.id}"><i class="fas fa-edit"></i> Editar</button>
+                    <button class="toggle-btn ${user.active ? 'inactive' : 'active'}" data-action="toggle" data-id="${user.id}">
+                        ${user.active ? '<i class="fas fa-ban"></i> Desativar' : '<i class="fas fa-check"></i> Ativar'}
+                    </button>
+                    <button data-action="edit" data-id="${user.id}"><i class="fas fa-edit"></i> Editar</button>
                 `;
-                return `<div class="user-card"><div class="user-header"><div class="user-title">${user.username || user.email}<span class="user-role-badge" style="background: ${roleColor}; margin-left:10px; padding: 2px 8px; font-size: 12px; color: white; border-radius: 10px;">${roleName}</span></div><div class="user-status ${user.active ? '' : 'inactive'}" style="color: ${user.active ? 'var(--color-success)' : 'var(--color-danger)'}"><i class="fas fa-circle"></i> ${user.active ? 'Ativo' : 'Inativo'}</div></div><div class="user-actions" style="margin-top: 10px; display: flex; gap: 10px; justify-content: flex-end;">${buttonsHTML}</div></div>`;
+            
+                return `
+                    <div class="user-card-redesigned" style="border-left-color: ${roleColor};">
+                        <div class="user-card-header">
+                            <div class="user-card-info">
+                                <div class="user-card-avatar" style="background-color: ${roleColor}20; color: ${roleColor};">${avatarLetter}</div>
+                                <div class="user-card-details">
+                                    <h4>${user.username || 'N/A'}</h4>
+                                    <p>${user.email}</p>
+                                </div>
+                            </div>
+                            <div class="user-card-status ${user.active ? 'active' : 'inactive'}">
+                                <i class="fas fa-circle"></i> ${user.active ? 'Ativo' : 'Inativo'}
+                            </div>
+                        </div>
+                        <div>
+                            <span class="user-card-role" style="background-color: ${roleColor};">${roleName}</span>
+                        </div>
+                        <div class="user-card-actions">
+                            ${buttonsHTML}
+                        </div>
+                    </div>`;
             },
-            renderUsersList() { const { list } = App.elements.users; list.innerHTML = App.state.users.map((u) => this._createUserCardHTML(u)).join(''); },
+            renderUsersList() { 
+                const { list } = App.elements.users; 
+                // [REDESIGN] Chama a nova função para renderizar os cards
+                list.innerHTML = App.state.users
+                    .sort((a,b) => (a.username || '').localeCompare(b.username || ''))
+                    .map((u) => this._createModernUserCardHTML(u))
+                    .join(''); 
+            },
             renderPersonnelList() {
                 const { list } = App.elements.personnel;
                 list.innerHTML = '';
@@ -1175,7 +1213,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentDate = new Date(dataSaida.getTime());
                     currentDate.setDate(currentDate.getDate() + 1);
                     
-                    const idadeMediaMeses = App.actions.calculateAverageAge(group, dataEntrada.toISOString().split('T')[0]);
+                    // [CORREÇÃO] Passa a data de entrada dinâmica para o cálculo da idade
+                    const idadeMediaMeses = App.actions.calculateAverageAge(group, dataEntrada);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
 
                     const areaColhida = group.areaColhida || 0;
@@ -1307,7 +1346,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 modalEls.username.value = user.username;
                 modalEls.role.value = user.role;
 
-                this.renderPermissionItems(modalEls.permissionGrid, user.permissions);
+                modalEls.permissionGrid.innerHTML = '';
+                const permissionItems = App.config.menuConfig.flatMap(item => {
+                    if (item.submenu) {
+                        return item.submenu.filter(sub => sub.permission);
+                    }
+                    return item.permission ? [item] : [];
+                });
+                
+                permissionItems.forEach(perm => {
+                    if (!perm.permission) return;
+                    const isChecked = user.permissions[perm.permission];
+                    const label = document.createElement('label');
+                    label.className = 'permission-item';
+                    label.innerHTML = `
+                        <div class="permission-content">
+                            <i class="${perm.icon}"></i>
+                            <span>${perm.label}</span>
+                        </div>
+                        <div class="toggle-switch">
+                            <input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}>
+                            <span class="slider"></span>
+                        </div>
+                    `;
+                    modalEls.permissionGrid.appendChild(label);
+                });
 
                 modalEls.overlay.classList.add('show');
             },
@@ -1567,9 +1630,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const customReportEls = App.elements.relatorioColheita;
                 customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
-                customReportEls.tipoRelatorio.addEventListener('change', (e) => {
-                    const isMonthly = e.target.value === 'mensal';
-                    customReportEls.optionsContainer.style.display = isMonthly ? 'none' : 'block';
+                // [NOVO] Listener para o seletor de tipo de relatório
+                customReportEls.tipoRelatorioSelect.addEventListener('change', (e) => {
+                    const isDetalhado = e.target.value === 'detalhado';
+                    customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
                 
                 this.enableEnterKeyNavigation('#loginBox');
@@ -1621,9 +1685,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return date.toLocaleDateString('pt-BR');
             },
+            // [CORREÇÃO] Lógica de inatividade com aviso prévio
             resetInactivityTimer() {
                 clearTimeout(App.state.inactivityTimer);
+                clearTimeout(App.state.inactivityWarningTimer);
+            
                 if (App.state.currentUser) {
+                    // Timer para o aviso
+                    App.state.inactivityWarningTimer = setTimeout(() => {
+                        const { confirmationModal } = App.elements;
+                        
+                        // Reutiliza o modal de confirmação para o aviso
+                        confirmationModal.title.textContent = "Sessão prestes a expirar";
+                        confirmationModal.message.textContent = "A sua sessão será encerrada em 1 minuto por inatividade. Deseja continuar conectado?";
+                        confirmationModal.confirmBtn.textContent = "Continuar";
+                        confirmationModal.cancelBtn.style.display = 'none'; // Esconde o botão de cancelar
+            
+                        const confirmHandler = () => {
+                            this.resetInactivityTimer(); // Reinicia o timer
+                            closeHandler();
+                        };
+            
+                        const closeHandler = () => {
+                            confirmationModal.overlay.classList.remove('show');
+                            confirmationModal.confirmBtn.removeEventListener('click', confirmHandler);
+                            confirmationModal.closeBtn.removeEventListener('click', closeHandler);
+                            // Restaura o estado original do modal
+                            setTimeout(() => {
+                                confirmationModal.confirmBtn.textContent = "Confirmar";
+                                confirmationModal.cancelBtn.style.display = 'inline-flex';
+                            }, 300);
+                        };
+            
+                        confirmationModal.confirmBtn.addEventListener('click', confirmHandler);
+                        confirmationModal.closeBtn.addEventListener('click', closeHandler);
+                        confirmationModal.overlay.classList.add('show');
+            
+                    }, App.config.inactivityTimeout - App.config.inactivityWarningTime);
+            
+                    // Timer para o logout final
                     App.state.inactivityTimer = setTimeout(() => {
                         App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
                         App.auth.logout();
@@ -1682,12 +1782,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
+            // [CORREÇÃO] Lógica para buscar talhões já alocados em TODOS os planos
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
-
+            
                 allPlans.forEach(plan => {
+                    // Adiciona talhões que já foram permanentemente encerrados neste plano
+                    if (plan.closedTalhaoIds) {
+                        plan.closedTalhaoIds.forEach(id => assignedIds.add(id));
+                    }
+            
                     plan.sequence.forEach(group => {
+                        // Se estivermos editando este grupo, os seus talhões não contam como "já alocados"
                         if (editingGroupId && group.id == editingGroupId) {
                             return;
                         }
@@ -2206,23 +2313,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 sequence.splice(toIndex, 0, item);
                 App.ui.renderHarvestSequence();
             },
-            calculateAverageAge(group, startDate) {
+            // [CORREÇÃO] A função agora recebe a data de entrada do grupo para o cálculo
+            calculateAverageAge(group, groupStartDate) {
                 let totalAgeInDays = 0;
                 let plotsWithDate = 0;
-                const dataInicioPlano = new Date(startDate + 'T03:00:00Z');
-
                 group.plots.forEach(plot => {
                     const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
                     const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
-                        if (talhao && talhao.dataUltimaColheita) {
+                        if (talhao && talhao.dataUltimaColheita && groupStartDate) {
                         const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
-                        if (!isNaN(dataInicioPlano) && !isNaN(dataUltima)) {
-                            totalAgeInDays += Math.abs(dataInicioPlano - dataUltima);
+                        if (!isNaN(groupStartDate) && !isNaN(dataUltima)) {
+                            totalAgeInDays += Math.abs(groupStartDate - dataUltima);
                             plotsWithDate++;
                         }
                     }
                 });
-
+            
                 if (plotsWithDate > 0) {
                     const avgDiffTime = totalAgeInDays / plotsWithDate;
                     const avgDiffDays = Math.ceil(avgDiffTime / (1000 * 60 * 60 * 24));
@@ -2587,9 +2693,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
+            // [CORREÇÃO] Lógica de importação de relatório de colheita
             async importHarvestReport(file, type) {
                 if (!file) return;
-
+            
                 const reader = new FileReader();
                 reader.onload = async (event) => {
                     App.ui.setLoading(true, `A processar relatório de talhões ${type === 'closed' ? 'encerrados' : 'em andamento'}...`);
@@ -2597,30 +2704,30 @@ document.addEventListener('DOMContentLoaded', () => {
                         const csv = event.target.result;
                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
                         if (lines.length <= 1) throw new Error("O ficheiro CSV está vazio ou contém apenas o cabeçalho.");
-
+            
                         const headers = lines[0].split(';').map(h => h.trim().toLowerCase());
                         const requiredHeaders = type === 'progress' ? ['codigofazenda', 'talhao', 'areacolhida', 'producaocolhida'] : ['codigofazenda', 'talhao'];
                         if (!requiredHeaders.every(h => headers.includes(h))) {
                             throw new Error(`Cabeçalhos em falta. O ficheiro deve conter: ${requiredHeaders.join('; ')}`);
                         }
-
+            
                         const allPlans = JSON.parse(JSON.stringify(App.state.harvestPlans));
                         const changesSummary = {};
                         let notFoundTalhoes = [];
-
+            
                         for (let i = 1; i < lines.length; i++) {
                             const data = lines[i].split(';');
                             const row = headers.reduce((obj, header, index) => {
                                 obj[header] = data[index]?.trim();
                                 return obj;
                             }, {});
-
+            
                             const farmCode = row.codigofazenda;
                             const talhaoName = row.talhao?.toUpperCase();
                             if (!farmCode || !talhaoName) continue;
-
+            
                             let talhaoFoundInAnyPlan = false;
-
+            
                             for (const plan of allPlans) {
                                 for (const group of plan.sequence) {
                                     if (group.fazendaCodigo === farmCode) {
@@ -2631,13 +2738,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                             if (!changesSummary[plan.frontName]) {
                                                 changesSummary[plan.frontName] = { updated: [], removed: [] };
                                             }
-
+            
                                             if (type === 'closed') {
                                                 const removedPlot = group.plots.splice(plotIndex, 1)[0];
                                                 changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
                                                 if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
                                                 plan.closedTalhaoIds.push(removedPlot.talhaoId);
-
+            
                                             } else { // progress
                                                 const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
                                                 const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
@@ -2661,10 +2768,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             batch.set(docRef, plan);
                         });
                         await batch.commit();
-
+            
                         let summaryMessage = "Sincronização Concluída!\n\n";
                         const updatedPlans = Object.keys(changesSummary);
-
+            
                         if (updatedPlans.length > 0) {
                             updatedPlans.forEach(planName => {
                                 summaryMessage += `Plano "${planName}" atualizado:\n`;
@@ -2679,11 +2786,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             summaryMessage += "Nenhum plano foi alterado.\n";
                         }
-
+            
                         if (notFoundTalhoes.length > 0) {
                             summaryMessage += `\nAviso: ${notFoundTalhoes.length} talhões do relatório não foram encontrados em nenhum plano ativo.`;
                         }
-
+            
                         const { confirmationModal } = App.elements;
                         confirmationModal.title.textContent = "Resumo da Sincronização";
                         confirmationModal.message.textContent = summaryMessage;
@@ -2702,8 +2809,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         confirmationModal.confirmBtn.addEventListener('click', closeHandler);
                         confirmationModal.closeBtn.addEventListener('click', closeHandler);
-
-
+            
+            
                     } catch (e) {
                         App.ui.showAlert(`Erro ao importar: ${e.message}`, "error", 6000);
                         console.error(e);
@@ -3098,7 +3205,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const params = new URLSearchParams(cleanFilters);
                 const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
-            
+                
                 App.ui.setLoading(true, "A gerar relatório no servidor...");
         
                 fetch(apiUrl)
@@ -3196,26 +3303,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
         
+            // [NOVO] Lógica para gerar os diferentes relatórios de colheita
             generateCustomHarvestReport(format) {
-                const { select, optionsContainer, tipoRelatorio } = App.elements.relatorioColheita;
+                const { select, optionsContainer, tipoRelatorioSelect } = App.elements.relatorioColheita;
                 const planId = select.value;
+                const reportType = tipoRelatorioSelect.value;
+            
                 if (!planId) {
                     App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
                     return;
                 }
-                
-                const selectedColumns = {};
-                optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    selectedColumns[cb.dataset.column] = cb.checked;
-                });
-
-                const filters = {
-                    planId: planId,
-                    selectedColumns: JSON.stringify(selectedColumns),
-                    tipoRelatorio: tipoRelatorio.value, // Adiciona o tipo de relatório
-                };
-                
-                this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_${tipoRelatorio.value}.${format}`);
+            
+                let endpoint = `colheita/${format}`;
+                const filters = { planId };
+            
+                if (reportType === 'detalhado') {
+                    const selectedColumns = {};
+                    optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                        selectedColumns[cb.dataset.column] = cb.checked;
+                    });
+                    filters.selectedColumns = JSON.stringify(selectedColumns);
+                } else {
+                    // Se for 'mensal', o endpoint é diferente
+                    endpoint = `colheita/mensal/${format}`;
+                }
+            
+                this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
             }
         },
 
