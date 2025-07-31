@@ -344,7 +344,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
-                optionsContainer: document.querySelector('#relatorioColheitaCustom #reportOptionsContainer'),
+                tipoRelatorio: document.getElementById('tipoRelatorioColheita'), // NOVO
+                optionsContainer: document.getElementById('colunas-relatorio-container'), // NOVO
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
             },
@@ -774,8 +775,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.charts.destroyAll(); 
                     }
                     
-                    if (id === 'excluirDados') this.renderExclusao();
-                    if (id === 'gerenciarUsuarios') this.renderUsersList();
+                    if (id === 'gerenciarUsuarios') {
+                        this.renderPermissionItems(App.elements.users.permissionsContainer);
+                        this.updatePermissionsForRole('user');
+                        this.renderUsersList();
+                    }
                     if (id === 'cadastros') this.renderFarmSelect();
                     if (id === 'cadastrarPessoas') this.renderPersonnelList();
                     if (id === 'planejamento') this.renderPlanejamento();
@@ -1171,7 +1175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentDate = new Date(dataSaida.getTime());
                     currentDate.setDate(currentDate.getDate() + 1);
                     
-                    const idadeMediaMeses = App.actions.calculateAverageAge(group, startDate);
+                    const idadeMediaMeses = App.actions.calculateAverageAge(group, dataEntrada.toISOString().split('T')[0]);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
 
                     const areaColhida = group.areaColhida || 0;
@@ -1303,31 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 modalEls.username.value = user.username;
                 modalEls.role.value = user.role;
 
-                modalEls.permissionGrid.innerHTML = '';
-                const permissionItems = App.config.menuConfig.flatMap(item => {
-                    if (item.submenu) {
-                        return item.submenu.filter(sub => sub.permission);
-                    }
-                    return item.permission ? [item] : [];
-                });
-                
-                permissionItems.forEach(perm => {
-                    if (!perm.permission) return;
-                    const isChecked = user.permissions[perm.permission];
-                    const label = document.createElement('label');
-                    label.className = 'permission-item';
-                    label.innerHTML = `
-                        <div class="permission-content">
-                            <i class="${perm.icon}"></i>
-                            <span>${perm.label}</span>
-                        </div>
-                        <div class="toggle-switch">
-                            <input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}>
-                            <span class="slider"></span>
-                        </div>
-                    `;
-                    modalEls.permissionGrid.appendChild(label);
-                });
+                this.renderPermissionItems(modalEls.permissionGrid, user.permissions);
 
                 modalEls.overlay.classList.add('show');
             },
@@ -1587,6 +1567,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const customReportEls = App.elements.relatorioColheita;
                 customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
+                customReportEls.tipoRelatorio.addEventListener('change', (e) => {
+                    const isMonthly = e.target.value === 'mensal';
+                    customReportEls.optionsContainer.style.display = isMonthly ? 'none' : 'block';
+                });
                 
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
@@ -2225,11 +2209,12 @@ document.addEventListener('DOMContentLoaded', () => {
             calculateAverageAge(group, startDate) {
                 let totalAgeInDays = 0;
                 let plotsWithDate = 0;
+                const dataInicioPlano = new Date(startDate + 'T03:00:00Z');
+
                 group.plots.forEach(plot => {
                     const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
                     const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
-                        if (talhao && talhao.dataUltimaColheita && startDate) {
-                        const dataInicioPlano = new Date(startDate + 'T03:00:00Z');
+                        if (talhao && talhao.dataUltimaColheita) {
                         const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
                         if (!isNaN(dataInicioPlano) && !isNaN(dataUltima)) {
                             totalAgeInDays += Math.abs(dataInicioPlano - dataUltima);
@@ -3212,7 +3197,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         
             generateCustomHarvestReport(format) {
-                const { select, optionsContainer } = App.elements.relatorioColheita;
+                const { select, optionsContainer, tipoRelatorio } = App.elements.relatorioColheita;
                 const planId = select.value;
                 if (!planId) {
                     App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
@@ -3226,10 +3211,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const filters = {
                     planId: planId,
-                    selectedColumns: JSON.stringify(selectedColumns)
+                    selectedColumns: JSON.stringify(selectedColumns),
+                    tipoRelatorio: tipoRelatorio.value, // Adiciona o tipo de relatório
                 };
                 
-                this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_custom.${format}`);
+                this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_${tipoRelatorio.value}.${format}`);
             }
         },
 
