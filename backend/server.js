@@ -143,7 +143,7 @@ try {
   };
 
 
-  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeadersConfig = []) => {
+  const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeadersConfig = [], isClosed = false) => {
     const startX = doc.page.margins.left;
     const fontSize = 8;
     
@@ -153,6 +153,10 @@ try {
         doc.fillColor('black');
     } else {
         doc.font('Helvetica').fontSize(fontSize);
+        if (isClosed) {
+            doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#f0f0f0', '#f0f0f0');
+            doc.fillColor('#999');
+        }
     }
     
     let currentX = startX;
@@ -589,11 +593,18 @@ try {
       let grandTotalArea = 0;
       let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
       const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+      const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
 
       for (let i = 0; i < harvestPlan.sequence.length; i++) {
         const group = harvestPlan.sequence[i];
-        grandTotalProducao += group.totalProducao;
-        grandTotalArea += group.totalArea;
+        
+        const isGroupClosed = group.plots.every(p => closedTalhaoIds.has(p.talhaoId));
+        
+        // Apenas adiciona aos totais se o grupo não estiver encerrado
+        if (!isGroupClosed) {
+            grandTotalProducao += group.totalProducao;
+            grandTotalArea += group.totalArea;
+        }
 
         const diasNecessarios = dailyTon > 0 ? Math.ceil(group.totalProducao / dailyTon) : 0;
         const dataEntrada = new Date(currentDate.getTime());
@@ -601,8 +612,11 @@ try {
         let dataSaida = new Date(dataEntrada.getTime());
         dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
 
-        currentDate = new Date(dataSaida.getTime());
-        currentDate.setDate(currentDate.getDate() + 1);
+        // A data de início do próximo grupo só avança se o grupo atual não estiver encerrado
+        if (!isGroupClosed) {
+            currentDate = new Date(dataSaida.getTime());
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
 
         let totalAgeInDays = 0, plotsWithDate = 0;
         let totalDistancia = 0, plotsWithDistancia = 0;
@@ -644,7 +658,7 @@ try {
 
         const rowDataMap = {
             seq: i + 1,
-            fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
+            fazenda: `${group.fazendaCodigo} - ${group.fazendaName} ${isGroupClosed ? '(ENCERRADO)' : ''}`,
             talhoes: group.plots.map(p => p.talhaoName).join(', '),
             area: formatNumber(group.totalArea),
             producao: formatNumber(group.totalProducao),
@@ -661,7 +675,7 @@ try {
         const rowData = finalHeaders.map(h => rowDataMap[h.id]);
 
         currentY = await checkPageBreak(doc, currentY, title);
-        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders); 
+        currentY = drawRow(doc, rowData, currentY, false, false, finalColumnWidths, textPadding, rowHeight, finalHeaders, isGroupClosed); 
       }
 
       currentY = await checkPageBreak(doc, currentY, title, 40);
@@ -673,9 +687,9 @@ try {
       const prodIndex = finalHeaders.findIndex(h => h.id === 'producao');
 
       if (fazendaIndex !== -1) {
-          totalRowData[fazendaIndex] = 'Total Geral';
+          totalRowData[fazendaIndex] = 'Total Geral (Ativo)';
       } else {
-          totalRowData[1] = 'Total Geral';
+          totalRowData[1] = 'Total Geral (Ativo)';
       }
 
       if (areaIndex !== -1) {
@@ -760,14 +774,19 @@ try {
       const records = [];
       let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
       const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+      const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
 
       harvestPlan.sequence.forEach((group, index) => {
+        const isGroupClosed = group.plots.every(p => closedTalhaoIds.has(p.talhaoId));
         const diasNecessarios = dailyTon > 0 ? Math.ceil(group.totalProducao / dailyTon) : 0;
         const dataEntrada = new Date(currentDate.getTime());
         let dataSaida = new Date(dataEntrada.getTime());
         dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
-        currentDate = new Date(dataSaida.getTime());
-        currentDate.setDate(currentDate.getDate() + 1);
+        
+        if(!isGroupClosed){
+            currentDate = new Date(dataSaida.getTime());
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
 
         let totalAgeInDays = 0, plotsWithDate = 0;
         let totalDistancia = 0, plotsWithDistancia = 0;
@@ -810,7 +829,7 @@ try {
         finalHeaders.forEach(header => {
             switch(header.id) {
                 case 'seq': record.seq = index + 1; break;
-                case 'fazenda': record.fazenda = `${group.fazendaCodigo} - ${group.fazendaName}`; break;
+                case 'fazenda': record.fazenda = `${group.fazendaCodigo} - ${group.fazendaName} ${isGroupClosed ? '(ENCERRADO)' : ''}`; break;
                 case 'talhoes': record.talhoes = group.plots.map(p => p.talhaoName).join(', '); break;
                 case 'area': record.area = group.totalArea.toFixed(2); break;
                 case 'producao': record.producao = group.totalProducao.toFixed(2); break;
@@ -858,8 +877,12 @@ try {
         const monthlyTotals = {};
         let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
         const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+        const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
 
         harvestPlan.sequence.forEach(group => {
+            const isGroupClosed = group.plots.every(p => closedTalhaoIds.has(p.talhaoId));
+            if(isGroupClosed) return; // Pula grupos encerrados
+
             let producaoRestante = group.totalProducao;
             while (producaoRestante > 0) {
                 const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
@@ -919,8 +942,12 @@ try {
         const monthlyTotals = {};
         let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
         const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+        const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
 
         harvestPlan.sequence.forEach(group => {
+            const isGroupClosed = group.plots.every(p => closedTalhaoIds.has(p.talhaoId));
+            if(isGroupClosed) return;
+
             let producaoRestante = group.totalProducao;
             while (producaoRestante > 0) {
                 const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
