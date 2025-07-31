@@ -1502,7 +1502,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
-                // [CORREÇÃO] Event listener para os interruptores de permissão
+                // [CORREÇÃO BUG #1] Event listener para os interruptores de permissão
                 const setupPermissionGridListener = (container) => {
                     if (!container) return;
                     container.addEventListener('click', (e) => {
@@ -1619,7 +1619,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 App.elements.harvest.fazenda.addEventListener('change', e => this.renderHarvestTalhaoSelection(e.target.value));
                 
-                // [CORREÇÃO] Lógica do "Selecionar Todos" para ignorar talhões desativados (encerrados)
+                // [CORREÇÃO BUG #1] Lógica do "Selecionar Todos" para ignorar talhões desativados (encerrados)
                 App.elements.harvest.selectAllTalhoes.addEventListener('change', (e) => {
                     const isChecked = e.target.checked;
                     const talhaoCheckboxes = App.elements.harvest.talhaoSelectionList.querySelectorAll('input[type="checkbox"]');
@@ -1826,30 +1826,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            // [CORREÇÃO] Lógica para considerar o estado "encerrado" apenas dentro do plano ativo
+            // [CORREÇÃO BUG #2] Lógica para considerar um talhão indisponível apenas se estiver na sequência de OUTRO plano
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
             
-                // Adiciona talhões de OUTROS planos que não sejam o ativo
                 allPlans.forEach(plan => {
+                    // Se estivermos a editar um plano, não consideramos os seus próprios talhões como "já atribuídos"
                     if (App.state.activeHarvestPlan && plan.id === App.state.activeHarvestPlan.id) {
-                        return; // Pula o plano que está a ser editado
+                        // No entanto, se estivermos a editar um grupo, os talhões de OUTROS grupos do MESMO plano contam como atribuídos
+                        plan.sequence.forEach(group => {
+                            if (editingGroupId && group.id == editingGroupId) {
+                                return; // Pula o grupo que está a ser editado no momento
+                            }
+                            group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
+                        });
+                    } else {
+                        // Para todos os outros planos, qualquer talhão na sequência está indisponível
+                        plan.sequence.forEach(group => {
+                            group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
+                        });
                     }
-                    plan.sequence.forEach(group => {
-                        group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                    });
                 });
-
-                // Adiciona talhões do plano ATIVO, exceto o grupo que está a ser editado
-                if (App.state.activeHarvestPlan) {
-                    App.state.activeHarvestPlan.sequence.forEach(group => {
-                        if (editingGroupId && group.id == editingGroupId) {
-                            return; // Pula o grupo que está a ser editado no momento
-                        }
-                        group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                    });
-                }
             
                 return assignedIds;
             },
