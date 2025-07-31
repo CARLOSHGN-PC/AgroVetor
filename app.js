@@ -1273,7 +1273,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     confirmBtn.removeEventListener('click', confirmHandler);
                     cancelBtn.removeEventListener('click', closeHandler);
                     closeBtn.removeEventListener('click', closeHandler);
-                    // Reset modal to default
                     setTimeout(() => {
                         confirmBtn.textContent = "Confirmar";
                         cancelBtn.style.display = 'inline-flex';
@@ -1438,27 +1437,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(App.elements.dashboard.btnAnalisar) App.elements.dashboard.btnAnalisar.addEventListener('click', () => App.gemini.getDashboardAnalysis());
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
-                App.elements.users.permissionsContainer.addEventListener('click', e => {
-                    const item = e.target.closest('.permission-item');
-                    if (item) {
-                        const checkbox = item.querySelector('input[type="checkbox"]');
-                        if (checkbox && e.target.tagName !== 'INPUT') { // Evita duplo toggle
-                            checkbox.checked = !checkbox.checked;
-                        }
-                    }
-                });
-                
-                App.elements.userEditModal.permissionGrid.addEventListener('click', e => {
-                    const item = e.target.closest('.permission-item');
-                    if (item) {
-                        const checkbox = item.querySelector('input[type="checkbox"]');
-                        if (checkbox && e.target.tagName !== 'INPUT') { // Evita duplo toggle
-                            checkbox.checked = !checkbox.checked;
-                        }
-                    }
-                });
-
-
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
                 App.elements.users.list.addEventListener('click', e => {
