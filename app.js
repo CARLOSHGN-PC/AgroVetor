@@ -969,7 +969,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 talhaoList.appendChild(table);
             },
-            // [ALTERAÇÃO] Lógica de seleção de talhões atualizada para tempo real
             renderHarvestTalhaoSelection(farmId, plotIdsToCheck = []) {
                 const { talhaoSelectionList, editingGroupId, selectAllTalhoes } = App.elements.harvest;
                 talhaoSelectionList.innerHTML = '';
@@ -983,10 +982,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
             
-                // [NOVA LÓGICA] Pega todos os IDs de talhões já alocados em TODOS os planos, e também no plano ATIVO
-                const assignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
+                const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
                 
-                const availableTalhoes = farm.talhoes.filter(t => !assignedTalhaoIds.includes(t.id));
+                const availableTalhoes = farm.talhoes.filter(t => !allAssignedTalhaoIds.includes(t.id));
             
                 if (availableTalhoes.length === 0 && plotIdsToCheck.length === 0) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
@@ -1435,18 +1433,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.addEventListener('click', () => this.applyTheme(btn.id));
                 });
                 
-                // [NOVO] Listener para os toggles de permissão
-                document.getElementById('gerenciarUsuarios').addEventListener('click', e => {
-                    const permissionItem = e.target.closest('.permission-item');
-                    if (permissionItem) {
-                        const checkbox = permissionItem.querySelector('input[type="checkbox"]');
-                        // Previne o duplo-toggle se o clique for diretamente no checkbox (embora esteja escondido)
-                        if (checkbox && e.target.tagName !== 'INPUT') {
-                            checkbox.checked = !checkbox.checked;
-                        }
-                    }
-                });
-
                 const dashEls = App.elements.dashboard;
                 dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
                 dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
@@ -1765,7 +1751,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            // [LÓGICA CORRIGIDA] Agora verifica todos os planos salvos E o plano ativo atual
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 
