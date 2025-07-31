@@ -686,8 +686,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const createMenuItem = (item) => {
                     const hasPermission = item.submenu ? 
-                                        item.submenu.some(sub => currentUser.permissions[sub.permission]) : 
-                                        currentUser.permissions[item.permission];
+                                         item.submenu.some(sub => currentUser.permissions[sub.permission]) : 
+                                         currentUser.permissions[item.permission];
 
                     if (!hasPermission) return null;
                     
@@ -1202,7 +1202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderHarvestSequence() {
                 if (!App.state.activeHarvestPlan) return;
                 const { tableBody, summary } = App.elements.harvest;
-                const { id: planId, startDate, dailyRate, sequence } = App.state.activeHarvestPlan;
+                const { id: planId, startDate, dailyRate, sequence, closedTalhaoIds = [] } = App.state.activeHarvestPlan;
                 
                 tableBody.innerHTML = '';
                 let grandTotalProducao = 0;
@@ -1211,11 +1211,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dailyTon = parseFloat(dailyRate) || 1;
 
                 sequence.forEach((group, index) => {
-                    const producaoRestante = group.totalProducao - (group.producaoColhida || 0);
+                    const producaoConsiderada = group.totalProducao - (group.producaoColhida || 0);
                     grandTotalProducao += group.totalProducao;
                     grandTotalArea += group.totalArea;
 
-                    const diasNecessarios = dailyTon > 0 ? Math.ceil(producaoRestante / dailyTon) : 0;
+                    const diasNecessarios = dailyTon > 0 ? Math.ceil(producaoConsiderada / dailyTon) : 0;
                     const dataEntrada = new Date(currentDate.getTime());
                     
                     let dataSaida = new Date(dataEntrada.getTime());
@@ -1229,14 +1229,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const areaColhida = group.areaColhida || 0;
                     const producaoColhida = group.producaoColhida || 0;
+                    
+                    const isGroupClosed = group.plots.every(p => closedTalhaoIds.includes(p.talhaoId));
 
                     const row = tableBody.insertRow();
                     row.draggable = true;
                     row.dataset.id = group.id;
+                    if(isGroupClosed) {
+                        row.style.opacity = '0.5';
+                        row.style.textDecoration = 'line-through';
+                        row.style.background = '#f0f0f0';
+                    }
                     
                     row.innerHTML = `
                         <td data-label="Seq.">${index + 1}</td>
-                        <td data-label="Fazenda">${group.fazendaCodigo} - ${group.fazendaName}</td>
+                        <td data-label="Fazenda">${group.fazendaCodigo} - ${group.fazendaName} ${isGroupClosed ? '<span style="color:red;font-weight:bold;">(ENCERRADO)</span>' : ''}</td>
                         <td data-label="Talhões" class="talhao-list-cell">${group.plots.map(p => p.talhaoName).join(', ')}</td>
                         <td data-label="Área (ha)">${areaColhida.toFixed(2)} / ${group.totalArea.toFixed(2)}</td>
                         <td data-label="Prod. (ton)">${producaoColhida.toFixed(2)} / ${group.totalProducao.toFixed(2)}</td>
@@ -1491,15 +1498,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
-                App.elements.users.permissionsContainer.addEventListener('click', (e) => {
-                    const item = e.target.closest('.permission-item');
-                    if (item) {
-                        const checkbox = item.querySelector('input[type="checkbox"]');
-                        if (checkbox && e.target.tagName !== 'INPUT') {
-                            checkbox.checked = !checkbox.checked;
+                // [CORREÇÃO] Event listener para os interruptores de permissão
+                const setupPermissionGridListener = (container) => {
+                    if (!container) return;
+                    container.addEventListener('click', (e) => {
+                        const item = e.target.closest('.permission-item');
+                        if (item) {
+                            const checkbox = item.querySelector('input[type="checkbox"]');
+                            if (checkbox && e.target.tagName !== 'INPUT') {
+                                checkbox.checked = !checkbox.checked;
+                            }
                         }
-                    }
-                });
+                    });
+                };
+                
+                setupPermissionGridListener(App.elements.users.permissionsContainer);
+                setupPermissionGridListener(App.elements.userEditModal.permissionGrid);
+
 
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
@@ -1526,15 +1541,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 modalEls.btnDeleteUser.addEventListener('click', () => App.auth.deleteUser(modalEls.editingUserId.value));
                 modalEls.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value, '#editUserPermissionGrid'));
                 
-                modalEls.permissionGrid.addEventListener('click', (e) => {
-                    const item = e.target.closest('.permission-item');
-                    if (item) {
-                        const checkbox = item.querySelector('input[type="checkbox"]');
-                        if (checkbox && e.target.tagName !== 'INPUT') {
-                            checkbox.checked = !checkbox.checked;
-                        }
-                    }
-                });
                 
                 const cpModal = App.elements.changePasswordModal;
                 App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
@@ -1827,10 +1833,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (App.state.activeHarvestPlan) {
-                    // Não inclua os talhões já encerrados deste plano na verificação de disponibilidade
-                    // if (App.state.activeHarvestPlan.closedTalhaoIds) {
-                    //     App.state.activeHarvestPlan.closedTalhaoIds.forEach(id => assignedIds.add(id));
-                    // }
                     App.state.activeHarvestPlan.sequence.forEach(group => {
                         if (editingGroupId && group.id == editingGroupId) {
                             return;
@@ -2776,17 +2778,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                             }
             
                                             if (type === 'closed') {
-                                                const removedPlot = group.plots.splice(plotIndex, 1)[0];
-                                                const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
-                                                const talhao = farm?.talhoes.find(t => t.id === removedPlot.talhaoId);
-                                                if(talhao){
-                                                    group.totalArea -= talhao.area;
-                                                    group.totalProducao -= talhao.producao;
-                                                }
-                                                changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
+                                                const plot = group.plots[plotIndex];
                                                 if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
-                                                plan.closedTalhaoIds.push(removedPlot.talhaoId);
-            
+                                                if (!plan.closedTalhaoIds.includes(plot.talhaoId)) {
+                                                    plan.closedTalhaoIds.push(plot.talhaoId);
+                                                    changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
+                                                }
                                             } else { // progress
                                                 const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
                                                 const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
@@ -2805,7 +2802,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         const batch = writeBatch(db);
                         allPlans.forEach(plan => {
-                            plan.sequence = plan.sequence.filter(g => g.plots.length > 0);
                             const docRef = doc(db, 'harvestPlans', plan.id);
                             batch.set(docRef, plan);
                         });
@@ -2822,7 +2818,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     summaryMessage += `  - ${changes.updated.length} talhões com progresso atualizado.\n`;
                                 }
                                 if (changes.removed.length > 0) {
-                                    summaryMessage += `  - ${changes.removed.length} talhões removidos (encerrados).\n`;
+                                    summaryMessage += `  - ${changes.removed.length} talhões marcados como encerrados.\n`;
                                 }
                             });
                         } else {
