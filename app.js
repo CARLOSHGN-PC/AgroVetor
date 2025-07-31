@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
             harvestPlans: [],
             activeHarvestPlan: null,
             inactivityTimer: null,
-            inactivityWarningTimer: null,
+            inactivityWarningTimer: null, // [NOVO] Timer para o aviso de inatividade
             unsubscribeListeners: [],
             deferredInstallPrompt: null,
             newUserCreationData: null,
@@ -347,8 +347,8 @@ document.addEventListener('DOMContentLoaded', () => {
             relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
                 optionsContainer: document.getElementById('reportOptionsContainer'),
-                colunasDetalhadoContainer: document.getElementById('colunas-detalhado-container'),
-                tipoRelatorioSelect: document.getElementById('tipoRelatorioColheita'),
+                colunasDetalhadoContainer: document.getElementById('colunas-detalhado-container'), // [NOVO]
+                tipoRelatorioSelect: document.getElementById('tipoRelatorioColheita'), // [NOVO]
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
             },
@@ -425,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.data.cleanupListeners();
                 App.state.currentUser = null;
                 clearTimeout(App.state.inactivityTimer);
-                clearTimeout(App.state.inactivityWarningTimer);
+                clearTimeout(App.state.inactivityWarningTimer); // [NOVO] Limpa o timer de aviso
                 App.ui.showLoginScreen();
             },
             initiateUserCreation() {
@@ -969,6 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 talhaoList.appendChild(table);
             },
+            // [ALTERAÇÃO] Lógica de seleção de talhões atualizada
             renderHarvestTalhaoSelection(farmId, plotIdsToCheck = []) {
                 const { talhaoSelectionList, editingGroupId, selectAllTalhoes } = App.elements.harvest;
                 talhaoSelectionList.innerHTML = '';
@@ -982,6 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
             
+                // [NOVA LÓGICA] Pega todos os IDs de talhões já alocados em TODOS os planos, exceto os do grupo que está sendo editado.
                 const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
                 
                 const availableTalhoes = farm.talhoes.filter(t => !allAssignedTalhaoIds.includes(t.id));
@@ -1029,6 +1031,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             },
+            // [REDESIGN] Nova função para criar os cards de utilizador modernos
             _createModernUserCardHTML(user) {
                 const getRoleInfo = (role) => {
                     const roles = { 
@@ -1075,6 +1078,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             renderUsersList() { 
                 const { list } = App.elements.users; 
+                // [REDESIGN] Chama a nova função para renderizar os cards
                 list.innerHTML = App.state.users
                     .sort((a,b) => (a.username || '').localeCompare(b.username || ''))
                     .map((u) => this._createModernUserCardHTML(u))
@@ -1210,6 +1214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentDate = new Date(dataSaida.getTime());
                     currentDate.setDate(currentDate.getDate() + 1);
                     
+                    // [CORREÇÃO] Passa a data de entrada dinâmica para o cálculo da idade
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, dataEntrada);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
 
@@ -1400,6 +1405,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => App.charts.renderAll(), 50);
                 }
             },
+            enableEnterKeyNavigation(formSelector) {
+                const form = document.querySelector(formSelector);
+                if (!form) return;
+
+                form.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON') {
+                        e.preventDefault();
+                        const fields = Array.from(
+                            form.querySelectorAll('input:not([readonly]):not([disabled]), select:not([disabled]), textarea:not([disabled])')
+                        );
+                        const currentIndex = fields.indexOf(e.target);
+                        const nextField = fields[currentIndex + 1];
+
+                        if (nextField) {
+                            nextField.focus();
+                        } else {
+                            form.querySelector('.save, #btnConfirmarOrdemCorte, #btnLogin')?.focus();
+                        }
+                    }
+                });
+            },
             setupEventListeners() {
                 App.elements.btnLogin.addEventListener('click', () => App.auth.login());
                 App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
@@ -1433,17 +1459,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.addEventListener('click', () => this.applyTheme(btn.id));
                 });
                 
-                // [CORREÇÃO] Listener delegado para os toggles de permissão
-                App.elements.content.addEventListener('click', e => {
-                    const permissionItem = e.target.closest('.permission-item');
-                    if (permissionItem) {
-                        const checkbox = permissionItem.querySelector('input[type="checkbox"]');
-                        if (checkbox && e.target.tagName !== 'INPUT') {
-                            checkbox.checked = !checkbox.checked;
-                        }
-                    }
-                });
-
                 const dashEls = App.elements.dashboard;
                 dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
                 dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
@@ -1616,6 +1631,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const customReportEls = App.elements.relatorioColheita;
                 customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
+                // [NOVO] Listener para o seletor de tipo de relatório
                 customReportEls.tipoRelatorioSelect.addEventListener('change', (e) => {
                     const isDetalhado = e.target.value === 'detalhado';
                     customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
@@ -1670,21 +1686,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return date.toLocaleDateString('pt-BR');
             },
+            // [CORREÇÃO] Lógica de inatividade com aviso prévio
             resetInactivityTimer() {
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
             
                 if (App.state.currentUser) {
+                    // Timer para o aviso
                     App.state.inactivityWarningTimer = setTimeout(() => {
                         const { confirmationModal } = App.elements;
                         
+                        // Reutiliza o modal de confirmação para o aviso
                         confirmationModal.title.textContent = "Sessão prestes a expirar";
                         confirmationModal.message.textContent = "A sua sessão será encerrada em 1 minuto por inatividade. Deseja continuar conectado?";
                         confirmationModal.confirmBtn.textContent = "Continuar";
-                        confirmationModal.cancelBtn.style.display = 'none';
+                        confirmationModal.cancelBtn.style.display = 'none'; // Esconde o botão de cancelar
             
                         const confirmHandler = () => {
-                            this.resetInactivityTimer();
+                            this.resetInactivityTimer(); // Reinicia o timer
                             closeHandler();
                         };
             
@@ -1692,6 +1711,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             confirmationModal.overlay.classList.remove('show');
                             confirmationModal.confirmBtn.removeEventListener('click', confirmHandler);
                             confirmationModal.closeBtn.removeEventListener('click', closeHandler);
+                            // Restaura o estado original do modal
                             setTimeout(() => {
                                 confirmationModal.confirmBtn.textContent = "Confirmar";
                                 confirmationModal.cancelBtn.style.display = 'inline-flex';
@@ -1704,6 +1724,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
                     }, App.config.inactivityTimeout - App.config.inactivityWarningTime);
             
+                    // Timer para o logout final
                     App.state.inactivityTimer = setTimeout(() => {
                         App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
                         App.auth.logout();
@@ -1762,33 +1783,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
+            // [NOVA LÓGICA] Função para buscar talhões já alocados em TODOS os planos
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
-                
-                App.state.harvestPlans.forEach(plan => {
-                    if (App.state.activeHarvestPlan && plan.id === App.state.activeHarvestPlan.id) {
-                        return;
-                    }
+                const allPlans = App.state.harvestPlans;
+            
+                allPlans.forEach(plan => {
+                    // Adiciona talhões que já foram permanentemente encerrados neste plano
                     if (plan.closedTalhaoIds) {
                         plan.closedTalhaoIds.forEach(id => assignedIds.add(id));
                     }
+            
                     plan.sequence.forEach(group => {
-                        group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                    });
-                });
-
-                if (App.state.activeHarvestPlan) {
-                    if (App.state.activeHarvestPlan.closedTalhaoIds) {
-                         App.state.activeHarvestPlan.closedTalhaoIds.forEach(id => assignedIds.add(id));
-                    }
-                    App.state.activeHarvestPlan.sequence.forEach(group => {
+                        // Se estivermos editando este grupo, os seus talhões não contam como "já alocados"
                         if (editingGroupId && group.id == editingGroupId) {
                             return;
                         }
                         group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
                     });
-                }
-
+                });
                 return Array.from(assignedIds);
             },
             async saveFarm() {
@@ -2301,6 +2314,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 sequence.splice(toIndex, 0, item);
                 App.ui.renderHarvestSequence();
             },
+            // [CORREÇÃO] A função agora recebe a data de entrada do grupo para o cálculo
             calculateAverageAge(group, groupStartDate) {
                 let totalAgeInDays = 0;
                 let plotsWithDate = 0;
@@ -2680,6 +2694,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
+            // [CORREÇÃO] Lógica de importação de relatório de colheita
             async importHarvestReport(file, type) {
                 if (!file) return;
             
@@ -3289,6 +3304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
             },
         
+            // [NOVO] Lógica para gerar os diferentes relatórios de colheita
             generateCustomHarvestReport(format) {
                 const { select, optionsContainer, tipoRelatorioSelect } = App.elements.relatorioColheita;
                 const planId = select.value;
@@ -3309,6 +3325,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     filters.selectedColumns = JSON.stringify(selectedColumns);
                 } else {
+                    // Se for 'mensal', o endpoint é diferente
                     endpoint = `colheita/mensal/${format}`;
                 }
             
