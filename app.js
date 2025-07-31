@@ -1211,9 +1211,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dailyTon = parseFloat(dailyRate) || 1;
 
                 sequence.forEach((group, index) => {
-                    const producaoConsiderada = group.totalProducao - (group.producaoColhida || 0);
-                    grandTotalProducao += group.totalProducao;
-                    grandTotalArea += group.totalArea;
+                    const isGroupClosed = group.plots.every(p => closedTalhaoIds.includes(p.talhaoId));
+                    const producaoConsiderada = isGroupClosed ? 0 : group.totalProducao - (group.producaoColhida || 0);
+
+                    if (!isGroupClosed) {
+                        grandTotalProducao += group.totalProducao;
+                        grandTotalArea += group.totalArea;
+                    }
 
                     const diasNecessarios = dailyTon > 0 ? Math.ceil(producaoConsiderada / dailyTon) : 0;
                     const dataEntrada = new Date(currentDate.getTime());
@@ -1221,16 +1225,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     let dataSaida = new Date(dataEntrada.getTime());
                     dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
 
-                    currentDate = new Date(dataSaida.getTime());
-                    currentDate.setDate(currentDate.getDate() + 1);
+                    if (!isGroupClosed) {
+                        currentDate = new Date(dataSaida.getTime());
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
                     
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, dataEntrada);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
 
                     const areaColhida = group.areaColhida || 0;
                     const producaoColhida = group.producaoColhida || 0;
-                    
-                    const isGroupClosed = group.plots.every(p => closedTalhaoIds.includes(p.talhaoId));
 
                     const row = tableBody.insertRow();
                     row.draggable = true;
@@ -1281,8 +1285,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     finalDate.setDate(finalDate.getDate() - 1);
 
                     summary.innerHTML = `
-                        <p>Produção Total Estimada: <span>${grandTotalProducao.toFixed(2)} ton</span></p>
-                        <p>Área Total: <span>${grandTotalArea.toFixed(2)} ha</span></p>
+                        <p>Produção Total (Ativa): <span>${grandTotalProducao.toFixed(2)} ton</span></p>
+                        <p>Área Total (Ativa): <span>${grandTotalArea.toFixed(2)} ha</span></p>
                         <p>Data Final de Saída Prevista: <span>${finalDate.toLocaleDateString('pt-BR')}</span></p>
                         <p>Variedades na Sequência: <span>${varietiesString}</span></p>
                     `;
@@ -1615,10 +1619,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 App.elements.harvest.fazenda.addEventListener('change', e => this.renderHarvestTalhaoSelection(e.target.value));
                 
+                // [CORREÇÃO] Lógica do "Selecionar Todos" para ignorar talhões desativados (encerrados)
                 App.elements.harvest.selectAllTalhoes.addEventListener('change', (e) => {
                     const isChecked = e.target.checked;
                     const talhaoCheckboxes = App.elements.harvest.talhaoSelectionList.querySelectorAll('input[type="checkbox"]');
-                    talhaoCheckboxes.forEach(cb => cb.checked = isChecked);
+                    talhaoCheckboxes.forEach(cb => {
+                        if (!cb.disabled) { // Apenas altera o estado se o checkbox não estiver desativado
+                            cb.checked = isChecked;
+                        }
+                    });
                 });
 
                 App.elements.harvest.btnAddOrUpdate.addEventListener('click', () => App.actions.addOrUpdateHarvestSequence());
@@ -1817,25 +1826,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
+            // [CORREÇÃO] Lógica para considerar o estado "encerrado" apenas dentro do plano ativo
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
             
+                // Adiciona talhões de OUTROS planos que não sejam o ativo
                 allPlans.forEach(plan => {
-                    if (App.state.activeHarvestPlan && plan.id === App.state.activeHarvestPlan.id) return;
-
-                    if (plan.closedTalhaoIds) {
-                        plan.closedTalhaoIds.forEach(id => assignedIds.add(id));
+                    if (App.state.activeHarvestPlan && plan.id === App.state.activeHarvestPlan.id) {
+                        return; // Pula o plano que está a ser editado
                     }
                     plan.sequence.forEach(group => {
                         group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
                     });
                 });
 
+                // Adiciona talhões do plano ATIVO, exceto o grupo que está a ser editado
                 if (App.state.activeHarvestPlan) {
                     App.state.activeHarvestPlan.sequence.forEach(group => {
                         if (editingGroupId && group.id == editingGroupId) {
-                            return;
+                            return; // Pula o grupo que está a ser editado no momento
                         }
                         group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
                     });
