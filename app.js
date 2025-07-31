@@ -780,7 +780,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     if (id === 'excluirDados') this.renderExclusao();
-                    if (id === 'gerenciarUsuarios') this.renderUsersList();
+                    if (id === 'gerenciarUsuarios') {
+                        this.renderUsersList();
+                        this.renderPermissionItems(App.elements.users.permissionsContainer); // Renderiza os cards de permissão
+                    }
                     if (id === 'cadastros') this.renderFarmSelect();
                     if (id === 'cadastrarPessoas') this.renderPersonnelList();
                     if (id === 'planejamento') this.renderPlanejamento();
@@ -1353,31 +1356,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 modalEls.username.value = user.username;
                 modalEls.role.value = user.role;
 
-                modalEls.permissionGrid.innerHTML = '';
-                const permissionItems = App.config.menuConfig.flatMap(item => {
-                    if (item.submenu) {
-                        return item.submenu.filter(sub => sub.permission);
-                    }
-                    return item.permission ? [item] : [];
-                });
-                
-                permissionItems.forEach(perm => {
-                    if (!perm.permission) return;
-                    const isChecked = user.permissions[perm.permission];
-                    const label = document.createElement('label');
-                    label.className = 'permission-item';
-                    label.innerHTML = `
-                        <div class="permission-content">
-                            <i class="${perm.icon}"></i>
-                            <span>${perm.label}</span>
-                        </div>
-                        <div class="toggle-switch">
-                            <input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}>
-                            <span class="slider"></span>
-                        </div>
-                    `;
-                    modalEls.permissionGrid.appendChild(label);
-                });
+                this.renderPermissionItems(modalEls.permissionGrid, user.permissions);
 
                 modalEls.overlay.classList.add('show');
             },
@@ -1430,6 +1409,32 @@ document.addEventListener('DOMContentLoaded', () => {
                             form.querySelector('.save, #btnConfirmarOrdemCorte, #btnLogin')?.focus();
                         }
                     }
+                });
+            },
+            _createPermissionItemHTML(perm, permissions = {}) {
+                if (!perm.permission) return '';
+                const isChecked = permissions[perm.permission];
+                return `
+                    <label class="permission-item">
+                        <div class="permission-content">
+                            <i class="${perm.icon}"></i>
+                            <span>${perm.label}</span>
+                        </div>
+                        <div class="toggle-switch">
+                            <input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}>
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                `;
+            },
+            renderPermissionItems(container, permissions = {}) {
+                if (!container) return;
+                container.innerHTML = '';
+                const permissionItems = App.config.menuConfig.flatMap(item => 
+                    item.submenu ? item.submenu.filter(sub => sub.permission) : (item.permission ? [item] : [])
+                );
+                permissionItems.forEach(perm => {
+                    container.innerHTML += this._createPermissionItemHTML(perm, permissions);
                 });
             },
             setupEventListeners() {
