@@ -126,7 +126,7 @@ try {
     doc.moveDown(2);
     return doc.y;
   };
-  
+ 
   // [CORREÇÃO FINAL] Função de rodapé agora SEM paginação
   const generatePdfFooter = (doc, generatedBy = 'N/A') => {
     const pageCount = doc.bufferedPageRange().count;
@@ -834,6 +834,128 @@ try {
     } catch (error) {
       console.error("Erro ao gerar relatório CSV de Colheita:", error);
       res.status(500).send('Erro ao gerar relatório.');
+    }
+  });
+
+  // [NOVO] Rota para relatório mensal de colheita (PDF)
+  app.get('/reports/colheita/mensal/pdf', async (req, res) => {
+    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=relatorio_previsao_mensal.pdf`);
+    doc.pipe(res);
+
+    try {
+        const { planId, generatedBy } = req.query;
+        if (!planId) throw new Error('ID do plano não fornecido.');
+
+        const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
+        if (!harvestPlanDoc.exists) throw new Error('Plano de colheita não encontrado.');
+
+        const harvestPlan = harvestPlanDoc.data();
+        const title = `Previsão Mensal de Colheita - ${harvestPlan.frontName}`;
+        let currentY = await generatePdfHeader(doc, title);
+        
+        const monthlyTotals = {};
+        let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
+        const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+
+        harvestPlan.sequence.forEach(group => {
+            let producaoRestante = group.totalProducao;
+            while (producaoRestante > 0) {
+                const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthlyTotals[monthKey]) {
+                    monthlyTotals[monthKey] = 0;
+                }
+                monthlyTotals[monthKey] += Math.min(producaoRestante, dailyTon);
+                producaoRestante -= dailyTon;
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+        });
+
+        const headers = ['Mês/Ano', 'Produção Total (ton)'];
+        const columnWidths = [250, 250];
+        currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 20);
+
+        const sortedMonths = Object.keys(monthlyTotals).sort();
+        let grandTotal = 0;
+
+        for (const monthKey of sortedMonths) {
+            const [year, month] = monthKey.split('-');
+            const monthName = new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'long' });
+            const formattedMonth = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${year}`;
+            const totalProducao = monthlyTotals[monthKey];
+            grandTotal += totalProducao;
+
+            const rowData = [formattedMonth, formatNumber(totalProducao)];
+            currentY = await checkPageBreak(doc, currentY, title);
+            currentY = drawRow(doc, rowData, currentY, false, false, columnWidths, 5, 18);
+        }
+        
+        const totalRowData = ['Total Geral', formatNumber(grandTotal)];
+        drawRow(doc, totalRowData, currentY, false, true, columnWidths, 5, 20);
+
+        generatePdfFooter(doc, generatedBy);
+        doc.end();
+    } catch (error) {
+        console.error("Erro no PDF de Previsão Mensal:", error);
+        if (!res.headersSent) {
+            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+        } else {
+            doc.end();
+        }
+    }
+  });
+
+  // [NOVO] Rota para relatório mensal de colheita (CSV)
+  app.get('/reports/colheita/mensal/csv', async (req, res) => {
+    try {
+        const { planId } = req.query;
+        if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
+
+        const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
+        if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
+
+        const harvestPlan = harvestPlanDoc.data();
+        const monthlyTotals = {};
+        let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
+        const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+
+        harvestPlan.sequence.forEach(group => {
+            let producaoRestante = group.totalProducao;
+            while (producaoRestante > 0) {
+                const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthlyTotals[monthKey]) {
+                    monthlyTotals[monthKey] = 0;
+                }
+                monthlyTotals[monthKey] += Math.min(producaoRestante, dailyTon);
+                producaoRestante -= dailyTon;
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+        });
+
+        const filePath = path.join(os.tmpdir(), `previsao_mensal_${Date.now()}.csv`);
+        const csvWriter = createObjectCsvWriter({
+            path: filePath,
+            header: [
+                { id: 'mes', title: 'Mês/Ano' },
+                { id: 'producao', title: 'Produção Total (ton)' }
+            ]
+        });
+
+        const records = Object.keys(monthlyTotals).sort().map(monthKey => {
+            const [year, month] = monthKey.split('-');
+            const monthName = new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'long' });
+            return {
+                mes: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${year}`,
+                producao: monthlyTotals[monthKey].toFixed(2)
+            };
+        });
+
+        await csvWriter.writeRecords(records);
+        res.download(filePath);
+    } catch (error) {
+        console.error("Erro ao gerar CSV de Previsão Mensal:", error);
+        res.status(500).send('Erro ao gerar relatório.');
     }
   });
 
