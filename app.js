@@ -1433,6 +1433,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.addEventListener('click', () => this.applyTheme(btn.id));
                 });
                 
+                // [CORREÇÃO] Listener delegado para os toggles de permissão
+                App.elements.content.addEventListener('click', e => {
+                    const permissionItem = e.target.closest('.permission-item');
+                    if (permissionItem) {
+                        const checkbox = permissionItem.querySelector('input[type="checkbox"]');
+                        if (checkbox && e.target.tagName !== 'INPUT') {
+                            checkbox.checked = !checkbox.checked;
+                        }
+                    }
+                });
+
                 const dashEls = App.elements.dashboard;
                 dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
                 dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
@@ -1754,9 +1765,7 @@ document.addEventListener('DOMContentLoaded', () => {
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 
-                // 1. Verifica todos os planos salvos no Firestore
                 App.state.harvestPlans.forEach(plan => {
-                    // Ignora o plano ativo inteiro se estivermos editando-o, para evitar conflitos
                     if (App.state.activeHarvestPlan && plan.id === App.state.activeHarvestPlan.id) {
                         return;
                     }
@@ -1768,13 +1777,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
 
-                // 2. Verifica o plano que está sendo editado no momento (App.state)
                 if (App.state.activeHarvestPlan) {
                     if (App.state.activeHarvestPlan.closedTalhaoIds) {
                          App.state.activeHarvestPlan.closedTalhaoIds.forEach(id => assignedIds.add(id));
                     }
                     App.state.activeHarvestPlan.sequence.forEach(group => {
-                        // Se estivermos editando um grupo específico, seus talhões não contam como "já alocados" para si mesmos
                         if (editingGroupId && group.id == editingGroupId) {
                             return;
                         }
