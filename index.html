@@ -77,9 +77,9 @@
       }
       
       #loginBox { 
-          background: rgba(255, 255, 255, 0.6); /* Fallback com mais transparência */
-          background: color-mix(in srgb, var(--color-surface) 60%, transparent); /* Mais transparente */
-          backdrop-filter: blur(12px); /* Um pouco mais de desfoque */
+          background: rgba(255, 255, 255, 0.6);
+          background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+          backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
           border: 1px solid rgba(255, 255, 255, 0.2);
           box-shadow: var(--shadow-xl); 
@@ -188,7 +188,7 @@
           display: flex;
           flex-direction: column;
           transition: var(--transition);
-          position: relative; /* Adicionado para posicionar o botão de expandir */
+          position: relative;
       }
       .kpi-card:hover, .chart-card:hover {
         transform: translateY(-4px);
@@ -242,8 +242,8 @@
       }
       .btn-expand-chart { 
           position: absolute; 
-          top: 10px; /* Ajustado para dentro do card */
-          right: 10px; /* Ajustado para dentro do card */
+          top: 10px;
+          right: 10px;
           background: var(--color-bg); 
           border: 1px solid var(--color-border); 
           color: var(--color-text-light); 
@@ -259,7 +259,7 @@
       }
       .btn-expand-chart:hover { background: var(--color-primary-light); color: var(--color-primary); }
 
-      /* --- [NOVO] ESTILOS PARA CARDS DE SELEÇÃO DO DASHBOARD --- */
+      /* --- CARDS DE SELEÇÃO DO DASHBOARD --- */
       .dashboard-selector-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -335,35 +335,27 @@
         color: var(--color-primary);
       }
 
-
-      /* --- [REDESIGN] ESTILOS MODERNOS PARA PERMISSÕES --- */
+      /* --- [REDESIGN] ESTILOS MODERNOS PARA PERMISSÕES (BASEADO NA IMAGEM) --- */
       .permission-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
           gap: 16px;
           margin-top: 15px;
       }
-
       .permission-item {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          gap: 12px;
-          padding: 16px;
           background: var(--color-bg);
-          border: 1px solid var(--color-border);
           border-radius: var(--border-radius-lg);
+          padding: 12px 16px;
           cursor: pointer;
           transition: var(--transition);
-          user-select: none;
+          border: 1px solid transparent;
       }
-
       .permission-item:hover {
-          transform: translateY(-4px);
-          box-shadow: var(--shadow-md);
-          border-color: var(--color-primary);
+          border-color: var(--color-border);
       }
-
       .permission-content {
           display: flex;
           align-items: center;
@@ -371,60 +363,50 @@
           font-weight: 500;
           color: var(--color-text);
       }
-
       .permission-content i {
           font-size: 18px;
           width: 20px;
           text-align: center;
           color: var(--color-primary);
       }
-
       .permission-item input[type="checkbox"] {
-          display: none; /* Esconde o checkbox nativo */
+          display: none;
       }
-
       .toggle-switch {
           position: relative;
           display: inline-block;
-          width: 44px;
-          height: 24px;
+          width: 50px;
+          height: 28px;
           flex-shrink: 0;
       }
-
       .toggle-switch .slider {
           position: absolute;
           cursor: pointer;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: #ccc;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background-color: var(--color-border);
           transition: .4s;
-          border-radius: 24px;
+          border-radius: 28px;
       }
-
       .toggle-switch .slider:before {
           position: absolute;
           content: "";
-          height: 18px;
-          width: 18px;
+          height: 22px;
+          width: 22px;
           left: 3px;
           bottom: 3px;
           background-color: white;
           transition: .4s;
           border-radius: 50%;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
       }
-
       .permission-item input:checked ~ .toggle-switch .slider {
           background-color: var(--color-primary);
       }
-      
       body.theme-dark .permission-item input:checked ~ .toggle-switch .slider {
           background-color: var(--color-accent);
       }
-
       .permission-item input:checked ~ .toggle-switch .slider:before {
-          transform: translateX(20px);
+          transform: translateX(22px);
       }
 
       /* --- [REDESIGN] NOVOS CARDS DE UTILIZADORES --- */
@@ -610,7 +592,7 @@
       #expandedChartContainer { flex-grow: 1; position: relative; }
 
       /* Estilos para seleção de usuário offline */
-      #offlineUserSelection { display: none; /* Começa escondido */ }
+      #offlineUserSelection { display: none; }
       .offline-user-btn {
           width: 100%;
           padding: 16px;
@@ -643,19 +625,19 @@
       }
       .report-options-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Tamanho mínimo menor */
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
           gap: 15px;
           align-items: stretch;
       }
       .report-option-item {
           position: relative;
-          display: flex; /* Alterado para flex para melhor alinhamento interno */
-          flex-direction: column; /* Alinha o conteúdo verticalmente */
-          justify-content: center; /* Centraliza o conteúdo */
-          height: 100%; /* Garante que todos os cards tenham a mesma altura */
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          height: 100%;
           align-items: center;
           gap: 12px;
-          padding: 12px; /* Padding reduzido */
+          padding: 12px;
           background-color: var(--color-bg);
           border: 1px solid var(--color-border);
           border-radius: var(--border-radius);
@@ -703,7 +685,7 @@
       }
       .report-option-item .option-content {
           display: flex;
-          flex-direction: column; /* Alinha ícone e texto verticalmente */
+          flex-direction: column;
           align-items: center;
           gap: 8px;
           font-weight: 500;
@@ -762,7 +744,6 @@
                 <div id="loginMessage" role="alert" aria-live="assertive"></div>
             </div>
             
-            <!-- Container para seleção de usuário offline -->
             <div id="offlineUserSelection" style="display: none;">
                 <h2><i class="fas fa-wifi-slash"></i> Acesso Offline</h2>
                 <p style="color: var(--color-text-light); margin-bottom: 20px;">Selecione seu perfil para continuar.</p>
@@ -814,10 +795,8 @@
         <nav class="menu" id="menu" aria-label="Menu Principal" tabindex="-1"></nav>
         
         <main class="content" id="content">
-            <!-- [ALTERADO] Dashboard Principal -->
             <section id="dashboard" class="tab-content" aria-label="Dashboard" tabindex="0" hidden>
                 
-                <!-- [NOVO] Seletor de Dashboards -->
                 <div id="dashboard-selector" class="dashboard-selector-grid">
                     <div id="card-broca" class="dashboard-card">
                         <i class="icon fas fa-bug"></i>
@@ -836,7 +815,6 @@
                     </div>
                 </div>
 
-                <!-- [NOVO] Dashboard de Broca -->
                 <div id="dashboard-broca" style="display: none;">
                     <div class="dashboard-header">
                         <h2 style="color: var(--color-danger);"><i class="fas fa-bug"></i> Dashboard de Broca</h2>
@@ -866,7 +844,6 @@
                     </div>
                 </div>
 
-                <!-- [NOVO] Dashboard de Perda -->
                  <div id="dashboard-perda" style="display: none;">
                     <div class="dashboard-header">
                         <h2 style="color: var(--color-warning);"><i class="fas fa-chart-line"></i> Dashboard de Perdas</h2>
@@ -896,7 +873,6 @@
                     </div>
                 </div>
 
-                <!-- [NOVO] Dashboard de Aplicação Aérea -->
                 <div id="dashboard-aerea" style="display: none;">
                      <div class="dashboard-header">
                         <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
@@ -1092,7 +1068,6 @@
                 </div>
             </section>
 
-            <!-- [ALTERADO] Seção do Relatório Customizado de Colheita -->
             <section id="relatorioColheitaCustom" class="tab-content card" aria-label="Relatório Customizado de Colheita" tabindex="0" hidden>
                 <h2 style="color: var(--color-purple);"><i class="fas fa-file-invoice"></i> Relatório Customizado de Colheita</h2>
                 
@@ -1103,7 +1078,6 @@
                             <label for="planoRelatorioSelect" class="required">Selecione um Plano de Colheita:</label>
                             <select id="planoRelatorioSelect" required></select>
                         </div>
-                        <!-- [NOVO] Seletor para o tipo de relatório -->
                         <div class="form-col">
                             <label for="tipoRelatorioColheita">Modelo do Relatório:</label>
                             <select id="tipoRelatorioColheita">
@@ -1117,7 +1091,6 @@
                 <div class="card" id="colunas-detalhado-container" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-check-square"></i> 2. Selecione as Colunas para o Relatório</h3>
                     <div class="report-options-grid" id="reportOptionsContainer">
-                        <!-- NOVO CARD DE TALHÃO -->
                         <label class="report-option-item">
                             <input type="checkbox" data-column="talhoes" checked>
                             <span class="checkbox-visual"><i class="fas fa-check"></i></span>
@@ -1269,7 +1242,6 @@
                     <label for="farmSelect">Selecione uma Fazenda para gerir os seus talhões:</label>
                     <select id="farmSelect"></select>
                     <div id="talhaoManagementContainer" style="display:none;">
-                        <!-- [ALTERAÇÃO] Adicionado o span com ID para os tipos -->
                         <h4>Talhões da Fazenda <span id="selectedFarmName"></span> <span id="selectedFarmTypes"></span></h4>
                         <div id="talhaoList" class="table-responsive"></div>
                         <h5 style="margin-top:20px;">Adicionar/Editar Talhão</h5>
@@ -1395,7 +1367,6 @@
                     <button id="removeLogoBtn" class="btn-secondary" style="background: var(--color-danger); max-width: 200px; display: none;"><i class="fas fa-trash"></i> Remover Logo</button>
                 </div>
 
-                <!-- [ALTERADO] Secção de importação de relatórios de colheita movida e dividida -->
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
                     <h3><i class="fas fa-sync-alt"></i> Sincronização Global dos Planos de Colheita</h3>
                     <p>Importe relatórios do seu sistema principal para manter <strong>todos os planos de colheita</strong> sempre atualizados com a operação real.</p>
@@ -1539,7 +1510,6 @@
             </div>
         </div>
 
-        <!-- [NOVO] Modal para Editar Nome da Fazenda -->
         <div id="editFarmModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
