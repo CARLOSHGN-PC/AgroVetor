@@ -1827,9 +1827,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (App.state.activeHarvestPlan) {
-                    if (App.state.activeHarvestPlan.closedTalhaoIds) {
-                        App.state.activeHarvestPlan.closedTalhaoIds.forEach(id => assignedIds.add(id));
-                    }
+                    // Não inclua os talhões já encerrados deste plano na verificação de disponibilidade
+                    // if (App.state.activeHarvestPlan.closedTalhaoIds) {
+                    //     App.state.activeHarvestPlan.closedTalhaoIds.forEach(id => assignedIds.add(id));
+                    // }
                     App.state.activeHarvestPlan.sequence.forEach(group => {
                         if (editingGroupId && group.id == editingGroupId) {
                             return;
