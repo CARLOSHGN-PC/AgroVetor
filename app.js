@@ -774,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     tab.hidden = false;
                     
                     if (id === 'dashboard') {
-                        this.showDashboardView('broca'); 
+                       this.showDashboardView('broca'); 
                     } else {
                         App.charts.destroyAll(); 
                     }
@@ -969,6 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 talhaoList.appendChild(table);
             },
+            // [ALTERAÇÃO] Lógica de seleção de talhões atualizada
             renderHarvestTalhaoSelection(farmId, plotIdsToCheck = []) {
                 const { talhaoSelectionList, editingGroupId, selectAllTalhoes } = App.elements.harvest;
                 talhaoSelectionList.innerHTML = '';
@@ -982,7 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
             
-                // [CORREÇÃO] Pega todos os IDs de talhões já alocados em TODOS os planos, exceto os do grupo que está sendo editado.
+                // [NOVA LÓGICA] Pega todos os IDs de talhões já alocados em TODOS os planos, exceto os do grupo que está sendo editado.
                 const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
                 
                 const availableTalhoes = farm.talhoes.filter(t => !allAssignedTalhaoIds.includes(t.id));
@@ -1782,7 +1783,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            // [CORREÇÃO] Lógica para buscar talhões já alocados em TODOS os planos
+            // [NOVA LÓGICA] Função para buscar talhões já alocados em TODOS os planos
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
