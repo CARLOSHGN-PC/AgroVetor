@@ -1486,6 +1486,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
+                // [FIX] Adiciona o event listener para os toggles de permissão na criação de usuário
+                App.elements.users.permissionsContainer.addEventListener('click', (e) => {
+                    const item = e.target.closest('.permission-item');
+                    if (item) {
+                        const checkbox = item.querySelector('input[type="checkbox"]');
+                        if (checkbox && e.target.tagName !== 'INPUT') {
+                            checkbox.checked = !checkbox.checked;
+                        }
+                    }
+                });
+
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
                 App.elements.users.list.addEventListener('click', e => {
@@ -1510,6 +1521,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 modalEls.btnResetPassword.addEventListener('click', () => App.auth.resetUserPassword(modalEls.editingUserId.value));
                 modalEls.btnDeleteUser.addEventListener('click', () => App.auth.deleteUser(modalEls.editingUserId.value));
                 modalEls.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value, '#editUserPermissionGrid'));
+                
                 // [FIX] Adiciona o event listener para os toggles de permissão no modal de edição
                 modalEls.permissionGrid.addEventListener('click', (e) => {
                     const item = e.target.closest('.permission-item');
@@ -1801,8 +1813,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
             
-                // Adiciona talhões de todos os planos salvos
+                // Adiciona talhões de todos os planos salvos no banco de dados
                 allPlans.forEach(plan => {
+                    // Não considera o plano que está sendo editado no momento, pois seus dados estão no 'activeHarvestPlan'
+                    if (App.state.activeHarvestPlan && plan.id === App.state.activeHarvestPlan.id) return;
+
                     if (plan.closedTalhaoIds) {
                         plan.closedTalhaoIds.forEach(id => assignedIds.add(id));
                     }
@@ -1811,7 +1826,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
 
-                // Adiciona talhões do plano que está sendo editado no momento
+                // Adiciona talhões do plano que está sendo editado no momento (estado local)
                 if (App.state.activeHarvestPlan) {
                     App.state.activeHarvestPlan.sequence.forEach(group => {
                         // Se estivermos editando um grupo, seus talhões não contam como "já alocados" para si mesmos
