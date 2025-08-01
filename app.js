@@ -1199,35 +1199,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     plansList.appendChild(card);
                 });
             },
-            // [CORREÇÃO BUG #3] Lógica de cálculo de datas refeita
+            // [CORREÇÃO] Lógica de cálculo de datas do plano de colheita foi refeita para ser mais robusta e reativa.
             renderHarvestSequence() {
                 if (!App.state.activeHarvestPlan) return;
                 const { tableBody, summary } = App.elements.harvest;
                 const { startDate, dailyRate, sequence, closedTalhaoIds = [] } = App.state.activeHarvestPlan;
                 
                 tableBody.innerHTML = '';
-                
-                let currentDate;
-                if (startDate && startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                    currentDate = new Date(startDate + 'T03:00:00Z');
-                } else {
+                let grandTotalProducao = 0;
+                let grandTotalArea = 0;
+
+                // Garante que a data de início seja válida, usando a data atual como fallback.
+                let currentDate = startDate ? new Date(startDate + 'T03:00:00Z') : new Date();
+                if (isNaN(currentDate.getTime())) {
                     currentDate = new Date();
-                    currentDate.setHours(3, 0, 0, 0);
                 }
-                
-                const dailyTon = parseFloat(dailyRate) || 1;
-                const closedTalhaoIdSet = new Set(closedTalhaoIds);
+                // Garante que a média diária seja um número positivo para evitar divisões por zero.
+                const dailyTon = parseFloat(dailyRate) > 0 ? parseFloat(dailyRate) : 1;
 
                 sequence.forEach((group, index) => {
-                    const isGroupClosed = group.plots.every(p => closedTalhaoIdSet.has(p.talhaoId));
+                    // Verifica se todos os talhões do grupo já foram marcados como encerrados.
+                    const isGroupClosed = group.plots.every(p => closedTalhaoIds.includes(p.talhaoId));
+                    
+                    // Calcula a produção que ainda precisa ser colhida no grupo.
                     const producaoConsiderada = isGroupClosed ? 0 : group.totalProducao - (group.producaoColhida || 0);
 
-                    const diasNecessarios = dailyTon > 0 ? Math.ceil(producaoConsiderada / dailyTon) : 0;
+                    // Adiciona aos totais gerais apenas se o grupo não estiver encerrado.
+                    if (!isGroupClosed) {
+                        grandTotalProducao += group.totalProducao;
+                        grandTotalArea += group.totalArea;
+                    }
+
+                    // Calcula os dias necessários para colher a produção restante.
+                    const diasNecessarios = Math.ceil(producaoConsiderada / dailyTon);
+                    
+                    // A data de entrada é a data atual do loop.
                     const dataEntrada = new Date(currentDate.getTime());
                     
+                    // Calcula a data de saída. Se levar 3 dias, a saída é no dia de entrada + 2.
                     let dataSaida = new Date(dataEntrada.getTime());
-                    dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
-
+                    if (diasNecessarios > 0) {
+                        dataSaida.setDate(dataSaida.getDate() + diasNecessarios - 1);
+                    }
+                    
+                    // Avança a data para o início do próximo grupo, mas SÓ se o grupo atual não estiver encerrado.
                     if (!isGroupClosed) {
                         currentDate = new Date(dataSaida.getTime());
                         currentDate.setDate(currentDate.getDate() + 1);
@@ -1267,16 +1282,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Entrada">${dataEntrada.toLocaleDateString('pt-BR')}</td>
                         <td data-label="Saída">${dataSaida.toLocaleDateString('pt-BR')}</td>
                     `;
-                });
-
-                let grandTotalProducao = 0;
-                let grandTotalArea = 0;
-                sequence.forEach(group => {
-                    const isGroupClosed = group.plots.every(p => closedTalhaoIdSet.has(p.talhaoId));
-                    if (!isGroupClosed) {
-                        grandTotalProducao += group.totalProducao;
-                        grandTotalArea += group.totalArea;
-                    }
                 });
 
                 if (sequence.length > 0) {
@@ -1515,23 +1520,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
-                // [CORREÇÃO BUG #1] Event listener para os interruptores de permissão
-                const setupPermissionGridListener = (container) => {
-                    if (!container) return;
-                    container.addEventListener('click', (e) => {
-                        const item = e.target.closest('.permission-item');
-                        if (item) {
-                            const checkbox = item.querySelector('input[type="checkbox"]');
-                            if (checkbox && e.target.tagName !== 'INPUT') {
-                                checkbox.checked = !checkbox.checked;
-                            }
-                        }
-                    });
-                };
-                
-                setupPermissionGridListener(App.elements.users.permissionsContainer);
-                setupPermissionGridListener(App.elements.userEditModal.permissionGrid);
-
+                // [CORREÇÃO] O listener de clique para as permissões foi REMOVIDO.
+                // O comportamento padrão da tag <label> que envolve o input é suficiente
+                // e o listener anterior causava um "clique duplo", impedindo a alteração.
 
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
@@ -1632,7 +1623,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 App.elements.harvest.fazenda.addEventListener('change', e => this.renderHarvestTalhaoSelection(e.target.value));
                 
-                // [CORREÇÃO BUG #1] Lógica do "Selecionar Todos" para ignorar talhões desativados (encerrados)
                 App.elements.harvest.selectAllTalhoes.addEventListener('change', (e) => {
                     const isChecked = e.target.checked;
                     const talhaoCheckboxes = App.elements.harvest.talhaoSelectionList.querySelectorAll('input[type="checkbox"]');
@@ -1839,7 +1829,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            // [CORREÇÃO BUG #2] Lógica para considerar um talhão indisponível apenas se estiver na sequência de OUTRO plano
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
