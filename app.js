@@ -1199,25 +1199,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     plansList.appendChild(card);
                 });
             },
+            // [CORREÇÃO BUG #3] Lógica de cálculo de datas refeita
             renderHarvestSequence() {
                 if (!App.state.activeHarvestPlan) return;
                 const { tableBody, summary } = App.elements.harvest;
-                const { id: planId, startDate, dailyRate, sequence, closedTalhaoIds = [] } = App.state.activeHarvestPlan;
+                const { startDate, dailyRate, sequence, closedTalhaoIds = [] } = App.state.activeHarvestPlan;
                 
                 tableBody.innerHTML = '';
-                let grandTotalProducao = 0;
-                let grandTotalArea = 0;
-                let currentDate = startDate ? new Date(startDate + 'T03:00:00Z') : new Date();
+                
+                let currentDate;
+                if (startDate && startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    currentDate = new Date(startDate + 'T03:00:00Z');
+                } else {
+                    currentDate = new Date();
+                    currentDate.setHours(3, 0, 0, 0);
+                }
+                
                 const dailyTon = parseFloat(dailyRate) || 1;
+                const closedTalhaoIdSet = new Set(closedTalhaoIds);
 
                 sequence.forEach((group, index) => {
-                    const isGroupClosed = group.plots.every(p => closedTalhaoIds.includes(p.talhaoId));
+                    const isGroupClosed = group.plots.every(p => closedTalhaoIdSet.has(p.talhaoId));
                     const producaoConsiderada = isGroupClosed ? 0 : group.totalProducao - (group.producaoColhida || 0);
-
-                    if (!isGroupClosed) {
-                        grandTotalProducao += group.totalProducao;
-                        grandTotalArea += group.totalArea;
-                    }
 
                     const diasNecessarios = dailyTon > 0 ? Math.ceil(producaoConsiderada / dailyTon) : 0;
                     const dataEntrada = new Date(currentDate.getTime());
@@ -1264,6 +1267,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Entrada">${dataEntrada.toLocaleDateString('pt-BR')}</td>
                         <td data-label="Saída">${dataSaida.toLocaleDateString('pt-BR')}</td>
                     `;
+                });
+
+                let grandTotalProducao = 0;
+                let grandTotalArea = 0;
+                sequence.forEach(group => {
+                    const isGroupClosed = group.plots.every(p => closedTalhaoIdSet.has(p.talhaoId));
+                    if (!isGroupClosed) {
+                        grandTotalProducao += group.totalProducao;
+                        grandTotalArea += group.totalArea;
+                    }
                 });
 
                 if (sequence.length > 0) {
