@@ -1199,35 +1199,40 @@ document.addEventListener('DOMContentLoaded', () => {
                     plansList.appendChild(card);
                 });
             },
-            // [CORREÇÃO BUG #3] Lógica de cálculo de datas refeita
             renderHarvestSequence() {
                 if (!App.state.activeHarvestPlan) return;
                 const { tableBody, summary } = App.elements.harvest;
                 const { startDate, dailyRate, sequence, closedTalhaoIds = [] } = App.state.activeHarvestPlan;
                 
                 tableBody.innerHTML = '';
-                
-                let currentDate;
-                if (startDate && startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                    currentDate = new Date(startDate + 'T03:00:00Z');
-                } else {
+                let grandTotalProducao = 0;
+                let grandTotalArea = 0;
+
+                let currentDate = startDate ? new Date(startDate + 'T03:00:00Z') : new Date();
+                if (isNaN(currentDate.getTime())) {
                     currentDate = new Date();
-                    currentDate.setHours(3, 0, 0, 0);
                 }
-                
-                const dailyTon = parseFloat(dailyRate) || 1;
-                const closedTalhaoIdSet = new Set(closedTalhaoIds);
+                const dailyTon = parseFloat(dailyRate) > 0 ? parseFloat(dailyRate) : 1;
 
                 sequence.forEach((group, index) => {
-                    const isGroupClosed = group.plots.every(p => closedTalhaoIdSet.has(p.talhaoId));
+                    const isGroupClosed = group.plots.every(p => closedTalhaoIds.includes(p.talhaoId));
+                    
                     const producaoConsiderada = isGroupClosed ? 0 : group.totalProducao - (group.producaoColhida || 0);
 
-                    const diasNecessarios = dailyTon > 0 ? Math.ceil(producaoConsiderada / dailyTon) : 0;
+                    if (!isGroupClosed) {
+                        grandTotalProducao += group.totalProducao;
+                        grandTotalArea += group.totalArea;
+                    }
+
+                    const diasNecessarios = Math.ceil(producaoConsiderada / dailyTon);
+                    
                     const dataEntrada = new Date(currentDate.getTime());
                     
                     let dataSaida = new Date(dataEntrada.getTime());
-                    dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
-
+                    if (diasNecessarios > 0) {
+                        dataSaida.setDate(dataSaida.getDate() + diasNecessarios - 1);
+                    }
+                    
                     if (!isGroupClosed) {
                         currentDate = new Date(dataSaida.getTime());
                         currentDate.setDate(currentDate.getDate() + 1);
@@ -1267,16 +1272,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Entrada">${dataEntrada.toLocaleDateString('pt-BR')}</td>
                         <td data-label="Saída">${dataSaida.toLocaleDateString('pt-BR')}</td>
                     `;
-                });
-
-                let grandTotalProducao = 0;
-                let grandTotalArea = 0;
-                sequence.forEach(group => {
-                    const isGroupClosed = group.plots.every(p => closedTalhaoIdSet.has(p.talhaoId));
-                    if (!isGroupClosed) {
-                        grandTotalProducao += group.totalProducao;
-                        grandTotalArea += group.totalArea;
-                    }
                 });
 
                 if (sequence.length > 0) {
@@ -1515,24 +1510,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
-                // [CORREÇÃO BUG #1] Event listener para os interruptores de permissão
-                const setupPermissionGridListener = (container) => {
-                    if (!container) return;
-                    container.addEventListener('click', (e) => {
-                        const item = e.target.closest('.permission-item');
-                        if (item) {
-                            const checkbox = item.querySelector('input[type="checkbox"]');
-                            if (checkbox && e.target.tagName !== 'INPUT') {
-                                checkbox.checked = !checkbox.checked;
-                            }
-                        }
-                    });
-                };
-                
-                setupPermissionGridListener(App.elements.users.permissionsContainer);
-                setupPermissionGridListener(App.elements.userEditModal.permissionGrid);
-
-
                 App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
                 App.elements.users.list.addEventListener('click', e => {
@@ -1632,7 +1609,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 App.elements.harvest.fazenda.addEventListener('change', e => this.renderHarvestTalhaoSelection(e.target.value));
                 
-                // [CORREÇÃO BUG #1] Lógica do "Selecionar Todos" para ignorar talhões desativados (encerrados)
                 App.elements.harvest.selectAllTalhoes.addEventListener('change', (e) => {
                     const isChecked = e.target.checked;
                     const talhaoCheckboxes = App.elements.harvest.talhaoSelectionList.querySelectorAll('input[type="checkbox"]');
@@ -1839,7 +1815,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            // [CORREÇÃO BUG #2] Lógica para considerar um talhão indisponível apenas se estiver na sequência de OUTRO plano
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
@@ -2753,6 +2728,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
+            // [CORREÇÃO] Lógica de importação de relatórios foi aprimorada para lidar com talhões encerrados e em andamento.
             async importHarvestReport(file, type) {
                 if (!file) return;
             
@@ -2771,6 +2747,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
             
                         const allPlans = JSON.parse(JSON.stringify(App.state.harvestPlans));
+                        const fazendas = App.state.fazendas;
                         const changesSummary = {};
                         let notFoundTalhoes = [];
             
@@ -2784,39 +2761,46 @@ document.addEventListener('DOMContentLoaded', () => {
                             const farmCode = row.codigofazenda;
                             const talhaoName = row.talhao?.toUpperCase();
                             if (!farmCode || !talhaoName) continue;
-            
+
+                            const farm = fazendas.find(f => f.code === farmCode);
+                            const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === talhaoName);
+
+                            if (!talhao) {
+                                if (!notFoundTalhoes.includes(`${farmCode}-${talhaoName}`)) {
+                                    notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
+                                }
+                                continue;
+                            }
+
                             let talhaoFoundInAnyPlan = false;
             
                             for (const plan of allPlans) {
                                 for (const group of plan.sequence) {
-                                    if (group.fazendaCodigo === farmCode) {
-                                        const plotIndex = group.plots.findIndex(p => p.talhaoName.toUpperCase() === talhaoName);
-                                        if (plotIndex !== -1) {
-                                            talhaoFoundInAnyPlan = true;
-                                            
-                                            if (!changesSummary[plan.frontName]) {
-                                                changesSummary[plan.frontName] = { updated: [], removed: [] };
-                                            }
+                                    const plotIndex = group.plots.findIndex(p => p.talhaoId === talhao.id);
+                                    if (group.fazendaCodigo === farmCode && plotIndex !== -1) {
+                                        talhaoFoundInAnyPlan = true;
+                                        
+                                        if (!changesSummary[plan.frontName]) {
+                                            changesSummary[plan.frontName] = { updated: [], removed: [] };
+                                        }
             
-                                            if (type === 'closed') {
-                                                const plot = group.plots[plotIndex];
-                                                if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
-                                                if (!plan.closedTalhaoIds.includes(plot.talhaoId)) {
-                                                    plan.closedTalhaoIds.push(plot.talhaoId);
-                                                    changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
-                                                }
-                                            } else { // progress
-                                                const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
-                                                const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
-                                                group.areaColhida = (group.areaColhida || 0) + areaColhida;
-                                                group.producaoColhida = (group.producaoColhida || 0) + producaoColhida;
-                                                changesSummary[plan.frontName].updated.push(`${farmCode}-${talhaoName} (+${areaColhida.toFixed(2)} ha, +${producaoColhida.toFixed(2)} ton)`);
+                                        if (type === 'closed') {
+                                            if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
+                                            if (!plan.closedTalhaoIds.includes(talhao.id)) {
+                                                plan.closedTalhaoIds.push(talhao.id);
+                                                changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
                                             }
+                                        } else { // progress
+                                            const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
+                                            const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
+                                            group.areaColhida = (group.areaColhida || 0) + areaColhida;
+                                            group.producaoColhida = (group.producaoColhida || 0) + producaoColhida;
+                                            changesSummary[plan.frontName].updated.push(`${farmCode}-${talhaoName} (+${areaColhida.toFixed(2)} ha, +${producaoColhida.toFixed(2)} ton)`);
                                         }
                                     }
                                 }
                             }
-                            if (!talhaoFoundInAnyPlan) {
+                            if (!talhaoFoundInAnyPlan && !notFoundTalhoes.includes(`${farmCode}-${talhaoName}`)) {
                                 notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
                             }
                         }
@@ -2847,7 +2831,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
             
                         if (notFoundTalhoes.length > 0) {
-                            summaryMessage += `\nAviso: ${notFoundTalhoes.length} talhões do relatório não foram encontrados em nenhum plano ativo.`;
+                            summaryMessage += `\nAviso: ${notFoundTalhoes.length} talhões do relatório não foram encontrados em nenhum plano ativo: ${notFoundTalhoes.join(', ')}`;
                         }
             
                         const { confirmationModal } = App.elements;
