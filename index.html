@@ -312,14 +312,14 @@
       .dashboard-header {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start; /* Alinha ao topo para o filtro ficar abaixo */
+        align-items: flex-start;
         margin-bottom: 15px;
         flex-wrap: wrap;
         gap: 10px;
       }
       .dashboard-header-main {
         display: flex;
-        flex-direction: column; /* Título e filtro um embaixo do outro */
+        flex-direction: column;
         align-items: flex-start;
         gap: 10px;
       }
@@ -338,7 +338,7 @@
           align-items: center;
           gap: 8px;
           transition: var(--transition);
-          margin-left: auto; /* Empurra o botão para a direita */
+          margin-left: auto;
       }
       .btn-back-dashboard:hover {
           background-color: var(--color-primary-light);
@@ -907,24 +907,24 @@
                     <!-- ALTERAÇÃO: Layout dos gráficos de Perdas -->
                     <div class="dashboard-grid">
                         <div class="chart-card">
-                            <h3 class="chart-title">Perda Média por Frente de Serviço (kg)</h3>
+                            <h3 class="chart-title">Perda Média por Frente / Turno (kg)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFrente" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoPerdaPorFrente"></canvas></div>
                         </div>
                          <div class="chart-card">
-                            <h3 class="chart-title">Composição da Perda Total por Tipo (kg)</h3>
+                            <h3 class="chart-title">Composição da Perda por Frente (kg)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoPerdaPorTipo" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoPerdaPorTipo"></canvas></div>
                         </div>
                         <div class="chart-card">
-                            <h3 class="chart-title">Top 10 Operadores com Maiores Perdas</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoTopOperadoresPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoTopOperadoresPerda"></canvas></div>
+                            <h3 class="chart-title">Top 10 Fazendas com Maiores Perdas</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoTop10FazendasPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoTop10FazendasPerda"></canvas></div>
                         </div>
                          <div class="chart-card">
-                            <h3 class="chart-title">Perda Média por Fazenda (kg)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFazenda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoPerdaPorFazenda"></canvas></div>
+                            <h3 class="chart-title">Top 10 Operadores com Maiores Perdas (%)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoTopOperadoresPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoTopOperadoresPerda"></canvas></div>
                         </div>
                     </div>
                 </div>
@@ -1189,7 +1189,7 @@
                     <h3><i class="fas fa-file-export"></i> 3. Gerar Relatório</h3>
                     <div class="botoes-relatorio">
                         <button id="btnGerarRelatorioCustomPDF" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
-                        <button id="btnGerarRelatorioCustomExcel" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                        <button id="btnExcelBrocamento" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                     </div>
                 </div>
             </section>
