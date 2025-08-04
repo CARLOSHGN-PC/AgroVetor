@@ -615,6 +615,15 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         ui: {
+            // CORREÇÃO: Movi a função para o objeto UI
+            _getThemeColors() {
+                const styles = getComputedStyle(document.documentElement);
+                return {
+                    primary: styles.getPropertyValue('--color-primary').trim(),
+                    text: styles.getPropertyValue('--color-text').trim(),
+                    border: styles.getPropertyValue('--color-border').trim(),
+                };
+            },
             setLoading(isLoading, progressText = "A processar...") {
                 App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
                 App.elements.loadingProgressText.textContent = progressText;
@@ -3026,14 +3035,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     result.push(colors[i % colors.length]);
                 }
                 return result;
-            },
-            _getThemeColors() {
-                const styles = getComputedStyle(document.documentElement);
-                return {
-                    primary: styles.getPropertyValue('--color-primary').trim(),
-                    text: styles.getPropertyValue('--color-text').trim(),
-                    border: styles.getPropertyValue('--color-border').trim(),
-                };
             },
             _createOrUpdateChart(id, config, isExpanded = false) { 
                 const canvasId = isExpanded ? 'expandedChartCanvas' : id;
