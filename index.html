@@ -339,23 +339,27 @@
       }
       .dashboard-filters {
           display: flex;
-          gap: 8px;
+          gap: 10px;
           align-items: center;
           flex-wrap: wrap;
+          padding-bottom: 20px;
       }
       .dashboard-filters label {
           margin-top: 0;
-          font-size: 13px;
+          font-size: 14px;
+          font-weight: 500;
       }
       .dashboard-filters input {
           margin-top: 0;
-          padding: 6px 8px;
+          padding: 8px 10px;
           font-size: 14px;
-          max-width: 140px;
+          max-width: 150px;
       }
-      .dashboard-filters button {
-          padding: 6px 12px;
+      /* CORREÇÃO: Botão de filtro com tamanho automático */
+      .dashboard-filters button.save {
+          padding: 8px 16px;
           margin-top: 0;
+          width: auto; /* Remove a largura de 100% */
           max-width: none;
           font-size: 14px;
       }
@@ -848,14 +852,12 @@
                         <h2 style="color: var(--color-danger);"><i class="fas fa-bug"></i> Dashboard de Broca</h2>
                         <button id="btn-back-to-selector-broca" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
                     </div>
-                    <div class="dashboard-filters-container">
-                        <div class="dashboard-filters" id="brocaDashboardDateFilter">
-                            <label for="brocaDashboardInicio">De:</label>
-                            <input type="date" id="brocaDashboardInicio">
-                            <label for="brocaDashboardFim">Até:</label>
-                            <input type="date" id="brocaDashboardFim">
-                            <button id="btnFiltrarBrocaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
-                        </div>
+                    <div class="dashboard-filters" id="brocaDashboardDateFilter">
+                        <label for="brocaDashboardInicio">De:</label>
+                        <input type="date" id="brocaDashboardInicio">
+                        <label for="brocaDashboardFim">Até:</label>
+                        <input type="date" id="brocaDashboardFim">
+                        <button id="btnFiltrarBrocaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
                     </div>
                     <div class="dashboard-grid">
                         <div class="chart-card">
@@ -886,14 +888,12 @@
                         <h2 style="color: var(--color-warning);"><i class="fas fa-chart-line"></i> Dashboard de Perdas</h2>
                         <button id="btn-back-to-selector-perda" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
                     </div>
-                    <div class="dashboard-filters-container">
-                        <div class="dashboard-filters" id="perdaDashboardDateFilter">
-                            <label for="perdaDashboardInicio">De:</label>
-                            <input type="date" id="perdaDashboardInicio">
-                            <label for="perdaDashboardFim">Até:</label>
-                            <input type="date" id="perdaDashboardFim">
-                            <button id="btnFiltrarPerdaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
-                        </div>
+                    <div class="dashboard-filters" id="perdaDashboardDateFilter">
+                        <label for="perdaDashboardInicio">De:</label>
+                        <input type="date" id="perdaDashboardInicio">
+                        <label for="perdaDashboardFim">Até:</label>
+                        <input type="date" id="perdaDashboardFim">
+                        <button id="btnFiltrarPerdaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
                     </div>
                     <div class="dashboard-grid">
                         <div class="chart-card">
