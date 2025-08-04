@@ -615,7 +615,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         ui: {
-            // CORREÇÃO: Movi a função para o objeto UI
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
                 return {
@@ -830,13 +829,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
                         this.loadDashboardDates('broca');
-                        // CORREÇÃO: Atraso para garantir que o DOM está visível antes de renderizar
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                         break;
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
                         this.loadDashboardDates('perda');
-                         // CORREÇÃO: Atraso para garantir que o DOM está visível antes de renderizar
                         setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
                         break;
                     case 'aerea':
@@ -1267,10 +1264,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dailyTon = parseFloat(dailyRate) > 0 ? parseFloat(dailyRate) : 1;
 
                 sequence.forEach((group, index) => {
-                    // [CORREÇÃO] A lógica para esconder o grupo foi removida daqui,
-                    // pois agora a própria `sequence` é modificada na importação.
-                    // A renderização agora assume que todos os grupos na `sequence` devem ser mostrados.
-                    
                     const producaoConsiderada = group.totalProducao - (group.producaoColhida || 0);
 
                     grandTotalProducao += group.totalProducao;
@@ -1451,11 +1444,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 localStorage.setItem(App.config.themeKey, theme);
                 
-                // Atualiza a cor padrão da fonte dos gráficos
                 Chart.defaults.color = this._getThemeColors().text;
 
                 if (App.state.currentUser) {
-                    // Re-renderiza os gráficos do dashboard ativo para aplicar as novas cores
                     if(document.getElementById('dashboard-broca').style.display !== 'none') {
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                     }
@@ -2354,7 +2345,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 
-                // [CORREÇÃO] Sincroniza o estado ativo com a lista principal para atualização imediata da UI em outros planos.
                 if (App.state.activeHarvestPlan.id) {
                     const planInList = App.state.harvestPlans.find(p => p.id === App.state.activeHarvestPlan.id);
                     if (planInList) {
@@ -2407,7 +2397,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal("Tem a certeza que deseja remover este grupo da sequência?", () => {
                     App.state.activeHarvestPlan.sequence = App.state.activeHarvestPlan.sequence.filter(g => g.id != groupId);
                     
-                    // [CORREÇÃO] Sincroniza o estado ativo com a lista principal para atualização imediata da UI em outros planos.
                     if (App.state.activeHarvestPlan.id) {
                         const planInList = App.state.harvestPlans.find(p => p.id === App.state.activeHarvestPlan.id);
                         if (planInList) {
@@ -2842,7 +2831,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const changesSummary = {};
                         let notFoundTalhoes = [];
             
-                        // [CORREÇÃO] Cria um Set com os IDs dos talhões a serem encerrados para uma busca mais eficiente.
                         const closedTalhaoIdsFromCSV = new Set();
                         if (type === 'closed') {
                             for (let i = 1; i < lines.length; i++) {
@@ -2860,7 +2848,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
             
-                        // Processa o relatório de andamento
                         if (type === 'progress') {
                             for (let i = 1; i < lines.length; i++) {
                                 const data = lines[i].split(';');
@@ -2897,7 +2884,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
             
-                        // [CORREÇÃO] Processa os talhões encerrados, modificando a sequência dos planos.
                         if (type === 'closed') {
                             for (const plan of allPlans) {
                                 if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
@@ -3078,9 +3064,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const config = JSON.parse(JSON.stringify(originalChart.config._config));
                 config.options.maintainAspectRatio = false;
                 
-                // Garante que a formatação dos labels seja mantida
-                if (config.plugins && config.plugins.datalabels) {
-                    config.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
+                // CORREÇÃO: Garante que a função de formatação seja copiada, pois JSON.stringify a remove.
+                if (originalChart.config.options.plugins.datalabels.formatter) {
+                    config.options.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
                 }
 
                 this._createOrUpdateChart(chartId, config, true);
@@ -3109,10 +3095,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
                 const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
-                this.renderPerdaPorFazendaFrenteTurno(data);
                 this.renderPerdaPorFrente(data);
-                this.renderPerdaPorFrenteServico(data);
+                this.renderPerdaPorTipo(data);
                 this.renderTopOperadoresPerda(data);
+                this.renderPerdaPorFazenda(data);
             },
             renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
@@ -3249,46 +3235,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
-            renderPerdaPorFazendaFrenteTurno(data) {
-                const structuredData = {};
-                data.forEach(p => {
-                    const fazendaKey = `${p.codigo} - ${p.fazenda}`;
-                    const frente = p.frenteServico || 'N/A';
-                    const turno = p.turno || 'N/A';
-                    if (!structuredData[fazendaKey]) structuredData[fazendaKey] = {};
-                    if (!structuredData[fazendaKey][frente]) structuredData[fazendaKey][frente] = {};
-                    if (!structuredData[fazendaKey][frente][turno]) structuredData[fazendaKey][frente][turno] = { total: 0, count: 0 };
-                    structuredData[fazendaKey][frente][turno].total += p.total;
-                    structuredData[fazendaKey][frente][turno].count++;
-                });
-                const labels = Object.keys(structuredData);
-                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))];
-                const turnos = [...new Set(data.map(p => p.turno || 'N/A'))];
-                const datasets = [];
-                const colors = this._getVibrantColors(frentes.length * turnos.length);
-                let colorIndex = 0;
-                frentes.forEach((frente) => {
-                    turnos.forEach((turno) => {
-                        datasets.push({
-                            label: `${frente} - Turno ${turno}`,
-                            data: labels.map(label => {
-                                const d = structuredData[label]?.[frente]?.[turno];
-                                return d ? d.total / d.count : 0;
-                            }),
-                            backgroundColor: colors[colorIndex++]
-                        });
-                    });
-                });
-                this._createOrUpdateChart('graficoPerdaPorFazendaFrenteTurno', {
-                    type: 'bar',
-                    data: { labels, datasets },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: { y: { stacked: true, title: { display: true, text: 'Perda Média (kg)' } }, x: { stacked: true } },
-                        plugins: { datalabels: { display: false } }
-                    }
-                });
-            },
             renderPerdaPorFrente(data) {
                 const frentes = {};
                 data.forEach(item => {
@@ -3321,28 +3267,68 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
-            renderPerdaPorFrenteServico(data) {
-                const frentes = {};
-                const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
-                const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
+            renderPerdaPorTipo(data) {
+                const tipos = { 'C. Inteira': 0, 'Tolete': 0, 'Toco': 0, 'Ponta': 0, 'Estilhaço': 0, 'Pedaço': 0 };
                 data.forEach(item => {
-                    const frente = item.frenteServico || 'N/A';
-                    if (!frentes[frente]) frentes[frente] = { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0 };
-                    tiposDePerda.forEach(tipo => frentes[frente][tipo] += item[tipo] || 0);
+                    tipos['C. Inteira'] += item.canaInteira || 0;
+                    tipos['Tolete'] += item.tolete || 0;
+                    tipos['Toco'] += item.toco || 0;
+                    tipos['Ponta'] += item.ponta || 0;
+                    tipos['Estilhaço'] += item.estilhaco || 0;
+                    tipos['Pedaço'] += item.pedaco || 0;
                 });
-                const labels = Object.keys(frentes);
-                const datasets = tiposDePerda.map((tipo, i) => ({
-                    label: tiposLabels[i],
-                    data: labels.map(frente => frentes[frente][tipo]),
-                    backgroundColor: this._getVibrantColors(tiposDePerda.length)[i],
-                }));
-                this._createOrUpdateChart('graficoPerdaPorFrenteServico', {
+                this._createOrUpdateChart('graficoPerdaPorTipo', {
                     type: 'bar',
-                    data: { labels, datasets },
+                    data: {
+                        labels: Object.keys(tipos),
+                        datasets: [{
+                            label: 'Perda Total (kg)',
+                            data: Object.values(tipos),
+                            backgroundColor: this._getVibrantColors(Object.keys(tipos).length),
+                        }]
+                    },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { y: { stacked: true, title: { display: true, text: 'Perda Total (kg)' } }, x: { stacked: true } },
-                        plugins: { datalabels: { display: false } }
+                        plugins: {
+                            legend: { display: false },
+                             datalabels: {
+                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)} kg`
+                            }
+                        }
+                    }
+                });
+            },
+            renderPerdaPorFazenda(data) {
+                const fazendas = {};
+                data.forEach(item => {
+                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
+                    if (!fazendas[fazendaKey]) fazendas[fazendaKey] = { total: 0, count: 0 };
+                    fazendas[fazendaKey].total += item.total;
+                    fazendas[fazendaKey].count++;
+                });
+                const sortedFazendas = Object.entries(fazendas).sort((a,b) => (b[1].total/b[1].count) - (a[1].total/a[1].count));
+                this._createOrUpdateChart('graficoPerdaPorFazenda', {
+                    type: 'bar',
+                    data: {
+                        labels: sortedFazendas.map(f => f[0]),
+                        datasets: [{
+                            label: 'Perda Média (kg)',
+                            data: sortedFazendas.map(f => f[1].total / f[1].count),
+                            backgroundColor: this._getVibrantColors(sortedFazendas.length)
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)} kg`
+                            }
+                        }
                     }
                 });
             },
@@ -3355,26 +3341,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     operadores[operador].count++;
                 });
                 const topOperadores = Object.entries(operadores)
-                    .map(([nome, data]) => ({ nome, media: data.total / data.count }))
+                    .map(([nome, data]) => ({ nome, media: data.total / data.count, total: data.total }))
                     .sort((a, b) => b.media - a.media).slice(0, 10);
+                
+                const totalGeralPerdas = topOperadores.reduce((sum, op) => sum + op.total, 0);
+
                 this._createOrUpdateChart('graficoTopOperadoresPerda', {
-                    type: 'bar',
+                    type: 'doughnut',
                     data: {
                         labels: topOperadores.map(op => op.nome),
                         datasets: [{
-                            label: 'Perda Média (kg)',
-                            data: topOperadores.map(op => op.media),
+                            label: 'Perda Total (kg)',
+                            data: topOperadores.map(op => op.total),
                             backgroundColor: this._getVibrantColors(topOperadores.length)
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
                         plugins: {
-                            legend: { display: false },
+                            legend: { position: 'top' },
                             datalabels: {
-                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
+                                color: '#fff',
                                 font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)} kg`
+                                formatter: (value, context) => {
+                                    const percentage = totalGeralPerdas > 0 ? (value / totalGeralPerdas * 100).toFixed(1) : 0;
+                                    return `${percentage}%`;
+                                }
                             }
                         }
                     }
