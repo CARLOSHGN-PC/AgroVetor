@@ -852,17 +852,18 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             setDefaultDatesForDashboard(type) {
                 const today = new Date();
-                const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-                const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+                // ALTERAÇÃO: Define a data de início para o primeiro dia do ano corrente
+                const firstDayOfYear = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+                const todayDate = today.toISOString().split('T')[0];
 
                 if (type === 'broca') {
-                    App.elements.dashboard.brocaDashboardInicio.value = firstDayOfMonth;
-                    App.elements.dashboard.brocaDashboardFim.value = lastDayOfMonth;
+                    App.elements.dashboard.brocaDashboardInicio.value = firstDayOfYear;
+                    App.elements.dashboard.brocaDashboardFim.value = todayDate;
                 } else if (type === 'perda') {
-                    App.elements.dashboard.perdaDashboardInicio.value = firstDayOfMonth;
-                    App.elements.dashboard.perdaDashboardFim.value = lastDayOfMonth;
+                    App.elements.dashboard.perdaDashboardInicio.value = firstDayOfYear;
+                    App.elements.dashboard.perdaDashboardFim.value = todayDate;
                 }
-                App.actions.saveDashboardDates(type, firstDayOfMonth, lastDayOfMonth);
+                App.actions.saveDashboardDates(type, firstDayOfYear, todayDate);
             },
             loadDashboardDates(type) {
                 const savedDates = App.actions.getDashboardDates(type);
@@ -3015,11 +3016,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         charts: {
             _getVibrantColors(count) {
+                // ALTERAÇÃO: Paleta de cores mais vibrante e com maior contraste
                 const colors = [
-                    '#36A2EB', '#FF6384', '#4BC0C0', '#FF9F40', '#9966FF', '#FFCD56',
-                    '#C9CBCF', '#3D5A80', '#98C1D9', '#E0FBFC', '#EE6C4D', '#293241'
+                    '#1976D2', '#D32F2F', '#388E3C', '#F57C00', '#7B1FA2', '#00796B',
+                    '#C2185B', '#512DA8', '#FBC02D', '#FFA000', '#689F38', '#455A64'
                 ];
-                // Repete as cores se precisar de mais do que o disponível
                 const result = [];
                 for (let i = 0; i < count; i++) {
                     result.push(colors[i % colors.length]);
@@ -3139,7 +3140,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             legend: { display: false },
                             datalabels: {
                                 color: '#fff', anchor: 'center', align: 'center',
-                                font: { weight: 'bold' },
+                                font: { weight: 'bold', size: 14 }, // ALTERAÇÃO: Tamanho da fonte aumentado
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
                         }
@@ -3182,7 +3183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             legend: { display: false },
                             datalabels: {
                                 anchor: 'end', align: 'top', color: this._getThemeColors().text,
-                                font: { weight: 'bold' },
+                                font: { weight: 'bold', size: 14 }, // ALTERAÇÃO: Tamanho da fonte aumentado
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
                         }
@@ -3209,7 +3210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             legend: { position: 'top' },
                             datalabels: {
-                                color: '#fff', font: { weight: 'bold', size: 14 },
+                                color: '#fff', font: { weight: 'bold', size: 16 }, // ALTERAÇÃO: Tamanho da fonte aumentado
                                 formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(1)}%` : '0%'
                             }
                         }
@@ -3239,7 +3240,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             legend: { display: false },
                             datalabels: {
                                 color: '#fff', anchor: 'center', align: 'center',
-                                font: { weight: 'bold' }
+                                font: { weight: 'bold', size: 14 } // ALTERAÇÃO: Tamanho da fonte aumentado
                             }
                         }
                     }
@@ -3311,7 +3312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             legend: { display: false },
                             datalabels: {
                                 color: '#fff', anchor: 'center', align: 'center',
-                                font: { weight: 'bold' },
+                                font: { weight: 'bold', size: 14 }, // ALTERAÇÃO: Tamanho da fonte aumentado
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
                         }
@@ -3370,7 +3371,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             legend: { display: false },
                             datalabels: {
                                 color: '#fff', anchor: 'center', align: 'center',
-                                font: { weight: 'bold' },
+                                font: { weight: 'bold', size: 14 }, // ALTERAÇÃO: Tamanho da fonte aumentado
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
                         }
@@ -3416,7 +3417,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.setLoading(false);
                     });
             },
-        
+            
             generateBrocamentoPDF() {
                 const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
                 if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
