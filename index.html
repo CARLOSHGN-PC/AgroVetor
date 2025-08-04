@@ -312,7 +312,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 20px;
+        margin-bottom: 10px; /* Reduzido para aproximar os filtros */
         flex-wrap: wrap;
         gap: 15px;
       }
@@ -320,43 +320,52 @@
         margin: 0;
        }
       .btn-back-dashboard {
-        background: var(--color-bg);
-        border: 1px solid var(--color-border);
-        color: var(--color-text-light);
-        padding: 8px 16px;
-        border-radius: var(--border-radius);
-        cursor: pointer;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        transition: var(--transition);
+          background: var(--color-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text-light);
+          padding: 8px 16px;
+          border-radius: var(--border-radius);
+          cursor: pointer;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: var(--transition);
       }
       .btn-back-dashboard:hover {
-        background-color: var(--color-primary-light);
-        color: var(--color-primary);
+          background-color: var(--color-primary-light);
+          color: var(--color-primary);
+      }
+      /* ALTERAÇÃO: Container para alinhar os filtros à direita */
+      .dashboard-filters-container {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 20px;
       }
       .dashboard-filters {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        flex-wrap: wrap;
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          flex-wrap: wrap;
+          background-color: var(--color-bg);
+          padding: 8px;
+          border-radius: var(--border-radius);
       }
       .dashboard-filters label {
-        margin-top: 0;
-        font-size: 13px;
+          margin-top: 0;
+          font-size: 13px;
       }
       .dashboard-filters input {
-        margin-top: 0;
-        padding: 6px 8px;
-        font-size: 14px;
-        max-width: 140px;
+          margin-top: 0;
+          padding: 6px 8px;
+          font-size: 14px;
+          max-width: 140px;
       }
       .dashboard-filters button {
-        padding: 6px 12px;
-        margin-top: 0;
-        max-width: none;
-        font-size: 14px;
+          padding: 6px 12px;
+          margin-top: 0;
+          max-width: none;
+          font-size: 14px;
       }
 
       /* --- [REDESIGN] ESTILOS MODERNOS PARA PERMISSÕES (BASEADO NA IMAGEM) --- */
@@ -845,6 +854,9 @@
                 <div id="dashboard-broca" style="display: none;">
                     <div class="dashboard-header">
                         <h2 style="color: var(--color-danger);"><i class="fas fa-bug"></i> Dashboard de Broca</h2>
+                        <button id="btn-back-to-selector-broca" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    </div>
+                    <div class="dashboard-filters-container">
                         <div class="dashboard-filters" id="brocaDashboardDateFilter">
                             <label for="brocaDashboardInicio">De:</label>
                             <input type="date" id="brocaDashboardInicio">
@@ -852,7 +864,6 @@
                             <input type="date" id="brocaDashboardFim">
                             <button id="btnFiltrarBrocaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
                         </div>
-                        <button id="btn-back-to-selector-broca" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
                     </div>
                     <div class="dashboard-grid">
                         <div class="chart-card">
@@ -881,6 +892,9 @@
                  <div id="dashboard-perda" style="display: none;">
                     <div class="dashboard-header">
                         <h2 style="color: var(--color-warning);"><i class="fas fa-chart-line"></i> Dashboard de Perdas</h2>
+                        <button id="btn-back-to-selector-perda" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    </div>
+                    <div class="dashboard-filters-container">
                         <div class="dashboard-filters" id="perdaDashboardDateFilter">
                             <label for="perdaDashboardInicio">De:</label>
                             <input type="date" id="perdaDashboardInicio">
@@ -888,7 +902,6 @@
                             <input type="date" id="perdaDashboardFim">
                             <button id="btnFiltrarPerdaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
                         </div>
-                        <button id="btn-back-to-selector-perda" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
                     </div>
                     <div class="dashboard-grid">
                         <div class="chart-card">
@@ -921,9 +934,9 @@
                     </div>
                     <div class="card">
                       <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
-                        <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
-                        Este módulo ainda está em desenvolvimento.
-                      </p>
+                          <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
+                          Este módulo ainda está em desenvolvimento.
+                        </p>
                     </div>
                 </div>
 
