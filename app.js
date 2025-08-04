@@ -3077,6 +3077,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const config = JSON.parse(JSON.stringify(originalChart.config._config));
                 config.options.maintainAspectRatio = false;
+                
+                // Garante que a formatação dos labels seja mantida
+                if (config.plugins && config.plugins.datalabels) {
+                    config.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
+                }
+
                 this._createOrUpdateChart(chartId, config, true);
             },
             closeChartModal() {
@@ -3093,7 +3099,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
                 const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
 
-                // CORREÇÃO: Chamando as funções de renderização individualmente
                 this.renderTop10FazendasBroca(data);
                 this.renderBrocaMensal(data);
                 this.renderBrocaPosicao(data);
@@ -3104,7 +3109,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
                 const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
-                // CORREÇÃO: Chamando as funções de renderização individualmente
                 this.renderPerdaPorFazendaFrenteTurno(data);
                 this.renderPerdaPorFrente(data);
                 this.renderPerdaPorFrenteServico(data);
@@ -3134,12 +3138,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: { 
-                        // ALTERAÇÃO: Gráfico vertical
                         responsive: true, maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                color: this._getThemeColors().text, anchor: 'end', align: 'end',
+                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
@@ -3172,7 +3175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             label: 'Índice Mensal (%)',
                             data: chartData,
                             fill: true,
-                            borderColor: this._getThemeColors().primary,
+                            borderColor: App.ui._getThemeColors().primary,
                             backgroundColor: 'rgba(54, 162, 235, 0.2)',
                             tension: 0.4
                         }]
@@ -3182,7 +3185,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                anchor: 'end', align: 'top', color: this._getThemeColors().text,
+                                anchor: 'end', align: 'top', color: App.ui._getThemeColors().text,
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
@@ -3235,12 +3238,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                        // ALTERAÇÃO: Gráfico vertical
                         responsive: true, maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                color: this._getThemeColors().text, anchor: 'end', align: 'end',
+                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
                                 font: { weight: 'bold', size: 14 }
                             }
                         }
@@ -3281,7 +3283,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'bar',
                     data: { labels, datasets },
                     options: {
-                        // ALTERAÇÃO: Gráfico vertical
                         responsive: true, maintainAspectRatio: false,
                         scales: { y: { stacked: true, title: { display: true, text: 'Perda Média (kg)' } }, x: { stacked: true } },
                         plugins: { datalabels: { display: false } }
@@ -3308,12 +3309,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                        // ALTERAÇÃO: Gráfico vertical
                         responsive: true, maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                color: this._getThemeColors().text, anchor: 'end', align: 'end',
+                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
@@ -3340,7 +3340,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'bar',
                     data: { labels, datasets },
                     options: {
-                        // ALTERAÇÃO: Gráfico vertical
                         responsive: true, maintainAspectRatio: false,
                         scales: { y: { stacked: true, title: { display: true, text: 'Perda Total (kg)' } }, x: { stacked: true } },
                         plugins: { datalabels: { display: false } }
@@ -3369,12 +3368,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                        // ALTERAÇÃO: Gráfico vertical
                         responsive: true, maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                color: this._getThemeColors().text, anchor: 'end', align: 'end',
+                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
