@@ -338,7 +338,6 @@
           align-items: center;
           gap: 8px;
           transition: var(--transition);
-          margin-left: auto;
       }
       .btn-back-dashboard:hover {
           background-color: var(--color-primary-light);
@@ -904,20 +903,19 @@
                         </div>
                         <button id="btn-back-to-selector-perda" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
                     </div>
-                    <!-- ALTERAÇÃO: Layout dos gráficos de Perdas -->
                     <div class="dashboard-grid">
                         <div class="chart-card">
                             <h3 class="chart-title">Perda Média por Frente / Turno (kg)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFrente" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoPerdaPorFrente"></canvas></div>
+                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFrenteTurno" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoPerdaPorFrenteTurno"></canvas></div>
                         </div>
                          <div class="chart-card">
                             <h3 class="chart-title">Composição da Perda por Frente (kg)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorTipo" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoPerdaPorTipo"></canvas></div>
+                            <button class="btn-expand-chart" data-chart-id="graficoComposicaoPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoComposicaoPerda"></canvas></div>
                         </div>
                         <div class="chart-card">
-                            <h3 class="chart-title">Top 10 Fazendas com Maiores Perdas</h3>
+                            <h3 class="chart-title">Top 10 Fazendas com Maior Perda Média (kg)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoTop10FazendasPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoTop10FazendasPerda"></canvas></div>
                         </div>
