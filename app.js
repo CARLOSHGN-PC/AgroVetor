@@ -3019,7 +3019,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     '#36A2EB', '#FF6384', '#4BC0C0', '#FF9F40', '#9966FF', '#FFCD56',
                     '#C9CBCF', '#3D5A80', '#98C1D9', '#E0FBFC', '#EE6C4D', '#293241'
                 ];
-                // Repete as cores se precisar de mais do que o disponível
                 const result = [];
                 for (let i = 0; i < count; i++) {
                     result.push(colors[i % colors.length]);
@@ -3288,6 +3287,30 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPerdaPorFrente(data) {
                 const frentes = {};
                 const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
+                const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
+                data.forEach(item => {
+                    const frente = item.frenteServico || 'N/A';
+                    if (!frentes[frente]) frentes[frente] = { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0 };
+                    tiposDePerda.forEach(tipo => frentes[frente][tipo] += item[tipo] || 0);
+                });
+                const labels = Object.keys(frentes);
+                const datasets = tiposDePerda.map((tipo, i) => ({
+                    label: tiposLabels[i],
+                    data: labels.map(frente => frentes[frente][tipo]),
+                    backgroundColor: this._getVibrantColors(tiposDePerda.length)[i],
+                }));
+                this._createOrUpdateChart('graficoPerdaPorFrente', {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    options: {
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        scales: { x: { stacked: true, title: { display: true, text: 'Perda Total (kg)' } }, y: { stacked: true } },
+                        plugins: { datalabels: { display: false } }
+                    }
+                });
+            },
+            renderPerdaPorFrenteServico(data) {
+                const frentes = {};
                 data.forEach(item => {
                     const frente = item.frenteServico || 'N/A';
                     if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
@@ -3295,7 +3318,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     frentes[frente].count++;
                 });
                 const sortedFrentes = Object.entries(frentes).sort((a,b) => (b[1].total/b[1].count) - (a[1].total/a[1].count));
-                this._createOrUpdateChart('graficoPerdaPorFrente', {
+                this._createOrUpdateChart('graficoPerdaPorFrenteServico', {
                     type: 'bar',
                     data: {
                         labels: sortedFrentes.map(f => f[0]),
@@ -3315,31 +3338,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
                         }
-                    }
-                });
-            },
-            renderPerdaPorFrenteServico(data) {
-                const frentes = {};
-                const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
-                const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
-                data.forEach(item => {
-                    const frente = item.frenteServico || 'N/A';
-                    if (!frentes[frente]) frentes[frente] = { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0 };
-                    tiposDePerda.forEach(tipo => frentes[frente][tipo] += item[tipo] || 0);
-                });
-                const labels = Object.keys(frentes);
-                const datasets = tiposDePerda.map((tipo, i) => ({
-                    label: tiposLabels[i],
-                    data: labels.map(frente => frentes[frente][tipo]),
-                    backgroundColor: this._getVibrantColors(tiposDePerda.length)[i],
-                }));
-                this._createOrUpdateChart('graficoPerdaPorFrenteServico', {
-                    type: 'bar',
-                    data: { labels, datasets },
-                    options: {
-                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                        scales: { x: { stacked: true, title: { display: true, text: 'Perda Total (kg)' } }, y: { stacked: true } },
-                        plugins: { datalabels: { display: false } }
                     }
                 });
             },
