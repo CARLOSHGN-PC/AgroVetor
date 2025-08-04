@@ -278,8 +278,8 @@
           border-bottom: 5px solid var(--color-primary);
       }
       .dashboard-card:hover {
-          transform: translateY(-8px) scale(1.03);
-          box-shadow: var(--shadow-xl);
+        transform: translateY(-8px) scale(1.03);
+        box-shadow: var(--shadow-xl);
       }
       .dashboard-card .icon {
           font-size: 48px;
@@ -313,6 +313,8 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 15px;
       }
        .dashboard-header h2 {
         margin: 0;
@@ -333,6 +335,28 @@
       .btn-back-dashboard:hover {
         background-color: var(--color-primary-light);
         color: var(--color-primary);
+      }
+      .dashboard-filters {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        background-color: var(--color-bg);
+        padding: 10px;
+        border-radius: var(--border-radius);
+        flex-wrap: wrap;
+      }
+      .dashboard-filters label {
+        margin-top: 0;
+      }
+      .dashboard-filters input {
+        margin-top: 0;
+        padding: 8px 10px;
+      }
+      .dashboard-filters button {
+        padding: 8px 16px;
+        margin-top: 0;
+        max-width: none;
+        font-size: 14px;
       }
 
       /* --- [REDESIGN] ESTILOS MODERNOS PARA PERMISSÕES (BASEADO NA IMAGEM) --- */
@@ -428,8 +452,8 @@
           transition: var(--transition);
       }
       .user-card-redesigned:hover {
-          transform: translateY(-4px);
-          box-shadow: var(--shadow-md);
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-md);
       }
       .user-card-header {
           display: flex;
@@ -821,6 +845,13 @@
                 <div id="dashboard-broca" style="display: none;">
                     <div class="dashboard-header">
                         <h2 style="color: var(--color-danger);"><i class="fas fa-bug"></i> Dashboard de Broca</h2>
+                        <div class="dashboard-filters" id="brocaDashboardDateFilter">
+                            <label for="brocaDashboardInicio">De:</label>
+                            <input type="date" id="brocaDashboardInicio">
+                            <label for="brocaDashboardFim">Até:</label>
+                            <input type="date" id="brocaDashboardFim">
+                            <button id="btnFiltrarBrocaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
+                        </div>
                         <button id="btn-back-to-selector-broca" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
                     </div>
                     <div class="dashboard-grid">
@@ -835,14 +866,14 @@
                             <div class="chart-container"><canvas id="graficoBrocaMensal"></canvas></div>
                         </div>
                         <div class="chart-card">
-                            <h3 class="chart-title">Posição de Maior Incidência da Broca</h3>
+                            <h3 class="chart-title">Posição de Maior Incidência da Broca (%)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoBrocaPosicao" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
                             <div class="chart-container"><canvas id="graficoBrocaPosicao"></canvas></div>
                         </div>
                          <div class="chart-card">
-                            <h3 class="chart-title">Área Total de Inspeção de Broca (ha)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoAreaAvaliadaBroca" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoAreaAvaliadaBroca"></canvas></div>
+                            <h3 class="chart-title">Distribuição de Inspeções por Corte</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoBrocaPorCorte" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoBrocaPorCorte"></canvas></div>
                         </div>
                     </div>
                 </div>
@@ -850,28 +881,35 @@
                  <div id="dashboard-perda" style="display: none;">
                     <div class="dashboard-header">
                         <h2 style="color: var(--color-warning);"><i class="fas fa-chart-line"></i> Dashboard de Perdas</h2>
+                        <div class="dashboard-filters" id="perdaDashboardDateFilter">
+                            <label for="perdaDashboardInicio">De:</label>
+                            <input type="date" id="perdaDashboardInicio">
+                            <label for="perdaDashboardFim">Até:</label>
+                            <input type="date" id="perdaDashboardFim">
+                            <button id="btnFiltrarPerdaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
+                        </div>
                         <button id="btn-back-to-selector-perda" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
                     </div>
                     <div class="dashboard-grid">
                         <div class="chart-card">
-                            <h3 class="chart-title">Top 10 Fazendas com Maiores Perdas (Média kg)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoTop10FazendasPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoTop10FazendasPerda"></canvas></div>
+                            <h3 class="chart-title">Perdas por Fazenda (Frente/Turno)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFazendaFrenteTurno" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoPerdaPorFazendaFrenteTurno"></canvas></div>
                         </div>
                          <div class="chart-card">
-                            <h3 class="chart-title">Composição da Perda Total (kg)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorTipoDetalhado" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoPerdaPorTipoDetalhado"></canvas></div>
+                            <h3 class="chart-title">Composição da Perda por Frente de Serviço</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFrente" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoPerdaPorFrente"></canvas></div>
                         </div>
                         <div class="chart-card">
-                            <h3 class="chart-title">Evolução Mensal da Perda Média (kg)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoPerdaMensal" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoPerdaMensal"></canvas></div>
+                            <h3 class="chart-title">Perdas por Frente de Serviço (Média kg)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFrenteServico" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoPerdaPorFrenteServico"></canvas></div>
                         </div>
                          <div class="chart-card">
-                            <h3 class="chart-title">Área Total com Aferição de Perdas (ha)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoAreaAvaliadaPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoAreaAvaliadaPerda"></canvas></div>
+                            <h3 class="chart-title">Top Operadores com Maiores Médias de Perda</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoTopOperadoresPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoTopOperadoresPerda"></canvas></div>
                         </div>
                     </div>
                 </div>
@@ -975,7 +1013,7 @@
             </section>
 
             <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
-                <h2 style="color: var(--color-info);"><i class="fas fa-calendar-alt"></i> Planejamento de Inspeções</h2>
+                <h2><i class="fas fa-calendar-alt"></i> Planejamento de Inspeções</h2>
                 <div class="card" style="border-left-color: var(--color-info);">
                     <h3><i class="fas fa-plus-circle"></i> Agendar Nova Inspeção</h3>
                     <div class="form-row">
