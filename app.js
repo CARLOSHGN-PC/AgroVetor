@@ -3260,7 +3260,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     backgroundColor: this._getVibrantColors(frentes.length)[index]
                 }));
 
-                this._createOrUpdateChart('graficoPerdaPorFrente', {
+                this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
                     type: 'bar',
                     data: { labels: turnos.map(t => `Turno ${t}`), datasets },
                     options: {
@@ -3302,7 +3302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     backgroundColor: this._getVibrantColors(frentes.length)[index]
                 }));
 
-                this._createOrUpdateChart('graficoPerdaPorTipo', {
+                this._createOrUpdateChart('graficoComposicaoPerda', {
                     type: 'bar',
                     data: { labels: tiposLabels, datasets },
                     options: {
@@ -3317,25 +3317,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             renderFrentesComMaiorPerda(data) {
-                const fazendas = {};
+                const frentes = {};
                 data.forEach(item => {
-                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
-                    if (!fazendas[fazendaKey]) fazendas[fazendaKey] = { total: 0, count: 0 };
-                    fazendas[fazendaKey].total += item.total;
-                    fazendas[fazendaKey].count++;
+                    const frente = item.frenteServico || 'N/A';
+                    if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
+                    frentes[frente].total += item.total;
+                    frentes[frente].count++;
                 });
-                const sortedFazendas = Object.entries(fazendas)
+                const sortedFrentes = Object.entries(frentes)
                     .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
-                    .sort((a, b) => b.media - a.media).slice(0, 10);
+                    .sort((a, b) => b.media - a.media);
 
-                this._createOrUpdateChart('graficoTop10FazendasPerda', {
+                this._createOrUpdateChart('graficoPerdaPorFazenda', { // Reutilizando o canvas
                     type: 'bar',
                     data: {
-                        labels: sortedFazendas.map(f => f.nome),
+                        labels: sortedFrentes.map(f => f.nome),
                         datasets: [{
                             label: 'Perda Média (kg)',
-                            data: sortedFazendas.map(f => f.media),
-                            backgroundColor: this._getVibrantColors(sortedFazendas.length)
+                            data: sortedFrentes.map(f => f.media),
+                            backgroundColor: this._getVibrantColors(sortedFrentes.length)
                         }]
                     },
                     options: {
