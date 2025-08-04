@@ -801,7 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (id === 'excluirDados') this.renderExclusao();
                     if (id === 'gerenciarUsuarios') {
                         this.renderUsersList();
-                        this.renderPermissionItems(App.elements.users.permissionsContainer); // Renderiza os cards de permissão
+                        this.renderPermissionItems(App.elements.users.permissionsContainer);
                     }
                     if (id === 'cadastros') this.renderFarmSelect();
                     if (id === 'cadastrarPessoas') this.renderPersonnelList();
@@ -1661,7 +1661,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isChecked = e.target.checked;
                     const talhaoCheckboxes = App.elements.harvest.talhaoSelectionList.querySelectorAll('input[type="checkbox"]');
                     talhaoCheckboxes.forEach(cb => {
-                        if (!cb.disabled) { // Apenas altera o estado se o checkbox não estiver desativado
+                        if (!cb.disabled) {
                             cb.checked = isChecked;
                         }
                     });
@@ -1790,18 +1790,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearTimeout(App.state.inactivityWarningTimer);
             
                 if (App.state.currentUser) {
-                    // Timer para o aviso
                     App.state.inactivityWarningTimer = setTimeout(() => {
                         const { confirmationModal } = App.elements;
                         
-                        // Reutiliza o modal de confirmação para o aviso
                         confirmationModal.title.textContent = "Sessão prestes a expirar";
                         confirmationModal.message.textContent = "A sua sessão será encerrada em 1 minuto por inatividade. Deseja continuar conectado?";
                         confirmationModal.confirmBtn.textContent = "Continuar";
-                        confirmationModal.cancelBtn.style.display = 'none'; // Esconde o botão de cancelar
+                        confirmationModal.cancelBtn.style.display = 'none';
             
                         const confirmHandler = () => {
-                            this.resetInactivityTimer(); // Reinicia o timer
+                            this.resetInactivityTimer();
                             closeHandler();
                         };
             
@@ -1809,7 +1807,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             confirmationModal.overlay.classList.remove('show');
                             confirmationModal.confirmBtn.removeEventListener('click', confirmHandler);
                             confirmationModal.closeBtn.removeEventListener('click', closeHandler);
-                            // Restaura o estado original do modal
                             setTimeout(() => {
                                 confirmationModal.confirmBtn.textContent = "Confirmar";
                                 confirmationModal.cancelBtn.style.display = 'inline-flex';
@@ -1822,7 +1819,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
                     }, App.config.inactivityTimeout - App.config.inactivityWarningTime);
             
-                    // Timer para o logout final
                     App.state.inactivityTimer = setTimeout(() => {
                         App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
                         App.auth.logout();
@@ -1886,17 +1882,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const allPlans = App.state.harvestPlans;
             
                 allPlans.forEach(plan => {
-                    // Se estivermos a editar um plano, não consideramos os seus próprios talhões como "já atribuídos"
                     if (App.state.activeHarvestPlan && plan.id === App.state.activeHarvestPlan.id) {
-                        // No entanto, se estivermos a editar um grupo, os talhões de OUTROS grupos do MESMO plano contam como atribuídos
                         plan.sequence.forEach(group => {
                             if (editingGroupId && group.id == editingGroupId) {
-                                return; // Pula o grupo que está a ser editado no momento
+                                return;
                             }
                             group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
                         });
                     } else {
-                        // Para todos os outros planos, qualquer talhão na sequência está indisponível
                         plan.sequence.forEach(group => {
                             group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
                         });
@@ -3064,7 +3057,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const config = JSON.parse(JSON.stringify(originalChart.config._config));
                 config.options.maintainAspectRatio = false;
                 
-                // CORREÇÃO: Garante que a função de formatação seja copiada, pois JSON.stringify a remove.
                 if (originalChart.config.options.plugins.datalabels.formatter) {
                     config.options.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
                 }
@@ -3308,7 +3300,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendas[fazendaKey].total += item.total;
                     fazendas[fazendaKey].count++;
                 });
-                const sortedFazendas = Object.entries(fazendas).sort((a,b) => (b[1].total/b[1].count) - (a[1].total/a[1].count));
+                const sortedFazendas = Object.entries(fazendas).sort((a,b) => (b[1].total/b[1].count) - (a[1].total/a[1].count)).slice(0, 10); // Top 10
                 this._createOrUpdateChart('graficoPerdaPorFazenda', {
                     type: 'bar',
                     data: {
@@ -3364,7 +3356,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 color: '#fff',
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value, context) => {
-                                    const percentage = totalGeralPerdas > 0 ? (value / totalGeralPerdas * 100).toFixed(1) : 0;
+                                    const percentage = totalGeralPerdas > 0 ? (value / totalGeralPerdas * 100).toFixed(2) : 0;
                                     return `${percentage}%`;
                                 }
                             }
