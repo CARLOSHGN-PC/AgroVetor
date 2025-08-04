@@ -37,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Registra o plugin de datalabels globalmente para todos os gráficos
     Chart.register(ChartDataLabels);
+    Chart.defaults.font.family = "'Poppins', sans-serif";
+
 
     const App = {
         config: {
@@ -818,12 +820,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
-                        this.setDefaultDatesForDashboard('broca');
+                        this.loadDashboardDates('broca');
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                         break;
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
-                        this.setDefaultDatesForDashboard('perda');
+                        this.loadDashboardDates('perda');
                         setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
                         break;
                     case 'aerea':
@@ -859,6 +861,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (type === 'perda') {
                     App.elements.dashboard.perdaDashboardInicio.value = firstDayOfMonth;
                     App.elements.dashboard.perdaDashboardFim.value = lastDayOfMonth;
+                }
+                App.actions.saveDashboardDates(type, firstDayOfMonth, lastDayOfMonth);
+            },
+            loadDashboardDates(type) {
+                const savedDates = App.actions.getDashboardDates(type);
+                if (savedDates.start && savedDates.end) {
+                    if (type === 'broca') {
+                        App.elements.dashboard.brocaDashboardInicio.value = savedDates.start;
+                        App.elements.dashboard.brocaDashboardFim.value = savedDates.end;
+                    } else if (type === 'perda') {
+                        App.elements.dashboard.perdaDashboardInicio.value = savedDates.start;
+                        App.elements.dashboard.perdaDashboardFim.value = savedDates.end;
+                    }
+                } else {
+                    this.setDefaultDatesForDashboard(type);
                 }
             },
             clearForm(formElement) {
@@ -1422,8 +1439,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.classList.toggle('active', btn.id === theme);
                 });
                 localStorage.setItem(App.config.themeKey, theme);
+                
+                // Atualiza a cor padrão da fonte dos gráficos
+                Chart.defaults.color = this._getThemeColors().text;
+
                 if (App.state.currentUser) {
-                    setTimeout(() => App.charts.renderAll(), 50);
+                    // Re-renderiza os gráficos do dashboard ativo para aplicar as novas cores
+                    if(document.getElementById('dashboard-broca').style.display !== 'none') {
+                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
+                    }
+                    if(document.getElementById('dashboard-perda').style.display !== 'none') {
+                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
+                    }
                 }
             },
             enableEnterKeyNavigation(formSelector) {
@@ -1721,6 +1748,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 return App.state[dataType].filter(item => {
                     return item.data >= startDate && item.data <= endDate;
                 });
+            },
+            saveDashboardDates(type, start, end) {
+                localStorage.setItem(`dashboard-${type}-start`, start);
+                localStorage.setItem(`dashboard-${type}-end`, end);
+            },
+            getDashboardDates(type) {
+                return {
+                    start: localStorage.getItem(`dashboard-${type}-start`),
+                    end: localStorage.getItem(`dashboard-${type}-end`)
+                };
             },
             formatDateForInput(dateString) {
                 if (!dateString || typeof dateString !== 'string') return '';
@@ -2977,34 +3014,24 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         charts: {
-            CHART_COLORS: {
-                red: 'rgb(255, 99, 132)',
-                orange: 'rgb(255, 159, 64)',
-                yellow: 'rgb(255, 205, 86)',
-                green: 'rgb(75, 192, 192)',
-                blue: 'rgb(54, 162, 235)',
-                purple: 'rgb(153, 102, 255)',
-                grey: 'rgb(201, 203, 207)',
-                teal: 'rgb(0, 128, 128)',
-                maroon: 'rgb(128, 0, 0)',
-                lime: 'rgb(0, 255, 0)',
-                navy: 'rgb(0, 0, 128)',
-                olive: 'rgb(128, 128, 0)'
+            _getVibrantColors(count) {
+                const colors = [
+                    '#36A2EB', '#FF6384', '#4BC0C0', '#FF9F40', '#9966FF', '#FFCD56',
+                    '#C9CBCF', '#3D5A80', '#98C1D9', '#E0FBFC', '#EE6C4D', '#293241'
+                ];
+                // Repete as cores se precisar de mais do que o disponível
+                const result = [];
+                for (let i = 0; i < count; i++) {
+                    result.push(colors[i % colors.length]);
+                }
+                return result;
             },
-
-            renderAll() {},
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
                 return {
                     primary: styles.getPropertyValue('--color-primary').trim(),
-                    primaryDark: styles.getPropertyValue('--color-primary-dark').trim(),
-                    accent: styles.getPropertyValue('--color-accent').trim(),
                     text: styles.getPropertyValue('--color-text').trim(),
                     border: styles.getPropertyValue('--color-border').trim(),
-                    danger: styles.getPropertyValue('--color-danger').trim(),
-                    warning: styles.getPropertyValue('--color-warning').trim(),
-                    info: styles.getPropertyValue('--color-info').trim(),
-                    purple: styles.getPropertyValue('--color-purple').trim(),
                 };
             },
             _createOrUpdateChart(id, config, isExpanded = false) { 
@@ -3061,6 +3088,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             renderBrocaDashboardCharts() {
                 const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
                 const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
 
                 if(data.length > 0) {
@@ -3072,6 +3100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             renderPerdaDashboardCharts() {
                 const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
                 const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
                 if(data.length > 0) {
@@ -3085,19 +3114,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fazendasMap = new Map();
                 data.forEach(item => {
                     const fazendaKey = `${item.codigo} - ${item.fazenda}`;
-                    if (!fazendasMap.has(fazendaKey)) {
-                        fazendasMap.set(fazendaKey, { totalEntrenos: 0, totalBrocado: 0 });
-                    }
-                    const fazenda = fazendasMap.get(fazendaKey);
-                    fazenda.totalEntrenos += Number(item.entrenos);
-                    fazenda.totalBrocado += Number(item.brocado);
+                    if (!fazendasMap.has(fazendaKey)) fazendasMap.set(fazendaKey, { totalEntrenos: 0, totalBrocado: 0 });
+                    const f = fazendasMap.get(fazendaKey);
+                    f.totalEntrenos += Number(item.entrenos);
+                    f.totalBrocado += Number(item.brocado);
                 });
-                
-                const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, data]) => {
-                    const indice = data.totalEntrenos > 0 ? (data.totalBrocado / data.totalEntrenos) * 100 : 0;
-                    return { nome, indice };
-                });
-                
+                const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }));
                 fazendasArray.sort((a, b) => b.indice - a.indice);
                 const top10 = fazendasArray.slice(0, 10);
                 
@@ -3106,22 +3128,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: {
                         labels: top10.map(f => f.nome),
                         datasets: [{
-                            label: 'Índice de Broca Ponderado (%)',
+                            label: 'Índice de Broca (%)',
                             data: top10.map(f => f.indice),
-                            backgroundColor: this.CHART_COLORS.red,
-                            borderColor: this.CHART_COLORS.red,
-                            borderWidth: 1
+                            backgroundColor: this._getVibrantColors(top10.length)
                         }]
                     },
                     options: { 
-                        indexAxis: 'x',
-                        responsive: true, 
-                        maintainAspectRatio: false,
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                         plugins: {
+                            legend: { display: false },
                             datalabels: {
-                                anchor: 'end',
-                                align: 'top',
-                                color: this._getThemeColors().text,
+                                color: '#fff', anchor: 'center', align: 'center',
                                 font: { weight: 'bold' },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
@@ -3136,21 +3153,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const date = new Date(item.data + 'T03:00:00Z');
                     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
                     const monthLabel = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
-                    
-                    if (!dataByMonth[monthKey]) {
-                        dataByMonth[monthKey] = { totalBrocado: 0, totalEntrenos: 0, label: monthLabel };
-                    }
+                    if (!dataByMonth[monthKey]) dataByMonth[monthKey] = { totalBrocado: 0, totalEntrenos: 0, label: monthLabel };
                     dataByMonth[monthKey].totalBrocado += Number(item.brocado);
                     dataByMonth[monthKey].totalEntrenos += Number(item.entrenos);
                 });
-
                 const sortedMonths = Object.keys(dataByMonth).sort();
                 const labels = sortedMonths.map(key => dataByMonth[key].label);
                 const chartData = sortedMonths.map(key => {
                     const monthData = dataByMonth[key];
                     return monthData.totalEntrenos > 0 ? (monthData.totalBrocado / monthData.totalEntrenos) * 100 : 0;
                 });
-
                 this._createOrUpdateChart('graficoBrocaMensal', {
                     type: 'line',
                     data: {
@@ -3159,19 +3171,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             label: 'Índice Mensal (%)',
                             data: chartData,
                             fill: true,
-                            borderColor: this.CHART_COLORS.blue,
+                            borderColor: this._getThemeColors().primary,
                             backgroundColor: 'rgba(54, 162, 235, 0.2)',
                             tension: 0.4
                         }]
                     },
                     options: { 
-                        responsive: true, 
-                        maintainAspectRatio: false,
+                        responsive: true, maintainAspectRatio: false,
                         plugins: {
+                            legend: { display: false },
                             datalabels: {
-                                anchor: 'end',
-                                align: 'top',
-                                color: this._getThemeColors().text,
+                                anchor: 'end', align: 'top', color: this._getThemeColors().text,
                                 font: { weight: 'bold' },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
@@ -3184,7 +3194,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const totalMeio = data.reduce((sum, item) => sum + Number(item.meio), 0);
                 const totalTopo = data.reduce((sum, item) => sum + Number(item.topo), 0);
                 const totalGeral = totalBase + totalMeio + totalTopo;
-                
                 this._createOrUpdateChart('graficoBrocaPosicao', {
                     type: 'doughnut',
                     data: {
@@ -3192,25 +3201,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         datasets: [{
                             label: 'Posição da Broca',
                             data: [totalBase, totalMeio, totalTopo],
-                            backgroundColor: [
-                                this.CHART_COLORS.orange,
-                                this.CHART_COLORS.yellow,
-                                this.CHART_COLORS.purple
-                            ]
+                            backgroundColor: this._getVibrantColors(3)
                         }]
                     },
                     options: { 
-                        responsive: true, 
-                        maintainAspectRatio: false,
+                        responsive: true, maintainAspectRatio: false,
                         plugins: {
+                            legend: { position: 'top' },
                             datalabels: {
-                                color: '#fff',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value, context) => {
-                                    if (totalGeral === 0) return '0%';
-                                    const percentage = (value / totalGeral * 100).toFixed(1);
-                                    return `${percentage}%`;
-                                }
+                                color: '#fff', font: { weight: 'bold', size: 14 },
+                                formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(1)}%` : '0%'
                             }
                         }
                     }
@@ -3222,9 +3222,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const corte = item.corte || 'N/A';
                     cortesMap.set(corte, (cortesMap.get(corte) || 0) + 1);
                 });
-
                 const sortedCortes = Array.from(cortesMap.entries()).sort((a,b) => a[0] - b[0]);
-
                 this._createOrUpdateChart('graficoBrocaPorCorte', {
                     type: 'bar',
                     data: {
@@ -3232,17 +3230,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         datasets: [{
                             label: 'Nº de Inspeções',
                             data: sortedCortes.map(c => c[1]),
-                            backgroundColor: this.CHART_COLORS.green
+                            backgroundColor: this._getVibrantColors(sortedCortes.length)
                         }]
                     },
                     options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                         plugins: {
+                            legend: { display: false },
                             datalabels: {
-                                anchor: 'end',
-                                align: 'top',
-                                color: this._getThemeColors().text,
+                                color: '#fff', anchor: 'center', align: 'center',
                                 font: { weight: 'bold' }
                             }
                         }
@@ -3261,35 +3257,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     structuredData[fazendaKey][frente][turno].total += p.total;
                     structuredData[fazendaKey][frente][turno].count++;
                 });
-
                 const labels = Object.keys(structuredData);
                 const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))];
                 const turnos = [...new Set(data.map(p => p.turno || 'N/A'))];
                 const datasets = [];
-
-                frentes.forEach((frente, i) => {
-                    turnos.forEach((turno, j) => {
+                const colors = this._getVibrantColors(frentes.length * turnos.length);
+                let colorIndex = 0;
+                frentes.forEach((frente) => {
+                    turnos.forEach((turno) => {
                         datasets.push({
                             label: `${frente} - Turno ${turno}`,
                             data: labels.map(label => {
-                                const fazendaData = structuredData[label];
-                                if (fazendaData && fazendaData[frente] && fazendaData[frente][turno]) {
-                                    const d = fazendaData[frente][turno];
-                                    return d.total / d.count;
-                                }
-                                return 0;
+                                const d = structuredData[label]?.[frente]?.[turno];
+                                return d ? d.total / d.count : 0;
                             }),
-                            backgroundColor: Object.values(this.CHART_COLORS)[(i * turnos.length + j) % Object.keys(this.CHART_COLORS).length]
+                            backgroundColor: colors[colorIndex++]
                         });
                     });
                 });
-
                 this._createOrUpdateChart('graficoPerdaPorFazendaFrenteTurno', {
                     type: 'bar',
                     data: { labels, datasets },
                     options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: { x: { stacked: true }, y: { stacked: true } },
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        scales: { x: { stacked: true, title: { display: true, text: 'Perda Média (kg)' } }, y: { stacked: true } },
                         plugins: { datalabels: { display: false } }
                     }
                 });
@@ -3299,61 +3290,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
                 data.forEach(item => {
                     const frente = item.frenteServico || 'N/A';
-                    if (!frentes[frente]) {
-                        frentes[frente] = { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0 };
-                    }
-                    tiposDePerda.forEach(tipo => {
-                        frentes[frente][tipo] += item[tipo] || 0;
-                    });
-                });
-
-                const labels = Object.keys(frentes);
-                const datasets = tiposDePerda.map((tipo, i) => ({
-                    label: tipo.charAt(0).toUpperCase() + tipo.slice(1),
-                    data: labels.map(frente => frentes[frente][tipo]),
-                    backgroundColor: Object.values(this.CHART_COLORS)[i % Object.keys(this.CHART_COLORS).length],
-                }));
-
-                this._createOrUpdateChart('graficoPerdaPorFrente', {
-                    type: 'bar',
-                    data: { labels, datasets },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: 'Perda Total (kg)' } } },
-                        plugins: { datalabels: { display: false } }
-                    }
-                });
-            },
-            renderPerdaPorFrenteServico(data) {
-                const frentes = {};
-                data.forEach(item => {
-                    const frente = item.frenteServico || 'N/A';
                     if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
                     frentes[frente].total += item.total;
                     frentes[frente].count++;
                 });
-
                 const sortedFrentes = Object.entries(frentes).sort((a,b) => (b[1].total/b[1].count) - (a[1].total/a[1].count));
-
-                this._createOrUpdateChart('graficoPerdaPorFrenteServico', {
+                this._createOrUpdateChart('graficoPerdaPorFrente', {
                     type: 'bar',
                     data: {
                         labels: sortedFrentes.map(f => f[0]),
                         datasets: [{
                             label: 'Perda Média (kg)',
                             data: sortedFrentes.map(f => f[1].total / f[1].count),
-                            backgroundColor: this.CHART_COLORS.purple
+                            backgroundColor: this._getVibrantColors(sortedFrentes.length)
                         }]
                     },
                     options: {
-                        responsive: true, maintainAspectRatio: false,
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                         plugins: {
+                            legend: { display: false },
                             datalabels: {
-                                anchor: 'end', align: 'top', color: this._getThemeColors().text,
+                                color: '#fff', anchor: 'center', align: 'center',
                                 font: { weight: 'bold' },
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
                         }
+                    }
+                });
+            },
+            renderPerdaPorFrenteServico(data) {
+                const frentes = {};
+                const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
+                const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
+                data.forEach(item => {
+                    const frente = item.frenteServico || 'N/A';
+                    if (!frentes[frente]) frentes[frente] = { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0 };
+                    tiposDePerda.forEach(tipo => frentes[frente][tipo] += item[tipo] || 0);
+                });
+                const labels = Object.keys(frentes);
+                const datasets = tiposDePerda.map((tipo, i) => ({
+                    label: tiposLabels[i],
+                    data: labels.map(frente => frentes[frente][tipo]),
+                    backgroundColor: this._getVibrantColors(tiposDePerda.length)[i],
+                }));
+                this._createOrUpdateChart('graficoPerdaPorFrenteServico', {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    options: {
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        scales: { x: { stacked: true, title: { display: true, text: 'Perda Total (kg)' } }, y: { stacked: true } },
+                        plugins: { datalabels: { display: false } }
                     }
                 });
             },
@@ -3365,12 +3351,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     operadores[operador].total += item.total;
                     operadores[operador].count++;
                 });
-
                 const topOperadores = Object.entries(operadores)
                     .map(([nome, data]) => ({ nome, media: data.total / data.count }))
-                    .sort((a, b) => b.media - a.media)
-                    .slice(0, 10);
-
+                    .sort((a, b) => b.media - a.media).slice(0, 10);
                 this._createOrUpdateChart('graficoTopOperadoresPerda', {
                     type: 'bar',
                     data: {
@@ -3378,14 +3361,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         datasets: [{
                             label: 'Perda Média (kg)',
                             data: topOperadores.map(op => op.media),
-                            backgroundColor: this.CHART_COLORS.info
+                            backgroundColor: this._getVibrantColors(topOperadores.length)
                         }]
                     },
                     options: {
                         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                         plugins: {
+                            legend: { display: false },
                             datalabels: {
-                                anchor: 'end', align: 'right', color: this._getThemeColors().text,
+                                color: '#fff', anchor: 'center', align: 'center',
                                 font: { weight: 'bold' },
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
