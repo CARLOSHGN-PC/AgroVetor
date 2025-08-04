@@ -3090,7 +3090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderPerdaPorFrenteTurno(data);
                 this.renderComposicaoPerdaPorFrente(data);
                 this.renderTopOperadoresPerda(data);
-                this.renderFrentesComMaiorPerda(data);
+                this.renderTop10FazendasPerda(data); // Nome da função alterado
             },
             renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
@@ -3316,26 +3316,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
-            renderFrentesComMaiorPerda(data) {
-                const frentes = {};
+            renderTop10FazendasPerda(data) {
+                const fazendas = {};
                 data.forEach(item => {
-                    const frente = item.frenteServico || 'N/A';
-                    if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
-                    frentes[frente].total += item.total;
-                    frentes[frente].count++;
+                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
+                    if (!fazendas[fazendaKey]) fazendas[fazendaKey] = { total: 0, count: 0 };
+                    fazendas[fazendaKey].total += item.total;
+                    fazendas[fazendaKey].count++;
                 });
-                const sortedFrentes = Object.entries(frentes)
+                const sortedFazendas = Object.entries(fazendas)
                     .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
-                    .sort((a, b) => b.media - a.media);
+                    .sort((a, b) => b.media - a.media).slice(0, 10);
 
-                this._createOrUpdateChart('graficoPerdaPorFazenda', { // Reutilizando o canvas
+                this._createOrUpdateChart('graficoTop10FazendasPerda', {
                     type: 'bar',
                     data: {
-                        labels: sortedFrentes.map(f => f.nome),
+                        labels: sortedFazendas.map(f => f.nome),
                         datasets: [{
                             label: 'Perda Média (kg)',
-                            data: sortedFrentes.map(f => f.media),
-                            backgroundColor: this._getVibrantColors(sortedFrentes.length)
+                            data: sortedFazendas.map(f => f.media),
+                            backgroundColor: this._getVibrantColors(sortedFazendas.length)
                         }]
                     },
                     options: {
