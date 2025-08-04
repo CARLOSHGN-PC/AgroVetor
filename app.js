@@ -830,11 +830,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
                         this.loadDashboardDates('broca');
+                        // CORREÇÃO: Atraso para garantir que o DOM está visível antes de renderizar
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                         break;
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
                         this.loadDashboardDates('perda');
+                         // CORREÇÃO: Atraso para garantir que o DOM está visível antes de renderizar
                         setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
                         break;
                     case 'aerea':
@@ -861,7 +863,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             setDefaultDatesForDashboard(type) {
                 const today = new Date();
-                // ALTERAÇÃO: Define a data de início para o primeiro dia do ano corrente
                 const firstDayOfYear = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
                 const todayDate = today.toISOString().split('T')[0];
 
@@ -3025,7 +3026,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         charts: {
             _getVibrantColors(count) {
-                // ALTERAÇÃO: Paleta de cores mais vibrante e com maior contraste
                 const colors = [
                     '#1976D2', '#D32F2F', '#388E3C', '#F57C00', '#7B1FA2', '#00796B',
                     '#C2185B', '#512DA8', '#FBC02D', '#FFA000', '#689F38', '#455A64'
@@ -3093,24 +3093,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
                 const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
 
-                if(data.length > 0) {
-                    this.renderTop10FazendasBroca(data);
-                    this.renderBrocaMensal(data);
-                    this.renderBrocaPosicao(data);
-                    this.renderBrocaPorCorte(data);
-                }
+                // CORREÇÃO: Chamando as funções de renderização individualmente
+                this.renderTop10FazendasBroca(data);
+                this.renderBrocaMensal(data);
+                this.renderBrocaPosicao(data);
+                this.renderBrocaPorCorte(data);
             },
             renderPerdaDashboardCharts() {
                 const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
                 App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
                 const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
-                if(data.length > 0) {
-                    this.renderPerdaPorFazendaFrenteTurno(data);
-                    this.renderPerdaPorFrente(data);
-                    this.renderPerdaPorFrenteServico(data);
-                    this.renderTopOperadoresPerda(data);
-                }
+                // CORREÇÃO: Chamando as funções de renderização individualmente
+                this.renderPerdaPorFazendaFrenteTurno(data);
+                this.renderPerdaPorFrente(data);
+                this.renderPerdaPorFrenteServico(data);
+                this.renderTopOperadoresPerda(data);
             },
             renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
@@ -3136,12 +3134,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: { 
-                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        // ALTERAÇÃO: Gráfico vertical
+                        responsive: true, maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                color: '#fff', anchor: 'center', align: 'center',
-                                font: { weight: 'bold', size: 14 }, // ALTERAÇÃO: Tamanho da fonte aumentado
+                                color: this._getThemeColors().text, anchor: 'end', align: 'end',
+                                font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
                         }
@@ -3184,7 +3183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             legend: { display: false },
                             datalabels: {
                                 anchor: 'end', align: 'top', color: this._getThemeColors().text,
-                                font: { weight: 'bold', size: 14 }, // ALTERAÇÃO: Tamanho da fonte aumentado
+                                font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
                         }
@@ -3211,7 +3210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             legend: { position: 'top' },
                             datalabels: {
-                                color: '#fff', font: { weight: 'bold', size: 16 }, // ALTERAÇÃO: Tamanho da fonte aumentado
+                                color: '#fff', font: { weight: 'bold', size: 16 },
                                 formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(1)}%` : '0%'
                             }
                         }
@@ -3236,12 +3235,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        // ALTERAÇÃO: Gráfico vertical
+                        responsive: true, maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                color: '#fff', anchor: 'center', align: 'center',
-                                font: { weight: 'bold', size: 14 } // ALTERAÇÃO: Tamanho da fonte aumentado
+                                color: this._getThemeColors().text, anchor: 'end', align: 'end',
+                                font: { weight: 'bold', size: 14 }
                             }
                         }
                     }
@@ -3281,15 +3281,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'bar',
                     data: { labels, datasets },
                     options: {
-                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                        scales: { x: { stacked: true, title: { display: true, text: 'Perda Média (kg)' } }, y: { stacked: true } },
+                        // ALTERAÇÃO: Gráfico vertical
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { stacked: true, title: { display: true, text: 'Perda Média (kg)' } }, x: { stacked: true } },
                         plugins: { datalabels: { display: false } }
                     }
                 });
             },
             renderPerdaPorFrente(data) {
                 const frentes = {};
-                const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
                 data.forEach(item => {
                     const frente = item.frenteServico || 'N/A';
                     if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
@@ -3308,12 +3308,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        // ALTERAÇÃO: Gráfico vertical
+                        responsive: true, maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                color: '#fff', anchor: 'center', align: 'center',
-                                font: { weight: 'bold', size: 14 }, // ALTERAÇÃO: Tamanho da fonte aumentado
+                                color: this._getThemeColors().text, anchor: 'end', align: 'end',
+                                font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
                         }
@@ -3339,8 +3340,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'bar',
                     data: { labels, datasets },
                     options: {
-                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                        scales: { x: { stacked: true, title: { display: true, text: 'Perda Total (kg)' } }, y: { stacked: true } },
+                        // ALTERAÇÃO: Gráfico vertical
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { stacked: true, title: { display: true, text: 'Perda Total (kg)' } }, x: { stacked: true } },
                         plugins: { datalabels: { display: false } }
                     }
                 });
@@ -3367,12 +3369,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        // ALTERAÇÃO: Gráfico vertical
+                        responsive: true, maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                color: '#fff', anchor: 'center', align: 'center',
-                                font: { weight: 'bold', size: 14 }, // ALTERAÇÃO: Tamanho da fonte aumentado
+                                color: this._getThemeColors().text, anchor: 'end', align: 'end',
+                                font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
                         }
