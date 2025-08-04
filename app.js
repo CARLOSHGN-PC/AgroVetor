@@ -1215,14 +1215,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dailyTon = parseFloat(dailyRate) > 0 ? parseFloat(dailyRate) : 1;
 
                 sequence.forEach((group, index) => {
-                    const isGroupClosed = group.plots.every(p => closedTalhaoIds.includes(p.talhaoId));
+                    // [CORREÇÃO] A lógica para esconder o grupo foi removida daqui,
+                    // pois agora a própria `sequence` é modificada na importação.
+                    // A renderização agora assume que todos os grupos na `sequence` devem ser mostrados.
                     
-                    const producaoConsiderada = isGroupClosed ? 0 : group.totalProducao - (group.producaoColhida || 0);
+                    const producaoConsiderada = group.totalProducao - (group.producaoColhida || 0);
 
-                    if (!isGroupClosed) {
-                        grandTotalProducao += group.totalProducao;
-                        grandTotalArea += group.totalArea;
-                    }
+                    grandTotalProducao += group.totalProducao;
+                    grandTotalArea += group.totalArea;
 
                     const diasNecessarios = Math.ceil(producaoConsiderada / dailyTon);
                     
@@ -1233,10 +1233,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         dataSaida.setDate(dataSaida.getDate() + diasNecessarios - 1);
                     }
                     
-                    if (!isGroupClosed) {
-                        currentDate = new Date(dataSaida.getTime());
-                        currentDate.setDate(currentDate.getDate() + 1);
-                    }
+                    currentDate = new Date(dataSaida.getTime());
+                    currentDate.setDate(currentDate.getDate() + 1);
                     
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, dataEntrada);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
@@ -1247,15 +1245,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const row = tableBody.insertRow();
                     row.draggable = true;
                     row.dataset.id = group.id;
-                    if(isGroupClosed) {
-                        row.style.opacity = '0.5';
-                        row.style.textDecoration = 'line-through';
-                        row.style.background = '#f0f0f0';
-                    }
                     
                     row.innerHTML = `
                         <td data-label="Seq.">${index + 1}</td>
-                        <td data-label="Fazenda">${group.fazendaCodigo} - ${group.fazendaName} ${isGroupClosed ? '<span style="color:red;font-weight:bold;">(ENCERRADO)</span>' : ''}</td>
+                        <td data-label="Fazenda">${group.fazendaCodigo} - ${group.fazendaName}</td>
                         <td data-label="Talhões" class="talhao-list-cell">${group.plots.map(p => p.talhaoName).join(', ')}</td>
                         <td data-label="Área (ha)">${areaColhida.toFixed(2)} / ${group.totalArea.toFixed(2)}</td>
                         <td data-label="Prod. (ton)">${producaoColhida.toFixed(2)} / ${group.totalProducao.toFixed(2)}</td>
@@ -2279,6 +2272,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 
+                // [CORREÇÃO] Sincroniza o estado ativo com a lista principal para atualização imediata da UI em outros planos.
+                if (App.state.activeHarvestPlan.id) {
+                    const planInList = App.state.harvestPlans.find(p => p.id === App.state.activeHarvestPlan.id);
+                    if (planInList) {
+                        planInList.sequence = App.state.activeHarvestPlan.sequence;
+                    }
+                }
+                
                 App.ui.renderHarvestSequence();
                 this.cancelEditSequence();
             },
@@ -2323,6 +2324,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 App.ui.showConfirmationModal("Tem a certeza que deseja remover este grupo da sequência?", () => {
                     App.state.activeHarvestPlan.sequence = App.state.activeHarvestPlan.sequence.filter(g => g.id != groupId);
+                    
+                    // [CORREÇÃO] Sincroniza o estado ativo com a lista principal para atualização imediata da UI em outros planos.
+                    if (App.state.activeHarvestPlan.id) {
+                        const planInList = App.state.harvestPlans.find(p => p.id === App.state.activeHarvestPlan.id);
+                        if (planInList) {
+                            planInList.sequence = App.state.activeHarvestPlan.sequence;
+                        }
+                    }
+
                     App.ui.renderHarvestSequence();
                     App.actions.cancelEditSequence();
                     App.ui.showAlert('Grupo removido da sequência.', 'info');
@@ -2728,7 +2738,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
-            // [CORREÇÃO] Lógica de importação de relatórios foi aprimorada para lidar com talhões encerrados e em andamento.
             async importHarvestReport(file, type) {
                 if (!file) return;
             
@@ -2751,57 +2760,99 @@ document.addEventListener('DOMContentLoaded', () => {
                         const changesSummary = {};
                         let notFoundTalhoes = [];
             
-                        for (let i = 1; i < lines.length; i++) {
-                            const data = lines[i].split(';');
-                            const row = headers.reduce((obj, header, index) => {
-                                obj[header] = data[index]?.trim();
-                                return obj;
-                            }, {});
-            
-                            const farmCode = row.codigofazenda;
-                            const talhaoName = row.talhao?.toUpperCase();
-                            if (!farmCode || !talhaoName) continue;
-
-                            const farm = fazendas.find(f => f.code === farmCode);
-                            const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === talhaoName);
-
-                            if (!talhao) {
-                                if (!notFoundTalhoes.includes(`${farmCode}-${talhaoName}`)) {
-                                    notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
+                        // [CORREÇÃO] Cria um Set com os IDs dos talhões a serem encerrados para uma busca mais eficiente.
+                        const closedTalhaoIdsFromCSV = new Set();
+                        if (type === 'closed') {
+                            for (let i = 1; i < lines.length; i++) {
+                                const data = lines[i].split(';');
+                                const row = headers.reduce((obj, header, index) => { obj[header] = data[index]?.trim(); return obj; }, {});
+                                const farmCode = row.codigofazenda;
+                                const talhaoName = row.talhao?.toUpperCase();
+                                if (farmCode && talhaoName) {
+                                    const farm = fazendas.find(f => f.code === farmCode);
+                                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                                    if (talhao) {
+                                        closedTalhaoIdsFromCSV.add(talhao.id);
+                                    }
                                 }
-                                continue;
                             }
-
-                            let talhaoFoundInAnyPlan = false;
+                        }
             
-                            for (const plan of allPlans) {
-                                for (const group of plan.sequence) {
-                                    const plotIndex = group.plots.findIndex(p => p.talhaoId === talhao.id);
-                                    if (group.fazendaCodigo === farmCode && plotIndex !== -1) {
-                                        talhaoFoundInAnyPlan = true;
-                                        
-                                        if (!changesSummary[plan.frontName]) {
-                                            changesSummary[plan.frontName] = { updated: [], removed: [] };
-                                        }
+                        // Processa o relatório de andamento
+                        if (type === 'progress') {
+                            for (let i = 1; i < lines.length; i++) {
+                                const data = lines[i].split(';');
+                                const row = headers.reduce((obj, header, index) => { obj[header] = data[index]?.trim(); return obj; }, {});
+                                const farmCode = row.codigofazenda;
+                                const talhaoName = row.talhao?.toUpperCase();
+                                if (!farmCode || !talhaoName) continue;
             
-                                        if (type === 'closed') {
-                                            if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
-                                            if (!plan.closedTalhaoIds.includes(talhao.id)) {
-                                                plan.closedTalhaoIds.push(talhao.id);
-                                                changesSummary[plan.frontName].removed.push(`${farmCode}-${talhaoName}`);
-                                            }
-                                        } else { // progress
+                                const farm = fazendas.find(f => f.code === farmCode);
+                                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                                if (!talhao) {
+                                    if (!notFoundTalhoes.includes(`${farmCode}-${talhaoName}`)) notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
+                                    continue;
+                                }
+            
+                                let talhaoFoundInAnyPlan = false;
+                                for (const plan of allPlans) {
+                                    for (const group of plan.sequence) {
+                                        if (group.fazendaCodigo === farmCode && group.plots.some(p => p.talhaoId === talhao.id)) {
+                                            talhaoFoundInAnyPlan = true;
+                                            if (!changesSummary[plan.frontName]) changesSummary[plan.frontName] = { updated: [], removed: [] };
+            
                                             const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
                                             const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
                                             group.areaColhida = (group.areaColhida || 0) + areaColhida;
                                             group.producaoColhida = (group.producaoColhida || 0) + producaoColhida;
-                                            changesSummary[plan.frontName].updated.push(`${farmCode}-${talhaoName} (+${areaColhida.toFixed(2)} ha, +${producaoColhida.toFixed(2)} ton)`);
+                                            changesSummary[plan.frontName].updated.push(`${farmCode}-${talhaoName}`);
                                         }
                                     }
                                 }
+                                if (!talhaoFoundInAnyPlan && !notFoundTalhoes.includes(`${farmCode}-${talhaoName}`)) {
+                                    notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
+                                }
                             }
-                            if (!talhaoFoundInAnyPlan && !notFoundTalhoes.includes(`${farmCode}-${talhaoName}`)) {
-                                notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
+                        }
+            
+                        // [CORREÇÃO] Processa os talhões encerrados, modificando a sequência dos planos.
+                        if (type === 'closed') {
+                            for (const plan of allPlans) {
+                                if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
+                                closedTalhaoIdsFromCSV.forEach(id => {
+                                    if (!plan.closedTalhaoIds.includes(id)) plan.closedTalhaoIds.push(id);
+                                });
+            
+                                const newSequence = [];
+                                plan.sequence.forEach(group => {
+                                    const originalPlotCount = group.plots.length;
+                                    group.plots = group.plots.filter(plot => !closedTalhaoIdsFromCSV.has(plot.talhaoId));
+                                    const removedPlotsCount = originalPlotCount - group.plots.length;
+            
+                                    if (removedPlotsCount > 0) {
+                                        if (!changesSummary[plan.frontName]) changesSummary[plan.frontName] = { updated: [], removed: [] };
+                                        changesSummary[plan.frontName].removed.push(`${removedPlotsCount} talhão(ões) do grupo ${group.fazendaCodigo}`);
+                                    }
+            
+                                    if (group.plots.length > 0) {
+                                        let newTotalArea = 0;
+                                        let newTotalProducao = 0;
+                                        const farm = fazendas.find(f => f.code === group.fazendaCodigo);
+                                        if (farm) {
+                                            group.plots.forEach(plot => {
+                                                const talhao = farm.talhoes.find(t => t.id === plot.talhaoId);
+                                                if (talhao) {
+                                                    newTotalArea += talhao.area;
+                                                    newTotalProducao += talhao.producao;
+                                                }
+                                            });
+                                        }
+                                        group.totalArea = newTotalArea;
+                                        group.totalProducao = newTotalProducao;
+                                        newSequence.push(group);
+                                    }
+                                });
+                                plan.sequence = newSequence;
                             }
                         }
                         
@@ -2823,7 +2874,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     summaryMessage += `  - ${changes.updated.length} talhões com progresso atualizado.\n`;
                                 }
                                 if (changes.removed.length > 0) {
-                                    summaryMessage += `  - ${changes.removed.length} talhões marcados como encerrados.\n`;
+                                    summaryMessage += `  - ${changes.removed.join(', ')} foram removidos da sequência.\n`;
                                 }
                             });
                         } else {
@@ -2852,7 +2903,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         confirmationModal.confirmBtn.addEventListener('click', closeHandler);
                         confirmationModal.closeBtn.addEventListener('click', closeHandler);
-            
             
                     } catch (e) {
                         App.ui.showAlert(`Erro ao importar: ${e.message}`, "error", 6000);
