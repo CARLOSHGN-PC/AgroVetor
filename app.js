@@ -3087,10 +3087,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
                 const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
-                this.renderPerdaPorFrente(data);
-                this.renderPerdaPorTipo(data);
+                this.renderPerdaPorFrenteTurno(data);
+                this.renderComposicaoPerdaPorFrente(data);
                 this.renderTopOperadoresPerda(data);
-                this.renderPerdaPorFazenda(data);
+                this.renderFrentesComMaiorPerda(data);
             },
             renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
@@ -3192,7 +3192,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             legend: { position: 'top' },
                             datalabels: {
                                 color: '#fff', font: { weight: 'bold', size: 16 },
-                                formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(1)}%` : '0%'
+                                formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(2)}%` : '0.00%'
                             }
                         }
                     }
@@ -3227,7 +3227,93 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
-            renderPerdaPorFrente(data) {
+            renderPerdaPorFrenteTurno(data) {
+                const structuredData = {};
+                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort();
+                const turnos = [...new Set(data.map(p => p.turno || 'N/A'))].sort();
+
+                turnos.forEach(turno => {
+                    structuredData[turno] = {};
+                    frentes.forEach(frente => {
+                        structuredData[turno][frente] = { total: 0, count: 0 };
+                    });
+                });
+
+                data.forEach(p => {
+                    const frente = p.frenteServico || 'N/A';
+                    const turno = p.turno || 'N/A';
+                    if (structuredData[turno] && structuredData[turno][frente]) {
+                        structuredData[turno][frente].total += p.total;
+                        structuredData[turno][frente].count++;
+                    }
+                });
+
+                const datasets = frentes.map((frente, index) => ({
+                    label: frente,
+                    data: turnos.map(turno => {
+                        const d = structuredData[turno][frente];
+                        return d.count > 0 ? d.total / d.count : 0;
+                    }),
+                    backgroundColor: this._getVibrantColors(frentes.length)[index]
+                }));
+
+                this._createOrUpdateChart('graficoPerdaPorFrente', {
+                    type: 'bar',
+                    data: { labels: turnos.map(t => `Turno ${t}`), datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { title: { display: true, text: 'Perda Média (kg)' } } },
+                        plugins: {
+                            datalabels: {
+                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)}`
+                            }
+                        }
+                    }
+                });
+            },
+            renderComposicaoPerdaPorFrente(data) {
+                const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
+                const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
+                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort();
+                const structuredData = {};
+
+                tiposDePerda.forEach(tipo => {
+                    structuredData[tipo] = {};
+                    frentes.forEach(frente => {
+                        structuredData[tipo][frente] = 0;
+                    });
+                });
+
+                data.forEach(item => {
+                    const frente = item.frenteServico || 'N/A';
+                    tiposDePerda.forEach(tipo => {
+                        structuredData[tipo][frente] += item[tipo] || 0;
+                    });
+                });
+
+                const datasets = frentes.map((frente, index) => ({
+                    label: frente,
+                    data: tiposDePerda.map(tipo => structuredData[tipo][frente]),
+                    backgroundColor: this._getVibrantColors(frentes.length)[index]
+                }));
+
+                this._createOrUpdateChart('graficoPerdaPorTipo', {
+                    type: 'bar',
+                    data: { labels: tiposLabels, datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { title: { display: true, text: 'Perda Total (kg)' } } },
+                        plugins: {
+                            datalabels: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            },
+            renderFrentesComMaiorPerda(data) {
                 const frentes = {};
                 data.forEach(item => {
                     const frente = item.frenteServico || 'N/A';
@@ -3235,80 +3321,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     frentes[frente].total += item.total;
                     frentes[frente].count++;
                 });
-                const sortedFrentes = Object.entries(frentes).sort((a,b) => (b[1].total/b[1].count) - (a[1].total/a[1].count));
-                this._createOrUpdateChart('graficoPerdaPorFrente', {
+                const sortedFrentes = Object.entries(frentes)
+                    .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
+                    .sort((a, b) => b.media - a.media);
+
+                this._createOrUpdateChart('graficoPerdaPorFazenda', { // Reutilizando o canvas
                     type: 'bar',
                     data: {
-                        labels: sortedFrentes.map(f => f[0]),
+                        labels: sortedFrentes.map(f => f.nome),
                         datasets: [{
                             label: 'Perda Média (kg)',
-                            data: sortedFrentes.map(f => f[1].total / f[1].count),
+                            data: sortedFrentes.map(f => f.media),
                             backgroundColor: this._getVibrantColors(sortedFrentes.length)
-                        }]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            datalabels: {
-                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)} kg`
-                            }
-                        }
-                    }
-                });
-            },
-            renderPerdaPorTipo(data) {
-                const tipos = { 'C. Inteira': 0, 'Tolete': 0, 'Toco': 0, 'Ponta': 0, 'Estilhaço': 0, 'Pedaço': 0 };
-                data.forEach(item => {
-                    tipos['C. Inteira'] += item.canaInteira || 0;
-                    tipos['Tolete'] += item.tolete || 0;
-                    tipos['Toco'] += item.toco || 0;
-                    tipos['Ponta'] += item.ponta || 0;
-                    tipos['Estilhaço'] += item.estilhaco || 0;
-                    tipos['Pedaço'] += item.pedaco || 0;
-                });
-                this._createOrUpdateChart('graficoPerdaPorTipo', {
-                    type: 'bar',
-                    data: {
-                        labels: Object.keys(tipos),
-                        datasets: [{
-                            label: 'Perda Total (kg)',
-                            data: Object.values(tipos),
-                            backgroundColor: this._getVibrantColors(Object.keys(tipos).length),
-                        }]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                             datalabels: {
-                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)} kg`
-                            }
-                        }
-                    }
-                });
-            },
-            renderPerdaPorFazenda(data) {
-                const fazendas = {};
-                data.forEach(item => {
-                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
-                    if (!fazendas[fazendaKey]) fazendas[fazendaKey] = { total: 0, count: 0 };
-                    fazendas[fazendaKey].total += item.total;
-                    fazendas[fazendaKey].count++;
-                });
-                const sortedFazendas = Object.entries(fazendas).sort((a,b) => (b[1].total/b[1].count) - (a[1].total/a[1].count)).slice(0, 10); // Top 10
-                this._createOrUpdateChart('graficoPerdaPorFazenda', {
-                    type: 'bar',
-                    data: {
-                        labels: sortedFazendas.map(f => f[0]),
-                        datasets: [{
-                            label: 'Perda Média (kg)',
-                            data: sortedFazendas.map(f => f[1].total / f[1].count),
-                            backgroundColor: this._getVibrantColors(sortedFazendas.length)
                         }]
                     },
                     options: {
@@ -3334,7 +3358,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const topOperadores = Object.entries(operadores)
                     .map(([nome, data]) => ({ nome, media: data.total / data.count, total: data.total }))
-                    .sort((a, b) => b.media - a.media).slice(0, 10);
+                    .sort((a, b) => b.total - a.total).slice(0, 10);
                 
                 const totalGeralPerdas = topOperadores.reduce((sum, op) => sum + op.total, 0);
 
@@ -3355,9 +3379,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             datalabels: {
                                 color: '#fff',
                                 font: { weight: 'bold', size: 14 },
-                                formatter: (value, context) => {
-                                    const percentage = totalGeralPerdas > 0 ? (value / totalGeralPerdas * 100).toFixed(2) : 0;
-                                    return `${percentage}%`;
+                                formatter: (value) => {
+                                    const percentage = totalGeralPerdas > 0 ? (value / totalGeralPerdas * 100) : 0;
+                                    return `${percentage.toFixed(2)}%`;
                                 }
                             }
                         }
