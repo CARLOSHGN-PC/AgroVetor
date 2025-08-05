@@ -3090,7 +3090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderPerdaPorFrenteTurno(data);
                 this.renderComposicaoPerdaPorFrente(data);
                 this.renderTopOperadoresPerda(data);
-                this.renderTop10FazendasPerda(data); // Nome da função alterado
+                this.renderTop10FazendasPerda(data);
             },
             renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
