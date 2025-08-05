@@ -1481,14 +1481,16 @@ document.addEventListener('DOMContentLoaded', () => {
             _createPermissionItemHTML(perm, permissions = {}) {
                 if (!perm.permission) return '';
                 const isChecked = permissions[perm.permission];
+                // [CORREÇÃO APLICADA] O <input> foi movido para ser um filho direto da <label>
+                // para garantir que o clique em qualquer lugar do item ative o checkbox.
                 return `
                     <label class="permission-item">
+                        <input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}>
                         <div class="permission-content">
                             <i class="${perm.icon}"></i>
                             <span>${perm.label}</span>
                         </div>
                         <div class="toggle-switch">
-                            <input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}>
                             <span class="slider"></span>
                         </div>
                     </label>
