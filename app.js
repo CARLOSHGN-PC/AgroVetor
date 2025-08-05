@@ -1444,14 +1444,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 localStorage.setItem(App.config.themeKey, theme);
                 
-                // [CORREÇÃO APLICADA] Atualiza a cor padrão global do Chart.js
-                // Isso garante que novos gráficos ou gráficos redesenhados peguem a cor de texto correta.
+                // [CORREÇÃO APLICADA]
+                // A cor padrão do Chart.js é atualizada aqui. A função _getCommonChartOptions
+                // fará a lógica de usar branco puro se o tema escuro estiver ativo.
                 Chart.defaults.color = this._getThemeColors().text;
 
                 // Redesenha os gráficos se um usuário estiver logado e o dashboard estiver visível
                 if (App.state.currentUser && document.getElementById('dashboard').classList.contains('active')) {
                     if(document.getElementById('dashboard-broca').style.display !== 'none') {
-                        // Usamos um pequeno timeout para garantir que as variáveis CSS do novo tema foram aplicadas
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                     }
                     if(document.getElementById('dashboard-perda').style.display !== 'none') {
@@ -1483,8 +1483,6 @@ document.addEventListener('DOMContentLoaded', () => {
             _createPermissionItemHTML(perm, permissions = {}) {
                 if (!perm.permission) return '';
                 const isChecked = permissions[perm.permission];
-                // [CORREÇÃO APLICADA] O <input> foi movido para ser um filho direto da <label>
-                // para garantir que o clique em qualquer lugar do item ative o checkbox.
                 return `
                     <label class="permission-item">
                         <input type="checkbox" data-permission="${perm.permission}" ${isChecked ? 'checked' : ''}>
@@ -3022,9 +3020,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return result;
             },
             _getCommonChartOptions() {
-                const themeColors = App.ui._getThemeColors();
-                // [CORREÇÃO APLICADA] Define explicitamente as cores dos eixos e grades
-                // para garantir a visibilidade em todos os temas.
+                const styles = getComputedStyle(document.documentElement);
+                const isDarkTheme = document.body.classList.contains('theme-dark');
+                
+                // [CORREÇÃO APLICADA] Se for tema escuro, força o texto para branco puro (#ffffff) para melhor contraste.
+                // Caso contrário, usa a cor de texto padrão do tema.
+                const textColor = isDarkTheme ? '#FFFFFF' : styles.getPropertyValue('--color-text').trim();
+                const borderColor = styles.getPropertyValue('--color-border').trim();
+
                 return {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -3032,22 +3035,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         x: {
                             grid: { 
                                 display: false,
-                                color: themeColors.border // Cor da grade
+                                color: borderColor
                             },
-                            ticks: { color: themeColors.text } // Cor do texto dos eixos
+                            ticks: { color: textColor }
                         },
                         y: {
                             grid: { 
                                 display: false,
-                                color: themeColors.border // Cor da grade
+                                color: borderColor
                             },
-                            ticks: { color: themeColors.text } // Cor do texto dos eixos
+                            ticks: { color: textColor }
                         }
                     },
                     plugins: {
                         legend: {
                             labels: {
-                                color: themeColors.text // Cor do texto da legenda
+                                color: textColor
                             }
                         }
                     }
