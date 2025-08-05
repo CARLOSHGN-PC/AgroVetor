@@ -3397,14 +3397,14 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPerdaPorFrente(data) {
                 const frentes = {};
                 data.forEach(item => {
-                    const frente = `Frente ${item.frenteServico || 'N/A'}`;
+                    const frente = item.frenteServico || 'N/A';
                     if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
                     frentes[frente].total += item.total;
                     frentes[frente].count++;
                 });
                 const sortedFrentes = Object.entries(frentes)
-                    .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
-                    .sort((a, b) => b.media - a.media);
+                    .map(([nome, data]) => ({ nome: `Frente ${nome}`, media: data.count > 0 ? data.total / data.count : 0 }))
+                    .sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
 
                 this._createOrUpdateChart('graficoPerdaPorFrente', {
                     type: 'bar',
