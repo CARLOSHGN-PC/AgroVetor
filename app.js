@@ -3117,7 +3117,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     options: { 
                         responsive: true, maintainAspectRatio: false,
-                        scales: { x: { grid: { display: false } }, y: { grid: { display: false } } },
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
                             legend: { display: false },
                             datalabels: {
@@ -3162,8 +3165,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     options: { 
                         responsive: true, maintainAspectRatio: false,
                         scales: { 
-                            x: { grid: { display: false } }, 
-                            y: { grid: { display: false, color: 'transparent' } } // Eixo Y transparente
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { color: 'transparent', drawBorder: false }, ticks: { color: App.ui._getThemeColors().text } } 
                         },
                         plugins: {
                             legend: { display: false },
@@ -3195,7 +3198,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     options: { 
                         responsive: true, maintainAspectRatio: false,
                         plugins: {
-                            legend: { position: 'top' },
+                            legend: { position: 'top', labels: { color: App.ui._getThemeColors().text } },
                             datalabels: {
                                 color: '#fff', font: { weight: 'bold', size: 16 },
                                 formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(2)}%` : '0.00%'
@@ -3241,7 +3244,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     options: {
                         indexAxis: 'y',
                         responsive: true, maintainAspectRatio: false,
-                        scales: { x: { grid: { display: false } }, y: { grid: { display: false } } },
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
                             legend: { display: false },
                             datalabels: {
@@ -3288,8 +3294,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: { labels: turnos.map(t => `Turno ${t}`), datasets },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { x: { grid: { display: false } }, y: { grid: { display: false }, title: { display: true, text: 'Perda Média (kg)' } } },
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, title: { display: true, text: 'Perda Média (kg)', color: App.ui._getThemeColors().text }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
+                            legend: { labels: { color: App.ui._getThemeColors().text } },
                             datalabels: {
                                 color: '#fff',
                                 font: { weight: 'bold', size: 12 },
@@ -3330,12 +3340,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: { labels: tiposLabels, datasets },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { display: false }, title: { display: true, text: 'Perda Total (kg)' } } },
+                        scales: { 
+                            x: { stacked: true, grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { stacked: true, grid: { display: false }, title: { display: true, text: 'Perda Total (kg)', color: App.ui._getThemeColors().text }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
+                             legend: { labels: { color: App.ui._getThemeColors().text } },
                              datalabels: {
                                 color: '#fff',
                                 font: { weight: 'bold' },
-                                formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
+                                formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
                             }
                         }
                     }
@@ -3365,7 +3379,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { x: { grid: { display: false } }, y: { grid: { display: false } } },
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
                             legend: { display: false },
                             datalabels: {
@@ -3401,7 +3418,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { x: { grid: { display: false } }, y: { grid: { display: false } } },
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
                             legend: { display: false },
                             datalabels: {
