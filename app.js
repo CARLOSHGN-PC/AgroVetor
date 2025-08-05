@@ -1444,12 +1444,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 localStorage.setItem(App.config.themeKey, theme);
                 
-                // [CORREÇÃO APLICADA]
-                // A cor padrão do Chart.js é atualizada aqui. A função _getCommonChartOptions
-                // fará a lógica de usar branco puro se o tema escuro estiver ativo.
                 Chart.defaults.color = this._getThemeColors().text;
 
-                // Redesenha os gráficos se um usuário estiver logado e o dashboard estiver visível
                 if (App.state.currentUser && document.getElementById('dashboard').classList.contains('active')) {
                     if(document.getElementById('dashboard-broca').style.display !== 'none') {
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
@@ -3147,6 +3143,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const top10 = fazendasArray.slice(0, 10);
                 
                 const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : commonOptions.scales.x.ticks.color;
 
                 this._createOrUpdateChart('graficoTop10FazendasBroca', {
                     type: 'bar',
@@ -3164,7 +3161,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
-                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
@@ -3191,6 +3190,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : commonOptions.scales.x.ticks.color;
 
                 this._createOrUpdateChart('graficoBrocaMensal', {
                     type: 'line',
@@ -3216,7 +3216,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             legend: { display: false },
                             datalabels: {
                                 anchor: 'end', align: 'top', offset: 8,
-                                color: App.ui._getThemeColors().text,
+                                color: datalabelColor,
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
@@ -3248,7 +3248,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             ...commonOptions.plugins,
                             legend: { ...commonOptions.plugins.legend, position: 'top' },
                             datalabels: {
-                                color: '#fff', font: { weight: 'bold', size: 16 },
+                                color: '#FFFFFF', 
+                                font: { weight: 'bold', size: 16 },
                                 formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(2)}%` : '0.00%'
                             }
                         }
@@ -3280,6 +3281,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const top10 = variedadesArray.slice(0, 10);
 
                 const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : commonOptions.scales.x.ticks.color;
 
                 this._createOrUpdateChart('graficoBrocaPorVariedade', {
                     type: 'bar',
@@ -3298,7 +3300,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
-                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
@@ -3345,12 +3349,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         ...commonOptions,
                         scales: { 
                             ...commonOptions.scales,
-                            y: { ...commonOptions.scales.y, title: { display: true, text: 'Perda Média (kg)', color: App.ui._getThemeColors().text } } 
+                            y: { ...commonOptions.scales.y, title: { display: true, text: 'Perda Média (kg)', color: commonOptions.scales.y.ticks.color } } 
                         },
                         plugins: {
                             ...commonOptions.plugins,
                             datalabels: {
-                                color: '#fff',
+                                color: '#FFFFFF',
                                 font: { weight: 'bold', size: 12 },
                                 formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
                             }
@@ -3393,12 +3397,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         ...commonOptions,
                         scales: { 
                             x: { ...commonOptions.scales.x, stacked: true }, 
-                            y: { ...commonOptions.scales.y, stacked: true, title: { display: true, text: 'Perda Total (kg)', color: App.ui._getThemeColors().text } } 
+                            y: { ...commonOptions.scales.y, stacked: true, title: { display: true, text: 'Perda Total (kg)', color: commonOptions.scales.y.ticks.color } } 
                         },
                         plugins: {
                              ...commonOptions.plugins,
                              datalabels: {
-                                color: '#fff',
+                                color: '#FFFFFF',
                                 font: { weight: 'bold' },
                                 formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
                             }
@@ -3419,6 +3423,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .sort((a, b) => b.media - a.media).slice(0, 10);
 
                 const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoTop10FazendasPerda', {
                     type: 'bar',
@@ -3436,7 +3441,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
-                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
@@ -3457,6 +3464,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
 
                 const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoPerdaPorFrente', {
                     type: 'bar',
@@ -3474,7 +3482,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
-                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)} kg`
                             }
