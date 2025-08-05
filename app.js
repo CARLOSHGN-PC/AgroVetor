@@ -3019,8 +3019,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const styles = getComputedStyle(document.documentElement);
                 const isDarkTheme = document.body.classList.contains('theme-dark');
                 
-                // [CORREÇÃO APLICADA] Se for tema escuro, força o texto para branco puro (#ffffff) para melhor contraste.
-                // Caso contrário, usa a cor de texto padrão do tema.
                 const textColor = isDarkTheme ? '#FFFFFF' : styles.getPropertyValue('--color-text').trim();
                 const borderColor = styles.getPropertyValue('--color-border').trim();
 
@@ -3143,7 +3141,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const top10 = fazendasArray.slice(0, 10);
                 
                 const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : commonOptions.scales.x.ticks.color;
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoTop10FazendasBroca', {
                     type: 'bar',
@@ -3190,7 +3188,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : commonOptions.scales.x.ticks.color;
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoBrocaMensal', {
                     type: 'line',
@@ -3281,7 +3279,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const top10 = variedadesArray.slice(0, 10);
 
                 const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : commonOptions.scales.x.ticks.color;
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoBrocaPorVariedade', {
                     type: 'bar',
