@@ -1444,12 +1444,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 localStorage.setItem(App.config.themeKey, theme);
                 
-                // A cor padrão do Chart.js é atualizada aqui
+                // [CORREÇÃO APLICADA] Atualiza a cor padrão global do Chart.js
+                // Isso garante que novos gráficos ou gráficos redesenhados peguem a cor de texto correta.
                 Chart.defaults.color = this._getThemeColors().text;
 
                 // Redesenha os gráficos se um usuário estiver logado e o dashboard estiver visível
-                if (App.state.currentUser) {
+                if (App.state.currentUser && document.getElementById('dashboard').classList.contains('active')) {
                     if(document.getElementById('dashboard-broca').style.display !== 'none') {
+                        // Usamos um pequeno timeout para garantir que as variáveis CSS do novo tema foram aplicadas
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                     }
                     if(document.getElementById('dashboard-perda').style.display !== 'none') {
@@ -3021,23 +3023,31 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             _getCommonChartOptions() {
                 const themeColors = App.ui._getThemeColors();
+                // [CORREÇÃO APLICADA] Define explicitamente as cores dos eixos e grades
+                // para garantir a visibilidade em todos os temas.
                 return {
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
                         x: {
-                            grid: { display: false },
-                            ticks: { color: themeColors.text }
+                            grid: { 
+                                display: false,
+                                color: themeColors.border // Cor da grade
+                            },
+                            ticks: { color: themeColors.text } // Cor do texto dos eixos
                         },
                         y: {
-                            grid: { display: false },
-                            ticks: { color: themeColors.text }
+                            grid: { 
+                                display: false,
+                                color: themeColors.border // Cor da grade
+                            },
+                            ticks: { color: themeColors.text } // Cor do texto dos eixos
                         }
                     },
                     plugins: {
                         legend: {
                             labels: {
-                                color: themeColors.text
+                                color: themeColors.text // Cor do texto da legenda
                             }
                         }
                     }
