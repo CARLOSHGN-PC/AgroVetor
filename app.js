@@ -1444,8 +1444,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 localStorage.setItem(App.config.themeKey, theme);
                 
+                // A cor padrão do Chart.js é atualizada aqui
                 Chart.defaults.color = this._getThemeColors().text;
 
+                // Redesenha os gráficos se um usuário estiver logado e o dashboard estiver visível
                 if (App.state.currentUser) {
                     if(document.getElementById('dashboard-broca').style.display !== 'none') {
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
@@ -3261,7 +3263,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             renderPerdaPorFrenteTurno(data) {
                 const structuredData = {};
-                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort();
+                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
                 const turnos = [...new Set(data.map(p => p.turno || 'N/A'))].sort();
 
                 turnos.forEach(turno => {
@@ -3312,7 +3314,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderComposicaoPerdaPorFrente(data) {
                 const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
                 const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
-                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort();
+                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
                 const structuredData = {};
 
                 tiposDePerda.forEach(tipo => {
