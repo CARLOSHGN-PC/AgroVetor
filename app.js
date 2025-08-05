@@ -3161,7 +3161,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     options: { 
                         responsive: true, maintainAspectRatio: false,
-                        scales: { x: { grid: { display: false } }, y: { grid: { display: false } } },
+                        scales: { 
+                            x: { grid: { display: false } }, 
+                            y: { grid: { display: false, color: 'transparent' } } // Eixo Y transparente
+                        },
                         plugins: {
                             legend: { display: false },
                             datalabels: {
@@ -3327,10 +3330,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: { labels: tiposLabels, datasets },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { x: { grid: { display: false } }, y: { grid: { display: false }, title: { display: true, text: 'Perda Total (kg)' } } },
+                        scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { display: false }, title: { display: true, text: 'Perda Total (kg)' } } },
                         plugins: {
                              datalabels: {
-                                display: false
+                                color: '#fff',
+                                font: { weight: 'bold' },
+                                formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
                             }
                         }
                     }
@@ -3376,35 +3381,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 const frentes = {};
                 data.forEach(item => {
                     const frente = `Frente ${item.frenteServico || 'N/A'}`;
-                    if (!frentes[frente]) frentes[frente] = 0;
-                    frentes[frente] += item.total;
+                    if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
+                    frentes[frente].total += item.total;
+                    frentes[frente].count++;
                 });
                 const sortedFrentes = Object.entries(frentes)
-                    .sort((a, b) => b[1] - a[1]);
-                
-                const totalGeralPerdas = sortedFrentes.reduce((sum, op) => sum + op[1], 0);
+                    .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
+                    .sort((a, b) => b.media - a.media);
 
                 this._createOrUpdateChart('graficoPerdaPorFrente', {
-                    type: 'doughnut',
+                    type: 'bar',
                     data: {
-                        labels: sortedFrentes.map(f => f[0]),
+                        labels: sortedFrentes.map(f => f.nome),
                         datasets: [{
-                            label: 'Perda Total (kg)',
-                            data: sortedFrentes.map(f => f[1]),
+                            label: 'Perda Média (kg)',
+                            data: sortedFrentes.map(f => f.media),
                             backgroundColor: this._getVibrantColors(sortedFrentes.length)
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
+                        scales: { x: { grid: { display: false } }, y: { grid: { display: false } } },
                         plugins: {
-                            legend: { position: 'top' },
+                            legend: { display: false },
                             datalabels: {
-                                color: '#fff',
+                                color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
                                 font: { weight: 'bold', size: 14 },
-                                formatter: (value) => {
-                                    const percentage = totalGeralPerdas > 0 ? (value / totalGeralPerdas * 100) : 0;
-                                    return `${percentage.toFixed(2)}%`;
-                                }
+                                formatter: (value) => `${value.toFixed(2)} kg`
                             }
                         }
                     }
