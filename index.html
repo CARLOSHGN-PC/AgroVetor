@@ -177,7 +177,7 @@
       /* --- ESTILOS DO DASHBOARD E GRÁFICOS --- */
       .dashboard-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Ajustado para telas menores */
+          grid-template-columns: repeat(2, 1fr); /* Define 2 colunas para desktop */
           gap: 20px;
           margin-top: 20px;
       }
@@ -733,9 +733,9 @@
           text-align: center;
       }
 
-      @media (max-width: 1200px) {
-        .chart-card {
-            grid-column: span 1;
+      @media (max-width: 992px) { /* Ponto de quebra para tablets */
+        .dashboard-grid {
+            grid-template-columns: 1fr;
         }
       }
 
@@ -749,8 +749,7 @@
           .form-col { min-width: 100%; margin-bottom: 16px; }
           .botoes-relatorio { flex-direction: column; }
           .botoes-relatorio button { width: 100%; }
-          .dashboard-grid { grid-template-columns: 1fr; }
-          .chart-card { min-height: 400px; grid-column: span 1; }
+          .chart-card { min-height: 400px; }
           .dashboard-selector-grid { grid-template-columns: 1fr; }
           #usersList { grid-template-columns: 1fr; }
       }
