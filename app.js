@@ -3017,30 +3017,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return result;
             },
-            _getCommonChartOptions() {
-                const themeColors = App.ui._getThemeColors();
-                return {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: themeColors.text }
-                        },
-                        y: {
-                            grid: { display: false },
-                            ticks: { color: themeColors.text }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: themeColors.text
-                            }
-                        }
-                    }
-                };
-            },
             _createOrUpdateChart(id, config, isExpanded = false) { 
                 const canvasId = isExpanded ? 'expandedChartCanvas' : id;
                 const ctx = document.getElementById(canvasId)?.getContext('2d'); 
@@ -3131,8 +3107,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 fazendasArray.sort((a, b) => b.indice - a.indice);
                 const top10 = fazendasArray.slice(0, 10);
                 
-                const commonOptions = this._getCommonChartOptions();
-
                 this._createOrUpdateChart('graficoTop10FazendasBroca', {
                     type: 'bar',
                     data: {
@@ -3144,9 +3118,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: { 
-                        ...commonOptions,
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
-                            ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
                                 color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
@@ -3174,9 +3151,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const monthData = dataByMonth[key];
                     return monthData.totalEntrenos > 0 ? (monthData.totalBrocado / monthData.totalEntrenos) * 100 : 0;
                 });
-                
-                const commonOptions = this._getCommonChartOptions();
-
                 this._createOrUpdateChart('graficoBrocaMensal', {
                     type: 'line',
                     data: {
@@ -3191,13 +3165,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: { 
-                        ...commonOptions,
+                        responsive: true, maintainAspectRatio: false,
                         scales: { 
-                            ...commonOptions.scales,
-                            y: { ...commonOptions.scales.y, grid: { color: 'transparent', drawBorder: false } } 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { color: 'transparent', drawBorder: false }, ticks: { color: App.ui._getThemeColors().text } } 
                         },
                         plugins: {
-                            ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
                                 anchor: 'end', align: 'top', offset: 8,
@@ -3214,9 +3187,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const totalMeio = data.reduce((sum, item) => sum + Number(item.meio), 0);
                 const totalTopo = data.reduce((sum, item) => sum + Number(item.topo), 0);
                 const totalGeral = totalBase + totalMeio + totalTopo;
-                
-                const commonOptions = this._getCommonChartOptions();
-
                 this._createOrUpdateChart('graficoBrocaPosicao', {
                     type: 'doughnut',
                     data: {
@@ -3230,8 +3200,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     options: { 
                         responsive: true, maintainAspectRatio: false,
                         plugins: {
-                            ...commonOptions.plugins,
-                            legend: { ...commonOptions.plugins.legend, position: 'top' },
+                            legend: { position: 'top', labels: { color: App.ui._getThemeColors().text } },
                             datalabels: {
                                 color: '#fff', font: { weight: 'bold', size: 16 },
                                 formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(2)}%` : '0.00%'
@@ -3264,8 +3233,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 variedadesArray.sort((a, b) => b.indice - a.indice);
                 const top10 = variedadesArray.slice(0, 10);
 
-                const commonOptions = this._getCommonChartOptions();
-
                 this._createOrUpdateChart('graficoBrocaPorVariedade', {
                     type: 'bar',
                     data: {
@@ -3277,10 +3244,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                        ...commonOptions,
                         indexAxis: 'y',
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
-                            ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
                                 color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
@@ -3320,20 +3290,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     }),
                     backgroundColor: this._getVibrantColors(frentes.length)[index]
                 }));
-                
-                const commonOptions = this._getCommonChartOptions();
 
                 this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
                     type: 'bar',
                     data: { labels: turnos.map(t => `Turno ${t}`), datasets },
                     options: {
-                        ...commonOptions,
+                        responsive: true, maintainAspectRatio: false,
                         scales: { 
-                            ...commonOptions.scales,
-                            y: { ...commonOptions.scales.y, title: { display: true, text: 'Perda Média (kg)', color: App.ui._getThemeColors().text } } 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, title: { display: true, text: 'Perda Média (kg)', color: App.ui._getThemeColors().text }, ticks: { color: App.ui._getThemeColors().text } } 
                         },
                         plugins: {
-                            ...commonOptions.plugins,
+                            legend: { labels: { color: App.ui._getThemeColors().text } },
                             datalabels: {
                                 color: '#fff',
                                 font: { weight: 'bold', size: 12 },
@@ -3369,19 +3337,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     backgroundColor: this._getVibrantColors(frentes.length)[index]
                 }));
 
-                const commonOptions = this._getCommonChartOptions();
-
                 this._createOrUpdateChart('graficoComposicaoPerda', {
                     type: 'bar',
                     data: { labels: tiposLabels, datasets },
                     options: {
-                        ...commonOptions,
+                        responsive: true, maintainAspectRatio: false,
                         scales: { 
-                            x: { ...commonOptions.scales.x, stacked: true }, 
-                            y: { ...commonOptions.scales.y, stacked: true, title: { display: true, text: 'Perda Total (kg)', color: App.ui._getThemeColors().text } } 
+                            x: { stacked: true, grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { stacked: true, grid: { display: false }, title: { display: true, text: 'Perda Total (kg)', color: App.ui._getThemeColors().text }, ticks: { color: App.ui._getThemeColors().text } } 
                         },
                         plugins: {
-                             ...commonOptions.plugins,
+                             legend: { labels: { color: App.ui._getThemeColors().text } },
                              datalabels: {
                                 color: '#fff',
                                 font: { weight: 'bold' },
@@ -3403,8 +3369,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
                     .sort((a, b) => b.media - a.media).slice(0, 10);
 
-                const commonOptions = this._getCommonChartOptions();
-
                 this._createOrUpdateChart('graficoTop10FazendasPerda', {
                     type: 'bar',
                     data: {
@@ -3416,9 +3380,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                        ...commonOptions,
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
-                            ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
                                 color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
@@ -3441,8 +3408,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     .map(([nome, data]) => ({ nome: `Frente ${nome}`, media: data.count > 0 ? data.total / data.count : 0 }))
                     .sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
 
-                const commonOptions = this._getCommonChartOptions();
-
                 this._createOrUpdateChart('graficoPerdaPorFrente', {
                     type: 'bar',
                     data: {
@@ -3454,9 +3419,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                        ...commonOptions,
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } }, 
+                            y: { grid: { display: false }, ticks: { color: App.ui._getThemeColors().text } } 
+                        },
                         plugins: {
-                            ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
                                 color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
