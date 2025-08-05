@@ -1041,7 +1041,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const closedTalhaoIds = new Set(App.state.activeHarvestPlan?.closedTalhaoIds || []);
                 
                 const availableTalhoes = farm.talhoes.filter(t => !allAssignedTalhaoIds.has(t.id));
-            
+        
                 const talhoesToShow = [...availableTalhoes];
                 if (plotIdsToCheck.length > 0) {
                     const currentlyEditedTalhoes = farm.talhoes.filter(t => plotIdsToCheck.includes(t.id));
@@ -1051,12 +1051,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-            
+        
                 if (talhoesToShow.length === 0) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
                     return;
                 }
-            
+        
                 talhoesToShow.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const isChecked = plotIdsToCheck.includes(talhao.id);
                     const isClosed = closedTalhaoIds.has(talhao.id);
@@ -1103,17 +1103,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                     return roles[role] || ['Desconhecido', '#718096'];
                 };
-            
+        
                 const [roleName, roleColor] = getRoleInfo(user.role);
                 const avatarLetter = (user.username || user.email).charAt(0).toUpperCase();
-            
+        
                 const buttonsHTML = user.email.toLowerCase() === 'admin@agrovetor.com' ? '' : `
                     <button class="toggle-btn ${user.active ? 'inactive' : 'active'}" data-action="toggle" data-id="${user.id}">
                         ${user.active ? '<i class="fas fa-ban"></i> Desativar' : '<i class="fas fa-check"></i> Ativar'}
                     </button>
                     <button data-action="edit" data-id="${user.id}"><i class="fas fa-edit"></i> Editar</button>
                 `;
-            
+        
                 return `
                     <div class="user-card-redesigned" style="border-left-color: ${roleColor};">
                         <div class="user-card-header">
@@ -1788,7 +1788,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resetInactivityTimer() {
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
-            
+        
                 if (App.state.currentUser) {
                     App.state.inactivityWarningTimer = setTimeout(() => {
                         const { confirmationModal } = App.elements;
@@ -1797,12 +1797,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         confirmationModal.message.textContent = "A sua sessão será encerrada em 1 minuto por inatividade. Deseja continuar conectado?";
                         confirmationModal.confirmBtn.textContent = "Continuar";
                         confirmationModal.cancelBtn.style.display = 'none';
-            
+        
                         const confirmHandler = () => {
                             this.resetInactivityTimer();
                             closeHandler();
                         };
-            
+        
                         const closeHandler = () => {
                             confirmationModal.overlay.classList.remove('show');
                             confirmationModal.confirmBtn.removeEventListener('click', confirmHandler);
@@ -1812,13 +1812,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 confirmationModal.cancelBtn.style.display = 'inline-flex';
                             }, 300);
                         };
-            
+        
                         confirmationModal.confirmBtn.addEventListener('click', confirmHandler);
                         confirmationModal.closeBtn.addEventListener('click', closeHandler);
                         confirmationModal.overlay.classList.add('show');
-            
+        
                     }, App.config.inactivityTimeout - App.config.inactivityWarningTime);
-            
+        
                     App.state.inactivityTimer = setTimeout(() => {
                         App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
                         App.auth.logout();
@@ -1880,7 +1880,7 @@ document.addEventListener('DOMContentLoaded', () => {
             getAssignedTalhaoIds(editingGroupId = null) {
                 const assignedIds = new Set();
                 const allPlans = App.state.harvestPlans;
-            
+        
                 allPlans.forEach(plan => {
                     if (App.state.activeHarvestPlan && plan.id === App.state.activeHarvestPlan.id) {
                         plan.sequence.forEach(group => {
@@ -1895,7 +1895,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
                 });
-            
+        
                 return assignedIds;
             },
             async saveFarm() {
@@ -2437,7 +2437,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
-            
+        
                 if (plotsWithDate > 0) {
                     const avgDiffTime = totalAgeInDays / plotsWithDate;
                     const avgDiffDays = Math.ceil(avgDiffTime / (1000 * 60 * 60 * 24));
@@ -2804,7 +2804,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             async importHarvestReport(file, type) {
                 if (!file) return;
-            
+        
                 const reader = new FileReader();
                 reader.onload = async (event) => {
                     App.ui.setLoading(true, `A processar relatório de talhões ${type === 'closed' ? 'encerrados' : 'em andamento'}...`);
@@ -2812,18 +2812,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         const csv = event.target.result;
                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
                         if (lines.length <= 1) throw new Error("O ficheiro CSV está vazio ou contém apenas o cabeçalho.");
-            
+        
                         const headers = lines[0].split(';').map(h => h.trim().toLowerCase());
                         const requiredHeaders = type === 'progress' ? ['codigofazenda', 'talhao', 'areacolhida', 'producaocolhida'] : ['codigofazenda', 'talhao'];
                         if (!requiredHeaders.every(h => headers.includes(h))) {
                             throw new Error(`Cabeçalhos em falta. O ficheiro deve conter: ${requiredHeaders.join('; ')}`);
                         }
-            
+        
                         const allPlans = JSON.parse(JSON.stringify(App.state.harvestPlans));
                         const fazendas = App.state.fazendas;
                         const changesSummary = {};
                         let notFoundTalhoes = [];
-            
+        
                         const closedTalhaoIdsFromCSV = new Set();
                         if (type === 'closed') {
                             for (let i = 1; i < lines.length; i++) {
@@ -2840,7 +2840,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         }
-            
+        
                         if (type === 'progress') {
                             for (let i = 1; i < lines.length; i++) {
                                 const data = lines[i].split(';');
@@ -2848,21 +2848,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const farmCode = row.codigofazenda;
                                 const talhaoName = row.talhao?.toUpperCase();
                                 if (!farmCode || !talhaoName) continue;
-            
+        
                                 const farm = fazendas.find(f => f.code === farmCode);
                                 const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === talhaoName);
                                 if (!talhao) {
                                     if (!notFoundTalhoes.includes(`${farmCode}-${talhaoName}`)) notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
                                     continue;
                                 }
-            
+        
                                 let talhaoFoundInAnyPlan = false;
                                 for (const plan of allPlans) {
                                     for (const group of plan.sequence) {
                                         if (group.fazendaCodigo === farmCode && group.plots.some(p => p.talhaoId === talhao.id)) {
                                             talhaoFoundInAnyPlan = true;
                                             if (!changesSummary[plan.frontName]) changesSummary[plan.frontName] = { updated: [], removed: [] };
-            
+        
                                             const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
                                             const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
                                             group.areaColhida = (group.areaColhida || 0) + areaColhida;
@@ -2876,25 +2876,25 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         }
-            
+        
                         if (type === 'closed') {
                             for (const plan of allPlans) {
                                 if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
                                 closedTalhaoIdsFromCSV.forEach(id => {
                                     if (!plan.closedTalhaoIds.includes(id)) plan.closedTalhaoIds.push(id);
                                 });
-            
+        
                                 const newSequence = [];
                                 plan.sequence.forEach(group => {
                                     const originalPlotCount = group.plots.length;
                                     group.plots = group.plots.filter(plot => !closedTalhaoIdsFromCSV.has(plot.talhaoId));
                                     const removedPlotsCount = originalPlotCount - group.plots.length;
-            
+        
                                     if (removedPlotsCount > 0) {
                                         if (!changesSummary[plan.frontName]) changesSummary[plan.frontName] = { updated: [], removed: [] };
                                         changesSummary[plan.frontName].removed.push(`${removedPlotsCount} talhão(ões) do grupo ${group.fazendaCodigo}`);
                                     }
-            
+        
                                     if (group.plots.length > 0) {
                                         let newTotalArea = 0;
                                         let newTotalProducao = 0;
@@ -2916,17 +2916,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 plan.sequence = newSequence;
                             }
                         }
-            
+        
                         const batch = writeBatch(db);
                         allPlans.forEach(plan => {
                             const docRef = doc(db, 'harvestPlans', plan.id);
                             batch.set(docRef, plan);
                         });
                         await batch.commit();
-            
+        
                         let summaryMessage = "Sincronização Concluída!\n\n";
                         const updatedPlans = Object.keys(changesSummary);
-            
+        
                         if (updatedPlans.length > 0) {
                             updatedPlans.forEach(planName => {
                                 summaryMessage += `Plano "${planName}" atualizado:\n`;
@@ -2941,11 +2941,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             summaryMessage += "Nenhum plano foi alterado.\n";
                         }
-            
+        
                         if (notFoundTalhoes.length > 0) {
                             summaryMessage += `\nAviso: ${notFoundTalhoes.length} talhões do relatório não foram encontrados em nenhum plano ativo: ${notFoundTalhoes.join(', ')}`;
                         }
-            
+        
                         const { confirmationModal } = App.elements;
                         confirmationModal.title.textContent = "Resumo da Sincronização";
                         confirmationModal.message.textContent = summaryMessage;
@@ -2964,7 +2964,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         confirmationModal.confirmBtn.addEventListener('click', closeHandler);
                         confirmationModal.closeBtn.addEventListener('click', closeHandler);
-            
+        
                     } catch (e) {
                         App.ui.showAlert(`Erro ao importar: ${e.message}`, "error", 6000);
                         console.error(e);
@@ -3080,7 +3080,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderTop10FazendasBroca(data);
                 this.renderBrocaMensal(data);
                 this.renderBrocaPosicao(data);
-                this.renderBrocaPorCorte(data);
+                this.renderBrocaPorVariedade(data);
             },
             renderPerdaDashboardCharts() {
                 const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
@@ -3089,8 +3089,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.renderPerdaPorFrenteTurno(data);
                 this.renderComposicaoPerdaPorFrente(data);
-                this.renderTopOperadoresPerda(data);
                 this.renderTop10FazendasPerda(data);
+                this.renderPerdaPorFrente(data);
             },
             renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
@@ -3165,7 +3165,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             legend: { display: false },
                             datalabels: {
-                                anchor: 'end', align: 'top', color: App.ui._getThemeColors().text,
+                                anchor: 'end', align: 'top', offset: 8,
+                                color: App.ui._getThemeColors().text,
                                 font: { weight: 'bold', size: 14 },
                                 formatter: (value) => `${value.toFixed(2)}%`
                             }
@@ -3200,31 +3201,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
-            renderBrocaPorCorte(data) {
-                const cortesMap = new Map();
+            renderBrocaPorVariedade(data) {
+                const variedadesMap = new Map();
+                const fazendas = App.state.fazendas;
+
                 data.forEach(item => {
-                    const corte = item.corte || 'N/A';
-                    cortesMap.set(corte, (cortesMap.get(corte) || 0) + 1);
+                    const farm = fazendas.find(f => f.code === item.codigo);
+                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === item.talhao.toUpperCase());
+                    const variedade = talhao?.variedade || 'N/A';
+
+                    if (!variedadesMap.has(variedade)) {
+                        variedadesMap.set(variedade, { totalEntrenos: 0, totalBrocado: 0 });
+                    }
+                    const v = variedadesMap.get(variedade);
+                    v.totalEntrenos += Number(item.entrenos);
+                    v.totalBrocado += Number(item.brocado);
                 });
-                const sortedCortes = Array.from(cortesMap.entries()).sort((a,b) => a[0] - b[0]);
-                this._createOrUpdateChart('graficoBrocaPorCorte', {
+
+                const variedadesArray = Array.from(variedadesMap.entries())
+                    .map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }))
+                    .filter(v => v.nome !== 'N/A');
+                    
+                variedadesArray.sort((a, b) => b.indice - a.indice);
+                const top10 = variedadesArray.slice(0, 10);
+
+                this._createOrUpdateChart('graficoBrocaPorVariedade', {
                     type: 'bar',
                     data: {
-                        labels: sortedCortes.map(c => `Corte ${c[0]}`),
+                        labels: top10.map(v => v.nome),
                         datasets: [{
-                            label: 'Nº de Inspeções',
-                            data: sortedCortes.map(c => c[1]),
-                            backgroundColor: this._getVibrantColors(sortedCortes.length)
+                            label: 'Índice de Broca (%)',
+                            data: top10.map(v => v.indice),
+                            backgroundColor: this._getVibrantColors(top10.length).reverse()
                         }]
                     },
                     options: {
+                        indexAxis: 'y',
                         responsive: true, maintainAspectRatio: false,
                         scales: { x: { grid: { display: false } }, y: { grid: { display: false } } },
                         plugins: {
                             legend: { display: false },
                             datalabels: {
                                 color: App.ui._getThemeColors().text, anchor: 'end', align: 'end',
-                                font: { weight: 'bold', size: 14 }
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)}%`
                             }
                         }
                     }
@@ -3252,7 +3272,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const datasets = frentes.map((frente, index) => ({
-                    label: frente,
+                    label: `Frente ${frente}`,
                     data: turnos.map(turno => {
                         const d = structuredData[turno][frente];
                         return d.count > 0 ? d.total / d.count : 0;
@@ -3270,7 +3290,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             datalabels: {
                                 color: '#fff',
                                 font: { weight: 'bold', size: 12 },
-                                formatter: (value) => value > 0 ? `${value.toFixed(2)}` : ''
+                                formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
                             }
                         }
                     }
@@ -3297,7 +3317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const datasets = frentes.map((frente, index) => ({
-                    label: frente,
+                    label: `Frente ${frente}`,
                     data: tiposDePerda.map(tipo => structuredData[tipo][frente]),
                     backgroundColor: this._getVibrantColors(frentes.length)[index]
                 }));
@@ -3352,28 +3372,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
-            renderTopOperadoresPerda(data) {
-                const operadores = {};
+            renderPerdaPorFrente(data) {
+                const frentes = {};
                 data.forEach(item => {
-                    const operador = item.operador || 'N/A';
-                    if (!operadores[operador]) operadores[operador] = { total: 0, count: 0 };
-                    operadores[operador].total += item.total;
-                    operadores[operador].count++;
+                    const frente = `Frente ${item.frenteServico || 'N/A'}`;
+                    if (!frentes[frente]) frentes[frente] = 0;
+                    frentes[frente] += item.total;
                 });
-                const topOperadores = Object.entries(operadores)
-                    .map(([nome, data]) => ({ nome, media: data.total / data.count, total: data.total }))
-                    .sort((a, b) => b.total - a.total).slice(0, 10);
+                const sortedFrentes = Object.entries(frentes)
+                    .sort((a, b) => b[1] - a[1]);
                 
-                const totalGeralPerdas = topOperadores.reduce((sum, op) => sum + op.total, 0);
+                const totalGeralPerdas = sortedFrentes.reduce((sum, op) => sum + op[1], 0);
 
-                this._createOrUpdateChart('graficoTopOperadoresPerda', {
+                this._createOrUpdateChart('graficoPerdaPorFrente', {
                     type: 'doughnut',
                     data: {
-                        labels: topOperadores.map(op => op.nome),
+                        labels: sortedFrentes.map(f => f[0]),
                         datasets: [{
                             label: 'Perda Total (kg)',
-                            data: topOperadores.map(op => op.total),
-                            backgroundColor: this._getVibrantColors(topOperadores.length)
+                            data: sortedFrentes.map(f => f[1]),
+                            backgroundColor: this._getVibrantColors(sortedFrentes.length)
                         }]
                     },
                     options: {
@@ -3503,15 +3521,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { select, optionsContainer, tipoRelatorioSelect } = App.elements.relatorioColheita;
                 const planId = select.value;
                 const reportType = tipoRelatorioSelect.value;
-            
+                
                 if (!planId) {
                     App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
                     return;
                 }
-            
+                
                 let endpoint = `colheita/${format}`;
                 const filters = { planId };
-            
+                
                 if (reportType === 'detalhado') {
                     const selectedColumns = {};
                     optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -3521,7 +3539,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     endpoint = `colheita/mensal/${format}`;
                 }
-            
+                
                 this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
             }
         },
