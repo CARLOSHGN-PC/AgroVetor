@@ -3033,7 +3033,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             },
                             ticks: { 
                                 color: textColor,
-                                // [CORREÇÃO APLICADA] Ajuste automático dos eixos
+                                // [CORREÇÃO APLICADA] Ajuste automático dos eixos para evitar quebra de layout
                                 autoSkip: true,
                                 maxRotation: 0,
                                 minRotation: 0
@@ -3044,7 +3044,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 display: false,
                                 color: borderColor
                             },
-                            ticks: { color: textColor }
+                            ticks: { color: textColor },
+                            // [CORREÇÃO APLICADA] Adiciona um "respiro" de 10% no topo do eixo Y
+                            grace: '10%'
                         }
                     },
                     plugins: {
@@ -3345,6 +3347,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 
                 const commonOptions = this._getCommonChartOptions();
+                // [CORREÇÃO APLICADA] Cor dos datalabels agora é dinâmica
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
@@ -3394,8 +3397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
 
                 const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
-
+                // [CORREÇÃO APLICADA] Cor dos datalabels agora é sempre branca para contraste
                 this._createOrUpdateChart('graficoComposicaoPerda', {
                     type: 'bar',
                     data: { labels: tiposLabels, datasets },
@@ -3408,7 +3410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                              ...commonOptions.plugins,
                              datalabels: {
-                                color: datalabelColor,
+                                color: '#FFFFFF', // Sempre branco para contraste com as barras empilhadas
                                 font: { weight: 'bold' },
                                 formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
                             }
