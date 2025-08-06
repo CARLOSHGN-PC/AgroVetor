@@ -3027,11 +3027,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     indexAxis: indexAxis,
                     responsive: true,
                     maintainAspectRatio: false,
-                    layout: {
-                        padding: {
-                            bottom: hasLongLabels && indexAxis === 'x' ? 30 : 20 
-                        }
-                    },
                     scales: {
                         x: {
                             grid: { 
@@ -3062,6 +3057,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 };
+
                 return chartOptions;
             },
             _createOrUpdateChart(id, config, isExpanded = false) { 
@@ -3352,7 +3348,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 
                 const commonOptions = this._getCommonChartOptions();
-                
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
                 this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
                     type: 'bar',
                     data: { labels: turnos.map(t => `Turno ${t}`), datasets },
@@ -3365,7 +3362,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             ...commonOptions.plugins,
                             datalabels: {
-                                color: '#FFFFFF',
+                                color: datalabelColor, // [CORREÇÃO APLICADA]
                                 font: { weight: 'bold', size: 12 },
                                 formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
                             }
@@ -3413,7 +3410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                              ...commonOptions.plugins,
                              datalabels: {
-                                color: '#FFFFFF',
+                                color: '#FFFFFF', // Sempre branco para contraste com as barras empilhadas
                                 font: { weight: 'bold' },
                                 formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
                             }
