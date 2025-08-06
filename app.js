@@ -3015,21 +3015,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return result;
             },
-            _getCommonChartOptions(hasLongLabels = false) { // Adicionado parâmetro
+            _getCommonChartOptions(options = {}) {
+                const { hasLongLabels = false, indexAxis = 'x' } = options;
                 const styles = getComputedStyle(document.documentElement);
                 const isDarkTheme = document.body.classList.contains('theme-dark');
                 
                 const textColor = isDarkTheme ? '#FFFFFF' : styles.getPropertyValue('--color-text').trim();
                 const borderColor = styles.getPropertyValue('--color-border').trim();
 
-                const options = {
+                const chartOptions = {
+                    indexAxis: indexAxis,
                     responsive: true,
                     maintainAspectRatio: false,
-                    layout: {
-                        padding: {
-                            bottom: hasLongLabels ? 60 : 20 // Mais espaço inferior se houver rotação
-                        }
-                    },
+                    layout: {},
                     scales: {
                         x: {
                             grid: { 
@@ -3038,9 +3036,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             },
                             ticks: { 
                                 color: textColor,
-                                autoSkip: !hasLongLabels, // [CORREÇÃO] Só pula nomes se não for para rotacionar
-                                maxRotation: hasLongLabels ? 10 : 0, // [CORREÇÃO] Rotação suave apenas quando necessário
-                                minRotation: hasLongLabels ? 10 : 0
+                                autoSkip: !hasLongLabels,
+                                maxRotation: hasLongLabels && indexAxis === 'x' ? 10 : 0,
+                                minRotation: hasLongLabels && indexAxis === 'x' ? 10 : 0
                             }
                         },
                         y: {
@@ -3061,14 +3059,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
-                // Opções específicas para gráficos de barra horizontal
-                if (hasLongLabels && this.indexAxis === 'y') {
-                    options.layout.padding.left = 30; // Adiciona espaço à esquerda para nomes longos
-                    options.scales.x.ticks.maxRotation = 0;
-                    options.scales.x.ticks.minRotation = 0;
+                if(hasLongLabels && indexAxis === 'x') {
+                    chartOptions.layout.padding = { bottom: 60 };
                 }
 
-                return options;
+                return chartOptions;
             },
             _createOrUpdateChart(id, config, isExpanded = false) { 
                 const canvasId = isExpanded ? 'expandedChartCanvas' : id;
@@ -3160,7 +3155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fazendasArray.sort((a, b) => b.indice - a.indice);
                 const top10 = fazendasArray.slice(0, 10);
                 
-                const commonOptions = this._getCommonChartOptions(true); // [CORREÇÃO] Passa true para ativar a rotação
+                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoTop10FazendasBroca', {
@@ -3207,7 +3202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return monthData.totalEntrenos > 0 ? (monthData.totalBrocado / monthData.totalEntrenos) * 100 : 0;
                 });
                 
-                const commonOptions = this._getCommonChartOptions(); // Sem rotação
+                const commonOptions = this._getCommonChartOptions();
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoBrocaMensal', {
@@ -3298,7 +3293,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 variedadesArray.sort((a, b) => b.indice - a.indice);
                 const top10 = variedadesArray.slice(0, 10);
 
-                const commonOptions = this._getCommonChartOptions();
+                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoBrocaPorVariedade', {
@@ -3313,7 +3308,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     options: {
                         ...commonOptions,
-                        indexAxis: 'y',
                         plugins: {
                             ...commonOptions.plugins,
                             legend: { display: false },
@@ -3358,8 +3352,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     backgroundColor: this._getVibrantColors(frentes.length)[index]
                 }));
                 
-                const commonOptions = this._getCommonChartOptions(); // Sem rotação
-                // [CORREÇÃO APLICADA] Cor dos datalabels agora é sempre branca para contraste com as barras coloridas
+                const commonOptions = this._getCommonChartOptions();
+                
                 this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
                     type: 'bar',
                     data: { labels: turnos.map(t => `Turno ${t}`), datasets },
@@ -3420,7 +3414,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                              ...commonOptions.plugins,
                              datalabels: {
-                                color: '#FFFFFF', // Sempre branco para contraste com as barras empilhadas
+                                color: '#FFFFFF',
                                 font: { weight: 'bold' },
                                 formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
                             }
@@ -3440,7 +3434,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
                     .sort((a, b) => b.media - a.media).slice(0, 10);
 
-                const commonOptions = this._getCommonChartOptions(true); // [CORREÇÃO] Passa true para ativar a rotação
+                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoTop10FazendasPerda', {
@@ -3481,7 +3475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .map(([nome, data]) => ({ nome: `Frente ${nome}`, media: data.count > 0 ? data.total / data.count : 0 }))
                     .sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
 
-                const commonOptions = this._getCommonChartOptions(); // Sem rotação
+                const commonOptions = this._getCommonChartOptions();
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoPerdaPorFrente', {
