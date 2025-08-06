@@ -1,3 +1,4 @@
+
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
@@ -3025,11 +3026,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return {
                     responsive: true,
                     maintainAspectRatio: false,
-                    layout: {
-                        padding: {
-                            bottom: 30 // Adiciona espaço na parte inferior para os rótulos rotacionados
-                        }
-                    },
                     scales: {
                         x: {
                             grid: { 
@@ -3038,10 +3034,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             },
                             ticks: { 
                                 color: textColor,
-                                // [CORREÇÃO APLICADA] Força a exibição de todos os rótulos e os rotaciona
-                                autoSkip: false,
-                                maxRotation: 45,
-                                minRotation: 30
+                                // [CORREÇÃO APLICADA] Ajuste automático dos eixos para evitar quebra de layout
+                                autoSkip: true,
+                                maxRotation: 0,
+                                minRotation: 0
                             }
                         },
                         y: {
@@ -3050,7 +3046,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 color: borderColor
                             },
                             ticks: { color: textColor },
-                            // [CORREÇÃO APLICADA] Adiciona um "respiro" de 10% no topo do eixo
+                            // [CORREÇÃO APLICADA] Adiciona um "respiro" de 10% no topo do eixo Y
                             grace: '10%'
                         }
                     },
@@ -3352,6 +3348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 
                 const commonOptions = this._getCommonChartOptions();
+                // [CORREÇÃO APLICADA] Cor dos datalabels agora é dinâmica
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
@@ -3401,7 +3398,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
 
                 const commonOptions = this._getCommonChartOptions();
-                
+                // [CORREÇÃO APLICADA] Cor dos datalabels agora é sempre branca para contraste
                 this._createOrUpdateChart('graficoComposicaoPerda', {
                     type: 'bar',
                     data: { labels: tiposLabels, datasets },
