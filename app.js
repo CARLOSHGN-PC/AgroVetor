@@ -3031,7 +3031,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 display: false,
                                 color: borderColor
                             },
-                            ticks: { color: textColor }
+                            ticks: { 
+                                color: textColor,
+                                // [CORREÇÃO APLICADA] Ajuste automático dos eixos
+                                autoSkip: true,
+                                maxRotation: 0,
+                                minRotation: 0
+                            }
                         },
                         y: {
                             grid: { 
@@ -3229,7 +3235,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const totalGeral = totalBase + totalMeio + totalTopo;
                 
                 const commonOptions = this._getCommonChartOptions();
-                // [CORREÇÃO APLICADA] Cor dos datalabels agora é sempre branca para melhor contraste nas fatias.
+
                 this._createOrUpdateChart('graficoBrocaPosicao', {
                     type: 'doughnut',
                     data: {
@@ -3339,6 +3345,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 
                 const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
                     type: 'bar',
@@ -3352,7 +3359,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             ...commonOptions.plugins,
                             datalabels: {
-                                color: '#FFFFFF', // [CORREÇÃO] Sempre branco para contraste com as barras
+                                color: datalabelColor,
                                 font: { weight: 'bold', size: 12 },
                                 formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
                             }
@@ -3387,6 +3394,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
 
                 const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoComposicaoPerda', {
                     type: 'bar',
@@ -3400,7 +3408,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                              ...commonOptions.plugins,
                              datalabels: {
-                                color: '#FFFFFF', // [CORREÇÃO] Sempre branco para contraste com as barras
+                                color: datalabelColor,
                                 font: { weight: 'bold' },
                                 formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
                             }
