@@ -3027,7 +3027,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     indexAxis: indexAxis,
                     responsive: true,
                     maintainAspectRatio: false,
-                    layout: {},
+                    layout: {
+                        padding: {
+                            bottom: hasLongLabels && indexAxis === 'x' ? 30 : 20 
+                        }
+                    },
                     scales: {
                         x: {
                             grid: { 
@@ -3058,11 +3062,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 };
-
-                if(hasLongLabels && indexAxis === 'x') {
-                    chartOptions.layout.padding = { bottom: 60 };
-                }
-
                 return chartOptions;
             },
             _createOrUpdateChart(id, config, isExpanded = false) { 
