@@ -48,6 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
             inactivityWarningTime: 1 * 60 * 1000, // 1 minuto antes do timeout
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
+                // [NOVO] Adicionado menu para Monitoramento Aéreo
+                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -82,10 +84,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                admin: { dashboard: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
-                supervisor: { dashboard: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
-                colaborador: { dashboard: true, lancamentoBroca: true, lancamentoPerda: true },
+                // [NOVO] Adicionada permissão 'monitoramentoAereo'
+                admin: { dashboard: true, monitoramentoAereo: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
             }
         },
@@ -109,6 +112,11 @@ document.addEventListener('DOMContentLoaded', () => {
             deferredInstallPrompt: null,
             newUserCreationData: null,
             expandedChart: null,
+            // [NOVO] Estado para o módulo do mapa
+            map: null,
+            userMarker: null,
+            trapMarkers: {},
+            armadilhas: [],
         },
         
         elements: {
@@ -363,6 +371,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
             },
+            // [NOVO] Elementos do mapa
+            monitoramentoAereo: {
+                mapContainer: document.getElementById('map'),
+                btnAddTrap: document.getElementById('btnAddTrap'),
+                btnCenterMap: document.getElementById('btnCenterMap')
+            },
             installAppBtn: document.getElementById('installAppBtn'),
         },
 
@@ -565,7 +579,8 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans' ];
+                // [NOVO] Adicionado 'armadilhas' à lista de coleções
+                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas' ];
                 
                 collectionsToListen.forEach(collectionName => {
                     const q = collection(db, collectionName);
@@ -575,6 +590,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             data.push({ id: doc.id, ...doc.data() });
                         });
                         App.state[collectionName] = data;
+                        
+                        // [NOVO] Se a coleção de armadilhas for atualizada, recarrega os marcadores no mapa
+                        if (collectionName === 'armadilhas' && App.state.map) {
+                            App.mapModule.loadTraps();
+                        }
+
                         App.ui.renderAllDynamicContent();
                     }, (error) => {
                         console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
@@ -798,6 +819,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.charts.destroyAll(); 
                     }
                     
+                    // [NOVO] Inicializa o mapa quando a aba de monitoramento é exibida
+                    if (id === 'monitoramentoAereo') {
+                        App.mapModule.initMap();
+                    }
                     if (id === 'excluirDados') this.renderExclusao();
                     if (id === 'gerenciarUsuarios') {
                         this.renderUsersList();
@@ -1718,6 +1743,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
                 
+                // [NOVO] Listeners para os botões do mapa
+                App.elements.monitoramentoAereo.btnAddTrap.addEventListener('click', () => App.mapModule.promptInstallTrap());
+                App.elements.monitoramentoAereo.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
+
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
@@ -2578,112 +2607,112 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (!file) return;
                  const reader = new FileReader();
                  reader.onload = async (event) => {
-                     const CHUNK_SIZE = 400; 
-                     const PAUSE_DURATION = 50;
-                     
-                     try {
-                         const csv = event.target.result;
-                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                         const totalLines = lines.length - 1;
+                      const CHUNK_SIZE = 400; 
+                      const PAUSE_DURATION = 50;
+                      
+                      try {
+                          const csv = event.target.result;
+                          const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                          const totalLines = lines.length - 1;
 
-                         if (totalLines <= 0) {
-                             App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
-                         }
-                         
-                         App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
-                         await new Promise(resolve => setTimeout(resolve, 100));
+                          if (totalLines <= 0) {
+                              App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
+                          }
+                          
+                          App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
+                          await new Promise(resolve => setTimeout(resolve, 100));
 
-                         const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-                         const headerIndexes = {
-                             farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
-                             farm_type: fileHeaders.indexOf('TIPO'),
-                             talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
-                             talhao_tch: fileHeaders.indexOf('TCH'),
-                             talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
-                             talhao_corte: fileHeaders.indexOf('CORTE'),
-                             talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
-                             talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
-                         };
+                          const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+                          const headerIndexes = {
+                              farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
+                              farm_type: fileHeaders.indexOf('TIPO'),
+                              talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
+                              talhao_tch: fileHeaders.indexOf('TCH'),
+                              talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
+                              talhao_corte: fileHeaders.indexOf('CORTE'),
+                              talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
+                              talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
+                          };
 
-                         if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
-                             App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
-                             App.ui.setLoading(false);
-                             return;
-                         }
-                         
-                         const fazendasToUpdate = {};
-                         for (let i = 1; i < lines.length; i++) {
-                             const data = lines[i].split(';');
-                             if (data.length < 2) continue;
-                             const farmCode = data[headerIndexes.farm_code]?.trim();
-                             if (!farmCode) continue;
+                          if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
+                              App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
+                              App.ui.setLoading(false);
+                              return;
+                          }
+                          
+                          const fazendasToUpdate = {};
+                          for (let i = 1; i < lines.length; i++) {
+                              const data = lines[i].split(';');
+                              if (data.length < 2) continue;
+                              const farmCode = data[headerIndexes.farm_code]?.trim();
+                              if (!farmCode) continue;
 
-                             if (!fazendasToUpdate[farmCode]) {
-                                 let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
-                                 fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
-                                     code: farmCode,
-                                     name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
-                                     types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
-                                     talhoes: []
-                                 };
-                             }
+                              if (!fazendasToUpdate[farmCode]) {
+                                  let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
+                                  fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
+                                      code: farmCode,
+                                      name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
+                                      types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
+                                      talhoes: []
+                                  };
+                              }
 
-                             const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
-                             if(!talhaoName) continue;
+                              const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
+                              if(!talhaoName) continue;
 
-                             let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
-                             const area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0;
-                             const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
-                             const producao = area * tch;
+                              let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                              const area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0;
+                              const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
+                              const producao = area * tch;
 
-                             if (talhao) { 
-                                 talhao.area = area;
-                                 talhao.tch = tch;
-                                 talhao.producao = producao;
-                                 talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
-                                 talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
-                                 talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
-                                 talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
-                             } else { 
-                                 fazendasToUpdate[farmCode].talhoes.push({
-                                     id: Date.now() + i, name: talhaoName,
-                                     area: area,
-                                     tch: tch,
-                                     producao: producao,
-                                     variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
-                                     corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
-                                     distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
-                                     dataUltimaColheita: this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || '',
-                                 });
-                             }
-                         }
-                         
-                         const farmCodes = Object.keys(fazendasToUpdate);
-                         for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
-                             const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
-                             const batch = writeBatch(db);
-                             
-                             chunk.forEach(code => {
-                                 const farmData = fazendasToUpdate[code];
-                                 const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
-                                 batch.set(docRef, farmData, { merge: true });
-                             });
+                              if (talhao) { 
+                                  talhao.area = area;
+                                  talhao.tch = tch;
+                                  talhao.producao = producao;
+                                  talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
+                                  talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
+                                  talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
+                                  talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
+                              } else { 
+                                  fazendasToUpdate[farmCode].talhoes.push({
+                                      id: Date.now() + i, name: talhaoName,
+                                      area: area,
+                                      tch: tch,
+                                      producao: producao,
+                                      variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
+                                      corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
+                                      distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
+                                      dataUltimaColheita: this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || '',
+                                  });
+                              }
+                          }
+                          
+                          const farmCodes = Object.keys(fazendasToUpdate);
+                          for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
+                              const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
+                              const batch = writeBatch(db);
+                              
+                              chunk.forEach(code => {
+                                  const farmData = fazendasToUpdate[code];
+                                  const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
+                                  batch.set(docRef, farmData, { merge: true });
+                              });
 
-                             await batch.commit();
-                             const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
-                             App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
-                             await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                         }
+                              await batch.commit();
+                              const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
+                              App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
+                              await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+                          }
 
-                         App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
+                          App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
 
-                     } catch (e) {
-                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                         console.error(e);
-                     } finally {
-                         App.ui.setLoading(false);
-                         App.elements.cadastros.csvFileInput.value = '';
-                     }
+                       } catch (e) {
+                           App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
+                           console.error(e);
+                       } finally {
+                           App.ui.setLoading(false);
+                           App.elements.cadastros.csvFileInput.value = '';
+                       }
                  };
                  reader.readAsText(file, 'ISO-8859-1');
             },
@@ -2704,67 +2733,67 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (!file) return;
                  const reader = new FileReader();
                  reader.onload = async (event) => {
-                     const CHUNK_SIZE = 400;
-                     const PAUSE_DURATION = 50;
-                     try {
-                         const csv = event.target.result;
-                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                         const totalLines = lines.length - 1;
-                         if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
-                         
-                         App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
-                         await new Promise(resolve => setTimeout(resolve, 100));
+                      const CHUNK_SIZE = 400;
+                      const PAUSE_DURATION = 50;
+                      try {
+                          const csv = event.target.result;
+                          const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                          const totalLines = lines.length - 1;
+                          if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
+                          
+                          App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
+                          await new Promise(resolve => setTimeout(resolve, 100));
 
-                         const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
-                         const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
+                          const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
+                          const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
 
-                         if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
-                             App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
-                             App.ui.setLoading(false);
-                             return;
-                         }
+                          if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
+                              App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
+                              App.ui.setLoading(false);
+                              return;
+                          }
 
-                         const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
-                         
-                         for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
-                             const chunk = lines.slice(i, i + CHUNK_SIZE);
-                             const batch = writeBatch(db);
-                             let updatedCountInChunk = 0;
-                             let newCountInChunk = 0;
+                          const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
+                          
+                          for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
+                              const chunk = lines.slice(i, i + CHUNK_SIZE);
+                              const batch = writeBatch(db);
+                              let updatedCountInChunk = 0;
+                              let newCountInChunk = 0;
 
-                             chunk.forEach(line => {
-                                 const data = line.split(';');
-                                 if (data.length < 2) return;
-                                 const matricula = data[headerIndexes.matricula]?.trim();
-                                 const name = data[headerIndexes.name]?.trim();
-                                 if (!matricula || !name) return;
+                              chunk.forEach(line => {
+                                  const data = line.split(';');
+                                  if (data.length < 2) return;
+                                  const matricula = data[headerIndexes.matricula]?.trim();
+                                  const name = data[headerIndexes.name]?.trim();
+                                  if (!matricula || !name) return;
 
-                                 let person = localPersonnel.find(p => p.matricula === matricula);
-                                 if (person) {
-                                     const personRef = doc(db, 'personnel', person.id);
-                                     batch.update(personRef, { name: name });
-                                     updatedCountInChunk++;
-                                 } else {
-                                     const newPersonRef = doc(collection(db, 'personnel'));
-                                     batch.set(newPersonRef, { matricula, name });
-                                     newCountInChunk++;
-                                 }
-                             });
+                                  let person = localPersonnel.find(p => p.matricula === matricula);
+                                  if (person) {
+                                      const personRef = doc(db, 'personnel', person.id);
+                                      batch.update(personRef, { name: name });
+                                      updatedCountInChunk++;
+                                  } else {
+                                      const newPersonRef = doc(collection(db, 'personnel'));
+                                      batch.set(newPersonRef, { matricula, name });
+                                      newCountInChunk++;
+                                  }
+                              });
 
-                             await batch.commit();
-                             const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
-                             App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
-                             await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                         }
-                         
-                         App.ui.showAlert(`Importação concluída!`, 'success');
-                     } catch (e) {
-                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                         console.error(e);
-                     } finally {
-                         App.ui.setLoading(false);
-                         App.elements.personnel.csvFileInput.value = '';
-                     }
+                              await batch.commit();
+                              const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
+                              App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
+                              await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+                          }
+                          
+                          App.ui.showAlert(`Importação concluída!`, 'success');
+                       } catch (e) {
+                           App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
+                           console.error(e);
+                       } finally {
+                           App.ui.setLoading(false);
+                           App.elements.personnel.csvFileInput.value = '';
+                       }
                  };
                  reader.readAsText(file, 'ISO-8859-1');
             },
@@ -3000,6 +3029,182 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             getPlanningSuggestions() {
                 App.ui.showAlert("A sugestão de planejamento com IA ainda não foi implementada.", "info");
+            }
+        },
+
+        // [NOVO] Módulo completo para gerenciar o mapa
+        mapModule: {
+            initMap() {
+                if (App.state.map) {
+                    // Força a re-renderização do mapa se a aba for reaberta
+                    setTimeout(() => App.state.map.invalidateSize(), 100);
+                    return;
+                }
+
+                try {
+                    const mapContainer = App.elements.monitoramentoAereo.mapContainer;
+                    App.state.map = L.map(mapContainer).setView([-21.17, -48.45], 13); // Coordenadas de exemplo
+
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(App.state.map);
+
+                    this.watchUserPosition();
+                    this.loadTraps();
+
+                } catch (e) {
+                    console.error("Erro ao inicializar o mapa:", e);
+                    App.ui.showAlert("Não foi possível carregar o mapa.", "error");
+                }
+            },
+
+            watchUserPosition() {
+                if ('geolocation' in navigator) {
+                    navigator.geolocation.watchPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            this.updateUserPosition(latitude, longitude);
+                        },
+                        (error) => {
+                            console.warn(`Erro de Geolocalização: ${error.message}`);
+                            App.ui.showAlert("Não foi possível obter sua localização.", "warning");
+                        },
+                        { enableHighAccuracy: true }
+                    );
+                } else {
+                    App.ui.showAlert("Geolocalização não é suportada pelo seu navegador.", "error");
+                }
+            },
+
+            updateUserPosition(lat, lng) {
+                const userIcon = L.divIcon({
+                    html: '<i class="fas fa-location-arrow" style="color: #1976d2; font-size: 24px;"></i>',
+                    className: 'user-marker-icon',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+
+                if (!App.state.userMarker) {
+                    App.state.userMarker = L.marker([lat, lng], { icon: userIcon }).addTo(App.state.map);
+                    App.state.map.setView([lat, lng], 16); // Centraliza no usuário na primeira vez
+                } else {
+                    App.state.userMarker.setLatLng([lat, lng]);
+                }
+            },
+
+            centerMapOnUser() {
+                if (App.state.userMarker) {
+                    const userLatLng = App.state.userMarker.getLatLng();
+                    App.state.map.setView(userLatLng, 16);
+                } else {
+                    App.ui.showAlert("Ainda não foi possível obter sua localização.", "info");
+                }
+            },
+
+            loadTraps() {
+                // Limpa marcadores antigos para evitar duplicatas
+                Object.values(App.state.trapMarkers).forEach(marker => marker.remove());
+                App.state.trapMarkers = {};
+
+                App.state.armadilhas.forEach(trap => {
+                    if (trap.status === 'Ativa') {
+                        this.addOrUpdateTrapMarker(trap);
+                    }
+                });
+            },
+
+            addOrUpdateTrapMarker(trap) {
+                const now = new Date();
+                const installDate = trap.dataInstalacao.toDate();
+                const diffTime = Math.abs(now - installDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                let color = 'green'; // Verde (0-4 dias)
+                if (diffDays >= 5 && diffDays <= 6) {
+                    color = 'orange'; // Amarelo (5-6 dias)
+                } else if (diffDays >= 7) {
+                    color = 'red'; // Vermelho (7+ dias)
+                }
+
+                const trapIcon = L.divIcon({
+                    html: `<i class="fas fa-bug" style="color: ${color}; font-size: 28px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"></i>`,
+                    className: 'trap-marker-icon',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+
+                if (App.state.trapMarkers[trap.id]) {
+                    App.state.trapMarkers[trap.id].setIcon(trapIcon);
+                } else {
+                    const marker = L.marker([trap.latitude, trap.longitude], { icon: trapIcon })
+                        .addTo(App.state.map)
+                        .on('click', () => this.promptCollectTrap(trap.id));
+                    App.state.trapMarkers[trap.id] = marker;
+                }
+            },
+
+            promptInstallTrap() {
+                if (!App.state.userMarker) {
+                    App.ui.showAlert("Localização do usuário não disponível para instalar a armadilha.", "error");
+                    return;
+                }
+                App.ui.showConfirmationModal("Deseja instalar uma nova armadilha na sua localização atual?", () => {
+                    const { lat, lng } = App.state.userMarker.getLatLng();
+                    this.installTrap(lat, lng);
+                });
+            },
+
+            async installTrap(lat, lng) {
+                const newTrap = {
+                    latitude: lat,
+                    longitude: lng,
+                    dataInstalacao: new Date(),
+                    instaladoPor: App.state.currentUser.uid,
+                    status: "Ativa",
+                    fazendaId: null, // Futuramente pode ser preenchido
+                    talhaoId: null,  // Futuramente pode ser preenchido
+                };
+
+                try {
+                    await App.data.addDocument('armadilhas', newTrap);
+                    App.ui.showAlert("Armadilha instalada com sucesso!", "success");
+                } catch (error) {
+                    console.error("Erro ao instalar armadilha:", error);
+                    App.ui.showAlert("Falha ao instalar armadilha.", "error");
+                }
+            },
+
+            promptCollectTrap(trapId) {
+                App.ui.showConfirmationModal(
+                    "Insira o número de mariposas capturadas para confirmar a coleta:",
+                    async (count) => {
+                        const mothCount = parseInt(count, 10);
+                        if (isNaN(mothCount) || mothCount < 0) {
+                            App.ui.showAlert("Por favor, insira um número válido.", "error");
+                            return;
+                        }
+                        await this.collectTrap(trapId, mothCount);
+                    },
+                    true // Habilita o campo de input no modal
+                );
+            },
+
+            async collectTrap(trapId, count) {
+                const updateData = {
+                    status: "Coletada",
+                    dataColeta: new Date(),
+                    coletadoPor: App.state.currentUser.uid,
+                    contagemMariposas: count
+                };
+
+                try {
+                    await App.data.updateDocument('armadilhas', trapId, updateData);
+                    App.ui.showAlert("Coleta registrada com sucesso!", "success");
+                    // O onSnapshot irá remover o marcador automaticamente
+                } catch (error) {
+                    console.error("Erro ao registrar coleta:", error);
+                    App.ui.showAlert("Falha ao registrar coleta.", "error");
+                }
             }
         },
 
