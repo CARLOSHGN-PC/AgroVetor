@@ -3348,7 +3348,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 
                 const commonOptions = this._getCommonChartOptions();
-                
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
                 this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
                     type: 'bar',
                     data: { labels: turnos.map(t => `Turno ${t}`), datasets },
@@ -3361,7 +3362,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             ...commonOptions.plugins,
                             datalabels: {
-                                color: '#FFFFFF',
+                                color: datalabelColor,
                                 font: { weight: 'bold', size: 12 },
                                 formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
                             }
