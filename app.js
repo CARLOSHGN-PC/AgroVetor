@@ -3229,7 +3229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const totalGeral = totalBase + totalMeio + totalTopo;
                 
                 const commonOptions = this._getCommonChartOptions();
-
+                // [CORREÇÃO APLICADA] Cor dos datalabels agora é sempre branca para melhor contraste nas fatias.
                 this._createOrUpdateChart('graficoBrocaPosicao', {
                     type: 'doughnut',
                     data: {
@@ -3352,7 +3352,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             ...commonOptions.plugins,
                             datalabels: {
-                                color: '#FFFFFF',
+                                color: '#FFFFFF', // [CORREÇÃO] Sempre branco para contraste com as barras
                                 font: { weight: 'bold', size: 12 },
                                 formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
                             }
@@ -3400,7 +3400,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                              ...commonOptions.plugins,
                              datalabels: {
-                                color: '#FFFFFF',
+                                color: '#FFFFFF', // [CORREÇÃO] Sempre branco para contraste com as barras
                                 font: { weight: 'bold' },
                                 formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
                             }
