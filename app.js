@@ -3025,6 +3025,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            bottom: 30 // Adiciona espaço na parte inferior para os rótulos rotacionados
+                        }
+                    },
                     scales: {
                         x: {
                             grid: { 
@@ -3033,10 +3038,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             },
                             ticks: { 
                                 color: textColor,
-                                // [CORREÇÃO APLICADA] Ajuste automático dos eixos para evitar quebra de layout
-                                autoSkip: true,
-                                maxRotation: 0,
-                                minRotation: 0
+                                // [CORREÇÃO APLICADA] Força a exibição de todos os rótulos e os rotaciona
+                                autoSkip: false,
+                                maxRotation: 45,
+                                minRotation: 30
                             }
                         },
                         y: {
@@ -3045,7 +3050,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 color: borderColor
                             },
                             ticks: { color: textColor },
-                            // [CORREÇÃO APLICADA] Adiciona um "respiro" de 10% no topo do eixo Y
+                            // [CORREÇÃO APLICADA] Adiciona um "respiro" de 10% no topo do eixo
                             grace: '10%'
                         }
                     },
@@ -3347,7 +3352,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 
                 const commonOptions = this._getCommonChartOptions();
-                // [CORREÇÃO APLICADA] Cor dos datalabels agora é dinâmica
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
@@ -3397,7 +3401,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
 
                 const commonOptions = this._getCommonChartOptions();
-                // [CORREÇÃO APLICADA] Cor dos datalabels agora é sempre branca para contraste
+                
                 this._createOrUpdateChart('graficoComposicaoPerda', {
                     type: 'bar',
                     data: { labels: tiposLabels, datasets },
