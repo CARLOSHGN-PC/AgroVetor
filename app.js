@@ -829,12 +829,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
                         this.loadDashboardDates('broca');
-                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
+                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
                         break;
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
                         this.loadDashboardDates('perda');
-                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
+                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
                         break;
                     case 'aerea':
                         dashEls.aereaView.style.display = 'block';
@@ -3348,8 +3348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 
                 const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
-
+                
                 this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
                     type: 'bar',
                     data: { labels: turnos.map(t => `Turno ${t}`), datasets },
@@ -3362,7 +3361,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             ...commonOptions.plugins,
                             datalabels: {
-                                color: datalabelColor,
+                                color: '#FFFFFF',
                                 font: { weight: 'bold', size: 12 },
                                 formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
                             }
@@ -3410,7 +3409,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                              ...commonOptions.plugins,
                              datalabels: {
-                                color: '#FFFFFF', // Sempre branco para contraste com as barras empilhadas
+                                color: '#FFFFFF',
                                 font: { weight: 'bold' },
                                 formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
                             }
