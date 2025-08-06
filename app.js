@@ -3362,7 +3362,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             ...commonOptions.plugins,
                             datalabels: {
-                                color: datalabelColor, // [CORREÇÃO APLICADA]
+                                color: datalabelColor,
                                 font: { weight: 'bold', size: 12 },
                                 formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
                             }
@@ -3410,7 +3410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                              ...commonOptions.plugins,
                              datalabels: {
-                                color: '#FFFFFF', // Sempre branco para contraste com as barras empilhadas
+                                color: '#FFFFFF',
                                 font: { weight: 'bold' },
                                 formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
                             }
