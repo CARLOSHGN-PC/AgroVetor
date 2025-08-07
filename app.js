@@ -844,12 +844,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
-                    tab.classList.remove('active');
-                    tab.hidden = true;
+                    if (tab.id !== 'monitoramentoAereo-container') { // Não mexe no container do mapa
+                        tab.classList.remove('active');
+                        tab.hidden = true;
+                    }
                 });
 
                 const tab = document.getElementById(id);
-                if (tab && id !== 'monitoramentoAereo') {
+                if (tab) {
                     tab.classList.add('active');
                     tab.hidden = false;
                 }
