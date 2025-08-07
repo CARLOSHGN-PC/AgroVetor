@@ -12,7 +12,6 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- [REMOVIDO] CSS do Leaflet.js -->
     <style>
       :root {
           --color-primary: #2e7d32;
@@ -62,7 +61,7 @@
       }
 
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body { scroll-behavior: smooth; height: 100%; } /* Garante que o body ocupe toda a altura */
+      html, body { scroll-behavior: smooth; height: 100%; }
       body { margin: 0; font-family: var(--font-family); background-color: var(--color-bg); color: var(--color-text); min-height: 100vh; display: flex; flex-direction: column; line-height: 1.5; -webkit-font-smoothing: antialiased; }
       
       #loginScreen { 
@@ -734,12 +733,19 @@
           text-align: center;
       }
       
-      /* [NOVO] Estilos para o Mapa e Controles */
+      /* [REVISADO] Estilos para o Mapa e Controles */
       #monitoramentoAereo {
-          padding: 0;
-          height: calc(100vh - 70px); /* Ocupa toda a altura disponível */
+          padding: 0 !important; /* Força a remoção de padding */
+          margin: -20px; /* Compensa o padding do main.content */
+          height: calc(100vh - 70px); 
           display: flex;
-          position: relative; /* Para posicionar os botões sobre o mapa */
+          position: relative; 
+          overflow: hidden; /* Garante que nada saia dos limites */
+      }
+      #map-container {
+          flex-grow: 1;
+          height: 100%;
+          position: relative;
       }
       #map {
           width: 100%;
@@ -748,8 +754,8 @@
       }
       .map-controls {
           position: absolute;
-          top: 15px;
-          right: 15px;
+          bottom: 20px;
+          left: 20px;
           z-index: 2;
           display: flex;
           flex-direction: column;
@@ -782,6 +788,58 @@
       #btnAddTrap:hover {
           background-color: var(--color-primary-dark);
       }
+      /* [NOVO] Estilos para o InfoBox do Talhão */
+      #talhao-info-box {
+          position: absolute;
+          top: 15px;
+          right: 15px;
+          width: 300px;
+          background: var(--color-surface);
+          z-index: 2;
+          border-radius: var(--border-radius-lg);
+          box-shadow: var(--shadow-xl);
+          padding: 20px;
+          transform: translateX(calc(100% + 20px));
+          transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      #talhao-info-box.visible {
+          transform: translateX(0);
+      }
+      #talhao-info-box-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 15px;
+      }
+      #talhao-info-box-header h3 {
+          margin: 0;
+          font-size: 18px;
+          color: var(--color-primary);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+      }
+      #close-info-box {
+          background: none;
+          border: none;
+          font-size: 22px;
+          cursor: pointer;
+          color: var(--color-text-light);
+      }
+      #talhao-info-box-content p {
+          margin: 0 0 10px 0;
+          font-size: 14px;
+          color: var(--color-text-light);
+          border-bottom: 1px solid var(--color-border);
+          padding-bottom: 10px;
+      }
+      #talhao-info-box-content p strong {
+          display: block;
+          font-weight: 600;
+          color: var(--color-text);
+          font-size: 16px;
+      }
+
 
       @media (max-width: 992px) { /* Ponto de quebra para tablets */
         .dashboard-grid {
@@ -792,6 +850,8 @@
       @media (max-width: 768px) {
           header h1 { font-size: 16px; max-width: calc(100% - 180px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
           main.content { padding: 15px; }
+          /* [ALTERADO] Ajuste para o padding do mapa */
+          #monitoramentoAereo { margin: -15px; height: calc(100vh - 70px); }
           .card { padding: 16px; }
           .card-header-actions { flex-direction: column; align-items: stretch; }
           .card-header-actions .button-group { justify-content: center; }
@@ -802,18 +862,24 @@
           .chart-card { min-height: 400px; }
           .dashboard-selector-grid { grid-template-columns: 1fr; }
           #usersList { grid-template-columns: 1fr; }
-          /* [NOVO] Ajustes para o mapa em telas menores */
-          #monitoramentoAereo {
-              height: calc(100vh - 70px); /* Garante que ocupe a tela toda */
-          }
           .map-controls {
-              top: 10px;
-              right: 10px;
+              bottom: 15px;
+              left: 15px;
           }
           .map-control-btn {
               width: 45px;
               height: 45px;
               font-size: 18px;
+          }
+          /* [NOVO] Ajuste do InfoBox para telas menores */
+          #talhao-info-box {
+              width: calc(100% - 30px);
+              top: 10px;
+              right: 15px;
+              transform: translateY(calc(-100% - 20px));
+          }
+          #talhao-info-box.visible {
+              transform: translateY(0);
           }
       }
     </style>
@@ -1004,16 +1070,27 @@
 
             </section>
             
-            <!-- [NOVO] Seção para o Módulo de Monitoramento Aéreo -->
+            <!-- [REVISADO] Seção para o Módulo de Monitoramento Aéreo -->
             <section id="monitoramentoAereo" class="tab-content" aria-label="Monitoramento Aéreo" tabindex="0" hidden>
-                <div id="map"></div>
-                <div class="map-controls">
-                    <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
-                        <i class="fas fa-location-arrow"></i>
-                    </button>
-                    <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
-                        <i class="fas fa-plus"></i>
-                    </button>
+                <div id="map-container">
+                    <div id="map"></div>
+                    <div class="map-controls">
+                        <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
+                            <i class="fas fa-location-arrow"></i>
+                        </button>
+                        <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <div id="talhao-info-box">
+                        <div id="talhao-info-box-header">
+                            <h3><i class="fas fa-map-marker-alt"></i> Informações do Talhão</h3>
+                            <button id="close-info-box">&times;</button>
+                        </div>
+                        <div id="talhao-info-box-content">
+                            <!-- O conteúdo será preenchido via JS -->
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -1452,6 +1529,17 @@
                     <input type="file" id="logoInput" accept="image/png, image/jpeg" style="display: none;">
                     <button id="removeLogoBtn" class="btn-secondary" style="background: var(--color-danger); max-width: 200px; display: none;"><i class="fas fa-trash"></i> Remover Logo</button>
                 </div>
+                
+                <!-- [NOVO] Seção para upload de Shapefile -->
+                <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
+                    <h3><i class="fas fa-map"></i> Contornos dos Talhões (Shapefile)</h3>
+                    <p>Importe os limites geográficos das suas fazendas e talhões. Faça o upload de um arquivo <strong>.zip</strong> contendo os arquivos .shp, .shx e .dbf.</p>
+                    <div class="upload-area" id="shapefileUploadArea">
+                        <i class="fas fa-file-archive fa-2x" style="color: var(--color-info);"></i>
+                        <p>Clique ou arraste um arquivo .zip aqui</p>
+                    </div>
+                    <input type="file" id="shapefileInput" accept=".zip" style="display: none;">
+                </div>
 
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
                     <h3><i class="fas fa-sync-alt"></i> Sincronização Global dos Planos de Colheita</h3>
@@ -1632,9 +1720,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <!-- [NOVO] Script para ler Shapefiles -->
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     
-    <!-- [ALTERADO] Script do Google Maps com sua API Key -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U" async defer></script>
+    <!-- [ALTERADO] Script do Google Maps com sua API Key e callback -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&callback=Function.prototype" async defer></script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
