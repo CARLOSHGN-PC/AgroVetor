@@ -70,6 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
+                        // [NOVO] Relatório de Monitoramento
+                        { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
                 },
                 {
@@ -84,10 +86,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                // [NOVO] Adicionada permissão 'monitoramentoAereo'
-                admin: { dashboard: true, monitoramentoAereo: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
+                // [NOVO] Adicionada permissão 'monitoramentoAereo' e 'relatorioMonitoramento'
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
             }
@@ -117,6 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
             googleUserMarker: null,
             googleTrapMarkers: {},
             armadilhas: [],
+            geoJsonData: null, // Armazena os polígonos do shapefile
+            mapPolygons: [], // Armazena as instâncias dos polígonos no mapa
         },
         
         elements: {
@@ -198,6 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 closedUploadArea: document.getElementById('harvestReportClosedUploadArea'),
                 closedInput: document.getElementById('harvestReportClosedInput'),
                 btnDownloadClosedTemplate: document.getElementById('btnDownloadClosedTemplate'),
+                // [NOVO] Elementos para upload de Shapefile
+                shapefileUploadArea: document.getElementById('shapefileUploadArea'),
+                shapefileInput: document.getElementById('shapefileInput'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -375,7 +382,10 @@ document.addEventListener('DOMContentLoaded', () => {
             monitoramentoAereo: {
                 mapContainer: document.getElementById('map'),
                 btnAddTrap: document.getElementById('btnAddTrap'),
-                btnCenterMap: document.getElementById('btnCenterMap')
+                btnCenterMap: document.getElementById('btnCenterMap'),
+                infoBox: document.getElementById('talhao-info-box'),
+                infoBoxContent: document.getElementById('talhao-info-box-content'),
+                infoBoxCloseBtn: document.getElementById('close-info-box'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
         },
@@ -609,6 +619,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.renderLogoPreview();
                 });
                 App.state.unsubscribeListeners.push(unsubscribeConfig);
+
+                // [NOVO] Listener para o shapefile
+                const shapefileDocRef = doc(db, 'config', 'shapefile');
+                const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
+                    if (doc.exists()) {
+                        App.state.geoJsonData = doc.data().geoJson;
+                        if (App.state.googleMap) {
+                            App.mapModule.loadShapesOnMap();
+                        }
+                    }
+                });
+                App.state.unsubscribeListeners.push(unsubscribeShapefile);
             },
             async getDocument(collectionName, docId, options) {
                 return await getDoc(doc(db, collectionName, docId)).then(docSnap => {
@@ -821,7 +843,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     // [ALTERADO] Inicializa o mapa do Google quando a aba de monitoramento é exibida
                     if (id === 'monitoramentoAereo') {
-                        App.mapModule.initMap();
+                        // A inicialização agora é feita por um callback da API do Google
+                        window.initMap = App.mapModule.initMap;
+                        // Se a API já carregou, chama a função diretamente
+                        if (window.google && window.google.maps) {
+                            App.mapModule.initMap();
+                        }
                     }
                     if (id === 'excluirDados') this.renderExclusao();
                     if (id === 'gerenciarUsuarios') {
@@ -1638,6 +1665,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 companyConfigEls.closedUploadArea.addEventListener('click', () => companyConfigEls.closedInput.click());
                 companyConfigEls.closedInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'closed'));
                 companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
+                // [NOVO] Listeners para upload de Shapefile
+                companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
+                companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
 
 
                 App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
@@ -1743,9 +1773,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
                 
-                // [NOVO] Listeners para os botões do mapa
+                // [NOVO] Listeners para os botões do mapa e infobox
                 App.elements.monitoramentoAereo.btnAddTrap.addEventListener('click', () => App.mapModule.promptInstallTrap());
                 App.elements.monitoramentoAereo.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
+                App.elements.monitoramentoAereo.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
 
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
@@ -3035,28 +3066,26 @@ document.addEventListener('DOMContentLoaded', () => {
         // [NOVO] Módulo completo para gerenciar o mapa com Google Maps
         mapModule: {
             initMap() {
-                // Se o mapa já foi inicializado, não faz nada.
-                if (App.state.googleMap) {
-                    return;
-                }
-                // Verifica se a API do Google Maps carregou
+                if (App.state.googleMap) return;
                 if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
-                    App.ui.showAlert("Não foi possível carregar a API do Google Maps. Verifique a conexão e a chave de API.", "error");
+                    console.error("API do Google Maps não está carregada.");
                     return;
                 }
 
                 try {
                     const mapContainer = App.elements.monitoramentoAereo.mapContainer;
                     App.state.googleMap = new google.maps.Map(mapContainer, {
-                        center: { lat: -21.17, lng: -48.45 }, // Coordenadas de exemplo
+                        center: { lat: -21.17, lng: -48.45 },
                         zoom: 13,
-                        mapTypeId: 'satellite', // Inicia com visão de satélite
-                        disableDefaultUI: true, // Remove controles padrão para um visual mais limpo
+                        mapTypeId: 'satellite',
+                        disableDefaultUI: true,
                         zoomControl: true,
+                        gestureHandling: 'cooperative' // Melhora a experiência em dispositivos móveis
                     });
 
                     this.watchUserPosition();
-                    this.loadTraps();
+                    this.loadShapesOnMap(); // Carrega os polígonos primeiro
+                    this.loadTraps(); // Depois carrega as armadilhas
 
                 } catch (e) {
                     console.error("Erro ao inicializar o Google Maps:", e);
@@ -3116,8 +3145,81 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            async handleShapefileUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                App.ui.setLoading(true, "Processando Shapefile...");
+                try {
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        try {
+                            const buffer = event.target.result;
+                            const geojson = await shp(buffer);
+                            await App.data.setDocument('config', 'shapefile', { geoJson: geojson });
+                            App.ui.showAlert("Contornos dos talhões importados com sucesso!", "success");
+                        } catch (err) {
+                            console.error("Erro ao processar o shapefile:", err);
+                            App.ui.showAlert("Erro ao processar o arquivo. Verifique se o .zip contém .shp, .shx e .dbf.", "error");
+                        } finally {
+                            App.ui.setLoading(false);
+                            e.target.value = ''; // Limpa o input
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                } catch (err) {
+                    App.ui.setLoading(false);
+                    console.error("Erro na leitura do arquivo:", err);
+                    App.ui.showAlert("Não foi possível ler o arquivo.", "error");
+                }
+            },
+
+            loadShapesOnMap() {
+                if (!App.state.googleMap || !App.state.geoJsonData) return;
+
+                // Limpa polígonos antigos
+                App.state.mapPolygons.forEach(p => p.setMap(null));
+                App.state.mapPolygons = [];
+
+                const dataLayer = new google.maps.Data({ map: App.state.googleMap });
+                dataLayer.addGeoJson(App.state.geoJsonData);
+                App.state.mapPolygons.push(dataLayer); // Armazena a camada de dados para poder remover depois
+
+                // Estilo dos polígonos
+                dataLayer.setStyle({
+                    fillColor: 'transparent',
+                    strokeColor: '#FFD700', // Dourado
+                    strokeWeight: 2,
+                    strokeOpacity: 0.8
+                });
+
+                // Adiciona evento de clique
+                dataLayer.addListener('click', (event) => {
+                    this.showTalhaoInfo(event.feature);
+                });
+            },
+
+            showTalhaoInfo(feature) {
+                const props = {};
+                feature.forEachProperty((value, property) => {
+                    props[property] = value;
+                });
+                
+                const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
+                contentEl.innerHTML = `
+                    <p><strong>${props.NM_IMOVEL || 'Fazenda não identificada'}</strong>${props.CD_FAZENDA || ''}</p>
+                    <p><strong>${props.CD_TALHAO || 'Talhão não identificado'}</strong>Zona ${props.CD_ZONA || 'N/A'}</p>
+                    <p><strong>${(props.AREA_HA || 0).toFixed(2)} ha</strong>Área Total</p>
+                `;
+                
+                App.elements.monitoramentoAereo.infoBox.classList.add('visible');
+            },
+
+            hideTalhaoInfo() {
+                App.elements.monitoramentoAereo.infoBox.classList.remove('visible');
+            },
+
             loadTraps() {
-                // Limpa marcadores antigos para evitar duplicatas
                 Object.values(App.state.googleTrapMarkers).forEach(marker => marker.setMap(null));
                 App.state.googleTrapMarkers = {};
 
@@ -3141,9 +3243,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     color = '#d32f2f'; // Vermelho (7+ dias)
                 }
                 
-                // Ícone SVG customizado para a armadilha
                 const trapIcon = {
-                    path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z', // Ícone de pino do mapa
+                    path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
                     fillColor: color,
                     fillOpacity: 0.9,
                     strokeWeight: 1,
@@ -3152,7 +3253,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     scale: 1.5,
                     anchor: new google.maps.Point(12, 24),
                 };
-
 
                 if (App.state.googleTrapMarkers[trap.id]) {
                     App.state.googleTrapMarkers[trap.id].setIcon(trapIcon);
@@ -3187,8 +3287,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     dataInstalacao: new Date(),
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
-                    fazendaId: null, // Futuramente pode ser preenchido
-                    talhaoId: null,  // Futuramente pode ser preenchido
+                    fazendaId: null,
+                    talhaoId: null,
                 };
 
                 try {
@@ -3226,7 +3326,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     await App.data.updateDocument('armadilhas', trapId, updateData);
                     App.ui.showAlert("Coleta registrada com sucesso!", "success");
-                    // O onSnapshot irá remover o marcador automaticamente
                 } catch (error) {
                     console.error("Erro ao registrar coleta:", error);
                     App.ui.showAlert("Falha ao registrar coleta.", "error");
@@ -3888,6 +3987,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
+    // Disponibiliza a função de inicialização do mapa globalmente para o callback da API do Google
+    window.initMap = App.mapModule.initMap;
 
     // Inicia a aplicação
     App.init();
