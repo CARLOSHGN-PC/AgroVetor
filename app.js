@@ -3096,8 +3096,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     this.watchUserPosition();
-                    this.loadShapesOnMap();
-                    this.loadTraps();
+                    this.loadShapesOnMap(); // Carrega os polígonos primeiro
+                    this.loadTraps(); // Depois carrega as armadilhas
 
                 } catch (e) {
                     console.error("Erro ao inicializar o Google Maps:", e);
@@ -3189,20 +3189,23 @@ document.addEventListener('DOMContentLoaded', () => {
             loadShapesOnMap() {
                 if (!App.state.googleMap || !App.state.geoJsonData) return;
 
+                // Limpa polígonos antigos
                 App.state.mapPolygons.forEach(p => p.setMap(null));
                 App.state.mapPolygons = [];
 
                 const dataLayer = new google.maps.Data({ map: App.state.googleMap });
                 dataLayer.addGeoJson(App.state.geoJsonData);
-                App.state.mapPolygons.push(dataLayer);
+                App.state.mapPolygons.push(dataLayer); // Armazena a camada de dados para poder remover depois
 
+                // Estilo dos polígonos
                 dataLayer.setStyle({
                     fillColor: 'transparent',
-                    strokeColor: '#FFD700',
+                    strokeColor: '#FFD700', // Dourado
                     strokeWeight: 2,
                     strokeOpacity: 0.8
                 });
 
+                // Adiciona evento de clique
                 dataLayer.addListener('click', (event) => {
                     this.showTalhaoInfo(event.feature);
                 });
