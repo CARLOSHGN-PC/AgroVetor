@@ -733,19 +733,14 @@
           text-align: center;
       }
       
-      /* [REVISADO] Estilos para o Mapa e Controles */
+      /* [ALTERAÇÃO] Estilos para o Mapa e Controles */
       #monitoramentoAereo {
-          padding: 0 !important;
-          height: calc(100vh - 70px);
+          padding: 0 !important; /* Remove padding para ocupar a tela toda */
+          height: calc(100vh - 70px); /* Ocupa a altura disponível */
           display: flex;
           position: relative; 
-          overflow: hidden;
+          overflow: hidden; /* Garante que nada vaze */
           background-color: var(--color-bg);
-      }
-      #map-container {
-          flex-grow: 1;
-          height: 100%;
-          position: relative;
       }
       #map {
           width: 100%;
@@ -755,11 +750,15 @@
       .map-controls {
           position: absolute;
           bottom: 20px;
-          left: 20px;
+          left: 50%; /* Centraliza os botões */
+          transform: translateX(-50%);
           z-index: 2;
           display: flex;
-          flex-direction: column;
           gap: 10px;
+          background-color: rgba(255, 255, 255, 0.8);
+          padding: 8px;
+          border-radius: var(--border-radius-xl);
+          box-shadow: var(--shadow-lg);
       }
       .map-control-btn {
           width: 50px;
@@ -768,7 +767,7 @@
           color: var(--color-primary);
           border: none;
           border-radius: 50%;
-          box-shadow: var(--shadow-lg);
+          box-shadow: var(--shadow-md);
           cursor: pointer;
           font-size: 20px;
           display: flex;
@@ -788,6 +787,7 @@
       #btnAddTrap:hover {
           background-color: var(--color-primary-dark);
       }
+      
       /* [NOVO] Estilos para o InfoBox do Talhão */
       #talhao-info-box {
           position: absolute;
@@ -825,6 +825,11 @@
           font-size: 22px;
           cursor: pointer;
           color: var(--color-text-light);
+          transition: var(--transition);
+      }
+      #close-info-box:hover {
+        color: var(--color-danger);
+        transform: rotate(90deg);
       }
       #talhao-info-box-content p {
           margin: 0 0 10px 0;
@@ -850,7 +855,8 @@
       @media (max-width: 768px) {
           header h1 { font-size: 16px; max-width: calc(100% - 180px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
           main.content { padding: 15px; height: calc(100vh - 70px); }
-          #monitoramentoAereo { margin: -15px; height: calc(100vh - 70px); }
+          /* [ALTERAÇÃO] Garante que o mapa não tenha margens negativas no mobile */
+          #monitoramentoAereo { margin: 0; height: calc(100vh - 70px); }
           .card { padding: 16px; }
           .card-header-actions { flex-direction: column; align-items: stretch; }
           .card-header-actions .button-group { justify-content: center; }
@@ -863,17 +869,20 @@
           #usersList { grid-template-columns: 1fr; }
           .map-controls {
               bottom: 15px;
-              left: 15px;
+              left: 50%;
+              transform: translateX(-50%);
           }
           .map-control-btn {
               width: 45px;
               height: 45px;
               font-size: 18px;
           }
+          /* [ALTERAÇÃO] Ajusta o InfoBox para telas menores */
           #talhao-info-box {
               width: calc(100% - 30px);
               top: 10px;
               right: 15px;
+              left: 15px; /* Adicionado para centralizar */
               transform: translateY(calc(-100% - 20px));
           }
           #talhao-info-box.visible {
@@ -1068,26 +1077,25 @@
 
             </section>
             
-            <!-- [REVISADO] Seção para o Módulo de Monitoramento Aéreo -->
+            <!-- [ALTERAÇÃO] Seção para o Módulo de Monitoramento Aéreo -->
             <section id="monitoramentoAereo" class="tab-content" aria-label="Monitoramento Aéreo" tabindex="0" hidden>
-                <div id="map-container">
-                    <div id="map"></div>
-                    <div class="map-controls">
-                        <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
-                            <i class="fas fa-location-arrow"></i>
-                        </button>
-                        <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
-                            <i class="fas fa-plus"></i>
-                        </button>
+                <div id="map"></div>
+                <div class="map-controls">
+                    <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
+                        <i class="fas fa-location-arrow"></i>
+                    </button>
+                    <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <!-- [NOVO] InfoBox para detalhes do talhão -->
+                <div id="talhao-info-box">
+                    <div id="talhao-info-box-header">
+                        <h3><i class="fas fa-map-marker-alt"></i> Informações do Talhão</h3>
+                        <button id="close-info-box" title="Fechar">&times;</button>
                     </div>
-                    <div id="talhao-info-box">
-                        <div id="talhao-info-box-header">
-                            <h3><i class="fas fa-map-marker-alt"></i> Informações do Talhão</h3>
-                            <button id="close-info-box">&times;</button>
-                        </div>
-                        <div id="talhao-info-box-content">
-                            <!-- O conteúdo será preenchido via JS -->
-                        </div>
+                    <div id="talhao-info-box-content">
+                        <!-- O conteúdo será preenchido via JS -->
                     </div>
                 </div>
             </section>
@@ -1735,7 +1743,7 @@
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     
     <!-- [ALTERADO] Script do Google Maps com sua API Key e callback -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=SUA_API_KEY_AQUI&callback=initMap" async defer></script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
