@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
+                        // [NOVO] Relatório de Monitoramento
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
                 },
@@ -85,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
+                // [NOVO] Adicionada permissão 'monitoramentoAereo' e 'relatorioMonitoramento'
                 admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
@@ -112,12 +114,13 @@ document.addEventListener('DOMContentLoaded', () => {
             deferredInstallPrompt: null,
             newUserCreationData: null,
             expandedChart: null,
+            // [ALTERADO] Estado para o módulo do Google Maps
             googleMap: null,
             googleUserMarker: null,
             googleTrapMarkers: {},
             armadilhas: [],
-            geoJsonData: null,
-            mapPolygons: [],
+            geoJsonData: null, // Armazena os polígonos do shapefile
+            mapPolygons: [], // Armazena as instâncias dos polígonos no mapa
         },
         
         elements: {
@@ -838,10 +841,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
-                    if (tab.id !== 'monitoramentoAereo') { // Não mexe no container do mapa
-                        tab.classList.remove('active');
-                        tab.hidden = true;
-                    }
+                    tab.classList.remove('active');
+                    tab.hidden = true;
                 });
 
                 const tab = document.getElementById(id);
@@ -4016,7 +4017,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Disponibiliza a função de inicialização do mapa globalmente para o callback da API do Google
-    window.initMap = App.mapModule.initMap;
+    window.initMap = App.mapModule.initMap.bind(App.mapModule);
 
     // Inicia a aplicação
     App.init();
