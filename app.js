@@ -70,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
-                        // [NOVO] Relatório de Monitoramento
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
                 },
@@ -86,7 +85,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                // [NOVO] Adicionada permissão 'monitoramentoAereo' e 'relatorioMonitoramento'
                 admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
@@ -114,13 +112,12 @@ document.addEventListener('DOMContentLoaded', () => {
             deferredInstallPrompt: null,
             newUserCreationData: null,
             expandedChart: null,
-            // [ALTERADO] Estado para o módulo do Google Maps
             googleMap: null,
             googleUserMarker: null,
             googleTrapMarkers: {},
             armadilhas: [],
-            geoJsonData: null, // Armazena os polígonos do shapefile
-            mapPolygons: [], // Armazena as instâncias dos polígonos no mapa
+            geoJsonData: null,
+            mapPolygons: [],
         },
         
         elements: {
@@ -625,10 +622,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const shapefileDocRef = doc(db, 'config', 'shapefile');
                 const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
-                    if (doc.exists()) {
-                        App.state.geoJsonData = doc.data().geoJson;
-                        if (App.state.googleMap) {
-                            App.mapModule.loadShapesOnMap();
+                    if (doc.exists() && doc.data().geoJsonString) {
+                        try {
+                            // [CORREÇÃO] Parse do JSON string ao carregar
+                            App.state.geoJsonData = JSON.parse(doc.data().geoJsonString);
+                            if (App.state.googleMap) {
+                                App.mapModule.loadShapesOnMap();
+                            }
+                        } catch (e) {
+                            console.error("Erro ao fazer parse do GeoJSON do Firestore:", e);
+                            App.state.geoJsonData = null;
                         }
                     }
                 });
@@ -828,24 +831,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
-                // [ALTERADO] Lógica para lidar com o container do mapa
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
-                        App.ui.showAlert("Aguardando a API do Google Maps carregar...", "info");
-                    } else {
-                        App.mapModule.initMap();
+                    // A inicialização agora é feita por um callback da API do Google
+                    window.initMap = App.mapModule.initMap.bind(App.mapModule);
+                    if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+                       App.mapModule.initMap();
                     }
                 } else {
                     mapContainer.classList.remove('active');
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
-                    if (tab.id !== 'monitoramentoAereo-container') { // Não mexe no container do mapa
-                        tab.classList.remove('active');
-                        tab.hidden = true;
-                    }
+                    tab.classList.remove('active');
+                    tab.hidden = true;
                 });
 
                 const tab = document.getElementById(id);
@@ -3172,7 +3172,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             const buffer = event.target.result;
                             const geojson = await shp(buffer);
-                            await App.data.setDocument('config', 'shapefile', { geoJson: geojson });
+                            // [CORREÇÃO] Stringify antes de salvar no Firestore
+                            const geoJsonString = JSON.stringify(geojson);
+                            await App.data.setDocument('config', 'shapefile', { geoJsonString: geoJsonString });
                             App.ui.showAlert("Contornos dos talhões importados com sucesso!", "success");
                         } catch (err) {
                             console.error("Erro ao processar o shapefile:", err);
