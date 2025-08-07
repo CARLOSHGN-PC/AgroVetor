@@ -1715,6 +1715,13 @@
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     
     <!-- [ALTERADO] Script do Google Maps com sua API Key e callback -->
+    <script>
+        function initMap() {
+            // Esta função será chamada pela API do Google Maps quando estiver pronta.
+            // O App.js irá redefinir esta função para iniciar o mapa de fato.
+            console.log("Google Maps API loaded.");
+        }
+    </script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&callback=initMap" async defer></script>
 
     <!-- Script principal da aplicação -->
