@@ -849,7 +849,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const tab = document.getElementById(id);
-                if (tab) {
+                if (tab && id !== 'monitoramentoAereo') {
                     tab.classList.add('active');
                     tab.hidden = false;
                 }
