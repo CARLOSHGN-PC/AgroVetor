@@ -112,10 +112,10 @@ document.addEventListener('DOMContentLoaded', () => {
             deferredInstallPrompt: null,
             newUserCreationData: null,
             expandedChart: null,
-            // [NOVO] Estado para o módulo do mapa
-            map: null,
-            userMarker: null,
-            trapMarkers: {},
+            // [ALTERADO] Estado para o módulo do Google Maps
+            googleMap: null,
+            googleUserMarker: null,
+            googleTrapMarkers: {},
             armadilhas: [],
         },
         
@@ -591,8 +591,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         App.state[collectionName] = data;
                         
-                        // [NOVO] Se a coleção de armadilhas for atualizada, recarrega os marcadores no mapa
-                        if (collectionName === 'armadilhas' && App.state.map) {
+                        // [ALTERADO] Se a coleção de armadilhas for atualizada, recarrega os marcadores no mapa do Google
+                        if (collectionName === 'armadilhas' && App.state.googleMap) {
                             App.mapModule.loadTraps();
                         }
 
@@ -819,7 +819,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.charts.destroyAll(); 
                     }
                     
-                    // [NOVO] Inicializa o mapa quando a aba de monitoramento é exibida
+                    // [ALTERADO] Inicializa o mapa do Google quando a aba de monitoramento é exibida
                     if (id === 'monitoramentoAereo') {
                         App.mapModule.initMap();
                     }
@@ -3032,28 +3032,34 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        // [NOVO] Módulo completo para gerenciar o mapa
+        // [NOVO] Módulo completo para gerenciar o mapa com Google Maps
         mapModule: {
             initMap() {
-                if (App.state.map) {
-                    // Força a re-renderização do mapa se a aba for reaberta
-                    setTimeout(() => App.state.map.invalidateSize(), 100);
+                // Se o mapa já foi inicializado, não faz nada.
+                if (App.state.googleMap) {
+                    return;
+                }
+                // Verifica se a API do Google Maps carregou
+                if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                    App.ui.showAlert("Não foi possível carregar a API do Google Maps. Verifique a conexão e a chave de API.", "error");
                     return;
                 }
 
                 try {
                     const mapContainer = App.elements.monitoramentoAereo.mapContainer;
-                    App.state.map = L.map(mapContainer).setView([-21.17, -48.45], 13); // Coordenadas de exemplo
-
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    }).addTo(App.state.map);
+                    App.state.googleMap = new google.maps.Map(mapContainer, {
+                        center: { lat: -21.17, lng: -48.45 }, // Coordenadas de exemplo
+                        zoom: 13,
+                        mapTypeId: 'satellite', // Inicia com visão de satélite
+                        disableDefaultUI: true, // Remove controles padrão para um visual mais limpo
+                        zoomControl: true,
+                    });
 
                     this.watchUserPosition();
                     this.loadTraps();
 
                 } catch (e) {
-                    console.error("Erro ao inicializar o mapa:", e);
+                    console.error("Erro ao inicializar o Google Maps:", e);
                     App.ui.showAlert("Não foi possível carregar o mapa.", "error");
                 }
             },
@@ -3077,25 +3083,34 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             updateUserPosition(lat, lng) {
-                const userIcon = L.divIcon({
-                    html: '<i class="fas fa-location-arrow" style="color: #1976d2; font-size: 24px;"></i>',
-                    className: 'user-marker-icon',
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 12]
-                });
-
-                if (!App.state.userMarker) {
-                    App.state.userMarker = L.marker([lat, lng], { icon: userIcon }).addTo(App.state.map);
-                    App.state.map.setView([lat, lng], 16); // Centraliza no usuário na primeira vez
+                const userPosition = { lat, lng };
+                
+                if (!App.state.googleUserMarker) {
+                    App.state.googleUserMarker = new google.maps.Marker({
+                        position: userPosition,
+                        map: App.state.googleMap,
+                        title: "Sua Posição",
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 8,
+                            fillColor: "#4285F4",
+                            fillOpacity: 1,
+                            strokeColor: "#ffffff",
+                            strokeWeight: 2,
+                        },
+                    });
+                    App.state.googleMap.setCenter(userPosition);
+                    App.state.googleMap.setZoom(16);
                 } else {
-                    App.state.userMarker.setLatLng([lat, lng]);
+                    App.state.googleUserMarker.setPosition(userPosition);
                 }
             },
 
             centerMapOnUser() {
-                if (App.state.userMarker) {
-                    const userLatLng = App.state.userMarker.getLatLng();
-                    App.state.map.setView(userLatLng, 16);
+                if (App.state.googleUserMarker) {
+                    const userPosition = App.state.googleUserMarker.getPosition();
+                    App.state.googleMap.setCenter(userPosition);
+                    App.state.googleMap.setZoom(16);
                 } else {
                     App.ui.showAlert("Ainda não foi possível obter sua localização.", "info");
                 }
@@ -3103,8 +3118,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             loadTraps() {
                 // Limpa marcadores antigos para evitar duplicatas
-                Object.values(App.state.trapMarkers).forEach(marker => marker.remove());
-                App.state.trapMarkers = {};
+                Object.values(App.state.googleTrapMarkers).forEach(marker => marker.setMap(null));
+                App.state.googleTrapMarkers = {};
 
                 App.state.armadilhas.forEach(trap => {
                     if (trap.status === 'Ativa') {
@@ -3119,38 +3134,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 const diffTime = Math.abs(now - installDate);
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                let color = 'green'; // Verde (0-4 dias)
+                let color = '#388e3c'; // Verde (0-4 dias)
                 if (diffDays >= 5 && diffDays <= 6) {
-                    color = 'orange'; // Amarelo (5-6 dias)
+                    color = '#f57c00'; // Amarelo (5-6 dias)
                 } else if (diffDays >= 7) {
-                    color = 'red'; // Vermelho (7+ dias)
+                    color = '#d32f2f'; // Vermelho (7+ dias)
                 }
+                
+                // Ícone SVG customizado para a armadilha
+                const trapIcon = {
+                    path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z', // Ícone de pino do mapa
+                    fillColor: color,
+                    fillOpacity: 0.9,
+                    strokeWeight: 1,
+                    strokeColor: '#fff',
+                    rotation: 0,
+                    scale: 1.5,
+                    anchor: new google.maps.Point(12, 24),
+                };
 
-                const trapIcon = L.divIcon({
-                    html: `<i class="fas fa-bug" style="color: ${color}; font-size: 28px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"></i>`,
-                    className: 'trap-marker-icon',
-                    iconSize: [28, 28],
-                    iconAnchor: [14, 14]
-                });
 
-                if (App.state.trapMarkers[trap.id]) {
-                    App.state.trapMarkers[trap.id].setIcon(trapIcon);
+                if (App.state.googleTrapMarkers[trap.id]) {
+                    App.state.googleTrapMarkers[trap.id].setIcon(trapIcon);
                 } else {
-                    const marker = L.marker([trap.latitude, trap.longitude], { icon: trapIcon })
-                        .addTo(App.state.map)
-                        .on('click', () => this.promptCollectTrap(trap.id));
-                    App.state.trapMarkers[trap.id] = marker;
+                    const marker = new google.maps.Marker({
+                        position: { lat: trap.latitude, lng: trap.longitude },
+                        map: App.state.googleMap,
+                        icon: trapIcon,
+                        title: `Armadilha instalada em ${installDate.toLocaleDateString()}`
+                    });
+                    
+                    marker.addListener('click', () => this.promptCollectTrap(trap.id));
+                    App.state.googleTrapMarkers[trap.id] = marker;
                 }
             },
 
             promptInstallTrap() {
-                if (!App.state.userMarker) {
+                if (!App.state.googleUserMarker) {
                     App.ui.showAlert("Localização do usuário não disponível para instalar a armadilha.", "error");
                     return;
                 }
                 App.ui.showConfirmationModal("Deseja instalar uma nova armadilha na sua localização atual?", () => {
-                    const { lat, lng } = App.state.userMarker.getLatLng();
-                    this.installTrap(lat, lng);
+                    const position = App.state.googleUserMarker.getPosition();
+                    this.installTrap(position.lat(), position.lng());
                 });
             },
 
