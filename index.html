@@ -61,7 +61,7 @@
       }
 
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body { scroll-behavior: smooth; height: 100%; }
+      html, body { scroll-behavior: smooth; height: 100%; overflow: hidden; } /* Previne scroll duplo */
       body { margin: 0; font-family: var(--font-family); background-color: var(--color-bg); color: var(--color-text); min-height: 100vh; display: flex; flex-direction: column; line-height: 1.5; -webkit-font-smoothing: antialiased; }
       
       #loginScreen { 
@@ -122,7 +122,7 @@
       .menu-btn i, .submenu-btn i, .submenu-back-btn i { font-size: 20px; width: 24px; text-align: center; }
       .menu-btn .arrow { margin-left: auto; transition: transform 0.3s ease; font-size: 14px; }
       .submenu-back-btn { font-weight: 600; }
-      main.content { margin-top: 70px; padding: 20px; transition: filter 0.3s ease; min-height: calc(100vh - 70px); }
+      main.content { margin-top: 70px; padding: 20px; transition: filter 0.3s ease; height: calc(100vh - 70px); overflow-y: auto; }
       .mobile-menu-open main.content, .mobile-menu-open header { filter: blur(4px) brightness(0.7); }
       .tab-content { display: none; animation: fadeIn 0.3s ease-out; }
       .tab-content.active { display: block; }
@@ -735,12 +735,13 @@
       
       /* [REVISADO] Estilos para o Mapa e Controles */
       #monitoramentoAereo {
-          padding: 0 !important; /* Força a remoção de padding */
+          padding: 0 !important;
           margin: -20px; /* Compensa o padding do main.content */
           height: calc(100vh - 70px); 
           display: flex;
           position: relative; 
-          overflow: hidden; /* Garante que nada saia dos limites */
+          overflow: hidden;
+          background-color: var(--color-bg); /* Garante que não seja transparente */
       }
       #map-container {
           flex-grow: 1;
@@ -849,8 +850,7 @@
 
       @media (max-width: 768px) {
           header h1 { font-size: 16px; max-width: calc(100% - 180px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          main.content { padding: 15px; }
-          /* [ALTERADO] Ajuste para o padding do mapa */
+          main.content { padding: 15px; height: calc(100vh - 70px); }
           #monitoramentoAereo { margin: -15px; height: calc(100vh - 70px); }
           .card { padding: 16px; }
           .card-header-actions { flex-direction: column; align-items: stretch; }
@@ -871,7 +871,6 @@
               height: 45px;
               font-size: 18px;
           }
-          /* [NOVO] Ajuste do InfoBox para telas menores */
           #talhao-info-box {
               width: calc(100% - 30px);
               top: 10px;
@@ -1344,6 +1343,19 @@
                 </div>
             </section>
 
+            <!-- [NOVO] Seção para Relatório de Monitoramento -->
+            <section id="relatorioMonitoramento" class="tab-content card" aria-label="Relatório de Monitoramento" tabindex="0" hidden>
+                <h2><i class="fas fa-map-marked-alt"></i> Relatório de Monitoramento Aéreo</h2>
+                <div class="form-row">
+                    <div class="form-col"><label for="monitoramentoInicio" class="required">Data Início:</label><input type="date" id="monitoramentoInicio" /></div>
+                    <div class="form-col"><label for="monitoramentoFim" class="required">Data Fim:</label><input type="date" id="monitoramentoFim" /></div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFMonitoramento" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelMonitoramento" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+            </section>
+
             <section id="lancamentoPerda" class="tab-content card" aria-label="Lançamento Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-dollar-sign"></i> Lançamento Perda</h2>
                 <div class="form-row">
@@ -1724,7 +1736,7 @@
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     
     <!-- [ALTERADO] Script do Google Maps com sua API Key e callback -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&callback=Function.prototype" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&callback=initMap" async defer></script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
