@@ -127,7 +127,6 @@ try {
     return doc.y;
   };
  
-  // [CORREÇÃO FINAL] Função de rodapé agora SEM paginação
   const generatePdfFooter = (doc, generatedBy = 'N/A') => {
     const pageCount = doc.bufferedPageRange().count;
     for (let i = 0; i < pageCount; i++) {
