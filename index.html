@@ -733,119 +733,6 @@
           text-align: center;
       }
       
-      /* [ALTERAÇÃO] Estilos para o Mapa e Controles */
-      #monitoramentoAereo {
-          padding: 0 !important; /* Remove padding para ocupar a tela toda */
-          height: calc(100vh - 70px); /* Ocupa a altura disponível */
-          display: flex;
-          position: relative; 
-          overflow: hidden; /* Garante que nada vaze */
-          background-color: var(--color-bg);
-      }
-      #map {
-          width: 100%;
-          height: 100%;
-          z-index: 1;
-      }
-      .map-controls {
-          position: absolute;
-          bottom: 20px;
-          left: 50%; /* Centraliza os botões */
-          transform: translateX(-50%);
-          z-index: 2;
-          display: flex;
-          gap: 10px;
-          background-color: rgba(255, 255, 255, 0.8);
-          padding: 8px;
-          border-radius: var(--border-radius-xl);
-          box-shadow: var(--shadow-lg);
-      }
-      .map-control-btn {
-          width: 50px;
-          height: 50px;
-          background-color: var(--color-surface);
-          color: var(--color-primary);
-          border: none;
-          border-radius: 50%;
-          box-shadow: var(--shadow-md);
-          cursor: pointer;
-          font-size: 20px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: var(--transition);
-      }
-      .map-control-btn:hover {
-          background-color: var(--color-primary);
-          color: var(--color-white);
-          transform: scale(1.1);
-      }
-      #btnAddTrap {
-          background-color: var(--color-success);
-          color: var(--color-white);
-      }
-      #btnAddTrap:hover {
-          background-color: var(--color-primary-dark);
-      }
-      
-      /* [NOVO] Estilos para o InfoBox do Talhão */
-      #talhao-info-box {
-          position: absolute;
-          top: 15px;
-          right: 15px;
-          width: 300px;
-          background: var(--color-surface);
-          z-index: 2;
-          border-radius: var(--border-radius-lg);
-          box-shadow: var(--shadow-xl);
-          padding: 20px;
-          transform: translateX(calc(100% + 20px));
-          transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      #talhao-info-box.visible {
-          transform: translateX(0);
-      }
-      #talhao-info-box-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 15px;
-      }
-      #talhao-info-box-header h3 {
-          margin: 0;
-          font-size: 18px;
-          color: var(--color-primary);
-          display: flex;
-          align-items: center;
-          gap: 8px;
-      }
-      #close-info-box {
-          background: none;
-          border: none;
-          font-size: 22px;
-          cursor: pointer;
-          color: var(--color-text-light);
-          transition: var(--transition);
-      }
-      #close-info-box:hover {
-        color: var(--color-danger);
-        transform: rotate(90deg);
-      }
-      #talhao-info-box-content p {
-          margin: 0 0 10px 0;
-          font-size: 14px;
-          color: var(--color-text-light);
-          border-bottom: 1px solid var(--color-border);
-          padding-bottom: 10px;
-      }
-      #talhao-info-box-content p strong {
-          display: block;
-          font-weight: 600;
-          color: var(--color-text);
-          font-size: 16px;
-      }
-
-
       @media (max-width: 992px) { /* Ponto de quebra para tablets */
         .dashboard-grid {
             grid-template-columns: 1fr;
@@ -1077,7 +964,6 @@
 
             </section>
             
-            <!-- [ALTERAÇÃO] Seção para o Módulo de Monitoramento Aéreo -->
             <section id="monitoramentoAereo" class="tab-content" aria-label="Monitoramento Aéreo" tabindex="0" hidden>
                 <div id="map"></div>
                 <div class="map-controls">
@@ -1088,7 +974,6 @@
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
-                <!-- [NOVO] InfoBox para detalhes do talhão -->
                 <div id="talhao-info-box">
                     <div id="talhao-info-box-header">
                         <h3><i class="fas fa-map-marker-alt"></i> Informações do Talhão</h3>
@@ -1743,7 +1628,7 @@
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     
     <!-- [ALTERADO] Script do Google Maps com sua API Key e callback -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=SUA_API_KEY_AQUI&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&callback=initMap" async defer></script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
