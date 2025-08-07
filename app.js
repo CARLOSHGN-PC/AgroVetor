@@ -378,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
             },
-            // [NOVO] Elementos do mapa
+            // [NOVO] Elementos do mapa e do novo relatório
             monitoramentoAereo: {
                 mapContainer: document.getElementById('map'),
                 btnAddTrap: document.getElementById('btnAddTrap'),
@@ -386,6 +386,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 infoBox: document.getElementById('talhao-info-box'),
                 infoBoxContent: document.getElementById('talhao-info-box-content'),
                 infoBoxCloseBtn: document.getElementById('close-info-box'),
+            },
+            relatorioMonitoramento: {
+                inicio: document.getElementById('monitoramentoInicio'),
+                fim: document.getElementById('monitoramentoFim'),
+                btnPDF: document.getElementById('btnPDFMonitoramento'),
+                btnExcel: document.getElementById('btnExcelMonitoramento'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
         },
@@ -846,8 +852,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         // A inicialização agora é feita por um callback da API do Google
                         window.initMap = App.mapModule.initMap;
                         // Se a API já carregou, chama a função diretamente
-                        if (window.google && window.google.maps) {
-                            App.mapModule.initMap();
+                        if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+                           App.mapModule.initMap();
                         }
                     }
                     if (id === 'excluirDados') this.renderExclusao();
@@ -859,7 +865,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (id === 'cadastrarPessoas') this.renderPersonnelList();
                     if (id === 'planejamento') this.renderPlanejamento();
                     if (id === 'planejamentoColheita') this.showHarvestPlanList();
-                    if (id === 'relatorioBroca' || id === 'relatorioPerda') this.setDefaultDatesForReportForms();
+                    if (id === 'relatorioBroca' || id === 'relatorioPerda' || id === 'relatorioMonitoramento') this.setDefaultDatesForReportForms();
                     if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                     if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 }
@@ -909,6 +915,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.broca.filtroFim.value = lastDayOfMonth;
                 App.elements.perda.filtroInicio.value = firstDayOfMonth;
                 App.elements.perda.filtroFim.value = lastDayOfMonth;
+                if (App.elements.relatorioMonitoramento.inicio) {
+                    App.elements.relatorioMonitoramento.inicio.value = firstDayOfMonth;
+                    App.elements.relatorioMonitoramento.fim.value = lastDayOfMonth;
+                }
             },
             setDefaultDatesForDashboard(type) {
                 const today = new Date();
@@ -1773,10 +1783,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
                 
-                // [NOVO] Listeners para os botões do mapa e infobox
+                // [NOVO] Listeners para os botões do mapa, infobox e novo relatório
                 App.elements.monitoramentoAereo.btnAddTrap.addEventListener('click', () => App.mapModule.promptInstallTrap());
                 App.elements.monitoramentoAereo.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 App.elements.monitoramentoAereo.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
+                App.elements.relatorioMonitoramento.btnPDF.addEventListener('click', () => App.reports.generateMonitoramentoPDF());
+                App.elements.relatorioMonitoramento.btnExcel.addEventListener('click', () => App.reports.generateMonitoramentoCSV());
 
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
@@ -3080,12 +3092,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         mapTypeId: 'satellite',
                         disableDefaultUI: true,
                         zoomControl: true,
-                        gestureHandling: 'cooperative' // Melhora a experiência em dispositivos móveis
+                        gestureHandling: 'cooperative' // Permite arrastar com 1 dedo e zoom com 2
                     });
 
                     this.watchUserPosition();
-                    this.loadShapesOnMap(); // Carrega os polígonos primeiro
-                    this.loadTraps(); // Depois carrega as armadilhas
+                    this.loadShapesOnMap();
+                    this.loadTraps();
 
                 } catch (e) {
                     console.error("Erro ao inicializar o Google Maps:", e);
@@ -3138,7 +3150,7 @@ document.addEventListener('DOMContentLoaded', () => {
             centerMapOnUser() {
                 if (App.state.googleUserMarker) {
                     const userPosition = App.state.googleUserMarker.getPosition();
-                    App.state.googleMap.setCenter(userPosition);
+                    App.state.googleMap.panTo(userPosition); // Animação suave
                     App.state.googleMap.setZoom(16);
                 } else {
                     App.ui.showAlert("Ainda não foi possível obter sua localização.", "info");
@@ -3177,23 +3189,20 @@ document.addEventListener('DOMContentLoaded', () => {
             loadShapesOnMap() {
                 if (!App.state.googleMap || !App.state.geoJsonData) return;
 
-                // Limpa polígonos antigos
                 App.state.mapPolygons.forEach(p => p.setMap(null));
                 App.state.mapPolygons = [];
 
                 const dataLayer = new google.maps.Data({ map: App.state.googleMap });
                 dataLayer.addGeoJson(App.state.geoJsonData);
-                App.state.mapPolygons.push(dataLayer); // Armazena a camada de dados para poder remover depois
+                App.state.mapPolygons.push(dataLayer);
 
-                // Estilo dos polígonos
                 dataLayer.setStyle({
                     fillColor: 'transparent',
-                    strokeColor: '#FFD700', // Dourado
+                    strokeColor: '#FFD700',
                     strokeWeight: 2,
                     strokeOpacity: 0.8
                 });
 
-                // Adiciona evento de clique
                 dataLayer.addListener('click', (event) => {
                     this.showTalhaoInfo(event.feature);
                 });
@@ -3961,6 +3970,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
+            },
+
+            // [NOVO] Funções para gerar relatórios de monitoramento
+            generateMonitoramentoPDF() {
+                const { inicio, fim } = App.elements.relatorioMonitoramento;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                App.ui.showAlert("Função de relatório PDF de monitoramento ainda não implementada no backend.", "info");
+                // A lógica de chamada ao backend viria aqui
+            },
+
+            generateMonitoramentoCSV() {
+                const { inicio, fim } = App.elements.relatorioMonitoramento;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                App.ui.showAlert("Função de relatório CSV de monitoramento ainda não implementada no backend.", "info");
+                // A lógica de chamada ao backend viria aqui
             }
         },
 
