@@ -3,6 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebas
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 
+// [CORREÇÃO] A inicialização do App agora ocorre dentro do DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
 
     // FIREBASE: Configuração e inicialização do Firebase
@@ -824,12 +825,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
-                // [ALTERADO] Lógica para lidar com o container do mapa
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    window.initMap = App.mapModule.initMap;
-                    if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+                    if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                        App.ui.showAlert("Aguardando a API do Google Maps carregar...", "info");
+                    } else {
                         App.mapModule.initMap();
                     }
                 } else {
@@ -837,34 +838,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
-                    tab.classList.remove('active');
-                    tab.hidden = true;
+                    if (tab.id !== 'monitoramentoAereo') { // Não mexe no container do mapa
+                        tab.classList.remove('active');
+                        tab.hidden = true;
+                    }
                 });
 
                 const tab = document.getElementById(id);
-                if (tab) {
+                if (tab && id !== 'monitoramentoAereo') {
                     tab.classList.add('active');
                     tab.hidden = false;
-                    
-                    if (id === 'dashboard') {
-                       this.showDashboardView('broca'); 
-                    } else {
-                        App.charts.destroyAll(); 
-                    }
-                    
-                    if (id === 'excluirDados') this.renderExclusao();
-                    if (id === 'gerenciarUsuarios') {
-                        this.renderUsersList();
-                        this.renderPermissionItems(App.elements.users.permissionsContainer);
-                    }
-                    if (id === 'cadastros') this.renderFarmSelect();
-                    if (id === 'cadastrarPessoas') this.renderPersonnelList();
-                    if (id === 'planejamento') this.renderPlanejamento();
-                    if (id === 'planejamentoColheita') this.showHarvestPlanList();
-                    if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento'].includes(id)) this.setDefaultDatesForReportForms();
-                    if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
-                    if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 }
+                
+                if (id === 'dashboard') {
+                   this.showDashboardView('broca'); 
+                } else {
+                    App.charts.destroyAll(); 
+                }
+                
+                if (id === 'excluirDados') this.renderExclusao();
+                if (id === 'gerenciarUsuarios') {
+                    this.renderUsersList();
+                    this.renderPermissionItems(App.elements.users.permissionsContainer);
+                }
+                if (id === 'cadastros') this.renderFarmSelect();
+                if (id === 'cadastrarPessoas') this.renderPersonnelList();
+                if (id === 'planejamento') this.renderPlanejamento();
+                if (id === 'planejamentoColheita') this.showHarvestPlanList();
+                if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento'].includes(id)) this.setDefaultDatesForReportForms();
+                if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
+                if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
+                
                 this.closeAllMenus();
             },
             showDashboardView(viewName) {
