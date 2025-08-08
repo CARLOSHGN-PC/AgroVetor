@@ -5,8 +5,7 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 // [NOVO] Importa os módulos do Firebase Storage
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
-
-// [CORREÇÃO] A inicialização do App agora ocorre dentro do DOMContentLoaded
+// A inicialização do App agora ocorre dentro do DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
 
     // FIREBASE: Configuração e inicialização do Firebase
@@ -638,6 +637,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             console.error("Erro ao fazer parse do GeoJSON do Firestore:", e);
                             App.state.geoJsonData = null;
                         }
+                    } else if (doc.exists() && doc.data().shapefileURL) {
+                        // Lógica para carregar do Storage
+                        App.mapModule.loadShapesFromStorage(doc.data().shapefileURL);
                     }
                 });
                 App.state.unsubscribeListeners.push(unsubscribeShapefile);
@@ -3174,28 +3176,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.setLoading(true, "Processando Shapefile...");
                 try {
-                    const reader = new FileReader();
-                    reader.onload = async (event) => {
-                        try {
-                            const buffer = event.target.result;
-                            const geojson = await shp(buffer);
-                            // [CORREÇÃO] Stringify antes de salvar no Firestore
-                            const geoJsonString = JSON.stringify(geojson);
-                            await App.data.setDocument('config', 'shapefile', { geoJsonString: geoJsonString });
-                            App.ui.showAlert("Contornos dos talhões importados com sucesso!", "success");
-                        } catch (err) {
-                            console.error("Erro ao processar o shapefile:", err);
-                            App.ui.showAlert("Erro ao processar o arquivo. Verifique se o .zip contém .shp, .shx e .dbf.", "error");
-                        } finally {
-                            App.ui.setLoading(false);
-                            e.target.value = ''; // Limpa o input
-                        }
-                    };
-                    reader.readAsArrayBuffer(file);
+                    const storageRef = ref(storage, `shapefiles/${file.name}`);
+                    await uploadBytes(storageRef, file);
+                    const downloadURL = await getDownloadURL(storageRef);
+                    
+                    await App.data.setDocument('config', 'shapefile', { shapefileURL: downloadURL });
+                    
+                    App.ui.showAlert("Contornos dos talhões importados com sucesso!", "success");
+                    this.loadShapesFromStorage(downloadURL);
+
                 } catch (err) {
+                    console.error("Erro ao processar o shapefile:", err);
+                    App.ui.showAlert("Erro ao processar o arquivo. Verifique se o .zip contém .shp, .shx e .dbf.", "error");
+                } finally {
                     App.ui.setLoading(false);
-                    console.error("Erro na leitura do arquivo:", err);
-                    App.ui.showAlert("Não foi possível ler o arquivo.", "error");
+                    e.target.value = ''; // Limpa o input
+                }
+            },
+
+            async loadShapesFromStorage(url) {
+                if (!url) return;
+                App.ui.setLoading(true, "A carregar contornos do mapa...");
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
+                    const buffer = await response.arrayBuffer();
+                    const geojson = await shp(buffer);
+                    App.state.geoJsonData = geojson;
+                    this.loadShapesOnMap();
+                } catch(err) {
+                    console.error("Erro ao carregar shapefile do Storage:", err);
+                } finally {
+                    App.ui.setLoading(false);
                 }
             },
 
@@ -3998,7 +4010,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generateMonitoramentoCSV() {
                 const { inicio, fim } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Função de relatório CSV de monitoramento ainda não implementada no backend.", "info");
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                App.ui.showAlert("Função de relatório CSV de monitoramento ainda não implementada no backend.", "info");
                 // A lógica de chamada ao backend viria aqui
             }
         },
@@ -4025,7 +4038,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-    }
+    };
 
     // Disponibiliza a função de inicialização do mapa globalmente para o callback da API do Google
     window.initMap = App.mapModule.initMap.bind(App.mapModule);
