@@ -3114,12 +3114,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         mapTypeId: 'satellite',
                         disableDefaultUI: true,
                         zoomControl: true,
-                        // [PONTO 1 & 2] Habilita zoom com scroll e arrastar com 1 dedo
                         gestureHandling: 'greedy'
                     });
-
-                    // [PONTO 3 CORRIGIDO] Remove o listener de 'dragend'
-                    // A centralização agora só ocorre ao clicar no botão.
 
                     this.watchUserPosition();
                     this.loadShapesOnMap();
@@ -3173,18 +3169,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            // [PONTO 3 CORRIGIDO] Animação suave ao clicar no botão
             centerMapOnUser() {
                 if (App.state.googleUserMarker) {
                     const userPosition = App.state.googleUserMarker.getPosition();
-                    App.state.googleMap.panTo(userPosition); // Animação suave
+                    App.state.googleMap.panTo(userPosition);
                     App.state.googleMap.setZoom(16);
                 } else {
                     App.ui.showAlert("Ainda não foi possível obter sua localização.", "info");
                 }
             },
 
-            // [PONTO 2 CORRIGIDO] Função para lidar com o upload do shapefile via backend
             async handleShapefileUpload(e) {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -3195,12 +3189,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                App.ui.setLoading(true, "Processando arquivo...");
+                App.ui.setLoading(true, "A processar arquivo...");
 
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
                 reader.onload = async () => {
-                    // Extrai a parte Base64 do resultado do reader
                     const base64String = reader.result.split(',')[1];
 
                     try {
@@ -3220,13 +3213,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado.", "success");
-                        // O listener do Firestore irá atualizar o mapa automaticamente
                     } catch (err) {
                         console.error("Erro ao enviar o shapefile:", err);
                         App.ui.showAlert(`Erro ao enviar o arquivo: ${err.message}`, "error");
                     } finally {
                         App.ui.setLoading(false);
-                        e.target.value = ''; // Limpa o input
+                        e.target.value = '';
                     }
                 };
                 reader.onerror = () => {
@@ -3240,7 +3232,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!url) return;
                 App.ui.setLoading(true, "A carregar contornos do mapa...");
                 try {
-                    // Adiciona um parâmetro para evitar o cache do navegador
                     const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
                     const response = await fetch(urlWithCacheBuster);
                     if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
@@ -3290,11 +3281,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 dataLayer.addGeoJson(App.state.geoJsonData);
                 App.state.mapPolygons.push(dataLayer);
 
-                // [PONTO 4 CORRIGIDO] Estilo dos polígonos com fundo um pouco mais escuro
                 const themeColors = App.ui._getThemeColors();
                 dataLayer.setStyle({
                     fillColor: themeColors.primary,
-                    fillOpacity: 0.35, // Aumentado de 0.2 para 0.35
+                    fillOpacity: 0.35, // Opacidade aumentada para 0.35
                     strokeColor: '#FFD700',
                     strokeWeight: 2,
                     strokeOpacity: 0.8
@@ -3305,11 +3295,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            // [PONTO 1 CORRIGIDO] Mostra informações do talhão no novo layout
             showTalhaoInfo(feature) {
                 const props = {};
                 feature.forEachProperty((value, property) => {
-                    // Converte os nomes das propriedades para maiúsculas para evitar problemas de case
                     props[property.toUpperCase()] = value;
                 });
                 
