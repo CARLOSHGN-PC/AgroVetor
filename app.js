@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
+                        // [NOVO] Relatório de Monitoramento
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
                 },
@@ -85,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
+                // [NOVO] Adicionada permissão 'monitoramentoAereo' e 'relatorioMonitoramento'
                 admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
@@ -112,12 +114,13 @@ document.addEventListener('DOMContentLoaded', () => {
             deferredInstallPrompt: null,
             newUserCreationData: null,
             expandedChart: null,
+            // [ALTERADO] Estado para o módulo do Google Maps
             googleMap: null,
             googleUserMarker: null,
             googleTrapMarkers: {},
             armadilhas: [],
-            geoJsonData: null,
-            mapPolygons: [],
+            geoJsonData: null, // Armazena os polígonos do shapefile
+            mapPolygons: [], // Armazena as instâncias dos polígonos no mapa
         },
         
         elements: {
@@ -622,16 +625,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const shapefileDocRef = doc(db, 'config', 'shapefile');
                 const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
-                    if (doc.exists() && doc.data().geoJsonString) {
-                        try {
-                            // [CORREÇÃO] Parse do JSON string ao carregar
-                            App.state.geoJsonData = JSON.parse(doc.data().geoJsonString);
-                            if (App.state.googleMap) {
-                                App.mapModule.loadShapesOnMap();
-                            }
-                        } catch (e) {
-                            console.error("Erro ao fazer parse do GeoJSON do Firestore:", e);
-                            App.state.geoJsonData = null;
+                    if (doc.exists()) {
+                        App.state.geoJsonData = doc.data().geoJson;
+                        if (App.state.googleMap) {
+                            App.mapModule.loadShapesOnMap();
                         }
                     }
                 });
@@ -831,13 +828,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
+                // [ALTERADO] Lógica para lidar com o container do mapa
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    // A inicialização agora é feita por um callback da API do Google
-                    window.initMap = App.mapModule.initMap.bind(App.mapModule);
-                    if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
-                       App.mapModule.initMap();
+                    if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                        App.ui.showAlert("Aguardando a API do Google Maps carregar...", "info");
+                    } else {
+                        App.mapModule.initMap();
                     }
                 } else {
                     mapContainer.classList.remove('active');
@@ -1271,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const dataPlano = new Date(plano.dataPrevista + 'T03:00:00Z');
                     if (plano.status === 'Pendente' && dataPlano < hoje) { status = 'Atrasado'; }
                     const fazenda = App.state.fazendas.find(f => f.code === plano.fazendaCodigo);
-                    const fazendaNome = fazenda ? `${fazenda.code} - ${farm.name}` : 'Desconhecida';
+                    const fazendaNome = fazenda ? `${fazenda.code} - ${fazenda.name}` : 'Desconhecida';
                     const card = document.createElement('div'); card.className = 'plano-card';
                     card.innerHTML = `<div class="plano-header"><span class="plano-title"><i class="fas fa-${plano.tipo === 'broca' ? 'bug' : 'dollar-sign'}"></i> ${fazendaNome} - Talhão: ${plano.talhao}</span><span class="plano-status ${status.toLowerCase()}">${status}</span></div><div class="plano-details"><div><i class="fas fa-calendar-day"></i> Data Prevista: ${dataPlano.toLocaleDateString('pt-BR')}</div><div><i class="fas fa-user-check"></i> Responsável: ${plano.usuarioResponsavel}</div>${plano.meta ? `<div><i class="fas fa-bullseye"></i> Meta: ${plano.meta}</div>` : ''}</div>${plano.observacoes ? `<div style="margin-top:8px;font-size:14px;"><i class="fas fa-info-circle"></i> Obs: ${plano.observacoes}</div>` : ''}<div class="plano-actions">${status !== 'Concluído' ? `<button class="btn-excluir" style="background-color: var(--color-success)" data-action="concluir" data-id="${plano.id}"><i class="fas fa-check"></i> Marcar Concluído</button>` : ''}<button class="btn-excluir" data-action="excluir" data-id="${plano.id}"><i class="fas fa-trash"></i> Excluir</button></div>`;
                     lista.appendChild(card);
@@ -3174,9 +3172,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             const buffer = event.target.result;
                             const geojson = await shp(buffer);
-                            // [CORREÇÃO] Stringify antes de salvar no Firestore
-                            const geoJsonString = JSON.stringify(geojson);
-                            await App.data.setDocument('config', 'shapefile', { geoJsonString: geoJsonString });
+                            await App.data.setDocument('config', 'shapefile', { geoJson: geojson });
                             App.ui.showAlert("Contornos dos talhões importados com sucesso!", "success");
                         } catch (err) {
                             console.error("Erro ao processar o shapefile:", err);
