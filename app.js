@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebas
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
-// [NOVO] Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
+// Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Chart.register(ChartDataLabels);
     Chart.defaults.font.family = "'Poppins', sans-serif";
 
-    // [NOVO] Módulo para gerenciar o banco de dados local (IndexedDB)
+    // Módulo para gerenciar o banco de dados local (IndexedDB)
     const OfflineDB = {
         dbPromise: null,
         async init() {
@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
             themeKey: 'canaAppTheme',
             inactivityTimeout: 15 * 60 * 1000,
             inactivityWarningTime: 1 * 60 * 1000,
+            backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
@@ -411,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
-            // [NOVO] Inicializa o banco de dados offline primeiro
+            // Inicializa o banco de dados offline primeiro
             OfflineDB.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
@@ -472,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (userProfile) {
                     App.state.currentUser = userProfile;
                     App.ui.showAppScreen();
-                    // [NOVO] Carrega os dados do mapa do cache ao entrar offline
+                    // Carrega os dados do mapa do cache ao entrar offline
                     App.mapModule.loadOfflineShapes();
                     App.data.listenToAllData();
                 }
@@ -990,7 +991,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cadastros.farmSelect,
                     App.elements.broca.codigo,
                     App.elements.perda.codigo,
-                    App.elements.relatorioMonitoramento.fazendaFiltro // [NOVO] Adicionado select do relatório de monitoramento
+                    App.elements.relatorioMonitoramento.fazendaFiltro
                 ];
                 selects.forEach(select => {
                     if (!select) return;
@@ -1696,7 +1697,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 companyConfigEls.closedUploadArea.addEventListener('click', () => companyConfigEls.closedInput.click());
                 companyConfigEls.closedInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'closed'));
                 companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
-                // [NOVO] Listeners para upload de Shapefile
+                // Listeners para upload de Shapefile
                 companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
                 companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
 
@@ -1804,7 +1805,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
                 
-                // [NOVO] Listeners para os botões do mapa, infobox e novo relatório
+                // Listeners para os botões do mapa, infobox e novo relatório
                 App.elements.monitoramentoAereo.btnAddTrap.addEventListener('click', () => App.mapModule.promptInstallTrap());
                 App.elements.monitoramentoAereo.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 App.elements.monitoramentoAereo.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
@@ -3096,7 +3097,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        // [NOVO] Módulo completo para gerenciar o mapa com Google Maps
+        // Módulo completo para gerenciar o mapa com Google Maps
         mapModule: {
             initMap() {
                 if (App.state.googleMap) return;
@@ -3114,26 +3115,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         disableDefaultUI: true,
                         zoomControl: true,
                         // [PONTO 1 & 2] Habilita zoom com scroll e arrastar com 1 dedo
-                        gestureHandling: 'greedy' 
+                        gestureHandling: 'greedy'
                     });
 
-                    // [PONTO 7] Animação de retorno ao arrastar o mapa
-                    App.state.googleMap.addListener('dragend', () => {
-                        setTimeout(() => {
-                            if (App.state.googleUserMarker) {
-                                const userPosition = App.state.googleUserMarker.getPosition();
-                                const mapBounds = App.state.googleMap.getBounds();
-                                if (userPosition && mapBounds && !mapBounds.contains(userPosition)) {
-                                    App.state.googleMap.panTo(userPosition);
-                                }
-                            }
-                        }, 500); // Pequeno delay para não ser muito abrupto
-                    });
-
+                    // [PONTO 3 CORRIGIDO] Remove o listener de 'dragend'
+                    // A centralização agora só ocorre ao clicar no botão.
 
                     this.watchUserPosition();
-                    this.loadShapesOnMap(); // Carrega os polígonos primeiro
-                    this.loadTraps(); // Depois carrega as armadilhas
+                    this.loadShapesOnMap();
+                    this.loadTraps();
 
                 } catch (e) {
                     console.error("Erro ao inicializar o Google Maps:", e);
@@ -3183,6 +3173,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            // [PONTO 3 CORRIGIDO] Animação suave ao clicar no botão
             centerMapOnUser() {
                 if (App.state.googleUserMarker) {
                     const userPosition = App.state.googleUserMarker.getPosition();
@@ -3193,7 +3184,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            // [PONTO 3] Função para lidar com o upload do shapefile
+            // [PONTO 2 CORRIGIDO] Função para lidar com o upload do shapefile via backend
             async handleShapefileUpload(e) {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -3204,36 +3195,57 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                App.ui.setLoading(true, "Enviando Shapefile...");
-                try {
-                    const storageRef = ref(storage, `shapefiles/talhoes.zip`);
-                    await uploadBytes(storageRef, file);
-                    const downloadURL = await getDownloadURL(storageRef);
-                    
-                    await App.data.setDocument('config', 'shapefile', { shapefileURL: downloadURL, lastUpdated: new Date() });
-                    
-                    App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado.", "success");
-                    // A atualização será automática pelo listener do onSnapshot
+                App.ui.setLoading(true, "Processando arquivo...");
 
-                } catch (err) {
-                    console.error("Erro ao processar o shapefile:", err);
-                    App.ui.showAlert("Erro ao enviar o arquivo. Verifique sua conexão e o console.", "error");
-                } finally {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = async () => {
+                    // Extrai a parte Base64 do resultado do reader
+                    const base64String = reader.result.split(',')[1];
+
+                    try {
+                        App.ui.setLoading(true, "Enviando para o servidor...");
+                        const response = await fetch(`${App.config.backendUrl}/upload-shapefile`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ fileBase64: base64String }),
+                        });
+
+                        const result = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(result.message || 'Erro no servidor');
+                        }
+
+                        App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado.", "success");
+                        // O listener do Firestore irá atualizar o mapa automaticamente
+                    } catch (err) {
+                        console.error("Erro ao enviar o shapefile:", err);
+                        App.ui.showAlert(`Erro ao enviar o arquivo: ${err.message}`, "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                        e.target.value = ''; // Limpa o input
+                    }
+                };
+                reader.onerror = () => {
                     App.ui.setLoading(false);
-                    e.target.value = ''; // Limpa o input
-                }
+                    App.ui.showAlert("Erro ao ler o arquivo localmente.", "error");
+                    e.target.value = '';
+                };
             },
 
-            // [PONTO 6] Carrega e armazena o shapefile em cache
             async loadAndCacheShapes(url) {
                 if (!url) return;
                 App.ui.setLoading(true, "A carregar contornos do mapa...");
                 try {
-                    const response = await fetch(url);
+                    // Adiciona um parâmetro para evitar o cache do navegador
+                    const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
+                    const response = await fetch(urlWithCacheBuster);
                     if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
                     const buffer = await response.arrayBuffer();
                     
-                    // Salva no cache offline
                     await OfflineDB.set('shapefile-zip', buffer);
                     
                     App.ui.setLoading(true, "A desenhar os talhões no mapa...");
@@ -3246,13 +3258,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
                     App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
-                    this.loadOfflineShapes(); // Tenta carregar do cache se falhar
+                    this.loadOfflineShapes();
                 } finally {
                     App.ui.setLoading(false);
                 }
             },
 
-            // [PONTO 6] Carrega shapefile do cache offline
             async loadOfflineShapes() {
                 const buffer = await OfflineDB.get('shapefile-zip');
                 if (buffer) {
@@ -3272,35 +3283,34 @@ document.addEventListener('DOMContentLoaded', () => {
             loadShapesOnMap() {
                 if (!App.state.googleMap || !App.state.geoJsonData) return;
 
-                // Limpa polígonos antigos
                 App.state.mapPolygons.forEach(p => p.setMap(null));
                 App.state.mapPolygons = [];
 
                 const dataLayer = new google.maps.Data({ map: App.state.googleMap });
                 dataLayer.addGeoJson(App.state.geoJsonData);
-                App.state.mapPolygons.push(dataLayer); // Armazena a camada de dados para poder remover depois
+                App.state.mapPolygons.push(dataLayer);
 
-                // [PONTO 5] Estilo dos polígonos com fundo claro
+                // [PONTO 4 CORRIGIDO] Estilo dos polígonos com fundo um pouco mais escuro
                 const themeColors = App.ui._getThemeColors();
                 dataLayer.setStyle({
                     fillColor: themeColors.primary,
-                    fillOpacity: 0.2, // Opacidade para o preenchimento
-                    strokeColor: '#FFD700', // Dourado
+                    fillOpacity: 0.35, // Aumentado de 0.2 para 0.35
+                    strokeColor: '#FFD700',
                     strokeWeight: 2,
                     strokeOpacity: 0.8
                 });
 
-                // Adiciona evento de clique
                 dataLayer.addListener('click', (event) => {
                     this.showTalhaoInfo(event.feature);
                 });
             },
 
-            // [PONTO 4] Mostra informações do talhão no novo layout
+            // [PONTO 1 CORRIGIDO] Mostra informações do talhão no novo layout
             showTalhaoInfo(feature) {
                 const props = {};
                 feature.forEachProperty((value, property) => {
-                    props[property] = value;
+                    // Converte os nomes das propriedades para maiúsculas para evitar problemas de case
+                    props[property.toUpperCase()] = value;
                 });
                 
                 const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
@@ -3323,7 +3333,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="info-item">
                         <span class="label">Área Total</span>
-                        <span class="value">${(props.AREA_HA || 0).toFixed(2)} ha</span>
+                        <span class="value">${(props.AREA_HA || 0).toFixed(2).replace('.',',')} ha</span>
                     </div>
                 `;
                 
@@ -3953,7 +3963,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
 
                 const params = new URLSearchParams(cleanFilters);
-                const apiUrl = `https://agrovetor-backend.onrender.com/reports/${endpoint}?${params.toString()}`;
+                const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
                 
                 App.ui.setLoading(true, "A gerar relatório no servidor...");
         
@@ -4078,7 +4088,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
             },
 
-            // [PONTO 8] Funções para gerar relatórios de monitoramento com filtros
+            // Funções para gerar relatórios de monitoramento com filtros
             generateMonitoramentoPDF() {
                 const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
