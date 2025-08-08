@@ -626,18 +626,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const shapefileDocRef = doc(db, 'config', 'shapefile');
                 const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
-                    if (doc.exists() && doc.data().geoJsonString) {
-                        try {
-                            // [CORREÇÃO] Parse do JSON string ao carregar
-                            App.state.geoJsonData = JSON.parse(doc.data().geoJsonString);
-                            if (App.state.googleMap) {
-                                App.mapModule.loadShapesOnMap();
-                            }
-                        } catch (e) {
-                            console.error("Erro ao fazer parse do GeoJSON do Firestore:", e);
-                            App.state.geoJsonData = null;
-                        }
-                    } else if (doc.exists() && doc.data().shapefileURL) {
+                    if (doc.exists() && doc.data().shapefileURL) {
                         // Lógica para carregar do Storage
                         App.mapModule.loadShapesFromStorage(doc.data().shapefileURL);
                     }
@@ -3176,18 +3165,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.setLoading(true, "Processando Shapefile...");
                 try {
-                    const storageRef = ref(storage, `shapefiles/${file.name}`);
+                    const storageRef = ref(storage, `shapefiles/talhoes.zip`);
                     await uploadBytes(storageRef, file);
                     const downloadURL = await getDownloadURL(storageRef);
                     
-                    await App.data.setDocument('config', 'shapefile', { shapefileURL: downloadURL });
+                    await App.data.setDocument('config', 'shapefile', { shapefileURL: downloadURL, lastUpdated: new Date() });
                     
-                    App.ui.showAlert("Contornos dos talhões importados com sucesso!", "success");
+                    App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado em breve.", "success");
                     this.loadShapesFromStorage(downloadURL);
 
                 } catch (err) {
                     console.error("Erro ao processar o shapefile:", err);
-                    App.ui.showAlert("Erro ao processar o arquivo. Verifique se o .zip contém .shp, .shx e .dbf.", "error");
+                    App.ui.showAlert("Erro ao enviar o arquivo. Verifique sua conexão.", "error");
                 } finally {
                     App.ui.setLoading(false);
                     e.target.value = ''; // Limpa o input
@@ -3199,13 +3188,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A carregar contornos do mapa...");
                 try {
                     const response = await fetch(url);
-                    if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
+                    if (!response.ok) {
+                        throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
+                    }
                     const buffer = await response.arrayBuffer();
+                    
+                    App.ui.setLoading(true, "A desenhar os talhões no mapa...");
                     const geojson = await shp(buffer);
+                    
                     App.state.geoJsonData = geojson;
-                    this.loadShapesOnMap();
+                    if (App.state.googleMap) {
+                        this.loadShapesOnMap();
+                    }
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
+                    App.ui.showAlert("Falha ao carregar os desenhos do mapa. O arquivo pode estar corrompido.", "error");
                 } finally {
                     App.ui.setLoading(false);
                 }
