@@ -16,9 +16,12 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); 
 
 try {
-  // [CORREÇÃO DEFINITIVA] Carregando a chave de serviço diretamente de um arquivo.
-  // Isto garante que as permissões corretas sejam sempre usadas.
-  const serviceAccount = require('./serviceAccountKey.json'); 
+  // [CORREÇÃO FINAL] Lendo a chave de serviço diretamente da variável de ambiente da Render.
+  // Isso é mais seguro e confiável do que usar um arquivo.
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      throw new Error('A variável de ambiente FIREBASE_SERVICE_ACCOUNT_JSON não está definida.');
+  }
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   
   admin.initializeApp({ 
     credential: admin.credential.cert(serviceAccount),
