@@ -14,7 +14,7 @@ const port = process.env.PORT || 3001;
 
 app.use(cors());
 // Aumentado o limite para acomodar arquivos shapefile em base64
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb' })); 
 
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -23,8 +23,8 @@ try {
     storageBucket: "agrovetor-v2.appspot.com" 
   });
   const db = admin.firestore();
-  // Inicializa o bucket do Storage
-  const bucket = admin.storage().bucket();
+  // [CORREÇÃO] Especifica explicitamente o nome do bucket para evitar erros.
+  const bucket = admin.storage().bucket("agrovetor-v2.appspot.com");
   console.log('Firebase Admin SDK inicializado com sucesso.');
 
   app.get('/', (req, res) => {
@@ -46,7 +46,7 @@ try {
     }
   });
   
-  // [NOVA ROTA] PARA UPLOAD DO SHAPEFILE VIA BACKEND PARA CORRIGIR CORS
+  // ROTA PARA UPLOAD DO SHAPEFILE VIA BACKEND PARA CORRIGIR CORS
   app.post('/upload-shapefile', async (req, res) => {
       const { fileBase64 } = req.body;
       if (!fileBase64) {
@@ -87,7 +87,7 @@ try {
   });
 
 
-  // --- FUNÇÕES AUXILIARES ---
+  // --- FUNÇÕES AUXILIARES E ROTAS DE RELATÓRIO (Sem alterações) ---
 
   const formatNumber = (num) => {
     if (typeof num !== 'number' || isNaN(num)) {
@@ -756,7 +756,7 @@ try {
     }
   });
 
-  // [NOVO] Rota para relatório mensal de colheita (CSV)
+  // Rota para relatório mensal de colheita (CSV)
   app.get('/reports/colheita/mensal/csv', async (req, res) => {
     try {
         const { planId } = req.query;
@@ -813,7 +813,7 @@ try {
     }
   });
 
-  // [NOVO] Rotas para relatórios de monitoramento
+  // Rotas para relatórios de monitoramento
   app.get('/reports/monitoramento/pdf', async (req, res) => {
       // A lógica para gerar o PDF de monitoramento viria aqui
       res.status(501).send('Endpoint de PDF para monitoramento não implementado.');
