@@ -985,6 +985,17 @@ try {
     }
   });
 
+  // [NOVO] Rotas para relatórios de monitoramento
+  app.get('/reports/monitoramento/pdf', async (req, res) => {
+      // A lógica para gerar o PDF de monitoramento viria aqui
+      res.status(501).send('Endpoint de PDF para monitoramento não implementado.');
+  });
+
+  app.get('/reports/monitoramento/csv', async (req, res) => {
+      // A lógica para gerar o CSV de monitoramento viria aqui
+      res.status(501).send('Endpoint de CSV para monitoramento não implementado.');
+  });
+
 
 } catch (error) {
   console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
