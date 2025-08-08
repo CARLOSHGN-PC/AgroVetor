@@ -401,6 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 infoBoxCloseBtn: document.getElementById('close-info-box'),
             },
             relatorioMonitoramento: {
+                fazendaFiltro: document.getElementById('monitoramentoFazendaFiltro'),
                 inicio: document.getElementById('monitoramentoInicio'),
                 fim: document.getElementById('monitoramentoFim'),
                 btnPDF: document.getElementById('btnPDFMonitoramento'),
@@ -679,6 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const styles = getComputedStyle(document.documentElement);
                 return {
                     primary: styles.getPropertyValue('--color-primary').trim(),
+                    primaryLight: styles.getPropertyValue('--color-primary-light').trim(),
                     text: styles.getPropertyValue('--color-text').trim(),
                     border: styles.getPropertyValue('--color-border').trim(),
                 };
@@ -987,7 +989,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.harvest.fazenda,
                     App.elements.cadastros.farmSelect,
                     App.elements.broca.codigo,
-                    App.elements.perda.codigo
+                    App.elements.perda.codigo,
+                    App.elements.relatorioMonitoramento.fazendaFiltro // [NOVO] Adicionado select do relatório de monitoramento
                 ];
                 selects.forEach(select => {
                     if (!select) return;
@@ -2668,104 +2671,104 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (!file) return;
                  const reader = new FileReader();
                  reader.onload = async (event) => {
-                      const CHUNK_SIZE = 400; 
-                      const PAUSE_DURATION = 50;
-                      
-                      try {
-                          const csv = event.target.result;
-                          const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                          const totalLines = lines.length - 1;
+                     const CHUNK_SIZE = 400; 
+                     const PAUSE_DURATION = 50;
+                     
+                     try {
+                         const csv = event.target.result;
+                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                         const totalLines = lines.length - 1;
 
-                          if (totalLines <= 0) {
-                              App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
-                          }
-                          
-                          App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
-                          await new Promise(resolve => setTimeout(resolve, 100));
+                         if (totalLines <= 0) {
+                             App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
+                         }
+                         
+                         App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
+                         await new Promise(resolve => setTimeout(resolve, 100));
 
-                          const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-                          const headerIndexes = {
-                              farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
-                              farm_type: fileHeaders.indexOf('TIPO'),
-                              talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
-                              talhao_tch: fileHeaders.indexOf('TCH'),
-                              talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
-                              talhao_corte: fileHeaders.indexOf('CORTE'),
-                              talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
-                              talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
-                          };
+                         const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+                         const headerIndexes = {
+                             farm_code: fileHeaders.indexOf('COD'), farm_name: fileHeaders.indexOf('FAZENDA'),
+                             farm_type: fileHeaders.indexOf('TIPO'),
+                             talhao_name: fileHeaders.indexOf('TALHAO'), talhao_area: fileHeaders.indexOf('AREA'),
+                             talhao_tch: fileHeaders.indexOf('TCH'),
+                             talhao_variedade: fileHeaders.indexOf('VARIEDADE'),
+                             talhao_corte: fileHeaders.indexOf('CORTE'),
+                             talhao_distancia: fileHeaders.indexOf('DISTANCIA'),
+                             talhao_ultima_colheita: fileHeaders.indexOf('DATAULTIMACOLHEITA'),
+                         };
 
-                          if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
-                              App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
-                              App.ui.setLoading(false);
-                              return;
-                          }
-                          
-                          const fazendasToUpdate = {};
-                          for (let i = 1; i < lines.length; i++) {
-                              const data = lines[i].split(';');
-                              if (data.length < 2) continue;
-                              const farmCode = data[headerIndexes.farm_code]?.trim();
-                              if (!farmCode) continue;
+                         if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
+                             App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
+                             App.ui.setLoading(false);
+                             return;
+                         }
+                         
+                         const fazendasToUpdate = {};
+                         for (let i = 1; i < lines.length; i++) {
+                             const data = lines[i].split(';');
+                             if (data.length < 2) continue;
+                             const farmCode = data[headerIndexes.farm_code]?.trim();
+                             if (!farmCode) continue;
 
-                              if (!fazendasToUpdate[farmCode]) {
-                                  let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
-                                  fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
-                                      code: farmCode,
-                                      name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
-                                      types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
-                                      talhoes: []
-                                  };
-                              }
+                             if (!fazendasToUpdate[farmCode]) {
+                                 let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
+                                 fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
+                                     code: farmCode,
+                                     name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
+                                     types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
+                                     talhoes: []
+                                 };
+                             }
 
-                              const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
-                              if(!talhaoName) continue;
+                             const talhaoName = data[headerIndexes.talhao_name]?.trim().toUpperCase();
+                             if(!talhaoName) continue;
 
-                              let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
-                              const area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0;
-                              const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
-                              const producao = area * tch;
+                             let talhao = fazendasToUpdate[farmCode].talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                             const area = parseFloat(data[headerIndexes.talhao_area]?.trim().replace(',', '.')) || 0;
+                             const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
+                             const producao = area * tch;
 
-                              if (talhao) { 
-                                  talhao.area = area;
-                                  talhao.tch = tch;
-                                  talhao.producao = producao;
-                                  talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
-                                  talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
-                                  talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
-                                  talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
-                              } else { 
-                                  fazendasToUpdate[farmCode].talhoes.push({
-                                      id: Date.now() + i, name: talhaoName,
-                                      area: area,
-                                      tch: tch,
-                                      producao: producao,
-                                      variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
-                                      corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
-                                      distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
-                                      dataUltimaColheita: this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || '',
-                                  });
-                              }
-                          }
-                          
-                          const farmCodes = Object.keys(fazendasToUpdate);
-                          for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
-                              const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
-                              const batch = writeBatch(db);
-                              
-                              chunk.forEach(code => {
-                                  const farmData = fazendasToUpdate[code];
-                                  const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
-                                  batch.set(docRef, farmData, { merge: true });
-                              });
+                             if (talhao) { 
+                                 talhao.area = area;
+                                 talhao.tch = tch;
+                                 talhao.producao = producao;
+                                 talhao.variedade = data[headerIndexes.talhao_variedade]?.trim() || talhao.variedade;
+                                 talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
+                                 talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
+                                 talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
+                             } else { 
+                                 fazendasToUpdate[farmCode].talhoes.push({
+                                     id: Date.now() + i, name: talhaoName,
+                                     area: area,
+                                     tch: tch,
+                                     producao: producao,
+                                     variedade: data[headerIndexes.talhao_variedade]?.trim() || '',
+                                     corte: parseInt(data[headerIndexes.talhao_corte]?.trim()) || 1,
+                                     distancia: parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || 0,
+                                     dataUltimaColheita: this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || '',
+                                 });
+                             }
+                         }
+                         
+                         const farmCodes = Object.keys(fazendasToUpdate);
+                         for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
+                             const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
+                             const batch = writeBatch(db);
+                             
+                             chunk.forEach(code => {
+                                 const farmData = fazendasToUpdate[code];
+                                 const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
+                                 batch.set(docRef, farmData, { merge: true });
+                             });
 
-                              await batch.commit();
-                              const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
-                              App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
-                              await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                          }
+                             await batch.commit();
+                             const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
+                             App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
+                             await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+                         }
 
-                          App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
+                         App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
 
                        } catch (e) {
                            App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
@@ -2794,60 +2797,60 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (!file) return;
                  const reader = new FileReader();
                  reader.onload = async (event) => {
-                      const CHUNK_SIZE = 400;
-                      const PAUSE_DURATION = 50;
-                      try {
-                          const csv = event.target.result;
-                          const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                          const totalLines = lines.length - 1;
-                          if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
-                          
-                          App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
-                          await new Promise(resolve => setTimeout(resolve, 100));
+                     const CHUNK_SIZE = 400;
+                     const PAUSE_DURATION = 50;
+                     try {
+                         const csv = event.target.result;
+                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                         const totalLines = lines.length - 1;
+                         if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
+                         
+                         App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
+                         await new Promise(resolve => setTimeout(resolve, 100));
 
-                          const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
-                          const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
+                         const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase());
+                         const headerIndexes = { matricula: fileHeaders.indexOf('MATRICULA'), name: fileHeaders.indexOf('NOME') };
 
-                          if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
-                              App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
-                              App.ui.setLoading(false);
-                              return;
-                          }
+                         if (headerIndexes.matricula === -1 || headerIndexes.name === -1) {
+                             App.ui.showAlert('Cabeçalhos "Matricula" e "Nome" não encontrados.', "error");
+                             App.ui.setLoading(false);
+                             return;
+                         }
 
-                          const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
-                          
-                          for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
-                              const chunk = lines.slice(i, i + CHUNK_SIZE);
-                              const batch = writeBatch(db);
-                              let updatedCountInChunk = 0;
-                              let newCountInChunk = 0;
+                         const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
+                         
+                         for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
+                             const chunk = lines.slice(i, i + CHUNK_SIZE);
+                             const batch = writeBatch(db);
+                             let updatedCountInChunk = 0;
+                             let newCountInChunk = 0;
 
-                              chunk.forEach(line => {
-                                  const data = line.split(';');
-                                  if (data.length < 2) return;
-                                  const matricula = data[headerIndexes.matricula]?.trim();
-                                  const name = data[headerIndexes.name]?.trim();
-                                  if (!matricula || !name) return;
+                             chunk.forEach(line => {
+                                 const data = line.split(';');
+                                 if (data.length < 2) return;
+                                 const matricula = data[headerIndexes.matricula]?.trim();
+                                 const name = data[headerIndexes.name]?.trim();
+                                 if (!matricula || !name) return;
 
-                                  let person = localPersonnel.find(p => p.matricula === matricula);
-                                  if (person) {
-                                      const personRef = doc(db, 'personnel', person.id);
-                                      batch.update(personRef, { name: name });
-                                      updatedCountInChunk++;
-                                  } else {
-                                      const newPersonRef = doc(collection(db, 'personnel'));
-                                      batch.set(newPersonRef, { matricula, name });
-                                      newCountInChunk++;
-                                  }
-                              });
+                                 let person = localPersonnel.find(p => p.matricula === matricula);
+                                 if (person) {
+                                     const personRef = doc(db, 'personnel', person.id);
+                                     batch.update(personRef, { name: name });
+                                     updatedCountInChunk++;
+                                 } else {
+                                     const newPersonRef = doc(collection(db, 'personnel'));
+                                     batch.set(newPersonRef, { matricula, name });
+                                     newCountInChunk++;
+                                 }
+                             });
 
-                              await batch.commit();
-                              const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
-                              App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
-                              await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
-                          }
-                          
-                          App.ui.showAlert(`Importação concluída!`, 'success');
+                             await batch.commit();
+                             const progress = Math.min(i + CHUNK_SIZE - 1, totalLines);
+                             App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
+                             await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
+                         }
+                         
+                         App.ui.showAlert(`Importação concluída!`, 'success');
                        } catch (e) {
                            App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
                            console.error(e);
@@ -3110,8 +3113,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         mapTypeId: 'satellite',
                         disableDefaultUI: true,
                         zoomControl: true,
-                        gestureHandling: 'cooperative' // Permite arrastar com 1 dedo e zoom com 2
+                        // [PONTO 1 & 2] Habilita zoom com scroll e arrastar com 1 dedo
+                        gestureHandling: 'greedy' 
                     });
+
+                    // [PONTO 7] Animação de retorno ao arrastar o mapa
+                    App.state.googleMap.addListener('dragend', () => {
+                        setTimeout(() => {
+                            if (App.state.googleUserMarker) {
+                                const userPosition = App.state.googleUserMarker.getPosition();
+                                const mapBounds = App.state.googleMap.getBounds();
+                                if (userPosition && mapBounds && !mapBounds.contains(userPosition)) {
+                                    App.state.googleMap.panTo(userPosition);
+                                }
+                            }
+                        }, 500); // Pequeno delay para não ser muito abrupto
+                    });
+
 
                     this.watchUserPosition();
                     this.loadShapesOnMap(); // Carrega os polígonos primeiro
@@ -3175,11 +3193,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            // [PONTO 3] Função para lidar com o upload do shapefile
             async handleShapefileUpload(e) {
                 const file = e.target.files[0];
                 if (!file) return;
 
-                App.ui.setLoading(true, "Processando Shapefile...");
+                if (!file.name.toLowerCase().endsWith('.zip')) {
+                    App.ui.showAlert("Por favor, selecione um arquivo .zip", "error");
+                    e.target.value = '';
+                    return;
+                }
+
+                App.ui.setLoading(true, "Enviando Shapefile...");
                 try {
                     const storageRef = ref(storage, `shapefiles/talhoes.zip`);
                     await uploadBytes(storageRef, file);
@@ -3187,18 +3212,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     await App.data.setDocument('config', 'shapefile', { shapefileURL: downloadURL, lastUpdated: new Date() });
                     
-                    App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado em breve.", "success");
-                    this.loadAndCacheShapes(downloadURL);
+                    App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado.", "success");
+                    // A atualização será automática pelo listener do onSnapshot
 
                 } catch (err) {
                     console.error("Erro ao processar o shapefile:", err);
-                    App.ui.showAlert("Erro ao enviar o arquivo. Verifique sua conexão.", "error");
+                    App.ui.showAlert("Erro ao enviar o arquivo. Verifique sua conexão e o console.", "error");
                 } finally {
                     App.ui.setLoading(false);
                     e.target.value = ''; // Limpa o input
                 }
             },
 
+            // [PONTO 6] Carrega e armazena o shapefile em cache
             async loadAndCacheShapes(url) {
                 if (!url) return;
                 App.ui.setLoading(true, "A carregar contornos do mapa...");
@@ -3219,12 +3245,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
-                    App.ui.showAlert("Falha ao carregar os desenhos do mapa. O arquivo pode estar corrompido.", "error");
+                    App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
+                    this.loadOfflineShapes(); // Tenta carregar do cache se falhar
                 } finally {
                     App.ui.setLoading(false);
                 }
             },
 
+            // [PONTO 6] Carrega shapefile do cache offline
             async loadOfflineShapes() {
                 const buffer = await OfflineDB.get('shapefile-zip');
                 if (buffer) {
@@ -3252,9 +3280,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 dataLayer.addGeoJson(App.state.geoJsonData);
                 App.state.mapPolygons.push(dataLayer); // Armazena a camada de dados para poder remover depois
 
-                // Estilo dos polígonos
+                // [PONTO 5] Estilo dos polígonos com fundo claro
+                const themeColors = App.ui._getThemeColors();
                 dataLayer.setStyle({
-                    fillColor: 'transparent',
+                    fillColor: themeColors.primary,
+                    fillOpacity: 0.2, // Opacidade para o preenchimento
                     strokeColor: '#FFD700', // Dourado
                     strokeWeight: 2,
                     strokeOpacity: 0.8
@@ -3266,6 +3296,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            // [PONTO 4] Mostra informações do talhão no novo layout
             showTalhaoInfo(feature) {
                 const props = {};
                 feature.forEachProperty((value, property) => {
@@ -3274,9 +3305,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
                 contentEl.innerHTML = `
-                    <p><strong>${props.NM_IMOVEL || 'Fazenda não identificada'}</strong>${props.CD_FAZENDA || ''}</p>
-                    <p><strong>${props.CD_TALHAO || 'Talhão não identificado'}</strong>Zona ${props.CD_ZONA || 'N/A'}</p>
-                    <p><strong>${(props.AREA_HA || 0).toFixed(2)} ha</strong>Área Total</p>
+                    <div class="info-title">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Informações do Talhão</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Fazenda</span>
+                        <span class="value">${props.CD_FAZENDA || 'N/A'} - ${props.NM_IMOVEL || 'Não identificado'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Zona</span>
+                        <span class="value">${props.CD_ZONA || 'N/A'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Talhão</span>
+                        <span class="value">${props.CD_TALHAO || 'Não identificado'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Área Total</span>
+                        <span class="value">${(props.AREA_HA || 0).toFixed(2)} ha</span>
+                    </div>
                 `;
                 
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
@@ -4030,19 +4078,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
             },
 
-            // [NOVO] Funções para gerar relatórios de monitoramento
+            // [PONTO 8] Funções para gerar relatórios de monitoramento com filtros
             generateMonitoramentoPDF() {
-                const { inicio, fim } = App.elements.relatorioMonitoramento;
+                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                
+                const farmId = fazendaFiltro.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaCodigo: farm ? farm.code : ''
+                };
+
                 App.ui.showAlert("Função de relatório PDF de monitoramento ainda não implementada no backend.", "info");
-                // A lógica de chamada ao backend viria aqui
+                // this._fetchAndDownloadReport('monitoramento/pdf', filters, 'relatorio_monitoramento.pdf');
             },
 
             generateMonitoramentoCSV() {
-                const { inicio, fim } = App.elements.relatorioMonitoramento;
+                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+
+                const farmId = fazendaFiltro.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaCodigo: farm ? farm.code : ''
+                };
                 App.ui.showAlert("Função de relatório CSV de monitoramento ainda não implementada no backend.", "info");
-                // A lógica de chamada ao backend viria aqui
+                // this._fetchAndDownloadReport('monitoramento/csv', filters, 'relatorio_monitoramento.csv');
             }
         },
 
