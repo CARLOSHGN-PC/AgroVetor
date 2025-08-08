@@ -4025,7 +4025,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-    };
+    }
 
     // Disponibiliza a função de inicialização do mapa globalmente para o callback da API do Google
     window.initMap = App.mapModule.initMap.bind(App.mapModule);
