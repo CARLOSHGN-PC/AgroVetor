@@ -2,15 +2,14 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-// [NOVO] Importa os módulos do Firebase Storage
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
+// [NOVO] Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
+import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
 
-// A inicialização do App agora ocorre dentro do DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
 
-    // FIREBASE: Configuração e inicialização do Firebase
     const firebaseConfig = {
-        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY", // Substitua pela sua chave de API
+        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
         authDomain: "agrovetor-v2.firebaseapp.com",
         projectId: "agrovetor-v2",
         storageBucket: "agrovetor-v2.appspot.com",
@@ -19,18 +18,14 @@ document.addEventListener('DOMContentLoaded', () => {
         measurementId: "G-JN4MSW63JR"
     };
 
-    // Aplicação principal do Firebase
     const firebaseApp = initializeApp(firebaseConfig);
     const db = getFirestore(firebaseApp);
     const auth = getAuth(firebaseApp);
-    // [NOVO] Inicializa o Firebase Storage
     const storage = getStorage(firebaseApp);
     
-    // Inicializa uma segunda app para autenticação secundária (criação de utilizador)
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
-    // Habilita a persistência offline
     enableIndexedDbPersistence(db)
         .catch((err) => {
             if (err.code == 'failed-precondition') {
@@ -40,17 +35,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-    // Registra o plugin de datalabels globalmente para todos os gráficos
     Chart.register(ChartDataLabels);
     Chart.defaults.font.family = "'Poppins', sans-serif";
+
+    // [NOVO] Módulo para gerenciar o banco de dados local (IndexedDB)
+    const OfflineDB = {
+        dbPromise: null,
+        async init() {
+            if (this.dbPromise) return;
+            this.dbPromise = openDB('agrovetor-offline-storage', 1, {
+                upgrade(db) {
+                    db.createObjectStore('shapefile-cache');
+                },
+            });
+        },
+        async get(key) {
+            return (await this.dbPromise).get('shapefile-cache', key);
+        },
+        async set(key, val) {
+            return (await this.dbPromise).put('shapefile-cache', val, key);
+        },
+    };
 
 
     const App = {
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
-            inactivityTimeout: 15 * 60 * 1000, // 15 minutos
-            inactivityWarningTime: 1 * 60 * 1000, // 1 minuto antes do timeout
+            inactivityTimeout: 15 * 60 * 1000,
+            inactivityWarningTime: 1 * 60 * 1000,
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
@@ -397,6 +410,8 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
+            // [NOVO] Inicializa o banco de dados offline primeiro
+            OfflineDB.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
@@ -456,6 +471,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (userProfile) {
                     App.state.currentUser = userProfile;
                     App.ui.showAppScreen();
+                    // [NOVO] Carrega os dados do mapa do cache ao entrar offline
+                    App.mapModule.loadOfflineShapes();
                     App.data.listenToAllData();
                 }
             },
@@ -627,8 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const shapefileDocRef = doc(db, 'config', 'shapefile');
                 const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
                     if (doc.exists() && doc.data().shapefileURL) {
-                        // Lógica para carregar do Storage
-                        App.mapModule.loadShapesFromStorage(doc.data().shapefileURL);
+                        App.mapModule.loadAndCacheShapes(doc.data().shapefileURL);
                     }
                 });
                 App.state.unsubscribeListeners.push(unsubscribeShapefile);
@@ -3172,7 +3188,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await App.data.setDocument('config', 'shapefile', { shapefileURL: downloadURL, lastUpdated: new Date() });
                     
                     App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado em breve.", "success");
-                    this.loadShapesFromStorage(downloadURL);
+                    this.loadAndCacheShapes(downloadURL);
 
                 } catch (err) {
                     console.error("Erro ao processar o shapefile:", err);
@@ -3183,15 +3199,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async loadShapesFromStorage(url) {
+            async loadAndCacheShapes(url) {
                 if (!url) return;
                 App.ui.setLoading(true, "A carregar contornos do mapa...");
                 try {
                     const response = await fetch(url);
-                    if (!response.ok) {
-                        throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
-                    }
+                    if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
                     const buffer = await response.arrayBuffer();
+                    
+                    // Salva no cache offline
+                    await OfflineDB.set('shapefile-zip', buffer);
                     
                     App.ui.setLoading(true, "A desenhar os talhões no mapa...");
                     const geojson = await shp(buffer);
@@ -3205,6 +3222,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Falha ao carregar os desenhos do mapa. O arquivo pode estar corrompido.", "error");
                 } finally {
                     App.ui.setLoading(false);
+                }
+            },
+
+            async loadOfflineShapes() {
+                const buffer = await OfflineDB.get('shapefile-zip');
+                if (buffer) {
+                    App.ui.showAlert("A carregar mapa do cache offline.", "info");
+                    try {
+                        const geojson = await shp(buffer);
+                        App.state.geoJsonData = geojson;
+                        if (App.state.googleMap) {
+                            this.loadShapesOnMap();
+                        }
+                    } catch (e) {
+                        console.error("Erro ao processar shapefile do cache:", e);
+                    }
                 }
             },
 
