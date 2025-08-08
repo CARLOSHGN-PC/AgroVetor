@@ -793,7 +793,7 @@
       #btnAddTrap:hover {
           background-color: var(--color-primary-dark);
       }
-      /* [NOVO] Estilos para o InfoBox do Talhão */
+      /* [NOVO] Estilos para o InfoBox do Talhão (baseado na imagem) */
       #talhao-info-box {
           position: absolute;
           top: 15px;
@@ -803,7 +803,7 @@
           z-index: 2;
           border-radius: var(--border-radius-lg);
           box-shadow: var(--shadow-xl);
-          padding: 20px;
+          padding: 0;
           transform: translateX(calc(100% + 20px));
           transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       }
@@ -814,35 +814,52 @@
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 15px;
+          padding: 16px 20px;
       }
       #talhao-info-box-header h3 {
           margin: 0;
-          font-size: 18px;
-          color: var(--color-primary);
-          display: flex;
-          align-items: center;
-          gap: 8px;
+          font-size: 20px;
+          font-weight: 600;
+          color: var(--color-text);
       }
       #close-info-box {
           background: none;
           border: none;
-          font-size: 22px;
+          font-size: 24px;
           cursor: pointer;
           color: var(--color-text-light);
       }
-      #talhao-info-box-content p {
-          margin: 0 0 10px 0;
-          font-size: 14px;
-          color: var(--color-text-light);
-          border-bottom: 1px solid var(--color-border);
-          padding-bottom: 10px;
+      #talhao-info-box-content {
+          padding: 0 20px 20px 20px;
       }
-      #talhao-info-box-content p strong {
+      .info-item {
+          margin-bottom: 16px;
+      }
+      .info-item .label {
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--color-text-light);
           display: block;
+          margin-bottom: 4px;
+      }
+      .info-item .value {
+          font-size: 16px;
           font-weight: 600;
           color: var(--color-text);
+      }
+      .info-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
           font-size: 16px;
+          font-weight: 600;
+          color: var(--color-primary);
+          padding-bottom: 10px;
+          margin-bottom: 15px;
+          border-bottom: 1px solid var(--color-border);
+      }
+      .info-title i {
+          font-size: 20px;
       }
 
 
@@ -1326,6 +1343,7 @@
             <section id="relatorioMonitoramento" class="tab-content card" aria-label="Relatório de Monitoramento" tabindex="0" hidden>
                 <h2><i class="fas fa-map-marked-alt"></i> Relatório de Monitoramento Aéreo</h2>
                 <div class="form-row">
+                    <div class="form-col"><label for="monitoramentoFazendaFiltro">Filtrar por Fazenda:</label><select id="monitoramentoFazendaFiltro"><option value="">Todas</option></select></div>
                     <div class="form-col"><label for="monitoramentoInicio" class="required">Data Início:</label><input type="date" id="monitoramentoInicio" /></div>
                     <div class="form-col"><label for="monitoramentoFim" class="required">Data Fim:</label><input type="date" id="monitoramentoFim" /></div>
                 </div>
@@ -1576,9 +1594,10 @@
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
+                <!-- [ALTERADO] Estrutura do InfoBox para corresponder à imagem -->
                 <div id="talhao-info-box">
                     <div id="talhao-info-box-header">
-                        <h3><i class="fas fa-map-marker-alt"></i> Informações do Talhão</h3>
+                        <h3>Talhão</h3>
                         <button id="close-info-box">&times;</button>
                     </div>
                     <div id="talhao-info-box-content">
