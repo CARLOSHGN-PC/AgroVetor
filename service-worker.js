@@ -1,6 +1,6 @@
-const CACHE_NAME = 'agrovetor-cache-v3'; // Incrementei a versão para forçar a atualização do cache
+const CACHE_NAME = 'agrovetor-cache-v4'; // Incrementei a versão para forçar a atualização do cache
 const urlsToCache = [
-  './', // [CORREÇÃO] Caminho relativo para a raiz do projeto
+  './', // Caminho relativo para a raiz do projeto
   './index.html',
   './app.js',
   './manifest.json',
@@ -10,8 +10,11 @@ const urlsToCache = [
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
-  './icons/icon-192x192.png', // [CORREÇÃO] Caminho relativo
-  './icons/icon-512x512.png'  // [CORREÇÃO] Caminho relativo
+  './icons/icon-192x192.png',
+  './icons/icon-512x512.png',
+  // [NOVO] Adicionadas bibliotecas do mapa para cache offline
+  'https://unpkg.com/shpjs@latest/dist/shp.js',
+  'https://unpkg.com/idb@7.1.1/build/index.js'
 ];
 
 // Evento de instalação: força o novo service worker a se tornar ativo
@@ -47,6 +50,11 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
     return;
+  }
+
+  // Estratégia para a API do Google Maps: apenas rede, pois não pode ser cacheada.
+  if (event.request.url.includes('maps.googleapis.com')) {
+      return;
   }
 
   event.respondWith(
