@@ -1,4 +1,4 @@
-// server.js - Backend com Geração de PDF e Upload de Logo
+// server.js - Backend com Geração de PDF e Upload de Shapefile
 
 const express = require('express');
 const admin = require('firebase-admin');
@@ -13,7 +13,8 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+// Aumentado o limite para acomodar arquivos shapefile em base64
+app.use(express.json({ limit: '50mb' }));
 
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -22,13 +23,15 @@ try {
     storageBucket: "agrovetor-v2.appspot.com" 
   });
   const db = admin.firestore();
+  // Inicializa o bucket do Storage
+  const bucket = admin.storage().bucket();
   console.log('Firebase Admin SDK inicializado com sucesso.');
 
   app.get('/', (req, res) => {
     res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
   });
 
-  // ROTA PARA UPLOAD DO LOGO
+  // ROTA PARA UPLOAD DO LOGO (Existente)
   app.post('/upload-logo', async (req, res) => {
     const { logoBase64 } = req.body;
     if (!logoBase64) {
@@ -42,6 +45,47 @@ try {
       res.status(500).send({ message: `Erro no servidor ao carregar logo: ${error.message}` });
     }
   });
+  
+  // [NOVA ROTA] PARA UPLOAD DO SHAPEFILE VIA BACKEND PARA CORRIGIR CORS
+  app.post('/upload-shapefile', async (req, res) => {
+      const { fileBase64 } = req.body;
+      if (!fileBase64) {
+          return res.status(400).send({ message: 'Nenhum dado de arquivo Base64 foi enviado.' });
+      }
+
+      try {
+          // Converte a string base64 de volta para um buffer
+          const buffer = Buffer.from(fileBase64, 'base64');
+          const filePath = `shapefiles/talhoes.zip`;
+          const file = bucket.file(filePath);
+
+          // Salva o buffer no Firebase Storage
+          await file.save(buffer, {
+              metadata: {
+                  contentType: 'application/zip',
+              },
+          });
+          
+          // Torna o arquivo público para leitura
+          await file.makePublic();
+
+          // Obtém a URL pública
+          const downloadURL = file.publicUrl();
+
+          // Salva a URL no Firestore
+          await db.collection('config').doc('shapefile').set({ 
+              shapefileURL: downloadURL, 
+              lastUpdated: new Date() 
+          });
+
+          res.status(200).send({ message: 'Shapefile enviado com sucesso!', url: downloadURL });
+
+      } catch (error) {
+          console.error("Erro no servidor ao fazer upload do shapefile:", error);
+          res.status(500).send({ message: `Erro no servidor ao processar o arquivo: ${error.message}` });
+      }
+  });
+
 
   // --- FUNÇÕES AUXILIARES ---
 
@@ -704,222 +748,6 @@ try {
       doc.end();
     } catch (error) {
         console.error("Erro no PDF de Colheita:", error);
-        if (!res.headersSent) {
-            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
-        } else {
-            doc.end();
-        }
-    }
-  });
-
-  app.get('/reports/colheita/csv', async (req, res) => {
-    try {
-      const { planId, selectedColumns } = req.query;
-      const selectedCols = JSON.parse(selectedColumns || '{}');
-
-      if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
-
-      const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
-      if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
-
-      const harvestPlan = harvestPlanDoc.data();
-      const fazendasSnapshot = await db.collection('fazendas').get();
-      const fazendasData = {};
-      fazendasSnapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        fazendasData[data.code] = { id: docSnap.id, ...data };
-      });
-
-      const filePath = path.join(os.tmpdir(), `colheita_${Date.now()}.csv`);
-      
-      const allPossibleHeadersConfig = [
-        { id: 'seq', title: 'Seq.' },
-        { id: 'fazenda', title: 'Fazenda' },
-        { id: 'talhoes', title: 'Talhões' },
-        { id: 'area', title: 'Área (ha)' },
-        { id: 'producao', title: 'Prod. (ton)' },
-        { id: 'variedade', title: 'Variedade' },
-        { id: 'idade', title: 'Idade Média (meses)' },
-        { id: 'atr', title: 'ATR' },
-        { id: 'maturador', title: 'Maturador Aplicado' },
-        { id: 'diasAplicacao', title: 'Dias desde Aplicação' },
-        { id: 'distancia', title: 'Distância (km)' },
-        { id: 'entrada', title: 'Entrada' },
-        { id: 'saida', title: 'Saída' }
-      ];
-
-      let finalHeaders = [];
-      const initialFixedHeaders = ['seq', 'fazenda', 'area', 'producao'];
-      const finalFixedHeaders = ['entrada', 'saida'];
-
-      initialFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) finalHeaders.push(header);
-      });
-      if (selectedCols['talhoes']) {
-        const header = allPossibleHeadersConfig.find(h => h.id === 'talhoes');
-        if (header) finalHeaders.push(header);
-      }
-      allPossibleHeadersConfig.forEach(header => {
-          if (selectedCols[header.id] && !initialFixedHeaders.includes(header.id) && !finalFixedHeaders.includes(header.id) && header.id !== 'talhoes') {
-              finalHeaders.push(header);
-          }
-      });
-      finalFixedHeaders.forEach(id => {
-          const header = allPossibleHeadersConfig.find(h => h.id === id);
-          if (header) finalHeaders.push(header);
-      });
-
-      const records = [];
-      let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
-      const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
-      const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
-
-      harvestPlan.sequence.forEach((group, index) => {
-        const isGroupClosed = group.plots.every(p => closedTalhaoIds.has(p.talhaoId));
-        const diasNecessarios = dailyTon > 0 ? Math.ceil(group.totalProducao / dailyTon) : 0;
-        const dataEntrada = new Date(currentDate.getTime());
-        let dataSaida = new Date(dataEntrada.getTime());
-        dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
-        
-        if(!isGroupClosed){
-            currentDate = new Date(dataSaida.getTime());
-            currentDate.setDate(currentDate.getDate() + 1);
-        }
-
-        let totalAgeInDays = 0, plotsWithDate = 0;
-        let totalDistancia = 0, plotsWithDistancia = 0;
-        const allVarieties = new Set();
-        group.plots.forEach(plot => {
-            const farm = fazendasData[group.fazendaCodigo];
-            const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
-            if (talhao) {
-                if (talhao.dataUltimaColheita) {
-                    const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
-                    if (!isNaN(dataUltima)) {
-                        totalAgeInDays += Math.abs(dataEntrada - dataUltima);
-                        plotsWithDate++;
-                    }
-                }
-                if (talhao.variedade) allVarieties.add(talhao.variedade);
-                if (typeof talhao.distancia === 'number') {
-                    totalDistancia += talhao.distancia;
-                    plotsWithDistancia++;
-                }
-            }
-        });
-
-        const idadeMediaMeses = plotsWithDate > 0 ? ((totalAgeInDays / plotsWithDate) / (1000 * 60 * 60 * 24 * 30)).toFixed(1) : 'N/A';
-        const avgDistancia = plotsWithDistancia > 0 ? (totalDistancia / plotsWithDistancia).toFixed(2) : 'N/A';
-        
-        let diasAplicacao = 'N/A';
-        if (group.maturadorDate) {
-            try {
-                const today = new Date();
-                const applicationDate = new Date(group.maturadorDate + 'T03:00:00Z');
-                const diffTime = today - applicationDate;
-                if (diffTime >= 0) {
-                    diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                }
-            } catch (e) { diasAplicacao = 'N/A'; }
-        }
-
-        const record = {};
-        finalHeaders.forEach(header => {
-            switch(header.id) {
-                case 'seq': record.seq = index + 1; break;
-                case 'fazenda': record.fazenda = `${group.fazendaCodigo} - ${group.fazendaName} ${isGroupClosed ? '(ENCERRADO)' : ''}`; break;
-                case 'talhoes': record.talhoes = group.plots.map(p => p.talhaoName).join(', '); break;
-                case 'area': record.area = group.totalArea.toFixed(2); break;
-                case 'producao': record.producao = group.totalProducao.toFixed(2); break;
-                case 'variedade': record.variedade = Array.from(allVarieties).join(', ') || 'N/A'; break;
-                case 'idade': record.idade = idadeMediaMeses; break;
-                case 'atr': record.atr = group.atr || 'N/A'; break;
-                case 'maturador': record.maturador = group.maturador || 'N/A'; break;
-                case 'diasAplicacao': record.diasAplicacao = diasAplicacao; break;
-                case 'distancia': record.distancia = avgDistancia; break;
-                case 'entrada': record.entrada = dataEntrada.toLocaleDateString('pt-BR'); break;
-                case 'saida': record.saida = dataSaida.toLocaleDateString('pt-BR'); break;
-                default: record[header.id] = '';
-            }
-        });
-        records.push(record);
-      });
-
-      const csvWriter = createObjectCsvWriter({ path: filePath, header: finalHeaders });
-      await csvWriter.writeRecords(records);
-      res.download(filePath);
-    } catch (error) {
-      console.error("Erro ao gerar relatório CSV de Colheita:", error);
-      res.status(500).send('Erro ao gerar relatório.');
-    }
-  });
-
-  // [NOVO] Rota para relatório mensal de colheita (PDF)
-  app.get('/reports/colheita/mensal/pdf', async (req, res) => {
-    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=relatorio_previsao_mensal.pdf`);
-    doc.pipe(res);
-
-    try {
-        const { planId, generatedBy } = req.query;
-        if (!planId) throw new Error('ID do plano não fornecido.');
-
-        const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
-        if (!harvestPlanDoc.exists) throw new Error('Plano de colheita não encontrado.');
-
-        const harvestPlan = harvestPlanDoc.data();
-        const title = `Previsão Mensal de Colheita - ${harvestPlan.frontName}`;
-        let currentY = await generatePdfHeader(doc, title);
-        
-        const monthlyTotals = {};
-        let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
-        const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
-        const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
-
-        harvestPlan.sequence.forEach(group => {
-            const isGroupClosed = group.plots.every(p => closedTalhaoIds.has(p.talhaoId));
-            if(isGroupClosed) return; // Pula grupos encerrados
-
-            let producaoRestante = group.totalProducao;
-            while (producaoRestante > 0) {
-                const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-                if (!monthlyTotals[monthKey]) {
-                    monthlyTotals[monthKey] = 0;
-                }
-                monthlyTotals[monthKey] += Math.min(producaoRestante, dailyTon);
-                producaoRestante -= dailyTon;
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-        });
-
-        const headers = ['Mês/Ano', 'Produção Total (ton)'];
-        const columnWidths = [250, 250];
-        currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 20);
-
-        const sortedMonths = Object.keys(monthlyTotals).sort();
-        let grandTotal = 0;
-
-        for (const monthKey of sortedMonths) {
-            const [year, month] = monthKey.split('-');
-            const monthName = new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'long' });
-            const formattedMonth = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${year}`;
-            const totalProducao = monthlyTotals[monthKey];
-            grandTotal += totalProducao;
-
-            const rowData = [formattedMonth, formatNumber(totalProducao)];
-            currentY = await checkPageBreak(doc, currentY, title);
-            currentY = drawRow(doc, rowData, currentY, false, false, columnWidths, 5, 18);
-        }
-        
-        const totalRowData = ['Total Geral', formatNumber(grandTotal)];
-        drawRow(doc, totalRowData, currentY, false, true, columnWidths, 5, 20);
-
-        generatePdfFooter(doc, generatedBy);
-        doc.end();
-    } catch (error) {
-        console.error("Erro no PDF de Previsão Mensal:", error);
         if (!res.headersSent) {
             res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
         } else {
