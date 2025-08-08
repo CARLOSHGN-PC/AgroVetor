@@ -13,20 +13,20 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-// Aumentado o limite para acomodar arquivos shapefile em base64
 app.use(express.json({ limit: '50mb' })); 
 
 try {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  // [CORREÇÃO DEFINITIVA] Carregando a chave de serviço diretamente de um arquivo.
+  // Isto garante que as permissões corretas sejam sempre usadas.
+  const serviceAccount = require('./serviceAccountKey.json'); 
   
-  // [CORREÇÃO] A inicialização agora inclui o storageBucket diretamente
   admin.initializeApp({ 
     credential: admin.credential.cert(serviceAccount),
     storageBucket: "agrovetor-v2.appspot.com" 
   });
 
   const db = admin.firestore();
-  const bucket = admin.storage().bucket(); // Esta linha agora funcionará corretamente
+  const bucket = admin.storage().bucket();
   console.log('Firebase Admin SDK inicializado com sucesso e conectado ao bucket.');
 
   app.get('/', (req, res) => {
@@ -56,25 +56,19 @@ try {
       }
 
       try {
-          // Converte a string base64 de volta para um buffer
           const buffer = Buffer.from(fileBase64, 'base64');
           const filePath = `shapefiles/talhoes.zip`;
           const file = bucket.file(filePath);
 
-          // Salva o buffer no Firebase Storage
           await file.save(buffer, {
               metadata: {
                   contentType: 'application/zip',
               },
           });
           
-          // Torna o arquivo público para leitura
           await file.makePublic();
-
-          // Obtém a URL pública
           const downloadURL = file.publicUrl();
 
-          // Salva a URL no Firestore
           await db.collection('config').doc('shapefile').set({ 
               shapefileURL: downloadURL, 
               lastUpdated: new Date() 
@@ -89,7 +83,7 @@ try {
   });
 
 
-  // --- FUNÇÕES AUXILIARES E ROTAS DE RELATÓRIO (Sem alterações) ---
+  // --- O RESTANTE DO CÓDIGO PERMANECE IGUAL ---
 
   const formatNumber = (num) => {
     if (typeof num !== 'number' || isNaN(num)) {
