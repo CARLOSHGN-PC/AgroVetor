@@ -18,14 +18,16 @@ app.use(express.json({ limit: '50mb' }));
 
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  
+  // [CORREÇÃO] A inicialização agora inclui o storageBucket diretamente
   admin.initializeApp({ 
     credential: admin.credential.cert(serviceAccount),
     storageBucket: "agrovetor-v2.appspot.com" 
   });
+
   const db = admin.firestore();
-  // [CORREÇÃO] Especifica explicitamente o nome do bucket para evitar erros.
-  const bucket = admin.storage().bucket("agrovetor-v2.appspot.com");
-  console.log('Firebase Admin SDK inicializado com sucesso.');
+  const bucket = admin.storage().bucket(); // Esta linha agora funcionará corretamente
+  console.log('Firebase Admin SDK inicializado com sucesso e conectado ao bucket.');
 
   app.get('/', (req, res) => {
     res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
