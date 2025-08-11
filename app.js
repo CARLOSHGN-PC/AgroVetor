@@ -136,7 +136,8 @@ document.addEventListener('DOMContentLoaded', () => {
             armadilhas: [],
             geoJsonData: null,
             mapPolygons: [],
-            trapNotifications: [], // [NOVO] Para controlar as notificações ativas
+            trapNotifications: [],
+            unreadNotificationCount: 0,
         },
         
         elements: {
@@ -158,7 +159,13 @@ document.addEventListener('DOMContentLoaded', () => {
             menu: document.getElementById('menu'),
             content: document.getElementById('content'),
             alertContainer: document.getElementById('alertContainer'),
-            notificationContainer: document.getElementById('notification-container'), // [NOVO]
+            notificationContainer: document.getElementById('notification-container'),
+            notificationBell: {
+                container: document.getElementById('notification-bell-container'),
+                toggle: document.getElementById('notification-bell-toggle'),
+                count: document.getElementById('notification-count'),
+                dropdown: document.getElementById('notification-dropdown'),
+            },
             userMenu: {
                 container: document.getElementById('user-menu-container'),
                 toggle: document.getElementById('user-menu-toggle'),
@@ -402,9 +409,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 infoBox: document.getElementById('talhao-info-box'),
                 infoBoxContent: document.getElementById('talhao-info-box-content'),
                 infoBoxCloseBtn: document.getElementById('close-info-box'),
-                trapInfoBox: document.getElementById('trap-info-box'), // [NOVO]
-                trapInfoBoxContent: document.getElementById('trap-info-box-content'), // [NOVO]
-                trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'), // [NOVO]
+                trapInfoBox: document.getElementById('trap-info-box'),
+                trapInfoBoxContent: document.getElementById('trap-info-box-content'),
+                trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
             },
             relatorioMonitoramento: {
                 fazendaFiltro: document.getElementById('monitoramentoFazendaFiltro'),
@@ -417,7 +424,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
-            // Inicializa o banco de dados offline primeiro
             OfflineDB.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
@@ -478,7 +484,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (userProfile) {
                     App.state.currentUser = userProfile;
                     App.ui.showAppScreen();
-                    // Carrega os dados do mapa do cache ao entrar offline
                     App.mapModule.loadOfflineShapes();
                     App.data.listenToAllData();
                 }
@@ -632,7 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         if (collectionName === 'armadilhas' && App.state.googleMap) {
                             App.mapModule.loadTraps();
-                            App.mapModule.checkTrapStatusAndNotify(); // [NOVO] Verifica status ao carregar
+                            App.mapModule.checkTrapStatusAndNotify();
                         }
 
                         App.ui.renderAllDynamicContent();
@@ -705,6 +710,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.userMenu && App.elements.userMenu.container) {
                     App.elements.userMenu.container.style.display = 'none';
                 }
+                if (App.elements.notificationBell && App.elements.notificationBell.container) {
+                    App.elements.notificationBell.container.style.display = 'none';
+                }
 
                 App.elements.loginUser.value = '';
                 App.elements.loginPass.value = '';
@@ -732,6 +740,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginScreen.style.display = 'none';
                 App.elements.appScreen.style.display = 'flex';
                 App.elements.userMenu.container.style.display = 'block';
+                App.elements.notificationBell.container.style.display = 'block';
                 App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
                 this.updateDateTime();
                 setInterval(() => this.updateDateTime(), 60000);
@@ -752,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.populateHarvestPlanSelect();
                 
                 if (document.getElementById('dashboard').classList.contains('active')) {
-                   this.showDashboardView('broca');
+                   this.showDashboardView('broca'); 
                 }
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
@@ -774,8 +783,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const createMenuItem = (item) => {
                     const hasPermission = item.submenu ? 
-                                         item.submenu.some(sub => currentUser.permissions[sub.permission]) : 
-                                         currentUser.permissions[item.permission];
+                                          item.submenu.some(sub => currentUser.permissions[sub.permission]) : 
+                                          currentUser.permissions[item.permission];
 
                     if (!hasPermission) return null;
                     
@@ -855,7 +864,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    // A inicialização agora é feita por um callback da API do Google
                     window.initMap = App.mapModule.initMap.bind(App.mapModule);
                     if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
                        App.mapModule.initMap();
@@ -865,7 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
-                    if (tab.id !== 'monitoramentoAereo-container') { // Não mexe no container do mapa
+                    if (tab.id !== 'monitoramentoAereo-container') {
                         tab.classList.remove('active');
                         tab.hidden = true;
                     }
@@ -1610,6 +1618,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.elements.userMenu.toggle.classList.remove('open');
                         App.elements.userMenu.toggle.setAttribute('aria-expanded', 'false');
                     }
+                    if (App.elements.notificationBell.container && !App.elements.notificationBell.container.contains(e.target)) {
+                        App.elements.notificationBell.dropdown.classList.remove('show');
+                    }
                 });
 
                 App.elements.userMenu.toggle.addEventListener('click', (e) => {
@@ -1619,6 +1630,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isShown = dropdown.classList.toggle('show');
                     toggle.classList.toggle('open', isShown);
                     toggle.setAttribute('aria-expanded', isShown);
+                    App.elements.notificationBell.dropdown.classList.remove('show');
+                });
+
+                App.elements.notificationBell.toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const dropdown = App.elements.notificationBell.dropdown;
+                    const isShown = dropdown.classList.toggle('show');
+                    if (isShown) {
+                        App.actions.markNotificationsAsRead();
+                    }
+                    App.elements.userMenu.dropdown.classList.remove('show');
                 });
 
                 App.elements.userMenu.themeButtons.forEach(btn => {
@@ -1703,7 +1725,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 companyConfigEls.closedUploadArea.addEventListener('click', () => companyConfigEls.closedInput.click());
                 companyConfigEls.closedInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'closed'));
                 companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
-                // Listeners para upload de Shapefile
                 companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
                 companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
 
@@ -1811,14 +1832,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
                 
-                // [ALTERADO] Listeners para os botões do mapa, infobox e novo relatório
                 App.elements.monitoramentoAereo.btnAddTrap.addEventListener('click', () => App.mapModule.promptInstallTrap());
                 App.elements.monitoramentoAereo.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 App.elements.monitoramentoAereo.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
-                App.elements.monitoramentoAereo.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo()); // [NOVO]
+                App.elements.monitoramentoAereo.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
                 App.elements.relatorioMonitoramento.btnPDF.addEventListener('click', () => App.reports.generateMonitoramentoPDF());
                 App.elements.relatorioMonitoramento.btnExcel.addEventListener('click', () => App.reports.generateMonitoramentoCSV());
-                // [NOVO] Listener para o container de notificações
                 App.elements.notificationContainer.addEventListener('click', (e) => {
                     const notification = e.target.closest('.trap-notification');
                     if (notification && notification.dataset.trapId) {
@@ -2785,13 +2804,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                          App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
 
-                       } catch (e) {
-                           App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                           console.error(e);
-                       } finally {
-                           App.ui.setLoading(false);
-                           App.elements.cadastros.csvFileInput.value = '';
-                       }
+                     } catch (e) {
+                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
+                         console.error(e);
+                     } finally {
+                         App.ui.setLoading(false);
+                         App.elements.cadastros.csvFileInput.value = '';
+                     }
                  };
                  reader.readAsText(file, 'ISO-8859-1');
             },
@@ -2866,13 +2885,13 @@ document.addEventListener('DOMContentLoaded', () => {
                          }
                          
                          App.ui.showAlert(`Importação concluída!`, 'success');
-                       } catch (e) {
-                           App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
-                           console.error(e);
-                       } finally {
-                           App.ui.setLoading(false);
-                           App.elements.personnel.csvFileInput.value = '';
-                       }
+                     } catch (e) {
+                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
+                         console.error(e);
+                     } finally {
+                         App.ui.setLoading(false);
+                         App.elements.personnel.csvFileInput.value = '';
+                     }
                  };
                  reader.readAsText(file, 'ISO-8859-1');
             },
@@ -3083,9 +3102,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
                 reader.readAsText(file, 'ISO-8859-1');
+            },
+            markNotificationsAsRead() {
+                App.state.unreadNotificationCount = 0;
+                App.ui.updateNotificationBell();
+                // Opcional: Marcar no Firestore que foram lidas
+                // const updates = App.state.trapNotifications.map(n => {
+                //     return updateDoc(doc(db, 'armadilhas', n.trapId), { notified: true });
+                // });
+                // Promise.all(updates).catch(console.error);
             }
         },
-        
         gemini: {
             getOptimizedHarvestSequence() {
                 if (!App.state.activeHarvestPlan || App.state.activeHarvestPlan.sequence.length === 0) {
@@ -3111,7 +3138,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        // Módulo completo para gerenciar o mapa com Google Maps
         mapModule: {
             initMap() {
                 if (App.state.googleMap) return;
@@ -3298,7 +3324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const themeColors = App.ui._getThemeColors();
                 dataLayer.setStyle({
                     fillColor: themeColors.primary,
-                    fillOpacity: 0.35, // Opacidade aumentada para 0.35
+                    fillOpacity: 0.35,
                     strokeColor: '#FFD700',
                     strokeWeight: 2,
                     strokeOpacity: 0.8
@@ -3309,7 +3335,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            // [ALTERADO] Função para mostrar info do talhão com novo layout
             showTalhaoInfo(feature) {
                 const props = {};
                 feature.forEachProperty((value, property) => {
@@ -3319,16 +3344,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
                 contentEl.innerHTML = `
                     <div class="info-title">
-                        <i class="fas fa-seedling"></i>
+                        <i class="fas fa-map-marker-alt"></i>
                         <span>Informações do Talhão</span>
                     </div>
                     <div class="info-item">
                         <span class="label">Fazenda</span>
                         <span class="value">${props.CD_FAZENDA || 'N/A'} - ${props.NM_IMOVEL || 'Não identificado'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Zona</span>
-                        <span class="value">${props.CD_ZONA || 'N/A'}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">Talhão</span>
@@ -3340,7 +3361,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
                 
-                this.hideTrapInfo(); // Esconde a info da armadilha se estiver aberta
+                this.hideTrapInfo();
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
 
@@ -3359,7 +3380,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            // [ALTERADO] Adiciona lógica de status e notificação
             addOrUpdateTrapMarker(trap) {
                 if (!trap.dataInstalacao) return;
 
@@ -3372,13 +3392,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
                 let color = '#388e3c'; // Verde (Normal)
-                let status = 'Normal';
                 if (diffDays <= 2 && diffDays >= 0) {
                     color = '#f57c00'; // Amarelo (Atenção)
-                    status = 'Atenção';
                 } else if (diffDays < 0) {
                     color = '#d32f2f'; // Vermelho (Atrasado)
-                    status = 'Atrasado';
                 }
                 
                 const trapIcon = {
@@ -3449,7 +3466,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         await this.collectTrap(trapId, mothCount);
                     },
-                    true // Habilita o campo de input no modal
+                    true
                 );
             },
 
@@ -3471,7 +3488,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             
-            // [NOVO] Funções para o InfoBox da Armadilha
             showTrapInfo(trapId) {
                 const trap = App.state.armadilhas.find(t => t.id === trapId);
                 if (!trap) return;
@@ -3516,7 +3532,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 document.getElementById('btnCollectTrap').onclick = () => this.promptCollectTrap(trapId);
 
-                this.hideTalhaoInfo(); // Esconde a info do talhão se estiver aberta
+                this.hideTalhaoInfo();
                 App.elements.monitoramentoAereo.trapInfoBox.classList.add('visible');
             },
 
@@ -3524,9 +3540,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.trapInfoBox.classList.remove('visible');
             },
             
-            // [NOVO] Funções para o sistema de notificação
             checkTrapStatusAndNotify() {
                 const activeTraps = App.state.armadilhas.filter(t => t.status === 'Ativa');
+                let newNotifications = [];
                 
                 activeTraps.forEach(trap => {
                     const installDate = trap.dataInstalacao.toDate();
@@ -3536,46 +3552,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     const diffTime = collectionDate - now;
                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                    if (diffDays <= 2 && diffDays >= 0) { // Atenção
-                        this.showTrapNotification(trap, 'warning', `${diffDays} dia(s) restante(s) para a coleta.`);
-                    } else if (diffDays < 0) { // Atrasado
-                        this.showTrapNotification(trap, 'danger', `Coleta atrasada em ${Math.abs(diffDays)} dia(s).`);
+                    let notification = null;
+                    if (diffDays <= 2 && diffDays >= 0) {
+                        notification = { trapId: trap.id, type: 'warning', message: `${diffDays} dia(s) restante(s) para a coleta.`, timestamp: new Date() };
+                    } else if (diffDays < 0) {
+                        notification = { trapId: trap.id, type: 'danger', message: `Coleta atrasada em ${Math.abs(diffDays)} dia(s).`, timestamp: new Date() };
+                    }
+
+                    if (notification) {
+                        const existingNotification = App.state.trapNotifications.find(n => n.trapId === trap.id);
+                        if (!existingNotification) {
+                            newNotifications.push(notification);
+                            App.ui.showTrapNotification(notification);
+                        }
                     }
                 });
+
+                if (newNotifications.length > 0) {
+                    App.state.trapNotifications.push(...newNotifications);
+                    App.state.unreadNotificationCount += newNotifications.length;
+                    App.ui.updateNotificationBell();
+                }
             },
 
-            showTrapNotification(trap, type, message) {
-                // Evita notificações duplicadas
-                if (App.state.trapNotifications.includes(trap.id)) {
-                    return;
-                }
-                App.state.trapNotifications.push(trap.id);
-
+            showTrapNotification(notification) {
                 const container = App.elements.notificationContainer;
-                const notification = document.createElement('div');
-                notification.className = `trap-notification ${type}`;
-                notification.dataset.trapId = trap.id;
+                const notificationEl = document.createElement('div');
+                notificationEl.className = `trap-notification ${notification.type}`;
+                notificationEl.dataset.trapId = notification.trapId;
 
-                const iconClass = type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
+                const iconClass = notification.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
                 
-                notification.innerHTML = `
+                notificationEl.innerHTML = `
                     <div class="icon"><i class="fas ${iconClass}"></i></div>
                     <div class="text">
                         <p><strong>Armadilha requer atenção</strong></p>
-                        <p>${message}</p>
+                        <p>${notification.message}</p>
                     </div>
                 `;
                 
-                container.appendChild(notification);
+                container.appendChild(notificationEl);
 
-                // Remove a notificação após 10 segundos
                 setTimeout(() => {
-                    notification.remove();
-                    // Remove do array de controle
-                    const index = App.state.trapNotifications.indexOf(trap.id);
-                    if (index > -1) {
-                        App.state.trapNotifications.splice(index, 1);
-                    }
+                    notificationEl.remove();
                 }, 10000);
             },
 
@@ -4220,7 +4239,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
             },
 
-            // Funções para gerar relatórios de monitoramento com filtros
             generateMonitoramentoPDF() {
                 const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
