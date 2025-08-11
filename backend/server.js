@@ -51,7 +51,9 @@ try {
     }
   });
  
-  // ROTA PARA UPLOAD DO SHAPEFILE VIA BACKEND PARA CORRIGIR CORS
+  // [MELHORIA 1 - CÓDIGO EXISTENTE E CORRETO]
+  // Esta rota já implementa a sua sugestão. O servidor recebe o arquivo,
+  // faz o upload para o Firebase Storage e disponibiliza o link para o app.
   app.post('/upload-shapefile', async (req, res) => {
       const { fileBase64 } = req.body;
       if (!fileBase64) {
@@ -59,24 +61,29 @@ try {
       }
 
       try {
+          // 1. Converte o arquivo de Base64 para um buffer, que é o formato binário.
           const buffer = Buffer.from(fileBase64, 'base64');
           const filePath = `shapefiles/talhoes.zip`;
           const file = bucket.file(filePath);
 
+          // 2. Salva o buffer no Firebase Storage.
           await file.save(buffer, {
               metadata: {
                   contentType: 'application/zip',
               },
           });
          
+          // 3. Torna o arquivo público para que o frontend possa acessá-lo.
           await file.makePublic();
           const downloadURL = file.publicUrl();
 
+          // 4. Salva a URL pública no Firestore para que o app a detecte e carregue o mapa.
           await db.collection('config').doc('shapefile').set({
               shapefileURL: downloadURL,
               lastUpdated: new Date()
           });
 
+          // 5. Envia a resposta de sucesso de volta para o frontend.
           res.status(200).send({ message: 'Shapefile enviado com sucesso!', url: downloadURL });
 
       } catch (error) {
