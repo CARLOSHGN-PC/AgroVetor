@@ -1,6 +1,6 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
@@ -136,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             armadilhas: [],
             geoJsonData: null,
             mapPolygons: [],
+            trapNotifications: [], // [NOVO] Para controlar as notificações ativas
         },
         
         elements: {
@@ -157,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             menu: document.getElementById('menu'),
             content: document.getElementById('content'),
             alertContainer: document.getElementById('alertContainer'),
+            notificationContainer: document.getElementById('notification-container'), // [NOVO]
             userMenu: {
                 container: document.getElementById('user-menu-container'),
                 toggle: document.getElementById('user-menu-toggle'),
@@ -400,6 +402,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 infoBox: document.getElementById('talhao-info-box'),
                 infoBoxContent: document.getElementById('talhao-info-box-content'),
                 infoBoxCloseBtn: document.getElementById('close-info-box'),
+                trapInfoBox: document.getElementById('trap-info-box'), // [NOVO]
+                trapInfoBoxContent: document.getElementById('trap-info-box-content'), // [NOVO]
+                trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'), // [NOVO]
             },
             relatorioMonitoramento: {
                 fazendaFiltro: document.getElementById('monitoramentoFazendaFiltro'),
@@ -627,6 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         if (collectionName === 'armadilhas' && App.state.googleMap) {
                             App.mapModule.loadTraps();
+                            App.mapModule.checkTrapStatusAndNotify(); // [NOVO] Verifica status ao carregar
                         }
 
                         App.ui.renderAllDynamicContent();
@@ -1805,12 +1811,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
                 
-                // Listeners para os botões do mapa, infobox e novo relatório
+                // [ALTERADO] Listeners para os botões do mapa, infobox e novo relatório
                 App.elements.monitoramentoAereo.btnAddTrap.addEventListener('click', () => App.mapModule.promptInstallTrap());
                 App.elements.monitoramentoAereo.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 App.elements.monitoramentoAereo.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
+                App.elements.monitoramentoAereo.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo()); // [NOVO]
                 App.elements.relatorioMonitoramento.btnPDF.addEventListener('click', () => App.reports.generateMonitoramentoPDF());
                 App.elements.relatorioMonitoramento.btnExcel.addEventListener('click', () => App.reports.generateMonitoramentoCSV());
+                // [NOVO] Listener para o container de notificações
+                App.elements.notificationContainer.addEventListener('click', (e) => {
+                    const notification = e.target.closest('.trap-notification');
+                    if (notification && notification.dataset.trapId) {
+                        App.mapModule.centerOnTrap(notification.dataset.trapId);
+                    }
+                });
 
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
@@ -3295,6 +3309,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            // [ALTERADO] Função para mostrar info do talhão com novo layout
             showTalhaoInfo(feature) {
                 const props = {};
                 feature.forEachProperty((value, property) => {
@@ -3304,7 +3319,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
                 contentEl.innerHTML = `
                     <div class="info-title">
-                        <i class="fas fa-info-circle"></i>
+                        <i class="fas fa-seedling"></i>
                         <span>Informações do Talhão</span>
                     </div>
                     <div class="info-item">
@@ -3325,6 +3340,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
                 
+                this.hideTrapInfo(); // Esconde a info da armadilha se estiver aberta
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
 
@@ -3343,17 +3359,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            // [ALTERADO] Adiciona lógica de status e notificação
             addOrUpdateTrapMarker(trap) {
-                const now = new Date();
+                if (!trap.dataInstalacao) return;
+
                 const installDate = trap.dataInstalacao.toDate();
-                const diffTime = Math.abs(now - installDate);
+                const collectionDate = new Date(installDate);
+                collectionDate.setDate(installDate.getDate() + 7);
+                const now = new Date();
+                
+                const diffTime = collectionDate - now;
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                let color = '#388e3c'; // Verde (0-4 dias)
-                if (diffDays >= 5 && diffDays <= 6) {
-                    color = '#f57c00'; // Amarelo (5-6 dias)
-                } else if (diffDays >= 7) {
-                    color = '#d32f2f'; // Vermelho (7+ dias)
+                let color = '#388e3c'; // Verde (Normal)
+                let status = 'Normal';
+                if (diffDays <= 2 && diffDays >= 0) {
+                    color = '#f57c00'; // Amarelo (Atenção)
+                    status = 'Atenção';
+                } else if (diffDays < 0) {
+                    color = '#d32f2f'; // Vermelho (Atrasado)
+                    status = 'Atrasado';
                 }
                 
                 const trapIcon = {
@@ -3377,7 +3402,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         title: `Armadilha instalada em ${installDate.toLocaleDateString()}`
                     });
                     
-                    marker.addListener('click', () => this.promptCollectTrap(trap.id));
+                    marker.addListener('click', () => this.showTrapInfo(trap.id));
                     App.state.googleTrapMarkers[trap.id] = marker;
                 }
             },
@@ -3397,7 +3422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newTrap = {
                     latitude: lat,
                     longitude: lng,
-                    dataInstalacao: new Date(),
+                    dataInstalacao: Timestamp.fromDate(new Date()),
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
                     fazendaId: null,
@@ -3431,7 +3456,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async collectTrap(trapId, count) {
                 const updateData = {
                     status: "Coletada",
-                    dataColeta: new Date(),
+                    dataColeta: Timestamp.fromDate(new Date()),
                     coletadoPor: App.state.currentUser.uid,
                     contagemMariposas: count
                 };
@@ -3439,9 +3464,128 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     await App.data.updateDocument('armadilhas', trapId, updateData);
                     App.ui.showAlert("Coleta registrada com sucesso!", "success");
+                    this.hideTrapInfo();
                 } catch (error) {
                     console.error("Erro ao registrar coleta:", error);
                     App.ui.showAlert("Falha ao registrar coleta.", "error");
+                }
+            },
+            
+            // [NOVO] Funções para o InfoBox da Armadilha
+            showTrapInfo(trapId) {
+                const trap = App.state.armadilhas.find(t => t.id === trapId);
+                if (!trap) return;
+
+                const installDate = trap.dataInstalacao.toDate();
+                const collectionDate = new Date(installDate);
+                collectionDate.setDate(installDate.getDate() + 7);
+                const now = new Date();
+                const diffTime = collectionDate - now;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                let statusText = 'Normal';
+                let statusColor = 'var(--color-success)';
+                if (diffDays <= 2 && diffDays >= 0) {
+                    statusText = `Atenção (${diffDays} dias restantes)`;
+                    statusColor = 'var(--color-warning)';
+                } else if (diffDays < 0) {
+                    statusText = `Atrasado (${Math.abs(diffDays)} dias)`;
+                    statusColor = 'var(--color-danger)';
+                }
+
+                const contentEl = App.elements.monitoramentoAereo.trapInfoBoxContent;
+                contentEl.innerHTML = `
+                    <div class="info-title" style="color: ${statusColor};">
+                        <i class="fas fa-bug"></i>
+                        <span>Detalhes da Armadilha</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Status</span>
+                        <span class="value"><span class="status-indicator" style="background-color: ${statusColor};"></span>${statusText}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Data de Instalação</span>
+                        <span class="value">${installDate.toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Data Prevista para Coleta</span>
+                        <span class="value">${collectionDate.toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <button class="save" id="btnCollectTrap" style="width: 100%; margin-top: 10px;"><i class="fas fa-check-circle"></i> Coletar Armadilha</button>
+                `;
+
+                document.getElementById('btnCollectTrap').onclick = () => this.promptCollectTrap(trapId);
+
+                this.hideTalhaoInfo(); // Esconde a info do talhão se estiver aberta
+                App.elements.monitoramentoAereo.trapInfoBox.classList.add('visible');
+            },
+
+            hideTrapInfo() {
+                App.elements.monitoramentoAereo.trapInfoBox.classList.remove('visible');
+            },
+            
+            // [NOVO] Funções para o sistema de notificação
+            checkTrapStatusAndNotify() {
+                const activeTraps = App.state.armadilhas.filter(t => t.status === 'Ativa');
+                
+                activeTraps.forEach(trap => {
+                    const installDate = trap.dataInstalacao.toDate();
+                    const collectionDate = new Date(installDate);
+                    collectionDate.setDate(installDate.getDate() + 7);
+                    const now = new Date();
+                    const diffTime = collectionDate - now;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (diffDays <= 2 && diffDays >= 0) { // Atenção
+                        this.showTrapNotification(trap, 'warning', `${diffDays} dia(s) restante(s) para a coleta.`);
+                    } else if (diffDays < 0) { // Atrasado
+                        this.showTrapNotification(trap, 'danger', `Coleta atrasada em ${Math.abs(diffDays)} dia(s).`);
+                    }
+                });
+            },
+
+            showTrapNotification(trap, type, message) {
+                // Evita notificações duplicadas
+                if (App.state.trapNotifications.includes(trap.id)) {
+                    return;
+                }
+                App.state.trapNotifications.push(trap.id);
+
+                const container = App.elements.notificationContainer;
+                const notification = document.createElement('div');
+                notification.className = `trap-notification ${type}`;
+                notification.dataset.trapId = trap.id;
+
+                const iconClass = type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
+                
+                notification.innerHTML = `
+                    <div class="icon"><i class="fas ${iconClass}"></i></div>
+                    <div class="text">
+                        <p><strong>Armadilha requer atenção</strong></p>
+                        <p>${message}</p>
+                    </div>
+                `;
+                
+                container.appendChild(notification);
+
+                // Remove a notificação após 10 segundos
+                setTimeout(() => {
+                    notification.remove();
+                    // Remove do array de controle
+                    const index = App.state.trapNotifications.indexOf(trap.id);
+                    if (index > -1) {
+                        App.state.trapNotifications.splice(index, 1);
+                    }
+                }, 10000);
+            },
+
+            centerOnTrap(trapId) {
+                const marker = App.state.googleTrapMarkers[trapId];
+                if (marker) {
+                    const position = marker.getPosition();
+                    App.state.googleMap.panTo(position);
+                    App.state.googleMap.setZoom(18);
+                    this.showTrapInfo(trapId);
                 }
             }
         },
