@@ -150,6 +150,13 @@
       #alertContainer.error { background-color: var(--color-danger); } #alertContainer.warning { background-color: var(--color-warning); } #alertContainer.info { background-color: var(--color-info); }
       #alertContainer.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
       
+      /* [ALTERADO] Container para os ícones da direita no header */
+      .header-actions-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
       #user-menu-container { position: relative; z-index: 1200; }
       #user-menu-toggle { background: rgba(255, 255, 255, 0.1); color: var(--color-white); padding: 8px; border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; transition: var(--transition); }
       #user-menu-toggle:hover, #user-menu-toggle.open { background: rgba(255, 255, 255, 0.2); }
@@ -177,7 +184,7 @@
       /* --- ESTILOS DO DASHBOARD E GRÁFICOS --- */
       .dashboard-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr); /* Define 2 colunas para desktop */
+          grid-template-columns: repeat(2, 1fr);
           gap: 20px;
           margin-top: 20px;
       }
@@ -307,7 +314,6 @@
       .dashboard-card#card-aerea { border-color: var(--color-info); }
       .dashboard-card#card-aerea .icon { color: var(--color-info); }
       
-      /* ALTERAÇÃO: Layout do cabeçalho do dashboard */
       .dashboard-header {
         display: flex;
         justify-content: space-between;
@@ -367,7 +373,6 @@
           font-size: 13px;
       }
 
-      /* --- [REDESIGN] ESTILOS MODERNOS PARA PERMISSÕES (BASEADO NA IMAGEM) --- */
       .permission-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -441,7 +446,6 @@
           transform: translateX(22px);
       }
 
-      /* --- [REDESIGN] NOVOS CARDS DE UTILIZADORES --- */
       #usersList {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -626,7 +630,6 @@
       #chartModal .modal-content { max-width: 90vw; height: 85vh; display: flex; flex-direction: column; }
       #expandedChartContainer { flex-grow: 1; position: relative; }
 
-      /* Estilos para seleção de usuário offline */
       #offlineUserSelection { display: none; }
       .offline-user-btn {
           width: 100%;
@@ -649,7 +652,6 @@
           border-color: var(--color-accent);
       }
 
-      /* Estilos para checkboxes customizadas */
       .checkbox-group-container {
         margin-top: 10px;
       }
@@ -733,16 +735,15 @@
           text-align: center;
       }
       
-      /* [REVISADO] Estilos para o Mapa e Controles */
       #monitoramentoAereo-container {
           position: fixed;
-          top: 70px; /* Abaixo do header */
+          top: 70px;
           left: 0;
           width: 100%;
           height: calc(100% - 70px);
           background-color: var(--color-bg);
           z-index: 999;
-          display: none; /* Inicia escondido */
+          display: none;
       }
       #monitoramentoAereo-container.active {
           display: flex;
@@ -793,7 +794,6 @@
       #btnAddTrap:hover {
           background-color: var(--color-primary-dark);
       }
-      /* [ALTERADO] Estilos para o InfoBox do Talhão e Armadilha */
       .info-box {
         position: absolute;
         top: 15px;
@@ -805,7 +805,7 @@
         box-shadow: var(--shadow-xl);
         transform: translateX(calc(100% + 20px));
         transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        display: none; /* Começa escondido */
+        display: none;
       }
       .info-box.visible {
         display: block;
@@ -857,70 +857,198 @@
         z-index: 3;
       }
       
-      /* [NOVO] Estilos para o container de notificações */
       #notification-container {
-        position: fixed;
-        top: 85px; /* Abaixo do header */
-        right: 20px;
-        z-index: 1500;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        max-width: 350px;
+          position: fixed;
+          top: 85px;
+          right: 20px;
+          z-index: 1500;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          max-width: 350px;
       }
       .trap-notification {
-        background-color: var(--color-surface);
-        color: var(--color-text);
-        border-radius: var(--border-radius);
-        box-shadow: var(--shadow-lg);
-        padding: 15px;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        border-left: 5px solid;
-        animation: slideInRight 0.5s ease-out;
-        cursor: pointer;
+          background-color: var(--color-surface);
+          color: var(--color-text);
+          border-radius: var(--border-radius);
+          box-shadow: var(--shadow-lg);
+          padding: 15px;
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          border-left: 5px solid;
+          animation: slideInRight 0.5s ease-out;
+          cursor: pointer;
       }
       .trap-notification.warning {
-        border-left-color: var(--color-warning);
+          border-left-color: var(--color-warning);
       }
       .trap-notification.danger {
-        border-left-color: var(--color-danger);
+          border-left-color: var(--color-danger);
       }
       .trap-notification .icon {
-        font-size: 24px;
+          font-size: 24px;
       }
       .trap-notification.warning .icon { color: var(--color-warning); }
       .trap-notification.danger .icon { color: var(--color-danger); }
       .trap-notification p {
-        margin: 0;
-        font-size: 14px;
-        line-height: 1.4;
+          margin: 0;
+          font-size: 14px;
+          line-height: 1.4;
       }
       .trap-notification p strong {
-        font-weight: 600;
-        display: block;
+          font-weight: 600;
+          display: block;
       }
       @keyframes slideInRight {
-        from {
-          opacity: 0;
-          transform: translateX(100%);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(0);
-        }
+          from {
+            opacity: 0;
+            transform: translateX(100%);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+      }
+
+      /* [NOVO] Estilos para o sino e dropdown de notificações */
+      .notification-bell {
+        position: relative;
+        z-index: 1201;
+      }
+      #notification-bell-toggle {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--color-white);
+        padding: 8px;
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        cursor: pointer;
+        transition: var(--transition);
+        position: relative;
+      }
+      #notification-bell-toggle:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      #notification-bell-toggle i {
+        font-size: 20px;
+      }
+      #notification-count {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background-color: var(--color-danger);
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 11px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid white;
+        display: none; /* Começa escondido */
+      }
+      #notification-dropdown {
+        position: absolute;
+        top: calc(100% + 12px);
+        right: 0;
+        background: var(--color-surface);
+        color: var(--color-text);
+        border-radius: var(--border-radius);
+        box-shadow: var(--shadow-lg);
+        width: 320px;
+        max-height: 400px;
+        overflow-y: auto;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        transform-origin: top right;
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+        pointer-events: none;
+        display: block;
+        padding: 0;
+      }
+      #notification-dropdown.show {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+      .notification-item {
+        padding: 12px;
+        border-bottom: 1px solid var(--color-border);
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      .notification-item:last-child {
+        border-bottom: none;
+      }
+      .notification-item:hover {
+        background-color: var(--color-bg);
+      }
+      .notification-item i {
+        font-size: 16px;
+        margin-top: 3px;
+        width: 20px;
+        text-align: center;
+      }
+      .notification-item.warning i { color: var(--color-warning); }
+      .notification-item.danger i { color: var(--color-danger); }
+      .notification-item-content p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .notification-item-content p strong {
+        font-weight: 600;
+        color: var(--color-text);
+      }
+      .notification-item-content .timestamp {
+        font-size: 11px;
+        color: var(--color-text-light);
+        margin-top: 4px;
+      }
+      .notification-header {
+        padding: 12px;
+        font-weight: 600;
+        border-bottom: 1px solid var(--color-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        background: var(--color-surface);
+      }
+      .notification-header button {
+        font-size: 11px;
+        background: none;
+        border: none;
+        color: var(--color-info);
+        cursor: pointer;
+        font-weight: 500;
+      }
+      #no-notifications {
+        padding: 40px 20px;
+        text-align: center;
+        color: var(--color-text-light);
       }
 
 
-      @media (max-width: 992px) { /* Ponto de quebra para tablets */
+      @media (max-width: 992px) {
         .dashboard-grid {
             grid-template-columns: 1fr;
         }
       }
 
       @media (max-width: 768px) {
-          header h1 { font-size: 16px; max-width: calc(100% - 180px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          header h1 { font-size: 16px; max-width: calc(100% - 200px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
           main.content { padding: 15px; height: calc(100vh - 70px); }
           .card { padding: 16px; }
           .card-header-actions { flex-direction: column; align-items: stretch; }
@@ -995,35 +1123,47 @@
             </button>
             <h1><i class="fas fa-leaf"></i> Inspeção de Cana</h1>
             
-            <div id="user-menu-container" style="display:none;">
-                <button id="user-menu-toggle" aria-label="Menu do Utilizador" aria-haspopup="true" aria-expanded="false">
-                    <i class="fas fa-user-circle"></i>
-                </button>
-                <div id="user-menu-dropdown" role="menu">
-                    <div class="user-menu-header">
-                        <p><strong>Conectado como:</strong></p>
-                        <p id="userMenuUsername"></p>
+            <div class="header-actions-container">
+                <div id="notification-bell-container" class="notification-bell" style="display: none;">
+                    <button id="notification-bell-toggle" aria-label="Notificações">
+                        <i class="fas fa-bell"></i>
+                        <span id="notification-count" style="display: none;">0</span>
+                    </button>
+                    <div id="notification-dropdown">
+                        <!-- As notificações serão inseridas aqui via JS -->
                     </div>
-                    <div id="currentDateTime" class="user-menu-item"></div>
-                    <hr>
-                    <div class="theme-selector-container">
-                        <p>Tema</p>
-                        <div class="theme-buttons">
-                            <button id="theme-green" class="theme-button" title="Verde (Padrão)"></button>
-                            <button id="theme-blue" class="theme-button" title="Azul"></button>
-                            <button id="theme-dark" class="theme-button" title="Escuro"></button>
+                </div>
+
+                <div id="user-menu-container" style="display:none;">
+                    <button id="user-menu-toggle" aria-label="Menu do Utilizador" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-user-circle"></i>
+                    </button>
+                    <div id="user-menu-dropdown" role="menu">
+                        <div class="user-menu-header">
+                            <p><strong>Conectado como:</strong></p>
+                            <p id="userMenuUsername"></p>
                         </div>
+                        <div id="currentDateTime" class="user-menu-item"></div>
+                        <hr>
+                        <div class="theme-selector-container">
+                            <p>Tema</p>
+                            <div class="theme-buttons">
+                                <button id="theme-green" class="theme-button" title="Verde (Padrão)"></button>
+                                <button id="theme-blue" class="theme-button" title="Azul"></button>
+                                <button id="theme-dark" class="theme-button" title="Escuro"></button>
+                            </div>
+                        </div>
+                        <hr>
+                        <button id="installAppBtn" role="menuitem" class="user-menu-item is-action" style="display: none;">
+                            <i class="fas fa-download"></i> Instalar App
+                        </button>
+                        <button id="changePasswordBtn" role="menuitem" class="user-menu-item is-action">
+                            <i class="fas fa-key"></i> Alterar Senha
+                        </button>
+                        <button id="logoutBtn" role="menuitem" class="user-menu-item is-action">
+                            <i class="fas fa-sign-out-alt"></i> Sair
+                        </button>
                     </div>
-                    <hr>
-                    <button id="installAppBtn" role="menuitem" class="user-menu-item is-action" style="display: none;">
-                        <i class="fas fa-download"></i> Instalar App
-                    </button>
-                    <button id="changePasswordBtn" role="menuitem" class="user-menu-item is-action">
-                        <i class="fas fa-key"></i> Alterar Senha
-                    </button>
-                    <button id="logoutBtn" role="menuitem" class="user-menu-item is-action">
-                        <i class="fas fa-sign-out-alt"></i> Sair
-                    </button>
                 </div>
             </div>
         </header>
@@ -1128,16 +1268,16 @@
                 </div>
 
                 <div id="dashboard-aerea" style="display: none;">
-                     <div class="dashboard-header">
-                        <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
-                        <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
-                    </div>
-                    <div class="card">
-                      <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
-                          <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
-                          Este módulo ainda está em desenvolvimento.
-                        </p>
-                    </div>
+                       <div class="dashboard-header">
+                            <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
+                            <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                        </div>
+                        <div class="card">
+                          <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
+                              <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
+                              Este módulo ainda está em desenvolvimento.
+                            </p>
+                        </div>
                 </div>
 
             </section>
@@ -1635,7 +1775,6 @@
             </section>
         </main>
         
-        <!-- [REVISADO] O container do mapa agora está fora do <main> -->
         <div id="monitoramentoAereo-container" class="tab-content">
             <div id="map-container">
                 <div id="map"></div>
@@ -1647,19 +1786,13 @@
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
-                <!-- [ALTERADO] Estrutura do InfoBox para corresponder à imagem -->
                 <div id="talhao-info-box" class="info-box">
                     <button id="close-info-box" class="modal-close-btn">&times;</button>
-                    <div id="talhao-info-box-content">
-                        <!-- O conteúdo será preenchido via JS -->
-                    </div>
+                    <div id="talhao-info-box-content"></div>
                 </div>
-                 <!-- [NOVO] Caixa de Informação da Armadilha -->
                 <div id="trap-info-box" class="info-box">
                     <button id="close-trap-info-box" class="modal-close-btn">&times;</button>
-                    <div id="trap-info-box-content">
-                        <!-- O conteúdo será preenchido via JS -->
-                    </div>
+                    <div id="trap-info-box-content"></div>
                 </div>
             </div>
         </div>
@@ -1811,10 +1944,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-    <!-- [NOVO] Script para ler Shapefiles -->
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+    <script src="https://unpkg.com/idb@7.1.1/build/index.js"></script>
     
-    <!-- [ALTERADO] Script do Google Maps com sua API Key e callback -->
     <script>
         function initMap() {
             // Esta função será chamada pela API do Google Maps quando estiver pronta.
