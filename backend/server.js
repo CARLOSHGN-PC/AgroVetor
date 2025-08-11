@@ -25,7 +25,7 @@ try {
  
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: "agrovetor-v2.appspot.com"
+    storageBucket: "agrovetor-v2.firebasestorage.app"
   });
 
   const db = admin.firestore();
