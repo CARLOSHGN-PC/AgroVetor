@@ -77,7 +77,6 @@
       }
       
       #loginBox { 
-          background: rgba(255, 255, 255, 0.6);
           background: color-mix(in srgb, var(--color-surface) 60%, transparent);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
@@ -103,8 +102,32 @@
       #btnLogin { margin-top: 24px; width: 100%; padding: 16px; background: linear-gradient(to right, var(--color-primary), var(--color-accent)); color: var(--color-white); border: none; border-radius: var(--border-radius); font-weight: 600; font-size: 16px; cursor: pointer; transition: var(--transition); display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: var(--shadow-md); position: relative; overflow: hidden; }
       #btnLogin:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
       #loginMessage { color: var(--color-danger); min-height: 20px; margin-top: 16px; font-size: 14px; font-weight: 500; transition: var(--transition); }
-      header { position: fixed; top: 0; left: 0; right: 0; height: 70px; background: linear-gradient(to right, var(--color-primary), var(--color-primary-dark)); color: var(--color-white); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; box-shadow: var(--shadow-md); z-index: 1000; user-select: none; }
-      header h1 { margin: 0; font-weight: 600; font-size: 20px; flex-grow: 1; text-align: center; display: flex; align-items: center; justify-content: center; gap: 10px; position: absolute; left: 50%; transform: translateX(-50%); }
+      
+      header { 
+          position: fixed; top: 0; left: 0; right: 0; height: 70px; 
+          background: linear-gradient(to right, var(--color-primary), var(--color-primary-dark)); 
+          color: var(--color-white); 
+          display: flex; align-items: center; justify-content: space-between; 
+          padding: 0 16px; 
+          box-shadow: var(--shadow-md); z-index: 1000; user-select: none; 
+      }
+      .header-title-container {
+          position: absolute;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          max-width: calc(100% - 220px); /* Espaço para botões */
+      }
+      header h1 { 
+          margin: 0; font-weight: 600; font-size: 20px; 
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+      }
+      header h1 i { margin-right: 10px; }
+
       .menu-toggle { background: rgba(255, 255, 255, 0.1); border-radius: var(--border-radius); border: none; cursor: pointer; width: 48px; height: 48px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; z-index: 1100; transition: var(--transition); }
       .menu-toggle:hover { background: rgba(255, 255, 255, 0.2); }
       .menu-toggle div { height: 3px; width: 24px; background: var(--color-white); border-radius: 3px; transition: var(--transition); }
@@ -957,7 +980,11 @@
         align-items: center;
         justify-content: center;
         border: 1px solid white;
-        display: none; /* Começa escondido */
+        transform: scale(0);
+        transition: transform 0.2s ease;
+      }
+      #notification-count.visible {
+          transform: scale(1);
       }
       #notification-dropdown {
         position: absolute;
@@ -975,7 +1002,8 @@
         opacity: 0;
         transform: scale(0.95) translateY(-10px);
         pointer-events: none;
-        display: block;
+        display: flex;
+        flex-direction: column;
         padding: 0;
       }
       #notification-dropdown.show {
@@ -1043,6 +1071,33 @@
         padding: 40px 20px;
         text-align: center;
         color: var(--color-text-light);
+        flex-grow: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .btn-collect-trap {
+        width: 100%;
+        margin-top: 10px;
+        background: var(--color-success);
+        color: var(--color-white);
+        border: none;
+        padding: 12px;
+        border-radius: var(--border-radius);
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .btn-collect-trap:hover {
+        background: var(--color-primary-dark);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
       }
 
 
@@ -1053,7 +1108,10 @@
       }
 
       @media (max-width: 768px) {
-          header h1 { font-size: 16px; max-width: calc(100% - 200px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .header-title-container {
+              max-width: calc(100% - 140px); /* Espaço para botão de menu e ações */
+          }
+          header h1 { font-size: 16px; }
           main.content { padding: 15px; height: calc(100vh - 70px); }
           .card { padding: 16px; }
           .card-header-actions { flex-direction: column; align-items: stretch; }
@@ -1125,16 +1183,27 @@
             <button class="menu-toggle" id="btnToggleMenu" aria-label="Abrir menu" aria-expanded="false" aria-controls="menu">
                 <div></div><div></div><div></div>
             </button>
-            <h1><i class="fas fa-leaf"></i> Inspeção de Cana</h1>
+            <div class="header-title-container">
+                <h1><i class="fas fa-leaf"></i> Inspeção de Cana</h1>
+            </div>
             
             <div class="header-actions-container">
                 <div id="notification-bell-container" class="notification-bell" style="display: none;">
                     <button id="notification-bell-toggle" aria-label="Notificações">
                         <i class="fas fa-bell"></i>
-                        <span id="notification-count" style="display: none;">0</span>
+                        <span id="notification-count">0</span>
                     </button>
                     <div id="notification-dropdown">
-                        <!-- As notificações serão inseridas aqui via JS -->
+                        <div class="notification-header">
+                            <span>Notificações</span>
+                            <button id="clear-notifications-btn">Limpar</button>
+                        </div>
+                        <div id="notification-list">
+                            <!-- Itens de notificação aqui -->
+                        </div>
+                        <div id="no-notifications" style="display: none;">
+                            <p>Nenhuma notificação nova.</p>
+                        </div>
                     </div>
                 </div>
 
@@ -1272,16 +1341,16 @@
                 </div>
 
                 <div id="dashboard-aerea" style="display: none;">
-                       <div class="dashboard-header">
-                            <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
-                            <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
-                        </div>
-                        <div class="card">
-                          <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
-                              <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
-                              Este módulo ainda está em desenvolvimento.
-                            </p>
-                        </div>
+                            <div class="dashboard-header">
+                                <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
+                                <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                            </div>
+                            <div class="card">
+                              <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
+                                  <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
+                                  Este módulo ainda está em desenvolvimento.
+                                </p>
+                            </div>
                 </div>
 
             </section>
