@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>AgroVetor - Inspeção e Planejamento</title>
 
     <!-- PWA (Progressive Web App) Tags -->
@@ -103,6 +103,7 @@
       #btnLogin:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
       #loginMessage { color: var(--color-danger); min-height: 20px; margin-top: 16px; font-size: 14px; font-weight: 500; transition: var(--transition); }
       
+      /* [ALTERADO] Estrutura do header para ser mais flexível e responsiva */
       header { 
           position: fixed; top: 0; left: 0; right: 0; height: 70px; 
           background: linear-gradient(to right, var(--color-primary), var(--color-primary-dark)); 
@@ -112,13 +113,12 @@
           box-shadow: var(--shadow-md); z-index: 1000; user-select: none; 
       }
       .header-title-container {
-          position: absolute;
-          left: 50%;
-          transform: translateX(-50%);
+          flex-grow: 1;
+          text-align: center;
           display: flex;
           align-items: center;
           justify-content: center;
-          max-width: calc(100% - 220px); /* Espaço para botões */
+          padding: 0 10px; /* Espaçamento para não colar nos botões */
       }
       header h1 { 
           margin: 0; font-weight: 600; font-size: 20px; 
@@ -778,10 +778,11 @@
           height: 100%;
           z-index: 1;
       }
+      /* [ALTERADO] Posição dos botões do mapa para o canto superior direito */
       .map-controls {
           position: absolute;
-          bottom: 20px;
-          left: 20px;
+          top: 15px;
+          right: 15px;
           z-index: 2;
           display: flex;
           flex-direction: column;
@@ -815,74 +816,77 @@
           background-color: var(--color-primary-dark);
       }
 
-      /* [REDESIGN] Estilos para o InfoBox do Talhão e Armadilha */
+      /* [ALTERADO] Estilos para o InfoBox do Talhão e Armadilha */
       .info-box {
         position: absolute;
         top: 15px;
-        right: 15px;
+        left: 15px;
         width: 320px;
         background: var(--color-surface);
         z-index: 2;
         border-radius: var(--border-radius-lg);
         box-shadow: var(--shadow-xl);
-        transform: translateX(calc(100% + 20px));
+        transform: translateX(calc(-100% - 20px));
         transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         display: none;
         border-left: 5px solid var(--color-primary);
+        max-height: calc(100% - 30px);
+        overflow-y: auto;
       }
       .info-box.visible {
-        display: block;
-        transform: translateX(0);
+          display: block;
+          transform: translateX(0);
       }
       .info-box-content {
-        padding: 0;
+          padding: 0;
       }
       .info-item {
-        padding: 10px 20px;
-        display: flex;
-        flex-direction: column;
-        border-bottom: 1px solid var(--color-border);
+          padding: 10px 20px;
+          display: flex;
+          flex-direction: column;
+          border-bottom: 1px solid var(--color-border);
       }
       .info-item:last-child {
-        border-bottom: none;
+          border-bottom: none;
       }
       .info-item .label {
-        font-size: 12px;
-        font-weight: 500;
-        color: var(--color-text-light);
-        margin-bottom: 2px;
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--color-text-light);
+          margin-bottom: 2px;
       }
       .info-item .value {
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--color-text);
-        display: flex;
-        align-items: center;
-        gap: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--color-text);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          word-break: break-word;
       }
       .info-item .value .status-indicator {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
       }
       .info-title {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--color-primary);
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--color-border);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 18px;
+          font-weight: 600;
+          color: var(--color-primary);
+          padding: 16px 20px;
+          border-bottom: 1px solid var(--color-border);
       }
       .info-title i {
-        font-size: 20px;
+          font-size: 20px;
       }
       .info-box .modal-close-btn {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        z-index: 3;
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          z-index: 3;
       }
       
       #notification-container {
@@ -945,43 +949,43 @@
         z-index: 1201;
       }
       #notification-bell-toggle {
-        background: rgba(255, 255, 255, 0.1);
-        color: var(--color-white);
-        padding: 8px;
-        border-radius: 50%;
-        width: 48px;
-        height: 48px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        cursor: pointer;
-        transition: var(--transition);
-        position: relative;
+          background: rgba(255, 255, 255, 0.1);
+          color: var(--color-white);
+          padding: 8px;
+          border-radius: 50%;
+          width: 48px;
+          height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          cursor: pointer;
+          transition: var(--transition);
+          position: relative;
       }
       #notification-bell-toggle:hover {
-        background: rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.2);
       }
       #notification-bell-toggle i {
-        font-size: 20px;
+          font-size: 20px;
       }
       #notification-count {
-        position: absolute;
-        top: 5px;
-        right: 5px;
-        background-color: var(--color-danger);
-        color: white;
-        border-radius: 50%;
-        width: 18px;
-        height: 18px;
-        font-size: 11px;
-        font-weight: bold;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid white;
-        transform: scale(0);
-        transition: transform 0.2s ease;
+          position: absolute;
+          top: 5px;
+          right: 5px;
+          background-color: var(--color-danger);
+          color: white;
+          border-radius: 50%;
+          width: 18px;
+          height: 18px;
+          font-size: 11px;
+          font-weight: bold;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid white;
+          transform: scale(0);
+          transition: transform 0.2s ease;
       }
       #notification-count.visible {
           transform: scale(1);
@@ -1007,97 +1011,97 @@
         padding: 0;
       }
       #notification-dropdown.show {
-        opacity: 1;
-        transform: translateY(0);
-        pointer-events: auto;
+          opacity: 1;
+          transform: translateY(0);
+          pointer-events: auto;
       }
       .notification-item {
-        padding: 12px;
-        border-bottom: 1px solid var(--color-border);
-        cursor: pointer;
-        transition: background-color 0.2s ease;
-        display: flex;
-        gap: 12px;
-        align-items: flex-start;
+          padding: 12px;
+          border-bottom: 1px solid var(--color-border);
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+          display: flex;
+          gap: 12px;
+          align-items: flex-start;
       }
       .notification-item:last-child {
-        border-bottom: none;
+          border-bottom: none;
       }
       .notification-item:hover {
-        background-color: var(--color-bg);
+          background-color: var(--color-bg);
       }
       .notification-item i {
-        font-size: 16px;
-        margin-top: 3px;
-        width: 20px;
-        text-align: center;
+          font-size: 16px;
+          margin-top: 3px;
+          width: 20px;
+          text-align: center;
       }
       .notification-item.warning i { color: var(--color-warning); }
       .notification-item.danger i { color: var(--color-danger); }
       .notification-item-content p {
-        margin: 0;
-        font-size: 13px;
-        line-height: 1.4;
+          margin: 0;
+          font-size: 13px;
+          line-height: 1.4;
       }
       .notification-item-content p strong {
-        font-weight: 600;
-        color: var(--color-text);
+          font-weight: 600;
+          color: var(--color-text);
       }
       .notification-item-content .timestamp {
-        font-size: 11px;
-        color: var(--color-text-light);
-        margin-top: 4px;
+          font-size: 11px;
+          color: var(--color-text-light);
+          margin-top: 4px;
       }
       .notification-header {
-        padding: 12px;
-        font-weight: 600;
-        border-bottom: 1px solid var(--color-border);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        position: sticky;
-        top: 0;
-        background: var(--color-surface);
+          padding: 12px;
+          font-weight: 600;
+          border-bottom: 1px solid var(--color-border);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          position: sticky;
+          top: 0;
+          background: var(--color-surface);
       }
       .notification-header button {
-        font-size: 11px;
-        background: none;
-        border: none;
-        color: var(--color-info);
-        cursor: pointer;
-        font-weight: 500;
+          font-size: 11px;
+          background: none;
+          border: none;
+          color: var(--color-info);
+          cursor: pointer;
+          font-weight: 500;
       }
       #no-notifications {
-        padding: 40px 20px;
-        text-align: center;
-        color: var(--color-text-light);
-        flex-grow: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+          padding: 40px 20px;
+          text-align: center;
+          color: var(--color-text-light);
+          flex-grow: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
       }
       
       .btn-collect-trap {
-        width: 100%;
-        margin-top: 10px;
-        background: var(--color-success);
-        color: var(--color-white);
-        border: none;
-        padding: 12px;
-        border-radius: var(--border-radius);
-        font-size: 16px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: var(--transition);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
+          width: 100%;
+          margin-top: 10px;
+          background: var(--color-success);
+          color: var(--color-white);
+          border: none;
+          padding: 12px;
+          border-radius: var(--border-radius);
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: var(--transition);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
       }
       .btn-collect-trap:hover {
-        background: var(--color-primary-dark);
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
+          background: var(--color-primary-dark);
+          transform: translateY(-2px);
+          box-shadow: var(--shadow-md);
       }
 
 
@@ -1108,9 +1112,6 @@
       }
 
       @media (max-width: 768px) {
-          .header-title-container {
-              max-width: calc(100% - 140px); /* Espaço para botão de menu e ações */
-          }
           header h1 { font-size: 16px; }
           main.content { padding: 15px; height: calc(100vh - 70px); }
           .card { padding: 16px; }
@@ -1124,8 +1125,10 @@
           .dashboard-selector-grid { grid-template-columns: 1fr; }
           #usersList { grid-template-columns: 1fr; }
           .map-controls {
-              bottom: 15px;
-              left: 15px;
+              top: 10px;
+              right: 10px;
+              bottom: auto;
+              left: auto;
           }
           .map-control-btn {
               width: 45px;
@@ -1135,7 +1138,7 @@
           .info-box {
               width: calc(100% - 30px);
               top: 10px;
-              right: 15px;
+              left: 15px;
               transform: translateY(calc(-100% - 20px));
           }
           .info-box.visible {
@@ -1179,6 +1182,7 @@
     </div>
 
     <div id="appScreen" style="display:none; flex:1; flex-direction: column;">
+        <!-- [ALTERADO] A estrutura do header foi refeita para melhor responsividade -->
         <header>
             <button class="menu-toggle" id="btnToggleMenu" aria-label="Abrir menu" aria-expanded="false" aria-controls="menu">
                 <div></div><div></div><div></div>
@@ -1196,10 +1200,10 @@
                     <div id="notification-dropdown">
                         <div class="notification-header">
                             <span>Notificações</span>
-                            <button id="clear-notifications-btn">Limpar</button>
+                            <button id="clear-notifications-btn">Marcar como lidas</button>
                         </div>
                         <div id="notification-list">
-                            <!-- Itens de notificação aqui -->
+                            <!-- Itens de notificação serão inseridos aqui via JS -->
                         </div>
                         <div id="no-notifications" style="display: none;">
                             <p>Nenhuma notificação nova.</p>
@@ -1341,16 +1345,16 @@
                 </div>
 
                 <div id="dashboard-aerea" style="display: none;">
-                            <div class="dashboard-header">
-                                <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
-                                <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
-                            </div>
-                            <div class="card">
-                              <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
-                                  <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
-                                  Este módulo ainda está em desenvolvimento.
-                                </p>
-                            </div>
+                                <div class="dashboard-header">
+                                    <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
+                                    <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                                </div>
+                                <div class="card">
+                                  <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
+                                      <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
+                                      Este módulo ainda está em desenvolvimento.
+                                    </p>
+                                </div>
                 </div>
 
             </section>
@@ -1849,6 +1853,7 @@
         <div id="monitoramentoAereo-container" class="tab-content">
             <div id="map-container">
                 <div id="map"></div>
+                <!-- [ALTERADO] Posição dos botões do mapa para o canto superior direito -->
                 <div class="map-controls">
                     <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
                         <i class="fas fa-location-arrow"></i>
@@ -1857,6 +1862,7 @@
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
+                <!-- [ALTERADO] InfoBox agora posicionado à esquerda -->
                 <div id="talhao-info-box" class="info-box">
                     <button id="close-info-box" class="modal-close-btn">&times;</button>
                     <div id="talhao-info-box-content"></div>
