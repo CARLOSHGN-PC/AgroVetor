@@ -639,10 +639,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         App.state[collectionName] = data;
                         
-                        if (collectionName === 'armadilhas') {
-                            if (App.state.googleMap) {
-                                App.mapModule.loadTraps();
-                            }
+                        if (collectionName === 'armadilhas' && App.state.googleMap) {
+                            App.mapModule.loadTraps();
                             App.mapModule.checkTrapStatusAndNotify();
                         }
 
@@ -3649,8 +3647,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 let newNotificationsForBell = [];
                 
                 activeTraps.forEach(trap => {
-                    if (!trap.dataInstalacao) return; // Safety check
-
                     const installDate = trap.dataInstalacao.toDate();
                     const collectionDate = new Date(installDate);
                     collectionDate.setDate(installDate.getDate() + 7);
@@ -3679,7 +3675,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Atualiza o estado geral de notificações
                 App.state.trapNotifications = newNotificationsForBell.sort((a, b) => b.timestamp - a.timestamp);
-                App.state.unreadNotificationCount = newNotificationsForBell.length;
+                
+                const newUnreadCount = newNotificationsForBell.filter(n => !App.state.notifiedTrapIds.has(n.trapId)).length;
+                App.state.unreadNotificationCount += newUnreadCount;
+                
                 App.ui.updateNotificationBell();
             },
 
