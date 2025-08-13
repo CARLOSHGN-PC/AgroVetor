@@ -3351,51 +3351,50 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             // ALTERAÇÃO PONTO 5: Melhoria na busca de propriedades do Shapefile
-            showTalhaoInfo(feature) {
-                const props = {};
-                feature.forEachProperty((value, property) => {
-                    props[property.toUpperCase()] = value;
-                });
-                
-                // Função auxiliar para encontrar propriedades com nomes variáveis
-                const findProp = (keys) => {
-                    for (const key of keys) {
-                        if (props[key.toUpperCase()] !== undefined) {
-                            return props[key.toUpperCase()];
-                        }
-                    }
-                    return 'Não identificado';
-                };
+           showTalhaoInfo(feature) {
+    const props = {};
+    feature.forEachProperty((value, property) => {
+        props[property.toUpperCase()] = value;
+    });
+    
+    // Função auxiliar para encontrar propriedades com nomes variáveis
+    const findProp = (keys) => {
+        for (const key of keys) {
+            if (props[key.toUpperCase()] !== undefined) {
+                return props[key.toUpperCase()];
+            }
+        }
+        return 'Não identificado';
+    };
 
-                const fazendaCod = findProp(['CD_FAZENDA', 'COD_FAZEND', 'CODFZ']);
-                const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN']);
-                const talhaoNome = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-                const areaHa = findProp(['AREA_HA', 'AREA', 'HECTARES']);
+    const fazendaCod = findProp(['CD_FAZENDA', 'COD_FAZEND', 'CODFZ', 'CODIGO_FAZ']);
+    const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN']);
+    const talhaoNome = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO', 'NOME_TALHA']);
+    const areaHa = findProp(['AREA_HA', 'AREA', 'HECTARES']);
 
-                const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
-                contentEl.innerHTML = `
-                    <div class="info-title">
-                        <i class="fas fa-map-marker-alt"></i>
-                        <span>Informações do Talhão</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Fazenda</span>
-                        <span class="value">${fazendaCod} - ${fazendaNome}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Talhão</span>
-                        <span class="value">${talhaoNome}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Área Total</span>
-                        <span class="value">${(typeof areaHa === 'number' ? areaHa : 0).toFixed(2).replace('.',',')} ha</span>
-                    </div>
-                `;
-                
-                this.hideTrapInfo();
-                App.elements.monitoramentoAereo.infoBox.classList.add('visible');
+    const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
+    contentEl.innerHTML = `
+        <div class="info-title">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>Informações do Talhão</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Fazenda</span>
+            <span class="value">${fazendaCod} - ${fazendaNome}</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Talhão</span>
+            <span class="value">${talhaoNome}</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Área Total</span>
+            <span class="value">${(typeof areaHa === 'number' ? areaHa : 0).toFixed(2).replace('.',',')} ha</span>
+        </div>
+    `;
+    
+    this.hideTrapInfo();
+    App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
-
             hideTalhaoInfo() {
                 App.elements.monitoramentoAereo.infoBox.classList.remove('visible');
             },
