@@ -4411,3 +4411,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inicia a aplicação
     App.init();
 });
+
+
