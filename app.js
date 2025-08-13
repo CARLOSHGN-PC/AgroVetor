@@ -3448,9 +3448,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 const fazendaCod = findProp(['CD_FAZENDA', 'COD_FAZEND', 'CODFZ']);
-                const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN']);
+                const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
                 const talhaoNome = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
                 const areaHa = findProp(['AREA_HA', 'AREA', 'HECTARES']);
+                const variedade = findProp(['VARIEDADE', 'CULTURA']);
+                const fundoAgricola = findProp(['FUNDO_AGRICOLA', 'FUNDOAGRICOLA', 'FUNDO']);
 
                 const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
                 contentEl.innerHTML = `
@@ -3460,11 +3462,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="info-item">
                         <span class="label">Fazenda</span>
-                        <span class="value">${fazendaCod} - ${fazendaNome}</span>
+                        <span class="value">${fazendaCod !== 'Não identificado' ? fazendaCod + ' - ' : ''}${fazendaNome}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Fundo Agrícola</span>
+                        <span class="value">${fundoAgricola}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">Talhão</span>
                         <span class="value">${talhaoNome}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Variedade</span>
+                        <span class="value">${variedade}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">Área Total</span>
