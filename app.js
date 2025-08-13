@@ -140,6 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
             trapNotifications: [],
             unreadNotificationCount: 0,
             notifiedTrapIds: new Set(), // NOVO: Controla pop-ups já exibidos na sessão
+            trapPlacementMode: null,
+            trapPlacementData: null,
         },
         
         elements: {
@@ -424,6 +426,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 fim: document.getElementById('monitoramentoFim'),
                 btnPDF: document.getElementById('btnPDFMonitoramento'),
                 btnExcel: document.getElementById('btnExcelMonitoramento'),
+            },
+            trapPlacementModal: {
+                overlay: document.getElementById('trapPlacementModal'),
+                body: document.getElementById('trapPlacementModalBody'),
+                closeBtn: document.getElementById('trapPlacementModalCloseBtn'),
+                cancelBtn: document.getElementById('trapPlacementModalCancelBtn'),
+                manualBtn: document.getElementById('trapPlacementModalManualBtn'),
+                confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
         },
@@ -1931,6 +1941,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 App.elements.monitoramentoAereo.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
                 App.elements.monitoramentoAereo.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
+                
+                const trapModal = App.elements.trapPlacementModal;
+                trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
+                trapModal.cancelBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
+                trapModal.manualBtn.addEventListener('click', () => App.mapModule.showTrapPlacementModal('manual_select'));
+                trapModal.confirmBtn.addEventListener('click', () => {
+                    const { trapPlacementMode, trapPlacementData, googleUserMarker } = App.state;
+                    if (!googleUserMarker) return;
+
+                    let selectedFeature = null;
+
+                    if (trapPlacementMode === 'success') {
+                        selectedFeature = trapPlacementData.feature;
+                    } else if (trapPlacementMode === 'conflict') {
+                        const selectedRadio = document.querySelector('input[name="talhaoConflict"]:checked');
+                        if (selectedRadio) {
+                            const selectedIndex = parseInt(selectedRadio.value, 10);
+                            selectedFeature = trapPlacementData.features[selectedIndex];
+                        } else {
+                            App.ui.showAlert("Por favor, selecione um talhão.", "warning");
+                            return;
+                        }
+                    }
+
+                    if (selectedFeature) {
+                        const position = googleUserMarker.getPosition();
+                        App.mapModule.installTrap(position.lat(), position.lng(), selectedFeature);
+                        App.mapModule.hideTrapPlacementModal();
+                    }
+                });
+
                 App.elements.relatorioMonitoramento.btnPDF.addEventListener('click', () => App.reports.generateMonitoramentoPDF());
                 App.elements.relatorioMonitoramento.btnExcel.addEventListener('click', () => App.reports.generateMonitoramentoCSV());
                 App.elements.notificationContainer.addEventListener('click', (e) => {
@@ -3445,17 +3486,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 dataLayer.addListener('click', (event) => {
-                    if (App.state.selectedMapFeature) {
-                        App.state.selectedMapFeature.setProperty('isSelected', false);
-                    }
-                    
-                    if (App.state.selectedMapFeature === event.feature) {
-                        App.state.selectedMapFeature = null;
-                        this.hideTalhaoInfo();
+                    if (App.state.trapPlacementMode === 'manual_select') {
+                        const selectedFeature = event.feature;
+                        const position = App.state.googleUserMarker.getPosition();
+                        if (!position) {
+                            App.ui.showAlert("Localização do usuário não encontrada.", "error");
+                            return;
+                        }
+                        this.installTrap(position.lat(), position.lng(), selectedFeature);
+                        this.hideTrapPlacementModal();
                     } else {
-                        App.state.selectedMapFeature = event.feature;
-                        event.feature.setProperty('isSelected', true);
-                        this.showTalhaoInfo(event.feature);
+                        if (App.state.selectedMapFeature) {
+                            App.state.selectedMapFeature.setProperty('isSelected', false);
+                        }
+                        
+                        if (App.state.selectedMapFeature === event.feature) {
+                            App.state.selectedMapFeature = null;
+                            this.hideTalhaoInfo();
+                        } else {
+                            App.state.selectedMapFeature = event.feature;
+                            event.feature.setProperty('isSelected', true);
+                            this.showTalhaoInfo(event.feature);
+                        }
                     }
                 });
             },
@@ -3578,26 +3630,124 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Localização do usuário não disponível para instalar a armadilha.", "error");
                     return;
                 }
-                App.ui.showConfirmationModal("Deseja instalar uma nova armadilha na sua localização atual?", () => {
-                    const position = App.state.googleUserMarker.getPosition();
-                    this.installTrap(position.lat(), position.lng());
-                });
+                this.showTrapPlacementModal('loading');
+                const position = App.state.googleUserMarker.getPosition();
+                this.findTalhaoFromLocation(position);
             },
 
-            async installTrap(lat, lng) {
+            findTalhaoFromLocation(position) {
+                const containingTalhoes = [];
+                const dataLayer = App.state.mapPolygons[0]; // Assumindo que só há um dataLayer
+                if (!dataLayer) {
+                    this.showTrapPlacementModal('failure');
+                    return;
+                }
+
+                dataLayer.forEach(feature => {
+                    const geometry = feature.getGeometry();
+                    if (!geometry) return;
+
+                    const type = geometry.getType();
+                    let polygon;
+
+                    if (type === 'Polygon') {
+                        try {
+                            polygon = new google.maps.Polygon({ paths: geometry.getArray()[0].getArray() });
+                             if (google.maps.geometry.poly.containsLocation(position, polygon)) {
+                                containingTalhoes.push(feature);
+                            }
+                        } catch(e) { console.error("Erro ao processar geometria de Polígono:", e); }
+                    } else if (type === 'MultiPolygon') {
+                        geometry.getArray().forEach(p => {
+                            try {
+                                polygon = new google.maps.Polygon({ paths: p.getArray()[0].getArray() });
+                                if (google.maps.geometry.poly.containsLocation(position, polygon)) {
+                                    containingTalhoes.push(feature);
+                                }
+                            } catch(e) { console.error("Erro ao processar geometria de MultiPolígono:", e); }
+                        });
+                    }
+                });
+
+                if (containingTalhoes.length === 1) {
+                    this.showTrapPlacementModal('success', containingTalhoes);
+                } else if (containingTalhoes.length > 1) {
+                    this.showTrapPlacementModal('conflict', containingTalhoes);
+                } else {
+                    this.showTrapPlacementModal('failure');
+                }
+            },
+
+            showTrapPlacementModal(state, data = null) {
+                const { overlay, body, confirmBtn, manualBtn, title } = App.elements.trapPlacementModal;
+                let content = '';
+                
+                confirmBtn.style.display = 'none';
+                manualBtn.style.display = 'inline-flex';
+
+                switch(state) {
+                    case 'loading':
+                        content = `<div class="spinner"></div><p style="margin-left: 15px;">A detetar talhão...</p>`;
+                        manualBtn.style.display = 'none';
+                        break;
+                    case 'success':
+                        const feature = data[0];
+                        const talhaoName = feature.getProperty('CD_TALHAO') || feature.getProperty('TALHAO') || 'Desconhecido';
+                        content = `<p>Talhão detetado: <strong>${talhaoName}</strong>. Deseja instalar a armadilha aqui?</p>`;
+                        confirmBtn.style.display = 'inline-flex';
+                        App.state.trapPlacementData = { feature: feature };
+                        break;
+                    case 'conflict':
+                        content = `<p>Vários talhões detetados na sua localização. Por favor, selecione o correto:</p><div id="talhao-conflict-list" style="margin-top:15px; text-align:left;">`;
+                        data.forEach((f, index) => {
+                            const name = f.getProperty('CD_TALHAO') || f.getProperty('TALHAO') || `Opção ${index + 1}`;
+                            content += `<label class="report-option-item" style="margin-bottom:10px;"><input type="radio" name="talhaoConflict" value="${index}"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">${name}</span></label>`;
+                        });
+                        content += `</div>`;
+                        confirmBtn.style.display = 'inline-flex';
+                        App.state.trapPlacementData = { features: data };
+                        break;
+                    case 'failure':
+                        content = `<p>Não foi possível detetar o talhão automaticamente. Por favor, selecione manualmente no mapa ou tente novamente.</p>`;
+                        break;
+                    case 'manual_select':
+                        content = `<p style="font-weight: 500; text-align: center;">Clique no talhão desejado no mapa para o selecionar.</p>`;
+                        manualBtn.style.display = 'none';
+                        break;
+                }
+                
+                body.innerHTML = content;
+                overlay.classList.add('show');
+                App.state.trapPlacementMode = state;
+            },
+
+            hideTrapPlacementModal() {
+                 App.elements.trapPlacementModal.overlay.classList.remove('show');
+                 App.state.trapPlacementMode = null;
+                 App.state.trapPlacementData = null;
+            },
+
+            async installTrap(lat, lng, feature = null) {
+                const findProp = (keys) => {
+                    for (const key of keys) {
+                        if (feature.getProperty(key.toUpperCase()) !== undefined) return feature.getProperty(key.toUpperCase());
+                    }
+                    return null;
+                };
+
                 const newTrap = {
                     latitude: lat,
                     longitude: lng,
                     dataInstalacao: Timestamp.fromDate(new Date()),
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
-                    fazendaId: null,
-                    talhaoId: null,
+                    fazendaNome: feature ? findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : null,
+                    talhaoNome: feature ? findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) : null,
                 };
 
                 try {
-                    await App.data.addDocument('armadilhas', newTrap);
-                    App.ui.showAlert("Armadilha instalada com sucesso!", "success");
+                    const docRef = await App.data.addDocument('armadilhas', newTrap);
+                    App.ui.showAlert(`Armadilha ${docRef.id.substring(0, 5)}... instalada em ${newTrap.talhaoNome || 'local desconhecido'}.`, "success");
                 } catch (error) {
                     console.error("Erro ao instalar armadilha:", error);
                     App.ui.showAlert("Falha ao instalar armadilha.", "error");
