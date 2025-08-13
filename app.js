@@ -3655,10 +3655,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 let newNotificationsForBell = [];
                 
                 activeTraps.forEach(trap => {
-                    if (!trap.dataInstalacao) return; // Safety check
+                    if (!trap.dataInstalacao) {
+                        return;
+                    }
 
                     const installDate = trap.dataInstalacao.toDate();
                     const now = new Date();
+
+                    if (isNaN(installDate.getTime())) {
+                        console.error(`Armadilha ${trap.id} com data de instalação inválida.`);
+                        return;
+                    }
+
                     const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
                     let notification = null;
@@ -3677,7 +3685,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         // Mostra o pop-up apenas se não foi mostrado nesta sessão
                         if (!App.state.notifiedTrapIds.has(trap.id)) {
-                            App.ui.showTrapNotification(notification);
+                            this.showTrapNotification(notification);
                             App.state.notifiedTrapIds.add(trap.id);
                         }
                     }
