@@ -3507,12 +3507,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 dataLayer.addListener('click', (event) => {
                     if (App.state.trapPlacementMode === 'manual_select') {
                         const selectedFeature = event.feature;
-                        const position = App.state.googleUserMarker.getPosition();
-                        if (!position) {
-                            App.ui.showAlert("Localização do usuário não encontrada.", "error");
+                        const clickPosition = event.latLng;
+                        if (!clickPosition) {
+                            App.ui.showAlert("Não foi possível obter a localização do clique.", "error");
                             return;
                         }
-                        this.installTrap(position.lat(), position.lng(), selectedFeature);
+                        this.installTrap(clickPosition.lat(), clickPosition.lng(), selectedFeature);
                         this.hideTrapPlacementModal();
                     } else {
                         if (App.state.selectedMapFeature) {
