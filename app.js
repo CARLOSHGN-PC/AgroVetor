@@ -3711,8 +3711,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'success':
                         const feature = data[0];
-                        const talhaoName = feature.getProperty('CD_TALHAO') || feature.getProperty('TALHAO') || 'Desconhecido';
-                        content = `<p>Talhão detetado: <strong>${talhaoName}</strong>. Deseja instalar a armadilha aqui?</p>`;
+                        const props = {};
+                        feature.forEachProperty((value, property) => {
+                            props[property.toUpperCase()] = value;
+                        });
+                        const findProp = (keys) => {
+                            for (const key of keys) {
+                                if (props[key.toUpperCase()] !== undefined) return props[key.toUpperCase()];
+                            }
+                            return 'Não identificado';
+                        };
+                        const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
+                        const talhaoName = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+
+                        content = `<p style="font-weight: 500;">Confirme o local de instalação:</p>
+                                   <div class="location-confirmation-box">
+                                       <span><strong>Fazenda:</strong> ${fazendaNome}</span>
+                                       <span><strong>Talhão:</strong> ${talhaoName}</span>
+                                   </div>
+                                   <p>Deseja instalar a armadilha neste local?</p>`;
                         confirmBtn.style.display = 'inline-flex';
                         App.state.trapPlacementData = { feature: feature };
                         break;
@@ -3766,6 +3783,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const docRef = await App.data.addDocument('armadilhas', newTrap);
+                    // Adiciona o marcador imediatamente ao mapa para feedback visual instantâneo
+                    this.addOrUpdateTrapMarker({ id: docRef.id, ...newTrap });
                     App.ui.showAlert(`Armadilha ${docRef.id.substring(0, 5)}... instalada em ${newTrap.talhaoNome || 'local desconhecido'}.`, "success");
                 } catch (error) {
                     console.error("Erro ao instalar armadilha:", error);
@@ -3805,6 +3824,57 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Falha ao registrar coleta.", "error");
                 }
             },
+
+            async deleteTrap(trapId) {
+                App.ui.showConfirmationModal(
+                    "Tem a certeza que deseja excluir esta armadilha? Esta ação é irreversível.",
+                    async () => {
+                        try {
+                            await App.data.deleteDocument('armadilhas', trapId);
+                            
+                            if (App.state.googleTrapMarkers[trapId]) {
+                                App.state.googleTrapMarkers[trapId].setMap(null);
+                                delete App.state.googleTrapMarkers[trapId];
+                            }
+                            
+                            App.state.armadilhas = App.state.armadilhas.filter(t => t.id !== trapId);
+
+                            App.ui.showAlert("Armadilha excluída com sucesso.", "info");
+                            this.hideTrapInfo();
+                        } catch (error) {
+                            console.error("Erro ao excluir armadilha:", error);
+                            App.ui.showAlert("Falha ao excluir armadilha.", "error");
+                        }
+                    }
+                );
+            },
+
+            async editTrap(trapId) {
+                const trap = App.state.armadilhas.find(t => t.id === trapId);
+                if (!trap) return;
+
+                App.ui.showConfirmationModal(
+                    `Editar observações para a armadilha em ${trap.talhaoNome || 'local desconhecido'}:`,
+                    async (newObservations) => {
+                        if (newObservations === null) return;
+                        try {
+                            await App.data.updateDocument('armadilhas', trapId, { observacoes: newObservations });
+                            trap.observacoes = newObservations;
+                            this.showTrapInfo(trapId);
+                            App.ui.showAlert("Observações atualizadas.", "success");
+                        } catch (error) {
+                            console.error("Erro ao editar armadilha:", error);
+                            App.ui.showAlert("Falha ao atualizar observações.", "error");
+                        }
+                    },
+                    true // needsInput
+                );
+                
+                const input = App.elements.confirmationModal.input;
+                input.value = trap.observacoes || '';
+                input.placeholder = 'Digite suas observações...';
+                App.elements.confirmationModal.confirmBtn.textContent = "Salvar";
+            },
             
             showTrapInfo(trapId) {
                 const trap = App.state.armadilhas.find(t => t.id === trapId);
@@ -3840,6 +3910,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="value"><span class="status-indicator" style="background-color: ${statusColor};"></span>${statusText}</span>
                     </div>
                     <div class="info-item">
+                        <span class="label">Fazenda</span>
+                        <span class="value">${trap.fazendaNome || 'N/A'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Talhão</span>
+                        <span class="value">${trap.talhaoNome || 'N/A'}</span>
+                    </div>
+                    <div class="info-item">
                         <span class="label">Data de Instalação</span>
                         <span class="value">${installDate.toLocaleDateString('pt-BR')}</span>
                     </div>
@@ -3847,10 +3925,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="label">Data Prevista para Coleta</span>
                         <span class="value">${collectionDate.toLocaleDateString('pt-BR')}</span>
                     </div>
-                    <button class="btn-collect-trap" id="btnCollectTrap"><i class="fas fa-check-circle"></i> Coletar Armadilha</button>
+                    <div class="info-item" id="trap-obs-display" style="${trap.observacoes ? 'display: flex;' : 'display: none;'}">
+                        <span class="label">Observações</span>
+                        <span class="value" style="white-space: pre-wrap; font-size: 14px;">${trap.observacoes || ''}</span>
+                    </div>
+                    <div class="info-box-actions">
+                        <button class="btn-collect-trap" id="btnCollectTrap"><i class="fas fa-check-circle"></i> Coletar</button>
+                        <div class="action-button-group">
+                            <button class="action-btn" id="btnEditTrap" title="Editar Observações"><i class="fas fa-edit"></i></button>
+                            <button class="action-btn danger" id="btnDeleteTrap" title="Excluir Armadilha"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
                 `;
 
                 document.getElementById('btnCollectTrap').onclick = () => this.promptCollectTrap(trapId);
+                document.getElementById('btnEditTrap').onclick = () => this.editTrap(trapId);
+                document.getElementById('btnDeleteTrap').onclick = () => this.deleteTrap(trapId);
 
                 this.hideTalhaoInfo();
                 App.elements.monitoramentoAereo.trapInfoBox.classList.add('visible');
