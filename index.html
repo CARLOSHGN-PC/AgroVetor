@@ -1145,9 +1145,19 @@
           }
           /* ALTERAÇÃO PONTO 4: Responsividade do dropdown de notificações */
           #notification-dropdown {
-              width: calc(100vw - 30px);
-              max-width: 350px;
-              right: 15px;
+              position: fixed;
+              top: 80px; /* Posição abaixo do cabeçalho */
+              left: 50%;
+              right: auto;
+              width: 90vw;
+              max-width: 380px;
+              transform: translateX(-50%) scale(0.95);
+              transform-origin: top center; /* Animação a partir do centro */
+          }
+          #notification-dropdown.show {
+            transform: translateX(-50%) scale(1);
+            opacity: 1; /* Garantir que a opacidade seja 1 ao mostrar */
+            pointer-events: auto; /* Garantir que seja clicável */
           }
           #notification-container {
               left: 10px;
