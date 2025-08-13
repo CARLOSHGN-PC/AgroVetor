@@ -3351,7 +3351,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             // ALTERAÇÃO PONTO 5: Melhoria na busca de propriedades do Shapefile
-           showTalhaoInfo(feature) {
+      showTalhaoInfo(feature) {
     const props = {};
     feature.forEachProperty((value, property) => {
         props[property.toUpperCase()] = value;
@@ -3571,12 +3571,12 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             
             // ALTERAÇÃO PONTO 2: Lógica de notificação corrigida
-           checkTrapStatusAndNotify() {
+   checkTrapStatusAndNotify() {
     const activeTraps = App.state.armadilhas.filter(t => t.status === 'Ativa');
     let newNotificationsForBell = [];
     
     activeTraps.forEach(trap => {
-        if (!trap.dataInstalacao || !trap.dataInstalacao.toDate) return; // Garante que a data existe e é um timestamp
+        if (!trap.dataInstalacao || !trap.dataInstalacao.toDate) return;
         const installDate = trap.dataInstalacao.toDate();
         const collectionDate = new Date(installDate);
         collectionDate.setDate(installDate.getDate() + 7);
