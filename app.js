@@ -136,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             armadilhas: [],
             geoJsonData: null,
             mapPolygons: [],
+            selectedMapFeature: null, // NOVO: Armazena a feature do talhão selecionado no mapa
             trapNotifications: [],
             unreadNotificationCount: 0,
             notifiedTrapIds: new Set(), // NOVO: Controla pop-ups já exibidos na sessão
@@ -3417,16 +3418,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.mapPolygons.push(dataLayer);
 
                 const themeColors = App.ui._getThemeColors();
-                dataLayer.setStyle({
-                    fillColor: themeColors.primary,
-                    fillOpacity: 0.35,
-                    strokeColor: '#FFD700',
-                    strokeWeight: 2,
-                    strokeOpacity: 0.8
+
+                dataLayer.setStyle(feature => {
+                    let fillOpacity = 0.35; // Padrão
+                    if (feature.getProperty('isSelected')) {
+                        fillOpacity = 0.85; // Selecionado
+                    } else if (feature.getProperty('isHovered')) {
+                        fillOpacity = 0.60; // Hover
+                    }
+                    return ({
+                        fillColor: themeColors.primary,
+                        fillOpacity: fillOpacity,
+                        strokeColor: '#FFD700',
+                        strokeWeight: 2,
+                        strokeOpacity: 0.8,
+                        cursor: 'pointer'
+                    });
+                });
+
+                dataLayer.addListener('mouseover', (event) => {
+                    event.feature.setProperty('isHovered', true);
+                });
+
+                dataLayer.addListener('mouseout', (event) => {
+                    event.feature.setProperty('isHovered', false);
                 });
 
                 dataLayer.addListener('click', (event) => {
-                    this.showTalhaoInfo(event.feature);
+                    if (App.state.selectedMapFeature) {
+                        App.state.selectedMapFeature.setProperty('isSelected', false);
+                    }
+                    
+                    if (App.state.selectedMapFeature === event.feature) {
+                        App.state.selectedMapFeature = null;
+                        this.hideTalhaoInfo();
+                    } else {
+                        App.state.selectedMapFeature = event.feature;
+                        event.feature.setProperty('isSelected', true);
+                        this.showTalhaoInfo(event.feature);
+                    }
                 });
             },
 
@@ -3485,6 +3515,10 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             hideTalhaoInfo() {
+                if (App.state.selectedMapFeature) {
+                    App.state.selectedMapFeature.setProperty('isSelected', false);
+                    App.state.selectedMapFeature = null;
+                }
                 App.elements.monitoramentoAereo.infoBox.classList.remove('visible');
             },
 
