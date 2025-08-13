@@ -1894,6 +1894,23 @@
         </div>
 
         <!-- MODAIS -->
+        <div id="trapPlacementModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2>Instalar Nova Armadilha</h2>
+                    <button id="trapPlacementModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div id="trapPlacementModalBody" style="min-height: 100px; display: flex; align-items: center; justify-content: center;">
+                    <!-- O conteúdo será preenchido via JS -->
+                </div>
+                <div class="modal-footer">
+                    <button id="trapPlacementModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="trapPlacementModalManualBtn" class="btn-secondary" style="background: var(--color-warning);">Selecionar Manualmente</button>
+                    <button id="trapPlacementModalConfirmBtn" class="save">Confirmar</button>
+                </div>
+            </div>
+        </div>
+
         <div id="userEditModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
@@ -2050,7 +2067,7 @@
             console.log("Google Maps API loaded.");
         }
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&libraries=geometry&callback=initMap" async defer></script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
