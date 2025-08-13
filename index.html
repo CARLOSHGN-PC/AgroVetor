@@ -1077,9 +1077,10 @@
         justify-content: center;
       }
       
+      /* ALTERAÇÃO PONTO 1: Centralizar botão de coletar armadilha */
       .btn-collect-trap {
-        width: 100%;
-        margin-top: 10px;
+        width: calc(100% - 40px); /* Subtrai o padding do info-box-content */
+        margin: 10px 20px 20px 20px; /* Adiciona margem para centralizar e dar espaço */
         background: var(--color-success);
         color: var(--color-white);
         border: none;
@@ -1141,6 +1142,12 @@
           .info-box.visible {
               transform: translateY(0);
           }
+          /* ALTERAÇÃO PONTO 4: Responsividade do dropdown de notificações */
+          #notification-dropdown {
+              width: calc(100vw - 30px);
+              max-width: 350px;
+              right: 15px;
+          }
       }
     </style>
 </head>
@@ -1184,7 +1191,8 @@
                 <div></div><div></div><div></div>
             </button>
             <div class="header-title-container">
-                <h1><i class="fas fa-leaf"></i> Inspeção de Cana</h1>
+                <!-- ALTERAÇÃO PONTO 3: Texto do título removido -->
+                <h1><i class="fas fa-leaf"></i></h1>
             </div>
             
             <div class="header-actions-container">
@@ -1341,16 +1349,16 @@
                 </div>
 
                 <div id="dashboard-aerea" style="display: none;">
-                            <div class="dashboard-header">
-                                <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
-                                <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
-                            </div>
-                            <div class="card">
-                              <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
-                                  <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
-                                  Este módulo ainda está em desenvolvimento.
-                                </p>
-                            </div>
+                                <div class="dashboard-header">
+                                    <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
+                                    <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                                </div>
+                                <div class="card">
+                                  <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
+                                      <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
+                                      Este módulo ainda está em desenvolvimento.
+                                    </p>
+                                </div>
                 </div>
 
             </section>
