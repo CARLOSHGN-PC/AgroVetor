@@ -1689,16 +1689,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             setupEventListeners() {
-                App.elements.btnLogin.addEventListener('click', () => App.auth.login());
-                App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
-                App.elements.btnToggleMenu.addEventListener('click', () => {
+                if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => App.auth.login());
+                if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
+                if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
                     document.body.classList.toggle('mobile-menu-open');
                     App.elements.menu.classList.toggle('open');
                     App.elements.btnToggleMenu.classList.toggle('open');
                 });
                 
                 document.addEventListener('click', (e) => {
-                    if (!App.elements.menu.contains(e.target) && !App.elements.btnToggleMenu.contains(e.target)) {
+                    if (App.elements.menu && !App.elements.menu.contains(e.target) && App.elements.btnToggleMenu && !App.elements.btnToggleMenu.contains(e.target)) {
                         this.closeAllMenus();
                     }
                     if (App.elements.userMenu.container && !App.elements.userMenu.container.contains(e.target)) {
@@ -1711,34 +1711,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                App.elements.userMenu.toggle.addEventListener('click', (e) => {
+                if (App.elements.userMenu.toggle) App.elements.userMenu.toggle.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const dropdown = App.elements.userMenu.dropdown;
                     const toggle = App.elements.userMenu.toggle;
                     const isShown = dropdown.classList.toggle('show');
                     toggle.classList.toggle('open', isShown);
                     toggle.setAttribute('aria-expanded', isShown);
-                    App.elements.notificationBell.dropdown.classList.remove('show');
+                    if (App.elements.notificationBell.dropdown) App.elements.notificationBell.dropdown.classList.remove('show');
                 });
 
-                App.elements.notificationBell.toggle.addEventListener('click', (e) => {
+                if (App.elements.notificationBell.toggle) App.elements.notificationBell.toggle.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const dropdown = App.elements.notificationBell.dropdown;
                     const isShown = dropdown.classList.toggle('show');
                     if (isShown) {
                         App.actions.markNotificationsAsRead();
                     }
-                    App.elements.userMenu.dropdown.classList.remove('show');
+                    if (App.elements.userMenu.dropdown) App.elements.userMenu.dropdown.classList.remove('show');
                 });
 
-                // NOVO: Event listener para o botão de limpar notificações
-                App.elements.notificationBell.clearBtn.addEventListener('click', (e) => {
+                if (App.elements.notificationBell.clearBtn) App.elements.notificationBell.clearBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     App.actions.clearAllNotifications();
                 });
 
-                // NOVO: Event listener para os itens da lista de notificação
-                App.elements.notificationBell.list.addEventListener('click', (e) => {
+                if (App.elements.notificationBell.list) App.elements.notificationBell.list.addEventListener('click', (e) => {
                     const item = e.target.closest('.notification-item');
                     if (item && item.dataset.trapId) {
                         const trapId = item.dataset.trapId;
@@ -1748,23 +1746,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                App.elements.userMenu.themeButtons.forEach(btn => {
+                if (App.elements.userMenu.themeButtons) App.elements.userMenu.themeButtons.forEach(btn => {
                     btn.addEventListener('click', () => this.applyTheme(btn.id));
                 });
                 
                 const dashEls = App.elements.dashboard;
-                dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
-                dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
-                dashEls.cardAerea.addEventListener('click', () => this.showDashboardView('aerea'));
-                dashEls.btnBackToSelectorBroca.addEventListener('click', () => this.showDashboardView('selector'));
-                dashEls.btnBackToSelectorPerda.addEventListener('click', () => this.showDashboardView('selector'));
-                dashEls.btnBackToSelectorAerea.addEventListener('click', () => this.showDashboardView('selector'));
-                dashEls.btnFiltrarBrocaDashboard.addEventListener('click', () => App.charts.renderBrocaDashboardCharts());
-                dashEls.btnFiltrarPerdaDashboard.addEventListener('click', () => App.charts.renderPerdaDashboardCharts());
+                if (dashEls.cardBroca) dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
+                if (dashEls.cardPerda) dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
+                if (dashEls.cardAerea) dashEls.cardAerea.addEventListener('click', () => this.showDashboardView('aerea'));
+                if (dashEls.btnBackToSelectorBroca) dashEls.btnBackToSelectorBroca.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorPerda) dashEls.btnBackToSelectorPerda.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorAerea) dashEls.btnBackToSelectorAerea.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnFiltrarBrocaDashboard) dashEls.btnFiltrarBrocaDashboard.addEventListener('click', () => App.charts.renderBrocaDashboardCharts());
+                if (dashEls.btnFiltrarPerdaDashboard) dashEls.btnFiltrarPerdaDashboard.addEventListener('click', () => App.charts.renderPerdaDashboardCharts());
                 
                 const chartModal = App.elements.chartModal;
-                chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
-                chartModal.overlay.addEventListener('click', e => { if(e.target === chartModal.overlay) App.charts.closeChartModal(); });
+                if (chartModal.closeBtn) chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
+                if (chartModal.overlay) chartModal.overlay.addEventListener('click', e => { if(e.target === chartModal.overlay) App.charts.closeChartModal(); });
                 
                 document.addEventListener('click', (e) => {
                     if (e.target.closest('.btn-expand-chart')) {
@@ -1773,11 +1771,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
+                if (App.elements.users.role) App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
-                App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
+                if (App.elements.users.btnCreate) App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
                 
-                App.elements.users.list.addEventListener('click', e => {
+                if (App.elements.users.list) App.elements.users.list.addEventListener('click', e => {
                     const button = e.target.closest('button[data-action]');
                     if (!button) return;
                     const { action, id } = button.dataset;
@@ -1786,59 +1784,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const adminModal = App.elements.adminPasswordConfirmModal;
-                adminModal.closeBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
-                adminModal.cancelBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
-                adminModal.confirmBtn.addEventListener('click', () => App.auth.createUserAfterAdminConfirmation());
-                adminModal.overlay.addEventListener('click', e => { if(e.target === adminModal.overlay) this.closeAdminPasswordConfirmModal(); });
+                if (adminModal.closeBtn) adminModal.closeBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
+                if (adminModal.cancelBtn) adminModal.cancelBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
+                if (adminModal.confirmBtn) adminModal.confirmBtn.addEventListener('click', () => App.auth.createUserAfterAdminConfirmation());
+                if (adminModal.overlay) adminModal.overlay.addEventListener('click', e => { if(e.target === adminModal.overlay) this.closeAdminPasswordConfirmModal(); });
 
 
                 const modalEls = App.elements.userEditModal;
-                modalEls.closeBtn.addEventListener('click', () => this.closeUserEditModal());
-                modalEls.overlay.addEventListener('click', e => { if(e.target === modalEls.overlay) this.closeUserEditModal(); });
-                modalEls.btnSaveChanges.addEventListener('click', () => App.auth.saveUserChanges(modalEls.editingUserId.value));
-                modalEls.btnResetPassword.addEventListener('click', () => App.auth.resetUserPassword(modalEls.editingUserId.value));
-                modalEls.btnDeleteUser.addEventListener('click', () => App.auth.deleteUser(modalEls.editingUserId.value));
-                modalEls.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value, '#editUserPermissionGrid'));
+                if (modalEls.closeBtn) modalEls.closeBtn.addEventListener('click', () => this.closeUserEditModal());
+                if (modalEls.overlay) modalEls.overlay.addEventListener('click', e => { if(e.target === modalEls.overlay) this.closeUserEditModal(); });
+                if (modalEls.btnSaveChanges) modalEls.btnSaveChanges.addEventListener('click', () => App.auth.saveUserChanges(modalEls.editingUserId.value));
+                if (modalEls.btnResetPassword) modalEls.btnResetPassword.addEventListener('click', () => App.auth.resetUserPassword(modalEls.editingUserId.value));
+                if (modalEls.btnDeleteUser) modalEls.btnDeleteUser.addEventListener('click', () => App.auth.deleteUser(modalEls.editingUserId.value));
+                if (modalEls.role) modalEls.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value, '#editUserPermissionGrid'));
                 
                 
                 const cpModal = App.elements.changePasswordModal;
-                App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
-                cpModal.closeBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
-                cpModal.cancelBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
-                cpModal.saveBtn.addEventListener('click', () => App.actions.changePassword());
+                if (App.elements.userMenu.changePasswordBtn) App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
+                if (cpModal.closeBtn) cpModal.closeBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
+                if (cpModal.cancelBtn) cpModal.cancelBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
+                if (cpModal.saveBtn) cpModal.saveBtn.addEventListener('click', () => App.actions.changePassword());
 
 
-                App.elements.personnel.btnSave.addEventListener('click', () => App.actions.savePersonnel());
-                App.elements.personnel.list.addEventListener('click', e => {
+                if (App.elements.personnel.btnSave) App.elements.personnel.btnSave.addEventListener('click', () => App.actions.savePersonnel());
+                if (App.elements.personnel.list) App.elements.personnel.list.addEventListener('click', e => {
                     const btn = e.target.closest('button');
                     if (!btn) return;
                     const { action, id } = btn.dataset;
                     if (action === 'edit-personnel') App.actions.editPersonnel(id);
                     if (action === 'delete-personnel') App.actions.deletePersonnel(id);
                 });
-                App.elements.personnel.csvUploadArea.addEventListener('click', () => App.elements.personnel.csvFileInput.click());
-                App.elements.personnel.csvFileInput.addEventListener('change', (e) => App.actions.importPersonnelFromCSV(e.target.files[0]));
-                App.elements.personnel.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadPersonnelCsvTemplate());
+                if (App.elements.personnel.csvUploadArea) App.elements.personnel.csvUploadArea.addEventListener('click', () => App.elements.personnel.csvFileInput.click());
+                if (App.elements.personnel.csvFileInput) App.elements.personnel.csvFileInput.addEventListener('change', (e) => App.actions.importPersonnelFromCSV(e.target.files[0]));
+                if (App.elements.personnel.btnDownloadCsvTemplate) App.elements.personnel.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadPersonnelCsvTemplate());
                 
                 const companyConfigEls = App.elements.companyConfig;
-                companyConfigEls.logoUploadArea.addEventListener('click', () => companyConfigEls.logoInput.click());
-                companyConfigEls.logoInput.addEventListener('change', (e) => App.actions.handleLogoUpload(e));
-                companyConfigEls.removeLogoBtn.addEventListener('click', () => App.actions.removeLogo());
-                companyConfigEls.progressUploadArea.addEventListener('click', () => companyConfigEls.progressInput.click());
-                companyConfigEls.progressInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'progress'));
-                companyConfigEls.btnDownloadProgressTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('progress'));
-                companyConfigEls.closedUploadArea.addEventListener('click', () => companyConfigEls.closedInput.click());
-                companyConfigEls.closedInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'closed'));
-                companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
-                companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
-                companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
+                if (companyConfigEls.logoUploadArea) companyConfigEls.logoUploadArea.addEventListener('click', () => companyConfigEls.logoInput.click());
+                if (companyConfigEls.logoInput) companyConfigEls.logoInput.addEventListener('change', (e) => App.actions.handleLogoUpload(e));
+                if (companyConfigEls.removeLogoBtn) companyConfigEls.removeLogoBtn.addEventListener('click', () => App.actions.removeLogo());
+                if (companyConfigEls.progressUploadArea) companyConfigEls.progressUploadArea.addEventListener('click', () => companyConfigEls.progressInput.click());
+                if (companyConfigEls.progressInput) companyConfigEls.progressInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'progress'));
+                if (companyConfigEls.btnDownloadProgressTemplate) companyConfigEls.btnDownloadProgressTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('progress'));
+                if (companyConfigEls.closedUploadArea) companyConfigEls.closedUploadArea.addEventListener('click', () => companyConfigEls.closedInput.click());
+                if (companyConfigEls.closedInput) companyConfigEls.closedInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'closed'));
+                if (companyConfigEls.btnDownloadClosedTemplate) companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
+                if (companyConfigEls.shapefileUploadArea) companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
+                if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
 
 
-                App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
-                App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
-                App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
+                if (App.elements.cadastros.btnSaveFarm) App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
+                if (App.elements.cadastros.btnDeleteAllFarms) App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
+                if (App.elements.cadastros.farmSelect) App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
                 
-                App.elements.cadastros.talhaoManagementContainer.addEventListener('click', e => { 
+                if (App.elements.cadastros.talhaoManagementContainer) App.elements.cadastros.talhaoManagementContainer.addEventListener('click', e => { 
                     const btn = e.target.closest('button[data-action]'); 
                     if(!btn) return; 
                     const { action, id } = btn.dataset; 
@@ -1848,35 +1846,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(action === 'delete-farm') App.actions.deleteFarm(id);
                 });
 
-                App.elements.cadastros.btnSaveTalhao.addEventListener('click', () => App.actions.saveTalhao());
-                App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
-                App.elements.cadastros.csvFileInput.addEventListener('change', (e) => App.actions.importFarmsFromCSV(e.target.files[0]));
-                App.elements.cadastros.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadCsvTemplate());
-                App.elements.cadastros.talhaoArea.addEventListener('input', App.actions.calculateTalhaoProducao);
-                App.elements.cadastros.talhaoTCH.addEventListener('input', App.actions.calculateTalhaoProducao);
+                if (App.elements.cadastros.btnSaveTalhao) App.elements.cadastros.btnSaveTalhao.addEventListener('click', () => App.actions.saveTalhao());
+                if (App.elements.cadastros.csvUploadArea) App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
+                if (App.elements.cadastros.csvFileInput) App.elements.cadastros.csvFileInput.addEventListener('change', (e) => App.actions.importFarmsFromCSV(e.target.files[0]));
+                if (App.elements.cadastros.btnDownloadCsvTemplate) App.elements.cadastros.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadCsvTemplate());
+                if (App.elements.cadastros.talhaoArea) App.elements.cadastros.talhaoArea.addEventListener('input', App.actions.calculateTalhaoProducao);
+                if (App.elements.cadastros.talhaoTCH) App.elements.cadastros.talhaoTCH.addEventListener('input', App.actions.calculateTalhaoProducao);
                 
                 const editFarmModalEls = App.elements.editFarmModal;
-                editFarmModalEls.closeBtn.addEventListener('click', () => this.closeEditFarmModal());
-                editFarmModalEls.cancelBtn.addEventListener('click', () => this.closeEditFarmModal());
-                editFarmModalEls.saveBtn.addEventListener('click', () => App.actions.saveFarmChanges());
+                if (editFarmModalEls.closeBtn) editFarmModalEls.closeBtn.addEventListener('click', () => this.closeEditFarmModal());
+                if (editFarmModalEls.cancelBtn) editFarmModalEls.cancelBtn.addEventListener('click', () => this.closeEditFarmModal());
+                if (editFarmModalEls.saveBtn) editFarmModalEls.saveBtn.addEventListener('click', () => App.actions.saveFarmChanges());
 
-                App.elements.planejamento.btnAgendar.addEventListener('click', () => App.actions.agendarInspecao());
-                App.elements.planejamento.btnSugerir.addEventListener('click', () => App.gemini.getPlanningSuggestions());
-                App.elements.planejamento.lista.addEventListener('click', (e) => { const button = e.target.closest('button[data-action]'); if(!button) return; const { action, id } = button.dataset; if (action === 'concluir') App.actions.marcarPlanoComoConcluido(id); if (action === 'excluir') App.actions.excluirPlano(id); });
+                if (App.elements.planejamento.btnAgendar) App.elements.planejamento.btnAgendar.addEventListener('click', () => App.actions.agendarInspecao());
+                if (App.elements.planejamento.btnSugerir) App.elements.planejamento.btnSugerir.addEventListener('click', () => App.gemini.getPlanningSuggestions());
+                if (App.elements.planejamento.lista) App.elements.planejamento.lista.addEventListener('click', (e) => { const button = e.target.closest('button[data-action]'); if(!button) return; const { action, id } = button.dataset; if (action === 'concluir') App.actions.marcarPlanoComoConcluido(id); if (action === 'excluir') App.actions.excluirPlano(id); });
                 
-                App.elements.harvest.btnAddNew.addEventListener('click', () => App.actions.editHarvestPlan());
-                App.elements.harvest.btnCancelPlan.addEventListener('click', () => this.showHarvestPlanList());
-                App.elements.harvest.btnSavePlan.addEventListener('click', () => App.actions.saveHarvestPlan());
-                App.elements.harvest.plansList.addEventListener('click', (e) => {
+                const harvestEls = App.elements.harvest;
+                if (harvestEls.btnAddNew) harvestEls.btnAddNew.addEventListener('click', () => App.actions.editHarvestPlan());
+                if (harvestEls.btnCancelPlan) harvestEls.btnCancelPlan.addEventListener('click', () => this.showHarvestPlanList());
+                if (harvestEls.btnSavePlan) harvestEls.btnSavePlan.addEventListener('click', () => App.actions.saveHarvestPlan());
+                if (harvestEls.plansList) harvestEls.plansList.addEventListener('click', (e) => {
                     const button = e.target.closest('button[data-action]');
                     if (!button) return;
                     const { action, id } = button.dataset;
                     if (action === 'edit') App.actions.editHarvestPlan(id);
                     if (action === 'delete') App.actions.deleteHarvestPlan(id);
                 });
-                App.elements.harvest.fazenda.addEventListener('change', e => this.renderHarvestTalhaoSelection(e.target.value));
+                if (harvestEls.fazenda) harvestEls.fazenda.addEventListener('change', e => this.renderHarvestTalhaoSelection(e.target.value));
                 
-                App.elements.harvest.selectAllTalhoes.addEventListener('change', (e) => {
+                if (harvestEls.selectAllTalhoes) harvestEls.selectAllTalhoes.addEventListener('change', (e) => {
                     const isChecked = e.target.checked;
                     const talhaoCheckboxes = App.elements.harvest.talhaoSelectionList.querySelectorAll('input[type="checkbox"]');
                     talhaoCheckboxes.forEach(cb => {
@@ -1886,67 +1885,74 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
 
-                App.elements.harvest.btnAddOrUpdate.addEventListener('click', () => App.actions.addOrUpdateHarvestSequence());
-                App.elements.harvest.btnCancelEdit.addEventListener('click', () => App.actions.cancelEditSequence());
-                App.elements.harvest.btnOptimize.addEventListener('click', () => App.gemini.getOptimizedHarvestSequence());
-                App.elements.harvest.tableBody.addEventListener('click', e => {
-                    const removeBtn = e.target.closest('button[data-action="remove-harvest"]');
-                    if (removeBtn) App.actions.removeHarvestSequence(removeBtn.dataset.id);
-                    const editBtn = e.target.closest('button[data-action="edit-harvest-group"]');
-                    if(editBtn) App.actions.editHarvestSequenceGroup(editBtn.dataset.id);
-                    const atrSpan = e.target.closest('.editable-atr');
-                    if (atrSpan) App.actions.editHarvestSequenceATR(atrSpan.dataset.id);
-                });
-                [App.elements.harvest.frontName, App.elements.harvest.startDate, App.elements.harvest.dailyRate].forEach(el => el.addEventListener('input', () => App.actions.updateActiveHarvestPlanDetails()));
+                if (harvestEls.btnAddOrUpdate) harvestEls.btnAddOrUpdate.addEventListener('click', () => App.actions.addOrUpdateHarvestSequence());
+                if (harvestEls.btnCancelEdit) harvestEls.btnCancelEdit.addEventListener('click', () => App.actions.cancelEditSequence());
+                if (harvestEls.btnOptimize) harvestEls.btnOptimize.addEventListener('click', () => App.gemini.getOptimizedHarvestSequence());
+                if (harvestEls.tableBody) {
+                    harvestEls.tableBody.addEventListener('click', e => {
+                        const removeBtn = e.target.closest('button[data-action="remove-harvest"]');
+                        if (removeBtn) App.actions.removeHarvestSequence(removeBtn.dataset.id);
+                        const editBtn = e.target.closest('button[data-action="edit-harvest-group"]');
+                        if(editBtn) App.actions.editHarvestSequenceGroup(editBtn.dataset.id);
+                        const atrSpan = e.target.closest('.editable-atr');
+                        if (atrSpan) App.actions.editHarvestSequenceATR(atrSpan.dataset.id);
+                    });
+                    [harvestEls.frontName, harvestEls.startDate, harvestEls.dailyRate].forEach(el => {
+                        if(el) el.addEventListener('input', () => App.actions.updateActiveHarvestPlanDetails())
+                    });
                 
-                let dragSrcEl = null;
-                App.elements.harvest.tableBody.addEventListener('dragstart', e => { dragSrcEl = e.target; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/html', e.target.innerHTML); });
-                App.elements.harvest.tableBody.addEventListener('dragover', e => { e.preventDefault(); return false; });
-                App.elements.harvest.tableBody.addEventListener('drop', e => { e.stopPropagation(); if (dragSrcEl !== e.target) { const targetRow = e.target.closest('tr'); if(targetRow) App.actions.reorderHarvestSequence(dragSrcEl.dataset.id, targetRow.dataset.id); } return false; });
+                    let dragSrcEl = null;
+                    harvestEls.tableBody.addEventListener('dragstart', e => { dragSrcEl = e.target; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/html', e.target.innerHTML); });
+                    harvestEls.tableBody.addEventListener('dragover', e => { e.preventDefault(); return false; });
+                    harvestEls.tableBody.addEventListener('drop', e => { e.stopPropagation(); if (dragSrcEl !== e.target) { const targetRow = e.target.closest('tr'); if(targetRow) App.actions.reorderHarvestSequence(dragSrcEl.dataset.id, targetRow.dataset.id); } return false; });
+                }
                 
-                App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
-                App.elements.broca.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('broca'));
+                if (App.elements.broca.codigo) App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
+                if (App.elements.broca.talhao) App.elements.broca.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('broca'));
                 ['brocaBase', 'brocaMeio', 'brocaTopo', 'entrenos'].forEach(id => {
-                    document.getElementById(id).addEventListener('input', () => {
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('input', () => {
                         App.ui.updateBrocadoTotal();
                         App.ui.calculateBrocamento();
                     });
                 });
                 
-                App.elements.perda.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('perda'));
-                App.elements.perda.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('perda'));
-                App.elements.perda.matricula.addEventListener('input', () => App.actions.findOperatorName());
+                if (App.elements.perda.codigo) App.elements.perda.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('perda'));
+                if (App.elements.perda.talhao) App.elements.perda.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('perda'));
+                if (App.elements.perda.matricula) App.elements.perda.matricula.addEventListener('input', () => App.actions.findOperatorName());
                 ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'].forEach(id => {
-                    document.getElementById(id).addEventListener('input', () => App.ui.calculatePerda());
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('input', () => App.ui.calculatePerda());
                 });
                 
-                App.elements.broca.btnSalvar.addEventListener('click', () => App.actions.saveBrocamento());
-                App.elements.perda.btnSalvar.addEventListener('click', () => App.actions.savePerda());
+                if (App.elements.broca.btnSalvar) App.elements.broca.btnSalvar.addEventListener('click', () => App.actions.saveBrocamento());
+                if (App.elements.perda.btnSalvar) App.elements.perda.btnSalvar.addEventListener('click', () => App.actions.savePerda());
                 
-                App.elements.broca.btnPDF.addEventListener('click', () => App.reports.generateBrocamentoPDF());
-                App.elements.broca.btnExcel.addEventListener('click', () => App.reports.generateBrocamentoCSV());
-                App.elements.perda.btnPDF.addEventListener('click', () => App.reports.generatePerdaPDF());
-                App.elements.perda.btnExcel.addEventListener('click', () => App.reports.generatePerdaCSV());
-                App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
+                if (App.elements.broca.btnPDF) App.elements.broca.btnPDF.addEventListener('click', () => App.reports.generateBrocamentoPDF());
+                if (App.elements.broca.btnExcel) App.elements.broca.btnExcel.addEventListener('click', () => App.reports.generateBrocamentoCSV());
+                if (App.elements.perda.btnPDF) App.elements.perda.btnPDF.addEventListener('click', () => App.reports.generatePerdaPDF());
+                if (App.elements.perda.btnExcel) App.elements.perda.btnExcel.addEventListener('click', () => App.reports.generatePerdaCSV());
+                if (App.elements.exclusao.lista) App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
                 
                 const customReportEls = App.elements.relatorioColheita;
-                customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
-                customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
-                customReportEls.tipoRelatorioSelect.addEventListener('change', (e) => {
+                if (customReportEls.btnPDF) customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
+                if (customReportEls.btnExcel) customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
+                if (customReportEls.tipoRelatorioSelect) customReportEls.tipoRelatorioSelect.addEventListener('change', (e) => {
                     const isDetalhado = e.target.value === 'detalhado';
-                    customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
+                    if (customReportEls.colunasDetalhadoContainer) customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
                 
-                App.elements.monitoramentoAereo.btnAddTrap.addEventListener('click', () => App.mapModule.promptInstallTrap());
-                App.elements.monitoramentoAereo.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
-                App.elements.monitoramentoAereo.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
-                App.elements.monitoramentoAereo.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
+                const monitoramentoAereoEls = App.elements.monitoramentoAereo;
+                if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => App.mapModule.promptInstallTrap());
+                if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
+                if (monitoramentoAereoEls.infoBoxCloseBtn) monitoramentoAereoEls.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
+                if (monitoramentoAereoEls.trapInfoBoxCloseBtn) monitoramentoAereoEls.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
                 
                 const trapModal = App.elements.trapPlacementModal;
-                trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
-                trapModal.cancelBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
-                trapModal.manualBtn.addEventListener('click', () => App.mapModule.showTrapPlacementModal('manual_select'));
-                trapModal.confirmBtn.addEventListener('click', () => {
+                if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
+                if (trapModal.cancelBtn) trapModal.cancelBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
+                if (trapModal.manualBtn) trapModal.manualBtn.addEventListener('click', () => App.mapModule.showTrapPlacementModal('manual_select'));
+                if (trapModal.confirmBtn) trapModal.confirmBtn.addEventListener('click', () => {
                     const { trapPlacementMode, trapPlacementData, googleUserMarker } = App.state;
                     if (!googleUserMarker) return;
 
@@ -1972,9 +1978,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                App.elements.relatorioMonitoramento.btnPDF.addEventListener('click', () => App.reports.generateMonitoramentoPDF());
-                App.elements.relatorioMonitoramento.btnExcel.addEventListener('click', () => App.reports.generateMonitoramentoCSV());
-                App.elements.notificationContainer.addEventListener('click', (e) => {
+                const relatorioMonitoramentoEls = App.elements.relatorioMonitoramento;
+                if (relatorioMonitoramentoEls.btnPDF) relatorioMonitoramentoEls.btnPDF.addEventListener('click', () => App.reports.generateMonitoramentoPDF());
+                if (relatorioMonitoramentoEls.btnExcel) relatorioMonitoramentoEls.btnExcel.addEventListener('click', () => App.reports.generateMonitoramentoCSV());
+                
+                if (App.elements.notificationContainer) App.elements.notificationContainer.addEventListener('click', (e) => {
                     const notification = e.target.closest('.trap-notification');
                     if (notification && notification.dataset.trapId) {
                         App.mapModule.centerOnTrap(notification.dataset.trapId);
@@ -1993,7 +2001,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.addEventListener(event, () => App.actions.resetInactivityTimer());
                 });
 
-                App.elements.installAppBtn.addEventListener('click', async () => {
+                if (App.elements.installAppBtn) App.elements.installAppBtn.addEventListener('click', async () => {
                     if (App.state.deferredInstallPrompt) {
                         App.state.deferredInstallPrompt.prompt();
                         const { outcome } = await App.state.deferredInstallPrompt.userChoice;
