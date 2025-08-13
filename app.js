@@ -754,6 +754,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.updateDateTime();
                 setInterval(() => this.updateDateTime(), 60000);
+
+                // Adiciona verificação periódica para o status das armadilhas
+                setInterval(() => {
+                    if (App.state.armadilhas.length > 0) {
+                        App.mapModule.checkTrapStatusAndNotify();
+                    }
+                }, 60000); // Verifica a cada minuto
+
                 this.renderMenu();
                 this.renderAllDynamicContent();
                 this.showTab('dashboard');
@@ -3487,17 +3495,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!trap.dataInstalacao) return;
 
                 const installDate = trap.dataInstalacao.toDate();
-                const collectionDate = new Date(installDate);
-                collectionDate.setDate(installDate.getDate() + 7);
                 const now = new Date();
-                
-                const diffTime = collectionDate - now;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
                 let color = '#388e3c'; // Verde (Normal)
-                if (diffDays <= 2 && diffDays >= 0) {
+                if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
                     color = '#f57c00'; // Amarelo (Atenção)
-                } else if (diffDays < 0) {
+                } else if (diasDesdeInstalacao > 7) {
                     color = '#d32f2f'; // Vermelho (Atrasado)
                 }
                 
@@ -3599,16 +3603,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const collectionDate = new Date(installDate);
                 collectionDate.setDate(installDate.getDate() + 7);
                 const now = new Date();
-                const diffTime = collectionDate - now;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
                 let statusText = 'Normal';
                 let statusColor = 'var(--color-success)';
-                if (diffDays <= 2 && diffDays >= 0) {
-                    statusText = `Atenção (${diffDays} dias restantes)`;
+                if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
+                    const diasRestantes = 7 - diasDesdeInstalacao;
+                    statusText = `Atenção (${diasRestantes} dias restantes)`;
                     statusColor = 'var(--color-warning)';
-                } else if (diffDays < 0) {
-                    statusText = `Atrasado (${Math.abs(diffDays)} dias)`;
+                } else if (diasDesdeInstalacao > 7) {
+                    const diasAtraso = diasDesdeInstalacao - 7;
+                    statusText = `Atrasado (${diasAtraso} dias)`;
                     statusColor = 'var(--color-danger)';
                 }
 
@@ -3643,7 +3649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.trapInfoBox.classList.remove('visible');
             },
             
-            // ALTERAÇÃO PONTO 2: Lógica de notificação corrigida
+            // Verifica o status das armadilhas para gerar notificações de coleta
             checkTrapStatusAndNotify() {
                 const activeTraps = App.state.armadilhas.filter(t => t.status === 'Ativa');
                 let newNotificationsForBell = [];
@@ -3652,17 +3658,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!trap.dataInstalacao) return; // Safety check
 
                     const installDate = trap.dataInstalacao.toDate();
-                    const collectionDate = new Date(installDate);
-                    collectionDate.setDate(installDate.getDate() + 7);
                     const now = new Date();
-                    const diffTime = collectionDate - now;
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
                     let notification = null;
-                    if (diffDays <= 2 && diffDays >= 0) {
-                        notification = { trapId: trap.id, type: 'warning', message: `Coleta em ${diffDays} dia(s).`, timestamp: new Date() };
-                    } else if (diffDays < 0) {
-                        notification = { trapId: trap.id, type: 'danger', message: `Coleta atrasada em ${Math.abs(diffDays)} dia(s).`, timestamp: new Date() };
+                    if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
+                        const diasRestantes = 7 - diasDesdeInstalacao;
+                        const msg = diasRestantes > 0 ? `Coleta em ${diasRestantes} dia(s).` : "Coleta hoje.";
+                        notification = { trapId: trap.id, type: 'warning', message: msg, timestamp: new Date() };
+                    } else if (diasDesdeInstalacao > 7) {
+                        const diasAtraso = diasDesdeInstalacao - 7;
+                        notification = { trapId: trap.id, type: 'danger', message: `Coleta atrasada em ${diasAtraso} dia(s).`, timestamp: new Date() };
                     }
 
                     if (notification) {
@@ -3678,8 +3684,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 // Atualiza o estado geral de notificações
+                const unreadNotifications = newNotificationsForBell.filter(n => !App.state.trapNotifications.some(oldN => oldN.trapId === n.trapId && oldN.message === n.message));
+                if (unreadNotifications.length > 0) {
+                    App.state.unreadNotificationCount += unreadNotifications.length;
+                }
                 App.state.trapNotifications = newNotificationsForBell.sort((a, b) => b.timestamp - a.timestamp);
-                App.state.unreadNotificationCount = newNotificationsForBell.length;
                 App.ui.updateNotificationBell();
             },
 
