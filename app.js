@@ -1943,7 +1943,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 const monitoramentoAereoEls = App.elements.monitoramentoAereo;
-                if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => App.mapModule.promptInstallTrap());
+                if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => {
+                    if (App.state.trapPlacementMode === 'manual_select') {
+                        App.state.trapPlacementMode = null;
+                        App.ui.showAlert("Seleção manual cancelada.", "info");
+                    } else {
+                        App.mapModule.promptInstallTrap();
+                    }
+                });
                 if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 if (monitoramentoAereoEls.infoBoxCloseBtn) monitoramentoAereoEls.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
                 if (monitoramentoAereoEls.trapInfoBoxCloseBtn) monitoramentoAereoEls.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
@@ -1951,7 +1958,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
                 if (trapModal.cancelBtn) trapModal.cancelBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
-                if (trapModal.manualBtn) trapModal.manualBtn.addEventListener('click', () => App.mapModule.showTrapPlacementModal('manual_select'));
+                if (trapModal.manualBtn) trapModal.manualBtn.addEventListener('click', () => {
+                    App.mapModule.hideTrapPlacementModal();
+                    App.state.trapPlacementMode = 'manual_select';
+                    App.ui.showAlert("Modo de seleção manual ativado. Clique no talhão desejado no mapa.", "info", 4000);
+                });
                 if (trapModal.confirmBtn) trapModal.confirmBtn.addEventListener('click', () => {
                     const { trapPlacementMode, trapPlacementData, googleUserMarker } = App.state;
                     if (!googleUserMarker) return;
