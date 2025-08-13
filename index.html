@@ -646,6 +646,23 @@
       #confirmationModal .modal-content, #adminPasswordConfirmModal .modal-content, #editFarmModal .modal-content { max-width: 450px; }
       #confirmationModal p, #adminPasswordConfirmModal p { color: var(--color-text-light); line-height: 1.6; }
       .csv-format-info { word-break: break-all; overflow-wrap: break-word; }
+
+      .location-confirmation-box {
+        margin: 15px 0;
+        padding: 12px;
+        background-color: var(--color-bg);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        text-align: left;
+        font-size: 15px;
+      }
+      .location-confirmation-box span {
+        display: block;
+        margin-bottom: 5px;
+      }
+      .location-confirmation-box span:last-child {
+        margin-bottom: 0;
+      }
       
       #chartModal .modal-content { max-width: 90vw; height: 85vh; display: flex; flex-direction: column; }
       #expandedChartContainer { flex-grow: 1; position: relative; }
@@ -1102,6 +1119,44 @@
         box-shadow: var(--shadow-md);
       }
 
+      .info-box-actions {
+          padding: 10px 20px 20px 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+      }
+      .info-box-actions .btn-collect-trap {
+          flex-grow: 1;
+          margin: 0;
+      }
+      .action-button-group {
+          display: flex;
+          gap: 10px;
+      }
+      .action-btn {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          border: 1px solid var(--color-border);
+          background-color: var(--color-bg);
+          color: var(--color-text-light);
+          font-size: 16px;
+          cursor: pointer;
+          transition: var(--transition);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+      }
+      .action-btn:hover {
+          background-color: var(--color-primary-light);
+          color: var(--color-primary);
+      }
+      .action-btn.danger:hover {
+          background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
+          color: var(--color-danger);
+          border-color: var(--color-danger);
+      }
 
       @media (max-width: 992px) {
         .dashboard-grid {
