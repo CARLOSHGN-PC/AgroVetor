@@ -3446,7 +3446,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return 'Não identificado';
                 };
 
-                const fundoAgricola = findProp(['CD_FAZENDA', 'COD_FAZEND', 'CODFZ', 'COD', 'CODIGO']);
+                const fundoAgricola = findProp(['FUNDO_AGR']);
                 const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
                 const talhaoNome = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
                 const areaHa = findProp(['AREA_HA', 'AREA', 'HECTARES']);
