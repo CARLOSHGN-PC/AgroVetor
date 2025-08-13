@@ -3571,43 +3571,90 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             
             // ALTERAÇÃO PONTO 2: Lógica de notificação corrigida
-            checkTrapStatusAndNotify() {
-                const activeTraps = App.state.armadilhas.filter(t => t.status === 'Ativa');
-                let newNotificationsForBell = [];
-                
-                activeTraps.forEach(trap => {
-                    const installDate = trap.dataInstalacao.toDate();
-                    const collectionDate = new Date(installDate);
-                    collectionDate.setDate(installDate.getDate() + 7);
-                    const now = new Date();
-                    const diffTime = collectionDate - now;
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+           checkTrapStatusAndNotify() {
+    const activeTraps = App.state.armadilhas.filter(t => t.status === 'Ativa');
+    let newNotificationsForBell = [];
+    
+    activeTraps.forEach(trap => {
+        if (!trap.dataInstalacao || !trap.dataInstalacao.toDate) return; // Garante que a data existe e é um timestamp
+        const installDate = trap.dataInstalacao.toDate();
+        const collectionDate = new Date(installDate);
+        collectionDate.setDate(installDate.getDate() + 7);
+        const now = new Date();
+        const diffTime = collectionDate - now;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                    let notification = null;
-                    if (diffDays <= 2 && diffDays >= 0) {
-                        notification = { trapId: trap.id, type: 'warning', message: `Coleta em ${diffDays} dia(s).`, timestamp: new Date() };
-                    } else if (diffDays < 0) {
-                        notification = { trapId: trap.id, type: 'danger', message: `Coleta atrasada em ${Math.abs(diffDays)} dia(s).`, timestamp: new Date() };
-                    }
+        let notification = null;
+        if (diffDays <= 2 && diffDays >= 0) {
+            notification = { trapId: trap.id, type: 'warning', message: `Coleta em ${diffDays} dia(s).`, timestamp: new Date() };
+        } else if (diffDays < 0) {
+            notification = { trapId: trap.id, type: 'danger', message: `Coleta atrasada em ${Math.abs(diffDays)} dia(s).`, timestamp: new Date() };
+        }
 
-                    if (notification) {
-                        // Adiciona para a lista do sino
-                        newNotificationsForBell.push(notification);
+        if (notification) {
+            newNotificationsForBell.push(notification);
 
-                        // Mostra o pop-up apenas se não foi mostrado nesta sessão
-                        if (!App.state.notifiedTrapIds.has(trap.id)) {
-                            App.ui.showTrapNotification(notification);
-                            App.state.notifiedTrapIds.add(trap.id);
-                        }
-                    }
-                });
+            if (!App.state.notifiedTrapIds.has(trap.id)) {
+                App.ui.showTrapNotification(notification);
+                App.state.notifiedTrapIds.add(trap.id);
+            }
+        }
+    });
+
+    App.state.trapNotifications = newNotificationsForBell.sort((a, b) => b.timestamp - a.timestamp);
+    
+    const newUnreadCount = newNotificationsForBell.length;
+    if (App.state.unreadNotificationCount < newUnreadCount) {
+        App.state.unreadNotificationCount = newUnreadCount;
+    }
+    
+    App.ui.updateNotificationBell();
+},
 
                 // Atualiza o estado geral de notificações
                 App.state.trapNotifications = newNotificationsForBell.sort((a, b) => b.timestamp - a.timestamp);
                 App.state.unreadNotificationCount = newNotificationsForBell.length;
                 App.ui.updateNotificationBell();
             },
+// ADICIONE esta nova função updateNotificationBell() dentro do objeto App.ui
+updateNotificationBell() {
+    const { count, list, noNotifications } = App.elements.notificationBell;
+    const { trapNotifications, unreadNotificationCount } = App.state;
 
+    // Atualiza o contador vermelho
+    if (unreadNotificationCount > 0) {
+        count.textContent = unreadNotificationCount;
+        count.classList.add('visible');
+    } else {
+        count.classList.remove('visible');
+    }
+
+    // Preenche a lista do dropdown
+    list.innerHTML = '';
+    if (trapNotifications.length > 0) {
+        noNotifications.style.display = 'none';
+        trapNotifications.forEach(n => {
+            const item = document.createElement('div');
+            item.className = `notification-item ${n.type}`;
+            item.dataset.trapId = n.trapId;
+            item.innerHTML = `
+                <i class="fas ${n.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle'}"></i>
+                <div class="notification-item-content">
+                    <p><strong>Armadilha requer atenção</strong></p>
+                    <p>${n.message}</p>
+                    <p class="timestamp">${n.timestamp.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</p>
+                </div>
+            `;
+            item.addEventListener('click', () => {
+                App.mapModule.centerOnTrap(n.trapId);
+                App.elements.notificationBell.dropdown.classList.remove('show');
+            });
+            list.appendChild(item);
+        });
+    } else {
+        noNotifications.style.display = 'flex';
+    }
+},
             showTrapNotification(notification) {
                 const container = App.elements.notificationContainer;
                 const notificationEl = document.createElement('div');
