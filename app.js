@@ -3437,7 +3437,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     props[property.toUpperCase()] = value;
                 });
                 
-                // Função auxiliar para encontrar propriedades com nomes variáveis
                 const findProp = (keys) => {
                     for (const key of keys) {
                         if (props[key.toUpperCase()] !== undefined) {
@@ -3447,12 +3446,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     return 'Não identificado';
                 };
 
-                const fazendaCod = findProp(['CD_FAZENDA', 'COD_FAZEND', 'CODFZ']);
+                const fundoAgricola = findProp(['CD_FAZENDA', 'COD_FAZEND', 'CODFZ', 'COD', 'CODIGO']);
                 const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
                 const talhaoNome = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
                 const areaHa = findProp(['AREA_HA', 'AREA', 'HECTARES']);
                 const variedade = findProp(['VARIEDADE', 'CULTURA']);
-                const fundoAgricola = findProp(['FUNDO_AGRICOLA', 'FUNDOAGRICOLA', 'FUNDO']);
 
                 const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
                 contentEl.innerHTML = `
@@ -3461,12 +3459,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>Informações do Talhão</span>
                     </div>
                     <div class="info-item">
-                        <span class="label">Fazenda</span>
-                        <span class="value">${fazendaCod !== 'Não identificado' ? fazendaCod + ' - ' : ''}${fazendaNome}</span>
-                    </div>
-                    <div class="info-item">
                         <span class="label">Fundo Agrícola</span>
                         <span class="value">${fundoAgricola}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Fazenda</span>
+                        <span class="value">${fazendaNome}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">Talhão</span>
