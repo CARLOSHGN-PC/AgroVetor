@@ -914,6 +914,65 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 this.closeAllMenus();
             },
+
+            // ALTERAÇÃO PONTO 4: Nova função para atualizar o sino de notificação
+            updateNotificationBell() {
+                const { list, count, noNotifications } = App.elements.notificationBell;
+                const notifications = App.state.trapNotifications;
+                const unreadCount = App.state.unreadNotificationCount;
+
+                list.innerHTML = ''; // Limpa a lista atual
+
+                if (notifications.length === 0) {
+                    noNotifications.style.display = 'flex';
+                    list.style.display = 'none';
+                } else {
+                    noNotifications.style.display = 'none';
+                    list.style.display = 'block';
+
+                    notifications.forEach(notif => {
+                        const item = document.createElement('div');
+                        item.className = `notification-item ${notif.type}`;
+                        item.dataset.trapId = notif.trapId;
+
+                        const iconClass = notif.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
+                        const timeAgo = this.timeSince(notif.timestamp);
+
+                        item.innerHTML = `
+                            <i class="fas ${iconClass}"></i>
+                            <div class="notification-item-content">
+                                <p><strong>Armadilha Requer Atenção</strong></p>
+                                <p>${notif.message}</p>
+                                <div class="timestamp">${timeAgo}</div>
+                            </div>
+                        `;
+                        list.appendChild(item);
+                    });
+                }
+
+                if (unreadCount > 0) {
+                    count.textContent = unreadCount;
+                    count.classList.add('visible');
+                } else {
+                    count.classList.remove('visible');
+                }
+            },
+
+            timeSince(date) {
+                const seconds = Math.floor((new Date() - date) / 1000);
+                let interval = seconds / 31536000;
+                if (interval > 1) return Math.floor(interval) + " anos atrás";
+                interval = seconds / 2592000;
+                if (interval > 1) return Math.floor(interval) + " meses atrás";
+                interval = seconds / 86400;
+                if (interval > 1) return Math.floor(interval) + " dias atrás";
+                interval = seconds / 3600;
+                if (interval > 1) return Math.floor(interval) + " horas atrás";
+                interval = seconds / 60;
+                if (interval > 1) return Math.floor(interval) + " minutos atrás";
+                return "Agora mesmo";
+            },
+
             showDashboardView(viewName) {
                 const dashEls = App.elements.dashboard;
                 dashEls.selector.style.display = 'none';
@@ -1655,6 +1714,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.notificationBell.clearBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     App.actions.clearAllNotifications();
+                });
+
+                // NOVO: Event listener para os itens da lista de notificação
+                App.elements.notificationBell.list.addEventListener('click', (e) => {
+                    const item = e.target.closest('.notification-item');
+                    if (item && item.dataset.trapId) {
+                        const trapId = item.dataset.trapId;
+                        App.ui.showTab('monitoramentoAereo');
+                        App.mapModule.centerOnTrap(trapId);
+                        App.elements.notificationBell.dropdown.classList.remove('show');
+                    }
                 });
 
                 App.elements.userMenu.themeButtons.forEach(btn => {
@@ -3605,7 +3675,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Atualiza o estado geral de notificações
                 App.state.trapNotifications = newNotificationsForBell.sort((a, b) => b.timestamp - a.timestamp);
-                App.state.unreadNotificationCount = newNotificationsForBell.length;
+                
+                const newUnreadCount = newNotificationsForBell.filter(n => !App.state.notifiedTrapIds.has(n.trapId)).length;
+                App.state.unreadNotificationCount += newUnreadCount;
+                
                 App.ui.updateNotificationBell();
             },
 
