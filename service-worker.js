@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v4'; // Incrementei a versão para forçar a atualização do cache
+const CACHE_NAME = 'agrovetor-cache-v5'; // Incrementei a versão para forçar a atualização do cache
 const urlsToCache = [
   './', // Caminho relativo para a raiz do projeto
   './index.html',
@@ -14,7 +14,12 @@ const urlsToCache = [
   './icons/icon-512x512.png',
   // [NOVO] Adicionadas bibliotecas do mapa para cache offline
   'https://unpkg.com/shpjs@latest/dist/shp.js',
-  'https://unpkg.com/idb@7.1.1/build/index.js'
+  'https://unpkg.com/idb@7.1.1/build/index.js',
+  // [NOVO] Adicionadas bibliotecas do Firebase para cache offline
+  'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
+  'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
+  'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
+  'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js'
 ];
 
 // Evento de instalação: força o novo service worker a se tornar ativo
