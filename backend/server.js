@@ -1123,11 +1123,15 @@ try {
                 const diffTime = Math.abs(new Date() - dataInstalacao);
                 const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
+                const previsaoRetirada = new Date(dataInstalacao);
+                previsaoRetirada.setDate(previsaoRetirada.getDate() + 7);
+
                 return {
                     ...trap,
                     fazendaNome: trap.fazendaNome || 'N/A',
                     talhaoNome: trap.talhaoNome || 'N/A',
                     dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
+                    previsaoRetiradaFmt: previsaoRetirada.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
                     instaladoPorNome: usersMap[trap.instaladoPor] || 'Desconhecido',
                 };
@@ -1145,8 +1149,8 @@ try {
 
             let currentY = await generatePdfHeader(doc, title);
 
-            const headers = ['Fazenda', 'Talhão', 'Data Instalação', 'Dias em Campo', 'Instalado Por', 'Obs.'];
-            const columnWidths = [180, 120, 100, 100, 120, 162];
+            const headers = ['Fazenda', 'Talhão', 'Data Inst.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
+            const columnWidths = [150, 90, 85, 85, 70, 100, 202];
             const rowHeight = 18;
             const textPadding = 5;
 
@@ -1158,6 +1162,7 @@ try {
                     trap.fazendaNome,
                     trap.talhaoNome,
                     trap.dataInstalacaoFmt,
+                    trap.previsaoRetiradaFmt,
                     trap.diasEmCampo,
                     trap.instaladoPorNome,
                     trap.observacoes || ''
@@ -1200,10 +1205,14 @@ try {
                 const diffTime = Math.abs(new Date() - dataInstalacao);
                 const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
+                const previsaoRetirada = new Date(dataInstalacao);
+                previsaoRetirada.setDate(previsaoRetirada.getDate() + 7);
+
                 return {
                     fazendaNome: trap.fazendaNome || 'N/A',
                     talhaoNome: trap.talhaoNome || 'N/A',
                     dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
+                    previsaoRetirada: previsaoRetirada.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
                     instaladoPor: usersMap[trap.instaladoPor] || 'Desconhecido',
                     observacoes: trap.observacoes || ''
@@ -1227,6 +1236,7 @@ try {
                     { id: 'fazendaNome', title: 'Fazenda' },
                     { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'dataInstalacao', title: 'Data Instalação' },
+                    { id: 'previsaoRetirada', title: 'Previsão Retirada' },
                     { id: 'diasEmCampo', title: 'Dias em Campo' },
                     { id: 'instaladoPor', title: 'Instalado Por' },
                     { id: 'observacoes', title: 'Observações' }
