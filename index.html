@@ -596,7 +596,7 @@
       .plano-details { font-size: 14px; color: var(--color-text-light); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
       .plano-details > div { display: flex; align-items: center; gap: 8px; } .plano-details i { color: var(--color-accent); width: 16px; text-align: center; }
       .plano-actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
-      #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8); z-index: 2000; display: none; justify-content: center; align-items: center; flex-direction: column; gap: 20px; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+      #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8); z-index: 2000; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 20px; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
       body.theme-dark #loading-overlay { background: rgba(0,0,0,0.7); }
       .spinner { border: 8px solid #f3f3f3; border-top: 8px solid var(--color-ai); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
       @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -1263,7 +1263,7 @@
         <p id="loading-progress-text" style="color: var(--color-ai); font-weight: 500;">A processar...</p>
     </div>
 
-    <div id="loginScreen">
+    <div id="loginScreen" style="display: none;">
         <div id="loginBox" role="main" aria-label="Tela de login">
             <div id="loginForm">
                 <h2><i class="fas fa-leaf"></i> AGROVETOR</h2>
