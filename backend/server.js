@@ -979,7 +979,7 @@ try {
             let currentY = await generatePdfHeader(doc, title);
 
             const headers = ['Fazenda', 'Talhão', 'Data Inst.', 'Data Coleta', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
-            const columnWidths = [140, 80, 70, 70, 50, 60, 90, 90, 132];
+            const columnWidths = [130, 70, 70, 70, 65, 80, 90, 90, 117];
             const rowHeight = 18;
             const textPadding = 5;
 
