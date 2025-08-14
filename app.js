@@ -3780,7 +3780,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     status: "Ativa",
                     fazendaNome: feature ? findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : null,
                     talhaoNome: feature ? findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) : null,
-                    fundoAgricola: feature ? findProp(['FUNDO_AGR']) : null
                 };
 
                 try {
