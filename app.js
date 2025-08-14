@@ -421,6 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
             },
             relatorioMonitoramento: {
+                tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
                 fazendaFiltro: document.getElementById('monitoramentoFazendaFiltro'),
                 inicio: document.getElementById('monitoramentoInicio'),
                 fim: document.getElementById('monitoramentoFim'),
@@ -4666,33 +4667,47 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generateArmadilhaPDF() {
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+                const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 
                 const farmId = fazendaFiltro.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
+                const reportType = tipoRelatorio.value;
 
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     fazendaCodigo: farm ? farm.code : ''
                 };
-                this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas.pdf');
+                
+                if (reportType === 'coletadas') {
+                    this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas_coletadas.pdf');
+                } else {
+                    App.ui.showAlert("Atenção: a primeira geração deste relatório pode falhar e exigir a criação de um novo índice no banco de dados. Se o erro ocorrer, por favor, envie o log de erro do Render.", "info", 8000);
+                    this._fetchAndDownloadReport('armadilhas-ativas/pdf', filters, 'relatorio_armadilhas_instaladas.pdf');
+                }
             },
 
             generateArmadilhaCSV() {
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+                const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
 
                 const farmId = fazendaFiltro.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
+                const reportType = tipoRelatorio.value;
 
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     fazendaCodigo: farm ? farm.code : ''
                 };
-                this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
+                
+                if (reportType === 'coletadas') {
+                    this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas_coletadas.csv');
+                } else {
+                    App.ui.showAlert("Atenção: a primeira geração deste relatório pode falhar e exigir a criação de um novo índice no banco de dados. Se o erro ocorrer, por favor, envie o log de erro do Render.", "info", 8000);
+                    this._fetchAndDownloadReport('armadilhas-ativas/csv', filters, 'relatorio_armadilhas_instaladas.csv');
+                }
             },
 
             generateMonitoramentoPDF() { // Now generates Trap Report
