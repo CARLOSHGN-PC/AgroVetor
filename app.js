@@ -512,6 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.currentUser = null;
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
+                localStorage.removeItem('agrovetor_lastActiveTab');
                 App.ui.showLoginScreen();
             },
             initiateUserCreation() {
@@ -776,7 +777,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.renderMenu();
                 this.renderAllDynamicContent();
-                this.showTab('dashboard');
+                const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
+                this.showTab(lastTab || 'dashboard');
                 App.actions.resetInactivityTimer();
             },
             renderAllDynamicContent() {
@@ -934,6 +936,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 
+                localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
             },
 
