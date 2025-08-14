@@ -1990,8 +1990,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const relatorioMonitoramentoEls = App.elements.relatorioMonitoramento;
-                if (relatorioMonitoramentoEls.btnPDF) relatorioMonitoramentoEls.btnPDF.addEventListener('click', () => App.reports.generateMonitoramentoPDF());
-                if (relatorioMonitoramentoEls.btnExcel) relatorioMonitoramentoEls.btnExcel.addEventListener('click', () => App.reports.generateMonitoramentoCSV());
+                if (relatorioMonitoramentoEls.btnPDF) relatorioMonitoramentoEls.btnPDF.addEventListener('click', () => App.reports.generateArmadilhaPDF());
+                if (relatorioMonitoramentoEls.btnExcel) relatorioMonitoramentoEls.btnExcel.addEventListener('click', () => App.reports.generateArmadilhaCSV());
                 
                 if (App.elements.notificationContainer) App.elements.notificationContainer.addEventListener('click', (e) => {
                     const notification = e.target.closest('.trap-notification');
@@ -4665,38 +4665,65 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
             },
 
-            generateMonitoramentoPDF() {
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
+            generateArmadilhaPDF() {
+                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                
+                const farmId = fazendaFiltro.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
 
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaCodigo: farm ? farm.code : ''
+                };
+                this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas.pdf');
+            },
 
-                App.ui.showAlert("Função de relatório PDF de monitoramento ainda não implementada no backend.", "info");
-                // this._fetchAndDownloadReport('monitoramento/pdf', filters, 'relatorio_monitoramento.pdf');
-            },
+            generateArmadilhaCSV() {
+                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
 
-            generateMonitoramentoCSV() {
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farmId = fazendaFiltro.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
 
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaCodigo: farm ? farm.code : ''
+                };
+                this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
+            },
 
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                App.ui.showAlert("Função de relatório CSV de monitoramento ainda não implementada no backend.", "info");
-                // this._fetchAndDownloadReport('monitoramento/csv', filters, 'relatorio_monitoramento.csv');
-            }
+            generateMonitoramentoPDF() { // Now generates Trap Report
+                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                
+                const farmId = fazendaFiltro.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaCodigo: farm ? farm.code : ''
+                };
+                this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas.pdf');
+            },
+
+            generateMonitoramentoCSV() { // Now generates Trap Report
+                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+
+                const farmId = fazendaFiltro.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaCodigo: farm ? farm.code : ''
+                };
+                this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
+            }
         },
 
         pwa: {
