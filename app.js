@@ -737,6 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginPass.value = '';
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
+                App.ui.setLoading(false);
             },
             showOfflineUserSelection(profiles) {
                 App.elements.loginForm.style.display = 'none';
@@ -753,9 +754,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 App.elements.loginScreen.style.display = 'flex';
                 App.elements.appScreen.style.display = 'none';
+                App.ui.setLoading(false);
             },
             showAppScreen() {
                 const { currentUser } = App.state;
+                App.ui.setLoading(false);
                 App.elements.loginScreen.style.display = 'none';
                 App.elements.appScreen.style.display = 'flex';
                 App.elements.userMenu.container.style.display = 'block';
@@ -3474,7 +3477,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async loadAndCacheShapes(url) {
                 if (!url) return;
-                App.ui.setLoading(true, "A carregar contornos do mapa...");
+                console.log("Iniciando o carregamento dos contornos do mapa em segundo plano...");
                 try {
                     const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
                     const response = await fetch(urlWithCacheBuster);
@@ -3483,19 +3486,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     await OfflineDB.set('shapefile-zip', buffer);
                     
-                    App.ui.setLoading(true, "A desenhar os talhões no mapa...");
+                    console.log("Processando e desenhando os talhões no mapa...");
                     const geojson = await shp(buffer);
                     
                     App.state.geoJsonData = geojson;
                     if (App.state.googleMap) {
                         this.loadShapesOnMap();
                     }
+                    console.log("Contornos do mapa carregados com sucesso.");
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
                     App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
                     this.loadOfflineShapes();
-                } finally {
-                    App.ui.setLoading(false);
                 }
             },
 
@@ -4230,26 +4232,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.expandedChart = null;
                 }
             },
+
+            _renderChartAsync(renderFn) {
+                return new Promise(resolve => {
+                    setTimeout(() => {
+                        renderFn();
+                        resolve();
+                    }, 1); 
+                });
+            },
             
-            renderBrocaDashboardCharts() {
+            async renderBrocaDashboardCharts() {
                 const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
                 App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
                 const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
 
-                this.renderTop10FazendasBroca(data);
-                this.renderBrocaMensal(data);
-                this.renderBrocaPosicao(data);
-                this.renderBrocaPorVariedade(data);
+                await this._renderChartAsync(() => this.renderTop10FazendasBroca(data));
+                await this._renderChartAsync(() => this.renderBrocaMensal(data));
+                await this._renderChartAsync(() => this.renderBrocaPosicao(data));
+                await this._renderChartAsync(() => this.renderBrocaPorVariedade(data));
             },
-            renderPerdaDashboardCharts() {
+            async renderPerdaDashboardCharts() {
                 const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
                 App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
                 const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
-                this.renderPerdaPorFrenteTurno(data);
-                this.renderComposicaoPerdaPorFrente(data);
-                this.renderTop10FazendasPerda(data);
-                this.renderPerdaPorFrente(data);
+                await this._renderChartAsync(() => this.renderPerdaPorFrenteTurno(data));
+                await this._renderChartAsync(() => this.renderComposicaoPerdaPorFrente(data));
+                await this._renderChartAsync(() => this.renderTop10FazendasPerda(data));
+                await this._renderChartAsync(() => this.renderPerdaPorFrente(data));
             },
             renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
