@@ -947,8 +947,11 @@ try {
             usersSnapshot.forEach(doc => {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
+
+            const geojsonData = await getShapefileData();
             
             let enrichedData = data.map(trap => {
+                const talhaoProps = findTalhaoForTrap(trap, geojsonData);
                 const dataInstalacao = trap.dataInstalacao.toDate();
                 const dataColeta = trap.dataColeta.toDate();
                 const diffTime = Math.abs(dataColeta - dataInstalacao);
@@ -956,9 +959,9 @@ try {
 
                 return {
                     ...trap,
-                    fazendaNome: trap.fazendaNome || 'N/A',
-                    talhaoNome: trap.talhaoNome || 'N/A',
-                    fundoAgricola: trap.fundoAgricola || 'N/A',
+                    fazendaNome: talhaoProps?.NM_IMOVEL || 'N/A',
+                    fundoAgricola: talhaoProps?.FUNDO_AGR || 'N/A',
+                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A',
                     dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
                     dataColetaFmt: dataColeta.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
@@ -979,8 +982,8 @@ try {
 
             let currentY = await generatePdfHeader(doc, title);
 
-            const headers = ['Fazenda', 'Fundo Agrícola', 'Talhão', 'Data Inst.', 'Data Coleta', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
-            const columnWidths = [120, 90, 60, 65, 65, 60, 75, 80, 80, 87];
+            const headers = ['Fundo Agrícola', 'Fazenda', 'Talhão', 'Data Inst.', 'Data Coleta', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
+            const columnWidths = [90, 120, 60, 65, 65, 60, 75, 80, 80, 87];
             const rowHeight = 18;
             const textPadding = 5;
 
@@ -989,8 +992,8 @@ try {
             for (const trap of enrichedData) {
                 currentY = await checkPageBreak(doc, currentY, title);
                 const rowData = [
-                    trap.fazendaNome,
                     trap.fundoAgricola,
+                    trap.fazendaNome,
                     trap.talhaoNome,
                     trap.dataInstalacaoFmt,
                     trap.dataColetaFmt,
@@ -1033,16 +1036,19 @@ try {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
 
+            const geojsonData = await getShapefileData();
+
             let enrichedData = data.map(trap => {
+                const talhaoProps = findTalhaoForTrap(trap, geojsonData);
                 const dataInstalacao = trap.dataInstalacao.toDate();
                 const dataColeta = trap.dataColeta.toDate();
                 const diffTime = Math.abs(dataColeta - dataInstalacao);
                 const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
                 return {
-                    fazendaNome: trap.fazendaNome || 'N/A',
-                    fundoAgricola: trap.fundoAgricola || 'N/A',
-                    talhaoNome: trap.talhaoNome || 'N/A',
+                    fundoAgricola: talhaoProps?.FUNDO_AGR || 'N/A',
+                    fazendaNome: talhaoProps?.NM_IMOVEL || 'N/A',
+                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A',
                     dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
                     dataColeta: dataColeta.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
@@ -1067,8 +1073,8 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'fazendaNome', title: 'Fazenda' },
                     { id: 'fundoAgricola', title: 'Fundo Agrícola' },
+                    { id: 'fazendaNome', title: 'Fazenda' },
                     { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'dataInstalacao', title: 'Data Instalação' },
                     { id: 'dataColeta', title: 'Data Coleta' },
@@ -1122,7 +1128,10 @@ try {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
             
+            const geojsonData = await getShapefileData();
+
             let enrichedData = data.map(trap => {
+                const talhaoProps = findTalhaoForTrap(trap, geojsonData);
                 const dataInstalacao = trap.dataInstalacao.toDate();
                 const diffTime = Math.abs(new Date() - dataInstalacao);
                 const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -1132,9 +1141,9 @@ try {
 
                 return {
                     ...trap,
-                    fazendaNome: trap.fazendaNome || 'N/A',
-                    fundoAgricola: trap.fundoAgricola || 'N/A',
-                    talhaoNome: trap.talhaoNome || 'N/A',
+                    fazendaNome: talhaoProps?.NM_IMOVEL || 'N/A',
+                    fundoAgricola: talhaoProps?.FUNDO_AGR || 'N/A',
+                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A',
                     dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
                     previsaoRetiradaFmt: previsaoRetirada.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
@@ -1154,8 +1163,8 @@ try {
 
             let currentY = await generatePdfHeader(doc, title);
 
-            const headers = ['Fazenda', 'Fundo Agrícola', 'Talhão', 'Data Inst.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
-            const columnWidths = [140, 90, 80, 80, 80, 65, 90, 157];
+            const headers = ['Fundo Agrícola', 'Fazenda', 'Talhão', 'Data Inst.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
+            const columnWidths = [90, 140, 80, 80, 80, 65, 90, 157];
             const rowHeight = 18;
             const textPadding = 5;
 
@@ -1164,8 +1173,8 @@ try {
             for (const trap of enrichedData) {
                 currentY = await checkPageBreak(doc, currentY, title);
                 const rowData = [
-                    trap.fazendaNome,
                     trap.fundoAgricola,
+                    trap.fazendaNome,
                     trap.talhaoNome,
                     trap.dataInstalacaoFmt,
                     trap.previsaoRetiradaFmt,
@@ -1206,7 +1215,10 @@ try {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
 
+            const geojsonData = await getShapefileData();
+
             let enrichedData = data.map(trap => {
+                const talhaoProps = findTalhaoForTrap(trap, geojsonData);
                 const dataInstalacao = trap.dataInstalacao.toDate();
                 const diffTime = Math.abs(new Date() - dataInstalacao);
                 const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -1215,9 +1227,9 @@ try {
                 previsaoRetirada.setDate(previsaoRetirada.getDate() + 7);
 
                 return {
-                    fazendaNome: trap.fazendaNome || 'N/A',
-                    fundoAgricola: trap.fundoAgricola || 'N/A',
-                    talhaoNome: trap.talhaoNome || 'N/A',
+                    fundoAgricola: talhaoProps?.FUNDO_AGR || 'N/A',
+                    fazendaNome: talhaoProps?.NM_IMOVEL || 'N/A',
+                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A',
                     dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
                     previsaoRetirada: previsaoRetirada.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
@@ -1240,8 +1252,8 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'fazendaNome', title: 'Fazenda' },
                     { id: 'fundoAgricola', title: 'Fundo Agrícola' },
+                    { id: 'fazendaNome', title: 'Fazenda' },
                     { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'dataInstalacao', title: 'Data Instalação' },
                     { id: 'previsaoRetirada', title: 'Previsão Retirada' },
