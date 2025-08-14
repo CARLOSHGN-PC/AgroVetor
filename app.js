@@ -1552,16 +1552,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 const total = fields.reduce((sum, id) => sum + (parseFloat(document.getElementById(id).value) || 0), 0);
                 App.elements.perda.resultado.textContent = `Total Perda: ${total.toFixed(2).replace('.', ',')} kg`;
             },
-            showConfirmationModal(message, onConfirm, needsInput = false) {
-                const { overlay, title, message: msgEl, confirmBtn, cancelBtn, closeBtn, inputContainer, input } = App.elements.confirmationModal;
+            showConfirmationModal(message, onConfirm, inputsConfig = false) {
+                const { overlay, title, message: msgEl, confirmBtn, cancelBtn, closeBtn, inputContainer } = App.elements.confirmationModal;
                 title.textContent = "Confirmar Ação";
                 msgEl.textContent = message;
-                input.value = '';
-                inputContainer.style.display = needsInput ? 'block' : 'none';
                 
+                inputContainer.innerHTML = '';
+                inputContainer.style.display = 'none';
+
+                if (inputsConfig) {
+                    const inputsArray = Array.isArray(inputsConfig) ? inputsConfig : [ { id: 'confirmationModalInput', placeholder: 'Digite para confirmar' } ];
+                    
+                    inputsArray.forEach(config => {
+                        let inputEl;
+                        if (config.type === 'textarea') {
+                            inputEl = document.createElement('textarea');
+                        } else {
+                            inputEl = document.createElement('input');
+                            inputEl.type = config.type || 'text';
+                        }
+                        inputEl.id = config.id;
+                        inputEl.placeholder = config.placeholder || '';
+                        inputEl.value = config.value || '';
+                        if (config.required) {
+                            inputEl.required = true;
+                        }
+                        inputContainer.appendChild(inputEl);
+                    });
+                    inputContainer.style.display = 'block';
+                    inputContainer.querySelector('input, textarea')?.focus();
+                }
+
                 const confirmHandler = () => {
-                    const inputValue = needsInput ? input.value : null;
-                    onConfirm(inputValue);
+                    let results = {};
+                    let allValid = true;
+                    if (inputsConfig) {
+                        const inputs = Array.from(inputContainer.querySelectorAll('input, textarea'));
+                        inputs.forEach(input => {
+                            if (input.required && !input.value) {
+                                allValid = false;
+                            }
+                            results[input.id] = input.value;
+                        });
+                    }
+
+                    if (!allValid) {
+                        App.ui.showAlert("Por favor, preencha todos os campos obrigatórios.", "error");
+                        return;
+                    }
+
+                    // For backward compatibility with single input
+                    if (!Array.isArray(inputsConfig) && inputsConfig) {
+                        results = results['confirmationModalInput'];
+                    }
+                    
+                    onConfirm(results);
                     closeHandler();
                 };
                 
@@ -1580,7 +1625,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 cancelBtn.addEventListener('click', closeHandler);
                 closeBtn.addEventListener('click', closeHandler);
                 overlay.classList.add('show');
-                if(needsInput) input.focus();
             },
             showAdminPasswordConfirmModal() {
                 App.elements.adminPasswordConfirmModal.overlay.classList.add('show');
@@ -3724,9 +3768,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
                         const talhaoName = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                        const fundoAgricola = findProp(['FUNDO_AGR']);
 
                         content = `<p style="font-weight: 500;">Confirme o local de instalação:</p>
                                    <div class="location-confirmation-box">
+                                       <span><strong>Fundo Agrícola:</strong> ${fundoAgricola}</span>
                                        <span><strong>Fazenda:</strong> ${fazendaNome}</span>
                                        <span><strong>Talhão:</strong> ${talhaoName}</span>
                                    </div>
@@ -3794,26 +3840,33 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             promptCollectTrap(trapId) {
+                const trap = App.state.armadilhas.find(t => t.id === trapId);
+                if (!trap) return;
+
                 App.ui.showConfirmationModal(
-                    "Insira o número de mariposas capturadas para confirmar a coleta:",
-                    async (count) => {
-                        const mothCount = parseInt(count, 10);
+                    `Confirmar coleta para a armadilha em ${trap.talhaoNome || 'local desconhecido'}?`,
+                    async (inputs) => {
+                        const mothCount = parseInt(inputs.count, 10);
                         if (isNaN(mothCount) || mothCount < 0) {
-                            App.ui.showAlert("Por favor, insira um número válido.", "error");
+                            App.ui.showAlert("Por favor, insira um número válido de mariposas.", "error");
                             return;
                         }
-                        await this.collectTrap(trapId, mothCount);
+                        await this.collectTrap(trapId, mothCount, inputs.observations);
                     },
-                    true
+                    [
+                        { id: 'count', placeholder: 'Nº de mariposas capturadas', type: 'number', required: true },
+                        { id: 'observations', placeholder: 'Adicionar observações (opcional)', type: 'textarea', value: trap.observacoes || '' }
+                    ]
                 );
             },
 
-            async collectTrap(trapId, count) {
+            async collectTrap(trapId, count, observations) {
                 const updateData = {
                     status: "Coletada",
                     dataColeta: Timestamp.fromDate(new Date()),
                     coletadoPor: App.state.currentUser.uid,
-                    contagemMariposas: count
+                    contagemMariposas: count,
+                    observacoes: observations || null
                 };
 
                 try {
