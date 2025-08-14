@@ -3480,11 +3480,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const themeColors = App.ui._getThemeColors();
 
                 dataLayer.setStyle(feature => {
-                    let fillOpacity = 0.35; // Padrão
+                    let fillOpacity = 0.20; // Padrão (mais claro para realçar a seleção)
                     if (feature.getProperty('isSelected')) {
-                        fillOpacity = 0.85; // Selecionado
+                        fillOpacity = 0.85; // Selecionado (bem destacado)
                     } else if (feature.getProperty('isHovered')) {
-                        fillOpacity = 0.60; // Hover
+                        fillOpacity = 0.60; // Hover (destaque intermediário)
                     }
                     return ({
                         fillColor: themeColors.primary,
