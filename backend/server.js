@@ -272,6 +272,16 @@ try {
         return null; // Retorna null se não encontrar
     };
 
+    const findShapefileProp = (props, keys) => {
+        if (!props) return null;
+        for (const key of keys) {
+            if (props[key] !== undefined && props[key] !== null) {
+                return props[key];
+            }
+        }
+        return null;
+    };
+
     // --- ROTAS DE RELATÓRIOS ---
 
     app.get('/reports/brocamento/pdf', async (req, res) => {
@@ -959,9 +969,9 @@ try {
 
                 return {
                     ...trap,
-                    fazendaNome: talhaoProps?.NM_IMOVEL || 'N/A',
-                    fundoAgricola: talhaoProps?.FUNDO_AGR || 'N/A',
-                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A',
+                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
+                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || 'N/A',
+                    talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
                     dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
                     dataColetaFmt: dataColeta.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
@@ -1046,9 +1056,9 @@ try {
                 const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
                 return {
-                    fundoAgricola: talhaoProps?.FUNDO_AGR || 'N/A',
-                    fazendaNome: talhaoProps?.NM_IMOVEL || 'N/A',
-                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A',
+                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || 'N/A',
+                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
+                    talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
                     dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
                     dataColeta: dataColeta.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
@@ -1141,9 +1151,9 @@ try {
 
                 return {
                     ...trap,
-                    fazendaNome: talhaoProps?.NM_IMOVEL || 'N/A',
-                    fundoAgricola: talhaoProps?.FUNDO_AGR || 'N/A',
-                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A',
+                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
+                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || 'N/A',
+                    talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
                     dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
                     previsaoRetiradaFmt: previsaoRetirada.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
@@ -1227,9 +1237,9 @@ try {
                 previsaoRetirada.setDate(previsaoRetirada.getDate() + 7);
 
                 return {
-                    fundoAgricola: talhaoProps?.FUNDO_AGR || 'N/A',
-                    fazendaNome: talhaoProps?.NM_IMOVEL || 'N/A',
-                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A',
+                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || 'N/A',
+                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
+                    talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
                     dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
                     previsaoRetirada: previsaoRetirada.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
