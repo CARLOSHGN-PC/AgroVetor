@@ -1086,6 +1086,162 @@ try {
     });
 
 
+    app.get('/reports/armadilhas-ativas/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=relatorio_armadilhas_instaladas.pdf`);
+        doc.pipe(res);
+
+        try {
+            const { inicio, fim, fazendaCodigo, generatedBy } = req.query;
+            let query = db.collection('armadilhas').where('status', '==', 'Ativa');
+            
+            if (inicio) query = query.where('dataInstalacao', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
+            if (fim) query = query.where('dataInstalacao', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
+
+            const snapshot = await query.get();
+            let data = [];
+            snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
+
+            const title = 'Relatório de Armadilhas Instaladas (Ativas)';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title);
+                doc.text('Nenhuma armadilha ativa encontrada para os filtros selecionados.');
+                generatePdfFooter(doc, generatedBy);
+                return doc.end();
+            }
+
+            const usersSnapshot = await db.collection('users').get();
+            const usersMap = {};
+            usersSnapshot.forEach(doc => {
+                usersMap[doc.id] = doc.data().username || doc.data().email;
+            });
+            
+            let enrichedData = data.map(trap => {
+                const dataInstalacao = trap.dataInstalacao.toDate();
+                const diffTime = Math.abs(new Date() - dataInstalacao);
+                const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                return {
+                    ...trap,
+                    fazendaNome: trap.fazendaNome || 'N/A',
+                    talhaoNome: trap.talhaoNome || 'N/A',
+                    dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
+                    diasEmCampo: diasEmCampo,
+                    instaladoPorNome: usersMap[trap.instaladoPor] || 'Desconhecido',
+                };
+            });
+
+            if (fazendaCodigo) {
+                const farm = await db.collection('fazendas').where('code', '==', fazendaCodigo).limit(1).get();
+                if (!farm.empty) {
+                    const farmName = farm.docs[0].data().name;
+                    enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
+                } else {
+                    enrichedData = [];
+                }
+            }
+
+            let currentY = await generatePdfHeader(doc, title);
+
+            const headers = ['Fazenda', 'Talhão', 'Data Instalação', 'Dias em Campo', 'Instalado Por', 'Obs.'];
+            const columnWidths = [180, 120, 100, 100, 120, 162];
+            const rowHeight = 18;
+            const textPadding = 5;
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
+
+            for (const trap of enrichedData) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                const rowData = [
+                    trap.fazendaNome,
+                    trap.talhaoNome,
+                    trap.dataInstalacaoFmt,
+                    trap.diasEmCampo,
+                    trap.instaladoPorNome,
+                    trap.observacoes || ''
+                ];
+                currentY = drawRow(doc, rowData, currentY, false, false, columnWidths, textPadding, rowHeight);
+            }
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Armadilhas Ativas:", error);
+            if (!res.headersSent) res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            else doc.end();
+        }
+    });
+
+    app.get('/reports/armadilhas-ativas/csv', async (req, res) => {
+        try {
+            const { inicio, fim, fazendaCodigo } = req.query;
+            let query = db.collection('armadilhas').where('status', '==', 'Ativa');
+            
+            if (inicio) query = query.where('dataInstalacao', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
+            if (fim) query = query.where('dataInstalacao', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
+
+            const snapshot = await query.get();
+            let data = [];
+            snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
+
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
+
+            const usersSnapshot = await db.collection('users').get();
+            const usersMap = {};
+            usersSnapshot.forEach(doc => {
+                usersMap[doc.id] = doc.data().username || doc.data().email;
+            });
+
+            let enrichedData = data.map(trap => {
+                const dataInstalacao = trap.dataInstalacao.toDate();
+                const diffTime = Math.abs(new Date() - dataInstalacao);
+                const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                return {
+                    fazendaNome: trap.fazendaNome || 'N/A',
+                    talhaoNome: trap.talhaoNome || 'N/A',
+                    dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
+                    diasEmCampo: diasEmCampo,
+                    instaladoPor: usersMap[trap.instaladoPor] || 'Desconhecido',
+                    observacoes: trap.observacoes || ''
+                };
+            });
+            
+            if (fazendaCodigo) {
+                const farm = await db.collection('fazendas').where('code', '==', fazendaCodigo).limit(1).get();
+                if (!farm.empty) {
+                    const farmName = farm.docs[0].data().name;
+                    enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
+                } else {
+                    enrichedData = [];
+                }
+            }
+
+            const filePath = path.join(os.tmpdir(), `armadilhas_instaladas_report_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'fazendaNome', title: 'Fazenda' },
+                    { id: 'talhaoNome', title: 'Talhão' },
+                    { id: 'dataInstalacao', title: 'Data Instalação' },
+                    { id: 'diasEmCampo', title: 'Dias em Campo' },
+                    { id: 'instaladoPor', title: 'Instalado Por' },
+                    { id: 'observacoes', title: 'Observações' }
+                ]
+            });
+
+            await csvWriter.writeRecords(enrichedData);
+            res.download(filePath);
+
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Armadilhas Ativas:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
