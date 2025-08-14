@@ -1687,7 +1687,16 @@
 
             <section id="relatorioMonitoramento" class="tab-content card" aria-label="Relatório de Monitoramento" tabindex="0" hidden>
                 <h2><i class="fas fa-bug"></i> Relatório de Armadilhas</h2>
-                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere relatórios em PDF ou Excel das armadilhas coletadas, com filtros por período e fazenda.</p>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere relatórios em PDF ou Excel das armadilhas, com filtros por período e fazenda.</p>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="monitoramentoTipoRelatorio" class="required">Tipo de Relatório:</label>
+                        <select id="monitoramentoTipoRelatorio">
+                            <option value="coletadas" selected>Armadilhas Coletadas</option>
+                            <option value="instaladas">Armadilhas Instaladas</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="form-row">
                     <div class="form-col"><label for="monitoramentoFazendaFiltro">Filtrar por Fazenda:</label><select id="monitoramentoFazendaFiltro"><option value="">Todas</option></select></div>
                     <div class="form-col"><label for="monitoramentoInicio" class="required">Data Início:</label><input type="date" id="monitoramentoInicio" /></div>
