@@ -25,7 +25,7 @@ try {
  
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        storageBucket: "agrovetor-v2.firebasestorage.app" // URL do bucket corrigida
+        storageBucket: "agrovetor-v2.appspot.com" // Certifique-se que este é o nome correto do seu bucket
     });
 
     const db = admin.firestore();
@@ -916,62 +916,171 @@ try {
         }
     });
 
-    app.get('/reports/monitoramento/csv', async (req, res) => {
-        try {
-            const { inicio, fim, fazendaCodigo } = req.query;
-            let query = db.collection('armadilhas').where('status', '==', 'Coletada');
+    app.get('/reports/armadilhas/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=relatorio_armadilhas.pdf`);
+        doc.pipe(res);
 
-            if (inicio) query = query.where('dataColeta', '>=', new Date(inicio));
-            if (fim) query = query.where('dataColeta', '<=', new Date(fim));
+        try {
+            const { inicio, fim, fazendaCodigo, generatedBy } = req.query;
+            let query = db.collection('armadilhas').where('status', '==', 'Coletada');
+            
+            if (inicio) query = query.where('dataColeta', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
+            if (fim) query = query.where('dataColeta', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
 
             const snapshot = await query.get();
             let data = [];
             snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
 
-            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+            const title = 'Relatório de Armadilhas Coletadas';
 
-            const geojsonData = await getShapefileData();
-            const enrichedData = data.map(trap => {
-                const talhaoProps = findTalhaoForTrap(trap, geojsonData);
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title);
+                doc.text('Nenhuma armadilha coletada encontrada para os filtros selecionados.');
+                generatePdfFooter(doc, generatedBy);
+                return doc.end();
+            }
+
+            const usersSnapshot = await db.collection('users').get();
+            const usersMap = {};
+            usersSnapshot.forEach(doc => {
+                usersMap[doc.id] = doc.data().username || doc.data().email;
+            });
+            
+            let enrichedData = data.map(trap => {
+                const dataInstalacao = trap.dataInstalacao.toDate();
+                const dataColeta = trap.dataColeta.toDate();
+                const diffTime = Math.abs(dataColeta - dataInstalacao);
+                const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
                 return {
                     ...trap,
-                    fazenda: `${talhaoProps?.CD_FAZENDA || 'N/A'} - ${talhaoProps?.NM_IMOVEL || 'N/A'}`,
-                    talhao: talhaoProps?.CD_TALHAO || 'N/A'
+                    fazendaNome: trap.fazendaNome || 'N/A',
+                    talhaoNome: trap.talhaoNome || 'N/A',
+                    dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
+                    dataColetaFmt: dataColeta.toLocaleDateString('pt-BR'),
+                    diasEmCampo: diasEmCampo,
+                    instaladoPorNome: usersMap[trap.instaladoPor] || 'Desconhecido',
+                    coletadoPorNome: usersMap[trap.coletadoPor] || 'Desconhecido',
                 };
             });
 
-            let finalData = enrichedData;
             if (fazendaCodigo) {
-                 finalData = enrichedData.filter(d => {
-                    const farmCodeFromProps = d.fazenda.split(' - ')[0];
-                    return farmCodeFromProps === fazendaCodigo;
-                 });
+                const farm = await db.collection('fazendas').where('code', '==', fazendaCodigo).limit(1).get();
+                if (!farm.empty) {
+                    const farmName = farm.docs[0].data().name;
+                    enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
+                } else {
+                    enrichedData = [];
+                }
             }
 
-            const filePath = path.join(os.tmpdir(), `monitoramento_${Date.now()}.csv`);
+            let currentY = await generatePdfHeader(doc, title);
+
+            const headers = ['Fazenda', 'Talhão', 'Data Inst.', 'Data Coleta', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
+            const columnWidths = [120, 80, 70, 70, 50, 70, 90, 90, 100];
+            const rowHeight = 18;
+            const textPadding = 5;
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
+
+            for (const trap of enrichedData) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                const rowData = [
+                    trap.fazendaNome,
+                    trap.talhaoNome,
+                    trap.dataInstalacaoFmt,
+                    trap.dataColetaFmt,
+                    trap.diasEmCampo,
+                    trap.contagemMariposas || 0,
+                    trap.instaladoPorNome,
+                    trap.coletadoPorNome,
+                    trap.observacoes || ''
+                ];
+                currentY = drawRow(doc, rowData, currentY, false, false, columnWidths, textPadding, rowHeight);
+            }
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Armadilhas:", error);
+            if (!res.headersSent) res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            else doc.end();
+        }
+    });
+
+    app.get('/reports/armadilhas/csv', async (req, res) => {
+        try {
+            const { inicio, fim, fazendaCodigo } = req.query;
+            let query = db.collection('armadilhas').where('status', '==', 'Coletada');
+            
+            if (inicio) query = query.where('dataColeta', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
+            if (fim) query = query.where('dataColeta', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
+
+            const snapshot = await query.get();
+            let data = [];
+            snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
+
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
+
+            const usersSnapshot = await db.collection('users').get();
+            const usersMap = {};
+            usersSnapshot.forEach(doc => {
+                usersMap[doc.id] = doc.data().username || doc.data().email;
+            });
+
+            let enrichedData = data.map(trap => {
+                const dataInstalacao = trap.dataInstalacao.toDate();
+                const dataColeta = trap.dataColeta.toDate();
+                const diffTime = Math.abs(dataColeta - dataInstalacao);
+                const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                return {
+                    fazendaNome: trap.fazendaNome || 'N/A',
+                    talhaoNome: trap.talhaoNome || 'N/A',
+                    dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
+                    dataColeta: dataColeta.toLocaleDateString('pt-BR'),
+                    diasEmCampo: diasEmCampo,
+                    contagemMariposas: trap.contagemMariposas || 0,
+                    instaladoPor: usersMap[trap.instaladoPor] || 'Desconhecido',
+                    coletadoPor: usersMap[trap.coletadoPor] || 'Desconhecido',
+                    observacoes: trap.observacoes || ''
+                };
+            });
+            
+            if (fazendaCodigo) {
+                const farm = await db.collection('fazendas').where('code', '==', fazendaCodigo).limit(1).get();
+                if (!farm.empty) {
+                    const farmName = farm.docs[0].data().name;
+                    enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
+                } else {
+                    enrichedData = [];
+                }
+            }
+
+            const filePath = path.join(os.tmpdir(), `armadilhas_report_${Date.now()}.csv`);
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'fazenda', title: 'Fazenda' },
-                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'fazendaNome', title: 'Fazenda' },
+                    { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'dataInstalacao', title: 'Data Instalação' },
                     { id: 'dataColeta', title: 'Data Coleta' },
+                    { id: 'diasEmCampo', title: 'Dias em Campo' },
                     { id: 'contagemMariposas', title: 'Qtd. Mariposas' },
-                    { id: 'latitude', title: 'Latitude' },
-                    { id: 'longitude', title: 'Longitude' }
+                    { id: 'instaladoPor', title: 'Instalado Por' },
+                    { id: 'coletadoPor', title: 'Coletado Por' },
+                    { id: 'observacoes', title: 'Observações' }
                 ]
             });
 
-            const records = finalData.map(trap => ({
-                ...trap,
-                dataInstalacao: trap.dataInstalacao.toDate().toLocaleString('pt-BR'),
-                dataColeta: trap.dataColeta.toDate().toLocaleString('pt-BR'),
-            }));
-
-            await csvWriter.writeRecords(records);
+            await csvWriter.writeRecords(enrichedData);
             res.download(filePath);
+
         } catch (error) {
-            console.error("Erro ao gerar CSV de Monitoramento:", error);
+            console.error("Erro ao gerar CSV de Armadilhas:", error);
             res.status(500).send('Erro ao gerar relatório.');
         }
     });
