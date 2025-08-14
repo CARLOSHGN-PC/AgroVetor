@@ -4683,7 +4683,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (reportType === 'coletadas') {
                     this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas_coletadas.pdf');
                 } else {
-                    App.ui.showAlert("Atenção: a primeira geração deste relatório pode falhar e exigir a criação de um novo índice no banco de dados. Se o erro ocorrer, por favor, envie o log de erro do Render.", "info", 8000);
                     this._fetchAndDownloadReport('armadilhas-ativas/pdf', filters, 'relatorio_armadilhas_instaladas.pdf');
                 }
             },
@@ -4705,7 +4704,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (reportType === 'coletadas') {
                     this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas_coletadas.csv');
                 } else {
-                    App.ui.showAlert("Atenção: a primeira geração deste relatório pode falhar e exigir a criação de um novo índice no banco de dados. Se o erro ocorrer, por favor, envie o log de erro do Render.", "info", 8000);
                     this._fetchAndDownloadReport('armadilhas-ativas/csv', filters, 'relatorio_armadilhas_instaladas.csv');
                 }
             },
