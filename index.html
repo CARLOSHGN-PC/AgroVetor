@@ -956,6 +956,36 @@
           }
       }
 
+      @keyframes slideOutLeft {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(-100%);
+          }
+      }
+
+      .trap-notification.dismiss {
+        animation: slideOutLeft 0.5s ease-out forwards;
+      }
+
+      .trap-notification .close-btn {
+        position: absolute;
+        top: 5px;
+        right: 10px;
+        background: none;
+        border: none;
+        font-size: 18px;
+        color: var(--color-text-light);
+        cursor: pointer;
+        transition: var(--transition);
+      }
+      .trap-notification .close-btn:hover {
+        color: var(--color-danger);
+      }
+
       /* [NOVO] Estilos para o sino e dropdown de notificações */
       .notification-bell {
         position: relative;
