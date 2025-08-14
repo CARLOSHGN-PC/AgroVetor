@@ -958,6 +958,7 @@ try {
                     ...trap,
                     fazendaNome: trap.fazendaNome || 'N/A',
                     talhaoNome: trap.talhaoNome || 'N/A',
+                    fundoAgricola: trap.fundoAgricola || 'N/A',
                     dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
                     dataColetaFmt: dataColeta.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
@@ -978,8 +979,8 @@ try {
 
             let currentY = await generatePdfHeader(doc, title);
 
-            const headers = ['Fazenda', 'Talhão', 'Data Inst.', 'Data Coleta', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
-            const columnWidths = [130, 70, 70, 70, 65, 80, 90, 90, 117];
+            const headers = ['Fazenda', 'Fundo Agrícola', 'Talhão', 'Data Inst.', 'Data Coleta', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
+            const columnWidths = [120, 90, 60, 65, 65, 60, 75, 80, 80, 87];
             const rowHeight = 18;
             const textPadding = 5;
 
@@ -989,6 +990,7 @@ try {
                 currentY = await checkPageBreak(doc, currentY, title);
                 const rowData = [
                     trap.fazendaNome,
+                    trap.fundoAgricola,
                     trap.talhaoNome,
                     trap.dataInstalacaoFmt,
                     trap.dataColetaFmt,
@@ -1039,6 +1041,7 @@ try {
 
                 return {
                     fazendaNome: trap.fazendaNome || 'N/A',
+                    fundoAgricola: trap.fundoAgricola || 'N/A',
                     talhaoNome: trap.talhaoNome || 'N/A',
                     dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
                     dataColeta: dataColeta.toLocaleDateString('pt-BR'),
@@ -1065,6 +1068,7 @@ try {
                 path: filePath,
                 header: [
                     { id: 'fazendaNome', title: 'Fazenda' },
+                    { id: 'fundoAgricola', title: 'Fundo Agrícola' },
                     { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'dataInstalacao', title: 'Data Instalação' },
                     { id: 'dataColeta', title: 'Data Coleta' },
@@ -1129,6 +1133,7 @@ try {
                 return {
                     ...trap,
                     fazendaNome: trap.fazendaNome || 'N/A',
+                    fundoAgricola: trap.fundoAgricola || 'N/A',
                     talhaoNome: trap.talhaoNome || 'N/A',
                     dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
                     previsaoRetiradaFmt: previsaoRetirada.toLocaleDateString('pt-BR'),
@@ -1149,8 +1154,8 @@ try {
 
             let currentY = await generatePdfHeader(doc, title);
 
-            const headers = ['Fazenda', 'Talhão', 'Data Inst.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
-            const columnWidths = [150, 90, 85, 85, 70, 100, 202];
+            const headers = ['Fazenda', 'Fundo Agrícola', 'Talhão', 'Data Inst.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
+            const columnWidths = [140, 90, 80, 80, 80, 65, 90, 157];
             const rowHeight = 18;
             const textPadding = 5;
 
@@ -1160,6 +1165,7 @@ try {
                 currentY = await checkPageBreak(doc, currentY, title);
                 const rowData = [
                     trap.fazendaNome,
+                    trap.fundoAgricola,
                     trap.talhaoNome,
                     trap.dataInstalacaoFmt,
                     trap.previsaoRetiradaFmt,
@@ -1210,6 +1216,7 @@ try {
 
                 return {
                     fazendaNome: trap.fazendaNome || 'N/A',
+                    fundoAgricola: trap.fundoAgricola || 'N/A',
                     talhaoNome: trap.talhaoNome || 'N/A',
                     dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
                     previsaoRetirada: previsaoRetirada.toLocaleDateString('pt-BR'),
@@ -1234,6 +1241,7 @@ try {
                 path: filePath,
                 header: [
                     { id: 'fazendaNome', title: 'Fazenda' },
+                    { id: 'fundoAgricola', title: 'Fundo Agrícola' },
                     { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'dataInstalacao', title: 'Data Instalação' },
                     { id: 'previsaoRetirada', title: 'Previsão Retirada' },
