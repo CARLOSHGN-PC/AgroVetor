@@ -43,17 +43,33 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            this.dbPromise = openDB('agrovetor-offline-storage', 1, {
-                upgrade(db) {
-                    db.createObjectStore('shapefile-cache');
+            // Version 2 for the new object store
+            this.dbPromise = openDB('agrovetor-offline-storage', 2, {
+                upgrade(db, oldVersion) {
+                    if (oldVersion < 1) {
+                        db.createObjectStore('shapefile-cache');
+                    }
+                    if (oldVersion < 2) {
+                        // Key will be auto-generated
+                        db.createObjectStore('offline-writes', { autoIncrement: true });
+                    }
                 },
             });
         },
-        async get(key) {
-            return (await this.dbPromise).get('shapefile-cache', key);
+        async get(storeName, key) {
+            return (await this.dbPromise).get(storeName, key);
         },
-        async set(key, val) {
-            return (await this.dbPromise).put('shapefile-cache', val, key);
+        async getAll(storeName) {
+            return (await this.dbPromise).getAll(storeName);
+        },
+        async set(storeName, key, val) {
+            return (await this.dbPromise).put(storeName, val, key);
+        },
+        async add(storeName, val) {
+            return (await this.dbPromise).add(storeName, val);
+        },
+        async delete(storeName, key) {
+            return (await this.dbPromise).delete(storeName, key);
         },
     };
 
@@ -457,6 +473,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.actions.saveUserProfileLocally(App.state.currentUser);
                             App.ui.showAppScreen();
                             App.data.listenToAllData();
+                            if (navigator.onLine) {
+                                App.actions.syncOfflineWrites();
+                            }
                         } else {
                             this.logout();
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
@@ -2072,6 +2091,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.elements.installAppBtn.style.display = 'none';
                     }
                 });
+
+                window.addEventListener('online', () => App.actions.syncOfflineWrites());
             }
         },
         
@@ -2794,16 +2815,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             saveBrocamento() {
-                if (!App.ui.validateFields(['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'])) { 
-                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); 
-                    return; 
+                if (!App.ui.validateFields(['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'])) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
+                    return;
                 }
-                
+
                 const { broca } = App.elements;
                 const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
                 if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
                 const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
-                
+
                 if (!talhao) {
                     App.ui.showAlert(`Talhão "${broca.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
                     return;
@@ -2822,32 +2843,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     usuario: App.state.currentUser.username
                 };
 
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', () => {
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', async () => {
                     App.ui.clearForm(broca.form);
                     App.ui.setDefaultDatesForEntryForms();
 
-                    App.data.addDocument('registros', newEntry)
-                        .then(() => {
-                            if (navigator.onLine) {
-                                App.ui.showAlert('Inspeção guardada com sucesso!');
-                            } else {
-                                App.ui.showAlert('Inspeção guardada offline. Será enviada quando houver conexão.', 'info');
-                            }
+                    if (navigator.onLine) {
+                        try {
+                            await App.data.addDocument('registros', newEntry);
+                            App.ui.showAlert('Inspeção guardada com sucesso!');
                             this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
-                        })
-                        .catch((e) => {
-                            App.ui.showAlert('Erro ao guardar inspeção.', "error");
-                            console.error("Erro ao salvar brocamento:", e);
-                        });
+                        } catch (e) {
+                            App.ui.showAlert('Erro ao guardar inspeção. A guardar offline.', "error");
+                            console.error("Erro ao salvar brocamento, salvando offline:", e);
+                            await OfflineDB.add('offline-writes', { collection: 'registros', data: newEntry });
+                        }
+                    } else {
+                        await OfflineDB.add('offline-writes', { collection: 'registros', data: newEntry });
+                        App.ui.showAlert('Inspeção guardada offline. Será enviada quando houver conexão.', 'info');
+                    }
                 });
             },
             
             savePerda() {
-                if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) { 
-                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error"); 
-                    return; 
+                if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
+                    return;
                 }
-                
+
                 const { perda } = App.elements;
                 const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
                 const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
@@ -2861,7 +2883,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert(`Talhão "${perda.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
                     return;
                 }
-                
+
                 const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
                 const total = Object.values(fields).reduce((s, v) => s + v, 0);
                 const newEntry = {
@@ -2879,24 +2901,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     media: (total / 6).toFixed(2).replace('.', ','),
                     usuario: App.state.currentUser.username
                 };
-                
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', () => {
+
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', async () => {
                     App.ui.clearForm(perda.form);
                     App.ui.setDefaultDatesForEntryForms();
 
-                    App.data.addDocument('perdas', newEntry)
-                        .then(() => {
-                            if (navigator.onLine) {
-                                App.ui.showAlert('Lançamento de perda guardado com sucesso!');
-                            } else {
-                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
-                            }
+                    if (navigator.onLine) {
+                        try {
+                            await App.data.addDocument('perdas', newEntry);
+                            App.ui.showAlert('Lançamento de perda guardado com sucesso!');
                             this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
-                        })
-                        .catch((e) => {
-                            App.ui.showAlert('Erro ao guardar lançamento de perda.', "error");
-                            console.error("Erro ao salvar perda:", e);
-                        });
+                        } catch (e) {
+                            App.ui.showAlert('Erro ao guardar lançamento de perda. A guardar offline.', "error");
+                            console.error("Erro ao salvar perda, salvando offline:", e);
+                            await OfflineDB.add('offline-writes', { collection: 'perdas', data: newEntry });
+                        }
+                    } else {
+                        await OfflineDB.add('offline-writes', { collection: 'perdas', data: newEntry });
+                        App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
+                    }
                 });
             },
             
@@ -3318,6 +3341,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.trapNotifications = [];
                 App.state.unreadNotificationCount = 0;
                 App.ui.updateNotificationBell();
+            },
+
+            async syncOfflineWrites() {
+                if (!navigator.onLine) return;
+
+                const offlineWrites = await OfflineDB.getAll('offline-writes');
+                if (offlineWrites.length === 0) {
+                    console.log("Nenhuma escrita offline para sincronizar.");
+                    return;
+                }
+
+                App.ui.showAlert(`Sincronizando ${offlineWrites.length} registos offline...`, 'info', 5000);
+                
+                for (const write of offlineWrites) {
+                    try {
+                        // The 'write' object contains 'collection' and 'data' fields
+                        await App.data.addDocument(write.collection, write.data);
+                        // If successful, delete from the offline queue
+                        await OfflineDB.delete('offline-writes', write.id);
+                    } catch (error) {
+                        console.error("Falha ao sincronizar registo offline:", error, write);
+                        // If it fails, it remains in the queue for the next attempt
+                    }
+                }
+                
+                // Check if all writes were synced
+                const remainingWrites = await OfflineDB.getAll('offline-writes');
+                if (remainingWrites.length === 0) {
+                    App.ui.showAlert("Sincronização offline concluída com sucesso!", 'success');
+                } else {
+                    App.ui.showAlert(`Falha ao sincronizar ${remainingWrites.length} registos. Tentarão novamente mais tarde.`, 'warning');
+                }
             }
         },
         gemini: {
@@ -3484,7 +3539,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
                     const buffer = await response.arrayBuffer();
                     
-                    await OfflineDB.set('shapefile-zip', buffer);
+                    await OfflineDB.set('shapefile-cache', 'shapefile-zip', buffer);
                     
                     console.log("Processando e desenhando os talhões no mapa...");
                     const geojson = await shp(buffer);
@@ -3502,7 +3557,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async loadOfflineShapes() {
-                const buffer = await OfflineDB.get('shapefile-zip');
+                const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
                 if (buffer) {
                     App.ui.showAlert("A carregar mapa do cache offline.", "info");
                     try {
