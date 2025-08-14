@@ -112,19 +112,19 @@
           box-shadow: var(--shadow-md); z-index: 1000; user-select: none; 
       }
       .header-title-container {
-          position: absolute;
-          left: 50%;
-          transform: translateX(-50%);
+          flex-grow: 1;
+          text-align: center;
           display: flex;
           align-items: center;
           justify-content: center;
-          max-width: calc(100% - 220px); /* Espaço para botões */
+          overflow: hidden; /* Evita que o título empurre outros elementos */
       }
       header h1 { 
           margin: 0; font-weight: 600; font-size: 20px; 
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          padding: 0 10px; /* Adiciona um pequeno espaçamento para não colar nos botões */
       }
       header h1 i { margin-right: 10px; }
 
