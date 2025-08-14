@@ -3780,6 +3780,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     status: "Ativa",
                     fazendaNome: feature ? findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : null,
                     talhaoNome: feature ? findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) : null,
+                    fundoAgricola: feature ? findProp(['FUNDO_AGR']) : null
                 };
 
                 try {
@@ -4011,6 +4012,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const iconClass = notification.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
                 
                 notificationEl.innerHTML = `
+                    <button class="close-btn">&times;</button>
                     <div class="icon"><i class="fas ${iconClass}"></i></div>
                     <div class="text">
                         <p><strong>Armadilha requer atenção</strong></p>
@@ -4019,10 +4021,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 
                 container.appendChild(notificationEl);
+                
+                const dismiss = () => {
+                    notificationEl.classList.add('dismiss');
+                    notificationEl.addEventListener('animationend', () => {
+                        notificationEl.remove();
+                    });
+                };
 
-                setTimeout(() => {
-                    notificationEl.remove();
-                }, 10000);
+                // Click no X para fechar
+                notificationEl.querySelector('.close-btn').addEventListener('click', dismiss);
+
+                // Deslizar para fechar
+                let touchStartX = 0;
+                let touchEndX = 0;
+
+                notificationEl.addEventListener('touchstart', (event) => {
+                    touchStartX = event.changedTouches[0].screenX;
+                }, { passive: true });
+
+                notificationEl.addEventListener('touchend', (event) => {
+                    touchEndX = event.changedTouches[0].screenX;
+                    if (touchEndX < touchStartX - 50) { // Deslize para a esquerda de 50px
+                        dismiss();
+                    }
+                }, { passive: true });
+
+                // Remover automaticamente após um tempo
+                setTimeout(dismiss, 10000);
             },
 
             centerOnTrap(trapId) {
