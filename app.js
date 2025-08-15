@@ -158,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             notifiedTrapIds: new Set(), // NOVO: Controla pop-ups já exibidos na sessão
             trapPlacementMode: null,
             trapPlacementData: null,
+            newWorker: null, // Para armazenar o novo service worker quando uma atualização for encontrada
         },
         
         elements: {
@@ -4926,28 +4927,46 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        pwa: {
-            registerServiceWorker() {
-                if ('serviceWorker' in navigator) {
-                    window.addEventListener('load', () => {
-                        navigator.serviceWorker.register('./service-worker.js')
-                            .then(registration => {
-                                console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                            })
-                            .catch(error => {
-                                console.log('ServiceWorker registration failed: ', error);
-                            });
-                    });
+        pwa: {
+            registerServiceWorker() {
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => {
+                        navigator.serviceWorker.register('./service-worker.js')
+                            .then(registration => {
+                                console.log('ServiceWorker registration successful with scope: ', registration.scope);
 
-                    window.addEventListener('beforeinstallprompt', (e) => {
-                        e.preventDefault();
-                        App.state.deferredInstallPrompt = e;
-                        App.elements.installAppBtn.style.display = 'flex';
-                        console.log(`'beforeinstallprompt' event was fired.`);
-                    });
-                }
-            }
-        }
+                                registration.onupdatefound = () => {
+                                    const installingWorker = registration.installing;
+                                    if (installingWorker) {
+                                        installingWorker.onstatechange = () => {
+                                            if (installingWorker.state === 'installed') {
+                                                if (navigator.serviceWorker.controller) {
+                                                    console.log('New content is available, storing worker for update prompt.');
+                                                    App.state.newWorker = installingWorker;
+                                                    // The UI prompt will be shown in the next step.
+                                                    console.log('An update is available. In the next step, we will show a prompt.');
+                                                } else {
+                                                    console.log('Content is cached for offline use.');
+                                                }
+                                            }
+                                        };
+                                    }
+                                };
+                            })
+                            .catch(error => {
+                                console.log('ServiceWorker registration failed: ', error);
+                            });
+                    });
+
+                    window.addEventListener('beforeinstallprompt', (e) => {
+                        e.preventDefault();
+                        App.state.deferredInstallPrompt = e;
+                        App.elements.installAppBtn.style.display = 'flex';
+                        console.log(`'beforeinstallprompt' event was fired.`);
+                    });
+                }
+            }
+        }
     };
 
     // Disponibiliza a função de inicialização do mapa globalmente para o callback da API do Google
