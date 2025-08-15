@@ -1244,6 +1244,42 @@
             opacity: 1; /* Garantir que a opacidade seja 1 ao mostrar */
             pointer-events: auto; /* Garantir que seja clicável */
           }
+        .update-notification {
+            display: none; /* Hidden by default */
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--color-info);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            z-index: 10000;
+            align-items: center;
+            gap: 20px;
+        }
+        .update-notification p {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .update-notification button {
+            background-color: var(--color-surface);
+            color: var(--color-info);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: var(--transition);
+        }
+        .update-notification button:hover {
+            opacity: 0.9;
+        }
+        .update-notification.show {
+            display: flex;
+        }
           #notification-container {
               left: 10px;
               right: 10px;
@@ -2167,5 +2203,10 @@
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
 
+    <!-- Notificação de Atualização do App -->
+    <div id="update-notification" class="update-notification">
+        <p>Uma nova versão do aplicativo está disponível!</p>
+        <button id="update-app-btn">Atualizar</button>
+    </div>
 </body>
 </html>
