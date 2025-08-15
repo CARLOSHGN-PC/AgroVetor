@@ -1,7 +1,7 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
@@ -499,6 +499,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.ui.setLoading(true, "A autenticar...");
                 try {
+                    // Força a persistência da sessão apenas para a aba atual.
+                    // Isso fará com que o usuário seja deslogado ao fechar o app.
+                    await setPersistence(auth, browserSessionPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -3612,13 +3615,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 dataLayer.addListener('click', (event) => {
                     if (App.state.trapPlacementMode === 'manual_select') {
                         const selectedFeature = event.feature;
-                        const clickPosition = event.latLng;
-                        if (!clickPosition) {
-                            App.ui.showAlert("Não foi possível obter a localização do clique.", "error");
+                        const userMarker = App.state.googleUserMarker;
+
+                        if (!userMarker) {
+                            App.ui.showAlert("Sua localização GPS ainda não está disponível. Aguarde ou ative a localização.", "error");
                             return;
                         }
-                        this.installTrap(clickPosition.lat(), clickPosition.lng(), selectedFeature);
+
+                        const userPosition = userMarker.getPosition();
+                        const geometry = selectedFeature.getGeometry();
+                        
+                        let isLocationValid = false;
+                        // Lógica para verificar se a localização do usuário está dentro do polígono clicado
+                        try {
+                            if (geometry.getType() === 'Polygon') {
+                                const polygon = new google.maps.Polygon({ paths: geometry.getArray()[0].getArray() });
+                                if (google.maps.geometry.poly.containsLocation(userPosition, polygon)) {
+                                    isLocationValid = true;
+                                }
+                            } else if (geometry.getType() === 'MultiPolygon') {
+                                geometry.getArray().forEach(p => {
+                                    const polygon = new google.maps.Polygon({ paths: p.getArray()[0].getArray() });
+                                    if (google.maps.geometry.poly.containsLocation(userPosition, polygon)) {
+                                        isLocationValid = true;
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.error("Erro ao verificar a geometria do talhão:", e);
+                            App.ui.showAlert("Erro ao processar a área do talhão selecionado.", "error");
+                            this.hideTrapPlacementModal();
+                            return;
+                        }
+
+                        if (isLocationValid) {
+                            // Localização verificada: instala a armadilha na posição REAL do usuário.
+                            this.installTrap(userPosition.lat(), userPosition.lng(), selectedFeature);
+                            App.ui.showAlert("Localização verificada com sucesso! Armadilha instalada.", "success");
+                        } else {
+                            // Usuário não está dentro do polígono selecionado
+                            App.ui.showAlert("Falha na verificação: Você não está na área do talhão selecionado.", "error");
+                        }
+                        
                         this.hideTrapPlacementModal();
+
                     } else {
                         if (App.state.selectedMapFeature) {
                             App.state.selectedMapFeature.setProperty('isSelected', false);
