@@ -1376,6 +1376,9 @@
                         <button id="installAppBtn" role="menuitem" class="user-menu-item is-action" style="display: none;">
                             <i class="fas fa-download"></i> Instalar App
                         </button>
+                        <button id="newUpdateBtn" role="menuitem" class="user-menu-item is-action" style="display: none; background-color: var(--color-info); color: white;">
+                            <i class="fas fa-sync-alt"></i> Nova Atualização Disponível
+                        </button>
                         <button id="changePasswordBtn" role="menuitem" class="user-menu-item is-action">
                             <i class="fas fa-key"></i> Alterar Senha
                         </button>
@@ -2203,10 +2206,14 @@
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
 
-    <!-- Notificação de Atualização do App -->
-    <div id="update-notification" class="update-notification">
-        <p>Uma nova versão do aplicativo está disponível!</p>
-        <button id="update-app-btn">Atualizar</button>
+    <!-- MODAL DE ATUALIZAÇÃO -->
+    <div id="updateModal" class="modal-overlay" style="z-index: 10002; display: none;">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+             <i class="fas fa-sync-alt fa-3x" style="color: var(--color-primary); margin-bottom: 20px;"></i>
+            <h2 style="color: var(--color-primary); margin-bottom: 15px;">Nova Atualização!</h2>
+            <p style="margin-bottom: 25px; color: var(--color-text-light);">Uma nova versão do aplicativo está disponível e pronta para ser instalada.</p>
+            <button id="update-app-btn-modal" class="save" style="width: 100%;">Atualizar Agora</button>
+        </div>
     </div>
 </body>
 </html>
