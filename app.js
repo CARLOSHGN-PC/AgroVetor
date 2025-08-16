@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.currentUser = null;
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
-                localStorage.removeItem('agrovetor_lastActiveTab');
+                sessionStorage.removeItem('agrovetor_lastActiveTab');
                 App.ui.showLoginScreen();
             },
             initiateUserCreation() {
@@ -805,7 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.renderMenu();
                 this.renderAllDynamicContent();
-                const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
+                const lastTab = sessionStorage.getItem('agrovetor_lastActiveTab');
                 this.showTab(lastTab || 'dashboard');
                 App.actions.resetInactivityTimer();
             },
@@ -964,7 +964,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 
-                localStorage.setItem('agrovetor_lastActiveTab', id);
+                sessionStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
             },
 
@@ -4291,16 +4291,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 return chartOptions;
             },
-            _createOrUpdateChart(id, config, isExpanded = false) { 
+            _createOrUpdateChart(id, config, isExpanded = false) {
                 const canvasId = isExpanded ? 'expandedChartCanvas' : id;
-                const ctx = document.getElementById(canvasId)?.getContext('2d'); 
-                if(!ctx) return; 
+                const canvas = document.getElementById(canvasId);
+                const ctx = canvas?.getContext('2d');
+                if (!ctx) return;
+
+                const container = canvas.parentElement;
+                const loader = container.querySelector('.chart-loader');
+
+                if (!isExpanded && loader) loader.style.display = 'block';
+                canvas.style.visibility = 'hidden';
+                canvas.classList.remove('chart-rendered');
 
                 const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
-                if (chartInstance) { 
-                    chartInstance.destroy(); 
-                } 
-                
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+
+                config.options = config.options || {};
+                config.options.animation = config.options.animation || {};
+                config.options.animation.onComplete = () => {
+                    if (!isExpanded && loader) loader.style.display = 'none';
+                    canvas.style.visibility = 'visible';
+                    canvas.classList.add('chart-rendered');
+                };
+
                 const newChart = new Chart(ctx, config);
                 if (isExpanded) {
                     App.state.expandedChart = newChart;
@@ -4310,16 +4326,26 @@ document.addEventListener('DOMContentLoaded', () => {
             },
                destroyAll() {
                 Object.keys(App.state.charts).forEach(id => {
+                    const canvas = document.getElementById(id);
+                    if (canvas) {
+                        const container = canvas.parentElement;
+                        const loader = container.querySelector('.chart-loader');
+                        if (loader) loader.style.display = 'block';
+                        canvas.style.visibility = 'hidden';
+                        canvas.classList.remove('chart-rendered');
+                    }
+
                     if (App.state.charts[id]) {
                         App.state.charts[id].destroy();
                         delete App.state.charts[id];
                     }
                 });
-                if (App.state.expandedChart) {
-                    App.state.expandedChart.destroy();
-                    App.state.expandedChart = null;
-                }
-            },
+
+                if (App.state.expandedChart) {
+                    App.state.expandedChart.destroy();
+                    App.state.expandedChart = null;
+                }
+            },
             openChartModal(chartId) {
                 const originalChart = App.state.charts[chartId];
                 if (!originalChart) return;
