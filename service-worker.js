@@ -22,7 +22,7 @@ const urlsToCache = [
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js'
 ];
 
-// Evento de instalação: força o novo service worker a se tornar ativo
+// Evento de instalação: o service worker instala os arquivos de cache mas espera para ativar.
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -31,12 +31,6 @@ self.addEventListener('install', event => {
         return cache.addAll(urlsToCache);
       })
   );
-});
-
-self.addEventListener('message', (event) => {
-    if (event.data && event.data.action === 'skipWaiting') {
-      self.skipWaiting();
-    }
 });
 
 // Evento de ativação: limpa caches antigos
@@ -54,6 +48,14 @@ self.addEventListener('activate', event => {
       );
     })
   );
+});
+
+// Evento de mensagem: aguarda o comando 'skipWaiting' do cliente para ativar o novo SW
+self.addEventListener('message', event => {
+  if (event.data && event.data.action === 'skipWaiting') {
+    console.log('Comando skipWaiting recebido. Ativando novo Service Worker.');
+    self.skipWaiting();
+  }
 });
 
 // Evento de fetch: intercepta as requisições com estratégia Stale-While-Revalidate
