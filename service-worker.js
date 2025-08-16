@@ -24,7 +24,6 @@ const urlsToCache = [
 
 // Evento de instalação: força o novo service worker a se tornar ativo
 self.addEventListener('install', event => {
-  self.skipWaiting(); 
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -32,6 +31,12 @@ self.addEventListener('install', event => {
         return cache.addAll(urlsToCache);
       })
   );
+});
+
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.action === 'skipWaiting') {
+      self.skipWaiting();
+    }
 });
 
 // Evento de ativação: limpa caches antigos
