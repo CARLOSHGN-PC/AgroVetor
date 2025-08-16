@@ -258,7 +258,26 @@
           position: relative; 
           flex-grow: 1;
           width: 100%;
-          height: 100%; 
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+      }
+      .chart-loader {
+          position: absolute;
+          border: 6px solid var(--color-border);
+          border-top: 6px solid var(--color-primary);
+          border-radius: 50%;
+          width: 50px;
+          height: 50px;
+          animation: spin 1s linear infinite;
+          z-index: 5;
+      }
+      .chart-container canvas {
+          visibility: hidden;
+      }
+      .chart-container canvas.chart-rendered {
+          visibility: visible;
       }
       .chart-title { 
           text-align: center; 
@@ -1431,22 +1450,34 @@
                         <div class="chart-card">
                             <h3 class="chart-title">Top 10 Fazendas com Maior Índice de Broca (Ponderado)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoTop10FazendasBroca" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoTop10FazendasBroca"></canvas></div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="graficoTop10FazendasBroca"></canvas>
+                            </div>
                         </div>
                          <div class="chart-card">
                             <h3 class="chart-title">Evolução Mensal do Índice de Broca (%)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoBrocaMensal" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoBrocaMensal"></canvas></div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="graficoBrocaMensal"></canvas>
+                            </div>
                         </div>
                         <div class="chart-card">
                             <h3 class="chart-title">Posição de Maior Incidência da Broca (%)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoBrocaPosicao" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoBrocaPosicao"></canvas></div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="graficoBrocaPosicao"></canvas>
+                            </div>
                         </div>
                          <div class="chart-card">
                             <h3 class="chart-title">Top 10 Variedades com Maior Índice de Broca (%)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoBrocaPorVariedade" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoBrocaPorVariedade"></canvas></div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="graficoBrocaPorVariedade"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1469,22 +1500,34 @@
                         <div class="chart-card">
                             <h3 class="chart-title">Perda Média por Frente / Turno (kg)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFrenteTurno" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoPerdaPorFrenteTurno"></canvas></div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="graficoPerdaPorFrenteTurno"></canvas>
+                            </div>
                         </div>
                          <div class="chart-card">
                             <h3 class="chart-title">Composição da Perda por Frente (kg)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoComposicaoPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoComposicaoPerda"></canvas></div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="graficoComposicaoPerda"></canvas>
+                            </div>
                         </div>
                         <div class="chart-card">
                             <h3 class="chart-title">Top 10 Fazendas com Maior Perda Média (kg)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoTop10FazendasPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoTop10FazendasPerda"></canvas></div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="graficoTop10FazendasPerda"></canvas>
+                            </div>
                         </div>
                          <div class="chart-card">
                             <h3 class="chart-title">Perda Média por Frente de Serviço (kg)</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFrente" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-container"><canvas id="graficoPerdaPorFrente"></canvas></div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="graficoPerdaPorFrente"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
