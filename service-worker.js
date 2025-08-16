@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v5'; // Incrementei a versão para forçar a atualização do cache
+const CACHE_NAME = 'agrovetor-cache-v6'; // Incrementei a versão para forçar a atualização do cache
 const urlsToCache = [
   './', // Caminho relativo para a raiz do projeto
   './index.html',
@@ -58,7 +58,7 @@ self.addEventListener('message', event => {
   }
 });
 
-// Evento de fetch: intercepta as requisições com estratégia Stale-While-Revalidate
+// Evento de fetch: intercepta as requisições com uma estratégia mista.
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
     return;
@@ -69,20 +69,43 @@ self.addEventListener('fetch', event => {
       return;
   }
 
-  event.respondWith(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.match(event.request).then(response => {
-        const fetchPromise = fetch(event.request).then(networkResponse => {
-          if (networkResponse && networkResponse.status === 200) {
-            cache.put(event.request, networkResponse.clone());
-          }
-          return networkResponse;
-        }).catch(err => {
-            console.log('Fetch falhou; usando cache se disponível.', err);
-        });
+  const url = new URL(event.request.url);
 
-        return response || fetchPromise;
-      });
-    })
-  );
+  // Estratégia Network-First para arquivos críticos (HTML, JS)
+  if (url.origin === self.origin && (event.request.mode === 'navigate' || url.pathname.endsWith('.js') || url.pathname.endsWith('.html'))) {
+    event.respondWith(
+      fetch(event.request)
+        .then(networkResponse => {
+          // Se a resposta da rede for bem-sucedida, armazene em cache e retorne.
+          return caches.open(CACHE_NAME).then(cache => {
+            if (networkResponse.ok) {
+              cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          });
+        })
+        .catch(() => {
+          // Se a rede falhar, tente obter do cache.
+          return caches.match(event.request);
+        })
+    );
+  } else {
+    // Estratégia Stale-While-Revalidate para outros assets (CSS, imagens, fontes)
+    event.respondWith(
+      caches.open(CACHE_NAME).then(cache => {
+        return cache.match(event.request).then(response => {
+          const fetchPromise = fetch(event.request).then(networkResponse => {
+            if (networkResponse && networkResponse.status === 200) {
+              cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          }).catch(err => {
+              console.log('Fetch falhou; usando cache se disponível.', err);
+          });
+
+          return response || fetchPromise;
+        });
+      })
+    );
+  }
 });
