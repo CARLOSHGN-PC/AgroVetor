@@ -947,8 +947,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (id === 'dashboard') {
                    this.showDashboardView('broca'); 
-                } else {
-                    App.charts.destroyAll(); 
+                } else if (id !== 'monitoramentoAereo' && App.state.googleMap) {
+                    // Oculta o mapa se não estivermos na aba de monitoramento
+                    const mapContainer = App.elements.monitoramentoAereo.container;
+                    if (mapContainer.classList.contains('active')) {
+                        mapContainer.classList.remove('active');
+                    }
                 }
                 
                 if (id === 'excluirDados') this.renderExclusao();
@@ -1046,21 +1050,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 dashEls.perdaView.style.display = 'none';
                 dashEls.aereaView.style.display = 'none';
                 
-                App.charts.destroyAll();
+                const brocaChartIds = ['graficoTop10FazendasBroca', 'graficoBrocaMensal', 'graficoBrocaPosicao', 'graficoBrocaPorVariedade'];
+                const perdaChartIds = ['graficoPerdaPorFrenteTurno', 'graficoComposicaoPerda', 'graficoTop10FazendasPerda', 'graficoPerdaPorFrente'];
 
                 switch(viewName) {
                     case 'selector':
                         dashEls.selector.style.display = 'grid';
+                        App.charts.destroyChartsByIds([...brocaChartIds, ...perdaChartIds]);
                         break;
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
                         this.loadDashboardDates('broca');
-                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
+                        App.charts.destroyChartsByIds(perdaChartIds);
+                        if (!App.state.charts.graficoTop10FazendasBroca) {
+                            setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
+                        }
                         break;
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
                         this.loadDashboardDates('perda');
-                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
+                        App.charts.destroyChartsByIds(brocaChartIds);
+                        if (!App.state.charts.graficoPerdaPorFrenteTurno) {
+                            setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
+                        }
                         break;
                     case 'aerea':
                         dashEls.aereaView.style.display = 'block';
@@ -4301,45 +4313,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 const loader = container.querySelector('.chart-loader');
 
                 if (!isExpanded && loader) loader.style.display = 'block';
-                canvas.style.visibility = 'hidden';
-                canvas.classList.remove('chart-rendered');
-
+                
                 const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
                 if (chartInstance) {
                     chartInstance.destroy();
                 }
 
-                config.options = config.options || {};
-                config.options.animation = config.options.animation || {};
-                config.options.animation.onComplete = () => {
-                    if (!isExpanded && loader) loader.style.display = 'none';
-                    canvas.style.visibility = 'visible';
-                    canvas.classList.add('chart-rendered');
-                };
+                // A small delay can help ensure the loader is displayed before the chart starts rendering,
+                // which can be a heavy operation.
+                setTimeout(() => {
+                    config.options = config.options || {};
+                    config.options.animation = config.options.animation || {};
+                    const existingOnComplete = config.options.animation.onComplete;
 
-                const newChart = new Chart(ctx, config);
-                if (isExpanded) {
-                    App.state.expandedChart = newChart;
-                } else {
-                    App.state.charts[id] = newChart;
-                }
-            },
-               destroyAll() {
-                Object.keys(App.state.charts).forEach(id => {
-                    const canvas = document.getElementById(id);
-                    if (canvas) {
-                        const container = canvas.parentElement;
-                        const loader = container.querySelector('.chart-loader');
-                        if (loader) loader.style.display = 'block';
-                        canvas.style.visibility = 'hidden';
-                        canvas.classList.remove('chart-rendered');
+                    config.options.animation.onComplete = (animation) => {
+                        if (!isExpanded && loader) loader.style.display = 'none';
+                        if(existingOnComplete) existingOnComplete(animation);
+                    };
+
+                    const newChart = new Chart(ctx, config);
+                    if (isExpanded) {
+                        App.state.expandedChart = newChart;
+                    } else {
+                        App.state.charts[id] = newChart;
                     }
-
+                }, 50);
+            },
+               destroyChartsByIds(ids) {
+                ids.forEach(id => {
                     if (App.state.charts[id]) {
+                        const canvas = document.getElementById(id);
+                        if (canvas) {
+                            const container = canvas.parentElement;
+                            const loader = container.querySelector('.chart-loader');
+                            if (loader) loader.style.display = 'block';
+                            canvas.style.visibility = 'hidden';
+                            canvas.classList.remove('chart-rendered');
+                        }
                         App.state.charts[id].destroy();
                         delete App.state.charts[id];
                     }
                 });
+               },
+               destroyAll() {
+                this.destroyChartsByIds(Object.keys(App.state.charts));
 
                 if (App.state.expandedChart) {
                     App.state.expandedChart.destroy();
@@ -4376,10 +4393,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             _renderChartAsync(renderFn) {
                 return new Promise(resolve => {
-                    setTimeout(() => {
+                    // Use requestAnimationFrame for smoother rendering aligned with browser repaints
+                    requestAnimationFrame(() => {
                         renderFn();
                         resolve();
-                    }, 150); 
+                    });
                 });
             },
             
