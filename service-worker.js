@@ -66,19 +66,22 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(event.request.url);
 
-  // Estratégia para os tiles do Google Maps: Stale-While-Revalidate
+  // Estratégia para os tiles do Google Maps: Cache First
   if (url.hostname.includes('mt.google.com') || url.hostname.includes('maps.googleapis.com')) {
     event.respondWith(
       caches.open(CACHE_NAME).then(cache => {
         return cache.match(event.request).then(response => {
-          const fetchPromise = fetch(event.request).then(networkResponse => {
+          // Se o tile estiver no cache, retorna ele.
+          if (response) {
+            return response;
+          }
+          // Se não, busca na rede, armazena em cache e retorna.
+          return fetch(event.request).then(networkResponse => {
             if (networkResponse.ok) {
               cache.put(event.request, networkResponse.clone());
             }
             return networkResponse;
           });
-          // Retorna o cache imediatamente se disponível, enquanto busca a atualização em segundo plano.
-          return response || fetchPromise;
         });
       })
     );
