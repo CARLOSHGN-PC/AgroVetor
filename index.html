@@ -273,11 +273,8 @@
           animation: spin 1s linear infinite;
           z-index: 5;
       }
-      .chart-container canvas {
-          visibility: hidden;
-      }
       .chart-container canvas.chart-rendered {
-          visibility: visible;
+          /* A classe chart-rendered não é mais necessária para visibilidade, mas pode ser usada para outros estilos se necessário. */
       }
       .chart-title { 
           text-align: center; 
