@@ -4379,7 +4379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         renderFn();
                         resolve();
-                    }, 1); 
+                    }, 150); 
                 });
             },
             
