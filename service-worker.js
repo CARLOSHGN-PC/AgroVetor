@@ -64,19 +64,29 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Estratégia para a API do Google Maps: apenas rede, pois não pode ser cacheada.
-  if (event.request.url.includes('maps.googleapis.com')) {
-      return;
-  }
-
   const url = new URL(event.request.url);
 
-  // Estratégia Network-First para arquivos críticos (HTML, JS)
-  if (url.origin === self.origin && (event.request.mode === 'navigate' || url.pathname.endsWith('.js') || url.pathname.endsWith('.html'))) {
+  // Estratégia para os tiles do Google Maps: Stale-While-Revalidate
+  if (url.hostname.includes('mt.google.com') || url.hostname.includes('maps.googleapis.com')) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(cache => {
+        return cache.match(event.request).then(response => {
+          const fetchPromise = fetch(event.request).then(networkResponse => {
+            if (networkResponse.ok) {
+              cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          });
+          // Retorna o cache imediatamente se disponível, enquanto busca a atualização em segundo plano.
+          return response || fetchPromise;
+        });
+      })
+    );
+  } else if (url.origin === self.origin && (event.request.mode === 'navigate' || url.pathname.endsWith('.js') || url.pathname.endsWith('.html'))) {
+    // Estratégia Network-First para arquivos críticos (HTML, JS da aplicação)
     event.respondWith(
       fetch(event.request)
         .then(networkResponse => {
-          // Se a resposta da rede for bem-sucedida, armazene em cache e retorne.
           return caches.open(CACHE_NAME).then(cache => {
             if (networkResponse.ok) {
               cache.put(event.request, networkResponse.clone());
@@ -85,12 +95,11 @@ self.addEventListener('fetch', event => {
           });
         })
         .catch(() => {
-          // Se a rede falhar, tente obter do cache.
           return caches.match(event.request);
         })
     );
   } else {
-    // Estratégia Stale-While-Revalidate para outros assets (CSS, imagens, fontes)
+    // Estratégia Stale-While-Revalidate para outros assets (CSS, imagens, fontes, bibliotecas externas)
     event.respondWith(
       caches.open(CACHE_NAME).then(cache => {
         return cache.match(event.request).then(response => {
