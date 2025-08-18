@@ -1,5 +1,6 @@
+const turf = require('@turf/turf');
+
 async function processarLogVoo(aplicacaoId, logBuffer, ordemServico, db, admin, testMode = false) {
-    const turf = await import('@turf/turf');
     console.log(`Iniciando processamento para aplicação ${aplicacaoId}`);
     const aplicacaoRef = db.collection('aplicacoes').doc(aplicacaoId);
 
