@@ -911,7 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Status"><span class="os-status ${os.status.toLowerCase().replace(/ /g, '-')}">${os.status}</span></td>
                         <td data-label="Ações"></td>
                     `;
-                    
+
                     const actionsCell = row.querySelector('td[data-label="Ações"]');
                     const statusCell = row.querySelector('td[data-label="Status"]');
 
@@ -934,14 +934,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         uploadInput.className = 'log-upload-input';
                         uploadInput.style.display = 'none';
                         uploadInput.accept = ".txt,.log,.csv";
-                        
+
                         const uploadBtn = document.createElement('button');
                         uploadBtn.className = 'btn-excluir';
                         uploadBtn.style.background = 'var(--color-info)';
                         uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Log';
                         uploadBtn.title = 'Enviar Log de Voo';
                         uploadBtn.onclick = () => uploadInput.click();
-                        
+
                         actionsCell.appendChild(uploadInput);
                         actionsCell.appendChild(uploadBtn);
                     } else if (os.status === 'Concluído') {
@@ -959,7 +959,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             openOrdemServicoModal() {
                 const { overlay, fazenda, produto, selectedTalhoes } = App.elements.ordemServicoModal;
-                
+
                 App.state.activeOrdemServico = { selectedTalhoes: [] };
                 App.state.mapMode = 'os_selection';
 
@@ -973,7 +973,7 @@ document.addEventListener('DOMContentLoaded', () => {
             closeOrdemServicoModal() {
                 const { overlay } = App.elements.ordemServicoModal;
                 overlay.classList.remove('show');
-                
+
                 App.state.mapMode = null;
                 App.mapModule.clearOsSelectionHighlights();
                 App.state.activeOrdemServico = null;
@@ -1001,7 +1001,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async openMapViewerModal(mode, data) {
                 const { overlay, title, legend } = App.elements.mapViewerModal;
                 App.state.mapMode = mode;
-                
+
                 App.mapModule.clearApplicationLayers();
                 legend.innerHTML = '';
 
@@ -1012,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const os = App.state.ordens_servico.find(o => o.id === osId);
                     const fazenda = App.state.fazendas.find(f => f.id === os.fazendaId);
                     title.textContent = `Aplicação: ${fazenda.name}`;
-                    
+
                     try {
                         App.ui.setLoading(true, "Buscando resultados...");
                         const response = await fetch(`${App.config.backendUrl}/api/aplicacoes/${osId}`);
@@ -1029,9 +1029,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.setLoading(false);
                     }
                 }
-                
+
                 overlay.classList.add('show');
-                
+
                 window.initMap = App.mapModule.initMap.bind(App.mapModule);
                 if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
                    App.mapModule.initMap();
@@ -2186,7 +2186,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const mapViewerModal = App.elements.mapViewerModal;
                 if (mapViewerModal.closeBtn) mapViewerModal.closeBtn.addEventListener('click', () => App.ui.closeMapViewerModal());
-                
+
                 if (App.elements.monitoramentoAereo.ordemServicoList) {
                     App.elements.monitoramentoAereo.ordemServicoList.addEventListener('change', e => {
                         if (e.target.classList.contains('log-upload-input')) {
@@ -3269,7 +3269,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     largura_faixa: parseInt(larguraFaixa.value),
                     talhoes: App.state.activeOrdemServico.selectedTalhoes // This needs to be populated by map interaction
                 };
-                
+
                 if (!osData.fazendaId || !osData.produtoId || !osData.data_planejada || isNaN(osData.dosagem) || isNaN(osData.largura_faixa) || !osData.talhoes || osData.talhoes.length === 0) {
                     App.ui.showAlert("Preencha todos os campos obrigatórios e selecione pelo menos um talhão.", "error");
                     return;
@@ -3282,7 +3282,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: JSON.stringify(osData)
                     });
                     if (!response.ok) throw new Error('Falha ao criar Ordem de Serviço no servidor.');
-                    
+
                     App.ui.showAlert("Ordem de Serviço criada com sucesso!");
                     App.ui.closeOrdemServicoModal();
                 } catch (error) {
@@ -3304,7 +3304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const result = await response.json();
 
                     if (!response.ok) throw new Error(result.message || 'Erro no servidor.');
-                    
+
                     App.ui.showAlert(result.message, "success");
                 } catch (error) {
                     App.ui.showAlert(`Falha no upload: ${error.message}`, "error");
@@ -4620,7 +4620,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const talhaoId = feature.getProperty('id') || feature.getProperty('TALHAO_ID') || Date.now(); // Fallback ID
                 const talhaoName = feature.getProperty('CD_TALHAO') || feature.getProperty('TALHAO') || 'Talhão Desconhecido';
-                
+
                 const selectedTalhoes = App.state.activeOrdemServico.selectedTalhoes;
                 const index = selectedTalhoes.findIndex(t => t.id === talhaoId);
 
@@ -4649,7 +4649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             },
-            
+
             clearApplicationLayers() {
                 App.state.mapResultLayers.forEach(layer => layer.setMap(null));
                 App.state.mapResultLayers = [];
@@ -4673,7 +4673,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         zIndex: zIndex
                     });
                     App.state.mapResultLayers.push(layer);
-                    
+
                     // Extend bounds
                     if (geometry) {
                         const processPoints = (coords) => {
@@ -5516,5 +5516,3 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inicia a aplicação
     App.init();
 });
-
-
