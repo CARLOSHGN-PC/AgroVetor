@@ -12,6 +12,7 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
       :root {
           --color-primary: #2e7d32;
@@ -2075,6 +2076,62 @@
                     </div>
                 </div>
 
+            </section>
+            </section>
+
+            <section id="planejamentoVoos" class="tab-content" aria-label="Planejamento de Voos" tabindex="0" hidden>
+                <h2 class="text-3xl font-bold text-gray-800 mb-6">Planejamento de Voos</h2>
+                <div class="flex space-x-6 h-full">
+                    <!-- Coluna da Esquerda (Formulário) -->
+                    <div class="w-1/3 bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4">Planejar Novo Voo</h3>
+                        <form>
+                            <div class="mb-4">
+                                <label for="operation-date" class="block text-sm font-medium text-gray-700">Data da Operação</label>
+                                <input type="date" id="operation-date" name="operation-date" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            <div class="mb-4">
+                                <label for="pilot" class="block text-sm font-medium text-gray-700">Piloto Responsável</label>
+                                <select id="pilot" name="pilot" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option>João Silva</option>
+                                    <option>Carlos Pereira</option>
+                                    <option>Mariana Costa</option>
+                                </select>
+                            </div>
+                            <div class="mb-4">
+                                <label for="aircraft" class="block text-sm font-medium text-gray-700">Aeronave</label>
+                                <select id="aircraft" name="aircraft" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option>Embraer Ipanema</option>
+                                    <option>Air Tractor AT-402</option>
+                                    <option>DJI Agras T40</option>
+                                </select>
+                            </div>
+                            <div class="mb-4">
+                                <label for="culture" class="block text-sm font-medium text-gray-700">Cultura</label>
+                                <input type="text" id="culture" name="culture" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            <div class="mb-4">
+                                <label for="product" class="block text-sm font-medium text-gray-700">Produto a Aplicar</label>
+                                <select id="product" name="product" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option>Herbicida X</option>
+                                    <option>Fungicida Y</option>
+                                    <option>Fertilizante Z</option>
+                                </select>
+                            </div>
+                            <div class="flex space-x-4 mt-6">
+                                <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Salvar Planejamento</button>
+                                <button type="button" class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Exportar Rota</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Coluna da Direita (Mapa) -->
+                    <div class="w-2/3 bg-white p-6 rounded-lg shadow-md flex items-center justify-center">
+                        <div class="text-gray-500 text-lg">
+                            Área do Mapa Interativo
+                        </div>
+                    </div>
+                </div>
             </section>
         </main>
         
