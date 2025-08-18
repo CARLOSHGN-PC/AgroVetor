@@ -1,7 +1,6 @@
 // server.js - Backend com Geração de PDF e Upload de Shapefile
 
 const express = require('express');
-const multer = require('multer');
 const admin = require('firebase-admin');
 const cors = require('cors');
 const PDFDocument = require('pdfkit');
@@ -11,16 +10,9 @@ const os = require('os');
 const axios = require('axios');
 const shp = require('shpjs');
 const pointInPolygon = require('point-in-polygon');
-const { processarLogVoo } = require('./processing');
 
 const app = express();
 const port = process.env.PORT || 3001;
-
-// Multer setup for in-memory storage
-const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 } // 50 MB limit
-});
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -90,29 +82,6 @@ try {
         } catch (error) {
             console.error("Erro no servidor ao fazer upload do shapefile:", error);
             res.status(500).send({ message: `Erro no servidor ao processar o arquivo: ${error.message}` });
-        }
-    });
-
-    app.get('/api/aplicacoes/:osId', async (req, res) => {
-        try {
-            const osId = req.params.osId;
-            const aplicacoesRef = db.collection('aplicacoes');
-            const snapshot = await aplicacoesRef.where('ordem_servico_id', '==', osId).limit(1).get();
-
-            if (snapshot.empty) {
-                return res.status(404).send({ message: 'Nenhum resultado de aplicação encontrado para esta Ordem de Serviço.' });
-            }
-
-            let aplicacaoData;
-            snapshot.forEach(doc => {
-                aplicacaoData = { id: doc.id, ...doc.data() };
-            });
-
-            res.status(200).send(aplicacaoData);
-
-        } catch (error) {
-            console.error("Erro ao buscar resultado da aplicação:", error);
-            res.status(500).send({ message: `Erro no servidor: ${error.message}` });
         }
     });
 
@@ -312,111 +281,6 @@ try {
         }
         return null;
     };
-
-    // --- ROTAS DE APLICAÇÃO AÉREA ---
-    app.post('/api/ordens-servico', async (req, res) => {
-        try {
-            const {
-                fazendaId,
-                talhoes, // This will be an array of {id, name, area, geometry}
-                produtoId,
-                dosagem,
-                data_planejada,
-                largura_faixa
-            } = req.body;
-
-            // Basic validation
-            if (!fazendaId || !talhoes || !produtoId || !data_planejada || !largura_faixa) {
-                return res.status(400).send({ message: 'Campos obrigatórios em falta.' });
-            }
-
-            const novaOrdemServico = {
-                fazendaId,
-                talhoes,
-                produtoId,
-                dosagem,
-                data_planejada,
-                largura_faixa,
-                status: 'Pendente',
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            };
-
-            const docRef = await db.collection('ordens_servico').add(novaOrdemServico);
-            res.status(201).send({ id: docRef.id, ...novaOrdemServico });
-
-        } catch (error) {
-            console.error("Erro ao criar Ordem de Serviço:", error);
-            res.status(500).send({ message: `Erro no servidor: ${error.message}` });
-        }
-    });
-
-    app.get('/api/ordens-servico', async (req, res) => {
-        try {
-            const snapshot = await db.collection('ordens_servico').orderBy('createdAt', 'desc').get();
-            const ordens = [];
-            snapshot.forEach(doc => {
-                ordens.push({ id: doc.id, ...doc.data() });
-            });
-            res.status(200).send(ordens);
-        } catch (error) {
-            console.error("Erro ao buscar Ordens de Serviço:", error);
-            res.status(500).send({ message: `Erro no servidor: ${error.message}` });
-        }
-    });
-
-    app.post('/api/aplicacoes/upload-log/:osId', upload.single('logFile'), async (req, res) => {
-        try {
-            if (!req.file) {
-                return res.status(400).send({ message: 'Nenhum arquivo de log enviado.' });
-            }
-
-            const osId = req.params.osId;
-            const ordemServicoRef = db.collection('ordens_servico').doc(osId);
-            const ordemServicoDoc = await ordemServicoRef.get();
-
-            if (!ordemServicoDoc.exists) {
-                return res.status(404).send({ message: 'Ordem de Serviço não encontrada.' });
-            }
-
-            const originalName = req.file.originalname;
-            const fileName = `flight_logs/${osId}_${Date.now()}_${originalName}`;
-            const file = bucket.file(fileName);
-
-            await file.save(req.file.buffer, {
-                metadata: {
-                    contentType: req.file.mimetype,
-                },
-            });
-
-            await file.makePublic();
-            const downloadURL = file.publicUrl();
-
-            const novaAplicacao = {
-                ordem_servico_id: osId,
-                log_arquivo_url: downloadURL,
-                status: 'Processando',
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            };
-
-            const appDocRef = await db.collection('aplicacoes').add(novaAplicacao);
-
-            // Update the status of the service order
-            await ordemServicoRef.update({ status: 'Processando' });
-
-            // Iniciar o processamento em segundo plano (sem esperar a conclusão)
-            processarLogVoo(appDocRef.id, req.file.buffer, { id: osId, ...ordemServicoDoc.data() }, db, admin);
-
-            res.status(201).send({
-                message: 'Log enviado com sucesso! O processamento foi iniciado.',
-                aplicacaoId: appDocRef.id,
-                url: downloadURL
-            });
-
-        } catch (error) {
-            console.error("Erro ao fazer upload do log de voo:", error);
-            res.status(500).send({ message: `Erro no servidor: ${error.message}` });
-        }
-    });
 
     // --- ROTAS DE RELATÓRIOS ---
 
