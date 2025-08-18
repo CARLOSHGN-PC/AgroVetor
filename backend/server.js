@@ -1560,6 +1560,77 @@ try {
         }
     });
 
+    app.get('/reports/pulverizacao/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+        const { osId, generatedBy } = req.query;
+
+        if (!osId) {
+            return res.status(400).send('ID da Ordem de Serviço é obrigatório.');
+        }
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=relatorio_pulverizacao_${osId}.pdf`);
+        doc.pipe(res);
+
+        try {
+            const osDoc = await db.collection('ordensServico').doc(osId).get();
+            if (!osDoc.exists) throw new Error('Ordem de Serviço não encontrada.');
+            const osData = osDoc.data();
+
+            const [aeronaveDoc, produtoDoc] = await Promise.all([
+                db.collection('aeronaves').doc(osData.aeronaveId).get(),
+                db.collection('produtosPulverizacao').doc(osData.produtoId).get()
+            ]);
+
+            const aeronaveData = aeronaveDoc.exists ? aeronaveDoc.data() : { prefixo: 'N/A' };
+            const produtoData = produtoDoc.exists ? produtoDoc.data() : { nome: 'N/A' };
+
+            await generatePdfHeader(doc, 'Relatório de Análise de Pulverização');
+
+            doc.fontSize(12).font('Helvetica-Bold').text('Dados da Operação', { underline: true });
+            doc.moveDown(0.5);
+
+            const infoY = doc.y;
+            doc.fontSize(10).font('Helvetica');
+            doc.text(`Data da Operação:`, { continued: true }).font('Helvetica-Bold').text(` ${osData.dataOperacao}`);
+            doc.text(`Piloto Responsável:`, { continued: true }).font('Helvetica-Bold').text(` ${osData.piloto}`);
+            doc.text(`Aeronave:`, { continued: true }).font('Helvetica-Bold').text(` ${aeronaveData.prefixo} (${aeronaveData.modelo || 'N/A'})`);
+            doc.text(`Produto Aplicado:`, { continued: true }).font('Helvetica-Bold').text(` ${produtoData.nome}`);
+            doc.text(`Dosagem:`, { continued: true }).font('Helvetica-Bold').text(` ${osData.dosagem} L/ha`);
+
+            doc.moveDown(2);
+
+            doc.fontSize(12).font('Helvetica-Bold').text('Resumo da Análise', { underline: true });
+            doc.moveDown(0.5);
+
+            const m2ToHa = (m2) => (m2 / 10000).toFixed(2);
+            const analysis = osData.analysisResult;
+            if (analysis) {
+                const totalPlanejadoHa = m2ToHa(analysis.areaTotalPlanejada);
+                const totalAplicadoHa = m2ToHa(analysis.areaAplicada);
+                const totalFalhaHa = m2ToHa(analysis.areaFalha);
+                const eficiencia = totalPlanejadoHa > 0 ? ((totalAplicadoHa / totalPlanejadoHa) * 100).toFixed(2) : 0;
+
+                doc.fontSize(10).font('Helvetica');
+                doc.text(`Área Total Planejada:`, { continued: true }).font('Helvetica-Bold').text(` ${totalPlanejadoHa} ha`);
+                doc.text(`Área Total Aplicada:`, { continued: true }).font('Helvetica-Bold').text(` ${totalAplicadoHa} ha`);
+                doc.fillColor('red').text(`Área com Falha:`, { continued: true }).font('Helvetica-Bold').text(` ${totalFalhaHa} ha`);
+                doc.fillColor('black').text(`Eficiência da Aplicação:`, { continued: true }).font('Helvetica-Bold').text(` ${eficiencia}%`);
+            } else {
+                doc.fontSize(10).font('Helvetica').text('Nenhuma análise encontrada para esta Ordem de Serviço.');
+            }
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Pulverização:", error);
+            if (!res.headersSent) {
+                doc.end();
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            }
+        }
+    });
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
