@@ -1237,78 +1237,6 @@
           border-color: var(--color-danger);
       }
 
-      #aereo-sidebar {
-          width: 350px;
-          height: 100%;
-          background: var(--color-surface);
-          border-right: 1px solid var(--color-border);
-          display: flex;
-          flex-direction: column;
-          z-index: 3;
-          transition: var(--transition);
-      }
-      .sidebar-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 15px;
-          border-bottom: 1px solid var(--color-border);
-          flex-shrink: 0;
-      }
-      .sidebar-header h3 {
-          margin: 0;
-          color: var(--color-primary);
-      }
-      .sidebar-header button {
-          margin-top: 0;
-          padding: 8px 12px;
-      }
-      .sidebar-content {
-          overflow-y: auto;
-          flex-grow: 1;
-      }
-      .os-list-item {
-          padding: 15px;
-          border-bottom: 1px solid var(--color-border);
-          cursor: pointer;
-          transition: var(--transition);
-      }
-      .os-list-item:hover {
-          background-color: var(--color-bg);
-      }
-      .os-list-item.active {
-        background-color: var(--color-primary-light);
-        border-left: 4px solid var(--color-primary);
-        padding-left: 11px;
-      }
-      .os-list-item h4 {
-          margin: 0 0 5px 0;
-          color: var(--color-primary-dark);
-          font-size: 16px;
-      }
-      .os-list-item p {
-          margin: 0;
-          font-size: 13px;
-          color: var(--color-text-light);
-      }
-      .os-status {
-          font-size: 11px;
-          font-weight: 600;
-          padding: 3px 8px;
-          border-radius: 20px;
-          color: white;
-          text-transform: uppercase;
-          display: inline-block;
-          margin-top: 8px;
-      }
-      .os-status.pendente { background-color: var(--color-info); }
-      .os-status.processando { background-color: var(--color-warning); }
-      .os-status.concluido { background-color: var(--color-success); }
-      .os-status.erro { background-color: var(--color-danger); }
-      .os-list-item .upload-button-container {
-        margin-top: 10px;
-      }
-
       @media (max-width: 992px) {
         .dashboard-grid {
             grid-template-columns: 1fr;
@@ -2002,30 +1930,6 @@
                     <small class="csv-format-info">Formato: Cód;FAZENDA;TIPO;TALHÃO;Área;TCH;Variedade;Corte;Distancia;DataUltimaColheita</small>
                 </div>
 
-                <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
-                    <h3><i class="fas fa-spray-can"></i> Gerir Produtos de Pulverização</h3>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="productName" class="required">Nome do Produto:</label>
-                            <input type="text" id="productName" placeholder="Ex: Glifosato XPTO">
-                        </div>
-                        <div class="form-col">
-                            <label for="productActiveIngredient">Ingrediente Ativo:</label>
-                            <input type="text" id="productActiveIngredient" placeholder="Ex: Glifosato">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                         <div class="form-col">
-                            <label for="productDosage">Dosagem Padrão (L/ha ou Kg/ha):</label>
-                            <input type="number" id="productDosage" placeholder="Ex: 2.5">
-                        </div>
-                    </div>
-                    <button id="btnSaveProduct" class="save" style="max-width: 250px;"><i class="fas fa-plus-circle"></i> Guardar Produto</button>
-                    <hr style="margin: 20px 0;">
-                    <h4>Produtos Cadastrados</h4>
-                    <div id="productList" class="table-responsive"></div>
-                </div>
-
                 <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
                         <h3><i class="fas fa-tractor"></i> Gerir Fazendas e Talhões (Manual)</h3>
@@ -2174,25 +2078,32 @@
             </section>
         </main>
         
-        <section id="monitoramentoAereo" class="tab-content card" aria-label="Monitoramento de Armadilhas" tabindex="0" hidden>
-            <div class="card-header-actions">
-                <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-satellite-dish"></i> Monitoramento de Armadilhas</h2>
-            </div>
-            <p>Esta secção está em desenvolvimento. Em breve, poderá visualizar as suas armadilhas e dados de monitoramento diretamente no mapa aqui.</p>
-        </section>
-
-        <section id="pulverizacao" class="tab-content card" aria-label="Pulverização" tabindex="0" hidden>
-            <div class="card-header-actions">
-                <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-plane-departure"></i> Controle de Pulverização Aérea</h2>
-                <div class="button-group">
-                    <button id="btnNewOrdemServico" class="save"><i class="fas fa-plus"></i> Nova Ordem de Serviço</button>
+        <div id="monitoramentoAereo-container" class="tab-content">
+            <div id="map-container">
+                <div id="map-offline-status-container">
+                    <span id="map-offline-status-icon"><div class="spinner" style="width: 20px; height: 20px; border-width: 3px;"></div></span>
+                    <span id="map-offline-status-text">Verificando status do mapa offline...</span>
+                    <button id="btn-manual-cache-map" class="save" style="display: none;">Sincronizar Mapa</button>
+                </div>
+                <div id="map"></div>
+                <div class="map-controls">
+                    <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
+                        <i class="fas fa-location-arrow"></i>
+                    </button>
+                    <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div id="talhao-info-box" class="info-box">
+                    <button id="close-info-box" class="modal-close-btn">&times;</button>
+                    <div id="talhao-info-box-content"></div>
+                </div>
+                <div id="trap-info-box" class="info-box">
+                    <button id="close-trap-info-box" class="modal-close-btn">&times;</button>
+                    <div id="trap-info-box-content"></div>
                 </div>
             </div>
-            <h3><i class="fas fa-tasks"></i> Ordens de Serviço</h3>
-            <div id="ordemServicoList" class="table-responsive">
-                <!-- A lista de OS será renderizada aqui pelo JS -->
-            </div>
-        </section>
+        </div>
 
         <!-- MODAIS -->
         <div id="trapPlacementModal" class="modal-overlay">
@@ -2351,28 +2262,6 @@
             </div>
         </div>
 
-        <div id="mapViewerModal" class="modal-overlay">
-            <div class="modal-content" style="max-width: 95vw; height: 90vh; display: flex; flex-direction: column; padding: 15px;">
-                <div class="modal-header" style="padding-bottom: 10px; margin-bottom: 10px;">
-                    <h2 id="mapViewerTitle">Visualizador de Mapa</h2>
-                    <button id="mapViewerCloseBtn" class="modal-close-btn">&times;</button>
-                </div>
-                <div id="map-container" style="flex-grow: 1; position: relative; border-radius: var(--border-radius); overflow: hidden;">
-                    <div id="map-offline-status-container">
-                        <span id="map-offline-status-icon"><div class="spinner" style="width: 20px; height: 20px; border-width: 3px;"></div></span>
-                        <span id="map-offline-status-text">Verificando status do mapa offline...</span>
-                        <button id="btn-manual-cache-map" class="save" style="display: none;">Sincronizar Mapa</button>
-                    </div>
-                    <div id="map" style="width: 100%; height: 100%;"></div>
-                    <div class="map-controls">
-                        <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim"><i class="fas fa-location-arrow"></i></button>
-                    </div>
-                    <div id="map-legend" style="position: absolute; bottom: 15px; right: 15px; background: color-mix(in srgb, var(--color-surface) 85%, transparent); backdrop-filter: blur(5px); padding: 10px; border-radius: var(--border-radius); box-shadow: var(--shadow-md); z-index: 2;">
-                        <!-- A legenda será preenchida pelo JS -->
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Bibliotecas Externas -->
@@ -2381,6 +2270,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+    <script src="https://unpkg.com/idb@7.1.1/build/index.js"></script>
     
     <script>
         function initMap() {
@@ -2403,54 +2293,5 @@
             <button id="update-app-btn-modal" class="save" style="width: 100%;">Atualizar Agora</button>
         </div>
     </div>
-
-        <div id="ordemServicoModal" class="modal-overlay">
-            <div class="modal-content" style="max-width: 800px;">
-                <div class="modal-header">
-                    <h2>Nova Ordem de Serviço</h2>
-                    <button id="ordemServicoModalCloseBtn" class="modal-close-btn">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="osFazenda" class="required">Fazenda:</label>
-                            <select id="osFazenda" required></select>
-                        </div>
-                        <div class="form-col">
-                            <label for="osData" class="required">Data da Aplicação:</label>
-                            <input type="date" id="osData" required />
-                        </div>
-                    </div>
-                    <div id="osTalhaoSelectionContainer">
-                        <label>Talhões Selecionados:</label>
-                        <div id="osSelectedTalhoes" style="padding: 10px; background: var(--color-bg); border-radius: var(--border-radius); min-height: 40px; margin-top: 8px;">
-                            <!-- Selected plots will be listed here -->
-                        </div>
-                        <button id="btnSelectTalhoesOnMap" class="btn-secondary" style="width: 100%; margin-top: 10px;"><i class="fas fa-map-marked-alt"></i> Selecionar no Mapa</button>
-                    </div>
-                    <hr style="margin: 20px 0;">
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="osProduto" class="required">Produto:</label>
-                            <select id="osProduto" required></select>
-                        </div>
-                        <div class="form-col">
-                            <label for="osDosagem" class="required">Dosagem (L/ha ou Kg/ha):</label>
-                            <input type="number" id="osDosagem" step="0.1" required />
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="osLarguraFaixa" class="required">Largura da Faixa de Aplicação (metros):</label>
-                            <input type="number" id="osLarguraFaixa" step="1" required />
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button id="ordemServicoModalCancelBtn" class="btn-secondary">Cancelar</button>
-                    <button id="ordemServicoModalSaveBtn" class="save">Criar Ordem de Serviço</button>
-                </div>
-            </div>
-        </div>
 </body>
 </html>
