@@ -83,8 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
-                { label: 'Monitoramento de Armadilhas', icon: 'fas fa-satellite-dish', action: 'openTrapMap', permission: 'monitoramentoAereo' },
-                { label: 'Pulverização Aérea', icon: 'fas fa-plane-departure', target: 'pulverizacao', permission: 'monitoramentoAereo' },
+                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -136,13 +135,9 @@ document.addEventListener('DOMContentLoaded', () => {
             planos: [],
             fazendas: [],
             personnel: [],
-            produtos: [],
-            ordens_servico: [],
-            activeOrdemServico: null,
-            mapMode: null, // Can be 'os_selection'
-            mapResultLayers: [],
             companyLogo: null,
             activeSubmenu: null,
+            charts: {},
             harvestPlans: [],
             activeHarvestPlan: null,
             inactivityTimer: null,
@@ -331,11 +326,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 csvUploadArea: document.getElementById('csvUploadArea'),
                 csvFileInput: document.getElementById('csvFileInput'),
                 btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
-                productName: document.getElementById('productName'),
-                productActiveIngredient: document.getElementById('productActiveIngredient'),
-                productDosage: document.getElementById('productDosage'),
-                btnSaveProduct: document.getElementById('btnSaveProduct'),
-                productList: document.getElementById('productList'),
             },
             planejamento: {
                 tipo: document.getElementById('planoTipo'),
@@ -446,28 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBox: document.getElementById('trap-info-box'),
                 trapInfoBoxContent: document.getElementById('trap-info-box-content'),
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
-                ordemServicoList: document.getElementById('ordemServicoList'),
-                btnNewOrdemServico: document.getElementById('btnNewOrdemServico'),
-            },
-            mapViewerModal: {
-                overlay: document.getElementById('mapViewerModal'),
-                title: document.getElementById('mapViewerTitle'),
-                closeBtn: document.getElementById('mapViewerCloseBtn'),
-                mapContainer: document.getElementById('map-container'), // Note: this is now inside the modal
-                legend: document.getElementById('map-legend'),
-            },
-            ordemServicoModal: {
-                overlay: document.getElementById('ordemServicoModal'),
-                closeBtn: document.getElementById('ordemServicoModalCloseBtn'),
-                cancelBtn: document.getElementById('ordemServicoModalCancelBtn'),
-                saveBtn: document.getElementById('ordemServicoModalSaveBtn'),
-                fazenda: document.getElementById('osFazenda'),
-                data: document.getElementById('osData'),
-                selectedTalhoes: document.getElementById('osSelectedTalhoes'),
-                btnSelectOnMap: document.getElementById('btnSelectTalhoesOnMap'),
-                produto: document.getElementById('osProduto'),
-                dosagem: document.getElementById('osDosagem'),
-                larguraFaixa: document.getElementById('osLarguraFaixa'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -698,7 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'produtos', 'ordens_servico', 'aplicacoes' ];
+                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas' ];
                 
                 collectionsToListen.forEach(collectionName => {
                     const q = collection(db, collectionName);
@@ -847,8 +815,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.populateOperatorSelects();
                 this.renderUsersList();
                 this.renderPersonnelList();
-                this.renderProductList();
-                this.renderOrdemServicoList();
                 this.renderLogoPreview();
                 this.renderPlanejamento();
                 this.showHarvestPlanList();
@@ -857,202 +823,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (document.getElementById('dashboard').classList.contains('active')) {
                    this.showDashboardView('broca'); 
                 }
-            },
-            renderProductList() {
-                const { productList } = App.elements.cadastros;
-                productList.innerHTML = '';
-                if (App.state.produtos.length === 0) {
-                    productList.innerHTML = '<p>Nenhum produto cadastrado.</p>';
-                    return;
-                }
-                const table = document.createElement('table');
-                table.id = 'productTable';
-                table.className = 'harvestPlanTable'; // Reusing style
-                table.innerHTML = `<thead><tr><th>Nome do Produto</th><th>Ingrediente Ativo</th><th>Dosagem Padrão</th><th>Ações</th></tr></thead><tbody></tbody>`;
-                const tbody = table.querySelector('tbody');
-                App.state.produtos.sort((a, b) => a.name.localeCompare(b.name)).forEach(p => {
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td data-label="Nome">${p.name}</td>
-                        <td data-label="Ingrediente Ativo">${p.activeIngredient || ''}</td>
-                        <td data-label="Dosagem">${p.dosage || ''}</td>
-                        <td data-label="Ações">
-                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                <button class="btn-excluir" data-action="delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </td>
-                    `;
-                });
-                productList.appendChild(table);
-            },
-            renderOrdemServicoList() {
-                const { ordemServicoList } = App.elements.monitoramentoAereo;
-                if (!ordemServicoList) return;
-
-                ordemServicoList.innerHTML = '';
-                if (App.state.ordens_servico.length === 0) {
-                    ordemServicoList.innerHTML = '<p>Nenhuma Ordem de Serviço encontrada.</p>';
-                    return;
-                }
-
-                const table = document.createElement('table');
-                table.className = 'harvestPlanTable'; // Reusing style
-                table.innerHTML = `<thead><tr><th>Fazenda</th><th>Produto</th><th>Data Planejada</th><th>Status</th><th>Ações</th></tr></thead><tbody></tbody>`;
-                const tbody = table.querySelector('tbody');
-
-                App.state.ordens_servico.forEach(os => {
-                    const fazenda = App.state.fazendas.find(f => f.id === os.fazendaId);
-                    const produto = App.state.produtos.find(p => p.id === os.produtoId);
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td data-label="Fazenda">${fazenda ? fazenda.name : 'N/A'}</td>
-                        <td data-label="Produto">${produto ? produto.name : 'N/A'}</td>
-                        <td data-label="Data">${new Date(os.data_planejada + 'T03:00:00Z').toLocaleDateString('pt-BR')}</td>
-                        <td data-label="Status"><span class="os-status ${os.status.toLowerCase().replace(/ /g, '-')}">${os.status}</span></td>
-                        <td data-label="Ações"></td>
-                    `;
-                    
-                    const actionsCell = row.querySelector('td[data-label="Ações"]');
-                    const statusCell = row.querySelector('td[data-label="Status"]');
-
-                    if (os.status === 'Erro no Processamento') {
-                        const errorIcon = document.createElement('i');
-                        errorIcon.className = 'fas fa-info-circle';
-                        errorIcon.style.marginLeft = '8px';
-                        errorIcon.style.cursor = 'pointer';
-                        errorIcon.style.color = 'var(--color-danger)';
-                        errorIcon.title = 'Ver Detalhes do Erro';
-                        errorIcon.dataset.action = 'show-error';
-                        errorIcon.dataset.osId = os.id;
-                        statusCell.appendChild(errorIcon);
-                    }
-
-                    if (os.status === 'Pendente') {
-                        const uploadInput = document.createElement('input');
-                        uploadInput.type = 'file';
-                        uploadInput.id = `log-upload-${os.id}`;
-                        uploadInput.className = 'log-upload-input';
-                        uploadInput.style.display = 'none';
-                        uploadInput.accept = ".txt,.log,.csv";
-                        
-                        const uploadBtn = document.createElement('button');
-                        uploadBtn.className = 'btn-excluir';
-                        uploadBtn.style.background = 'var(--color-info)';
-                        uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Log';
-                        uploadBtn.title = 'Enviar Log de Voo';
-                        uploadBtn.onclick = () => uploadInput.click();
-                        
-                        actionsCell.appendChild(uploadInput);
-                        actionsCell.appendChild(uploadBtn);
-                    } else if (os.status === 'Concluído') {
-                        const viewBtn = document.createElement('button');
-                        viewBtn.className = 'btn-excluir';
-                        viewBtn.style.background = 'var(--color-success)';
-                        viewBtn.innerHTML = '<i class="fas fa-map-marked-alt"></i> Ver';
-                        viewBtn.title = 'Ver Resultado no Mapa';
-                        viewBtn.onclick = () => App.ui.openMapViewerModal('view_results', os.id);
-                        actionsCell.appendChild(viewBtn);
-                    }
-                });
-
-                ordemServicoList.appendChild(table);
-            },
-            openOrdemServicoModal() {
-                const { overlay, fazenda, produto, selectedTalhoes } = App.elements.ordemServicoModal;
-                
-                App.state.activeOrdemServico = { selectedTalhoes: [] };
-                App.state.mapMode = 'os_selection';
-
-                this.populateFazendaSelects();
-                this.populateProdutoSelect(produto);
-                selectedTalhoes.innerHTML = '<p>Selecione um ou mais talhões no mapa.</p>';
-                App.mapModule.clearOsSelectionHighlights();
-
-                overlay.classList.add('show');
-            },
-            closeOrdemServicoModal() {
-                const { overlay } = App.elements.ordemServicoModal;
-                overlay.classList.remove('show');
-                
-                App.state.mapMode = null;
-                App.mapModule.clearOsSelectionHighlights();
-                App.state.activeOrdemServico = null;
-            },
-            updateSelectedTalhoesList() {
-                const { selectedTalhoes } = App.elements.ordemServicoModal;
-                const talhoes = App.state.activeOrdemServico.selectedTalhoes;
-
-                if (!talhoes || talhoes.length === 0) {
-                    selectedTalhoes.innerHTML = '<p>Selecione um ou mais talhões no mapa.</p>';
-                    return;
-                }
-
-                selectedTalhoes.innerHTML = talhoes.map(t => `<span class="badge" style="background: var(--color-primary); color: white; padding: 5px 10px; border-radius: 12px; margin-right: 5px;">${t.name}</span>`).join('');
-            },
-            populateProdutoSelect(selectElement) {
-                if (!selectElement) return;
-                const savedValue = selectElement.value;
-                selectElement.innerHTML = '<option value="">Selecione um produto...</option>';
-                App.state.produtos.forEach(p => {
-                    selectElement.innerHTML += `<option value="${p.id}">${p.name}</option>`;
-                });
-                selectElement.value = savedValue;
-            },
-            async openMapViewerModal(mode = 'view_traps', data) {
-                const { overlay, title, legend } = App.elements.mapViewerModal;
-                App.state.mapMode = mode;
-                
-                App.mapModule.clearApplicationLayers();
-                legend.innerHTML = '';
-
-                if (mode === 'os_selection') {
-                    title.textContent = 'Selecione os Talhões no Mapa';
-                } else if (mode === 'view_traps') {
-                    title.textContent = 'Mapa de Monitoramento de Armadilhas';
-                } else if (mode === 'view_results') {
-                    const osId = data;
-                    const os = App.state.ordens_servico.find(o => o.id === osId);
-                    const fazenda = App.state.fazendas.find(f => f.id === os.fazendaId);
-                    title.textContent = `Aplicação: ${fazenda.name}`;
-                    
-                    try {
-                        App.ui.setLoading(true, "Buscando resultados...");
-                        const response = await fetch(`${App.config.backendUrl}/api/aplicacoes/${osId}`);
-                        if (!response.ok) {
-                            throw new Error('Não foi possível carregar os resultados da aplicação.');
-                        }
-                        const aplicacaoData = await response.json();
-                        App.mapModule.drawApplicationResults(aplicacaoData);
-                        this.renderMapLegend();
-
-                    } catch (error) {
-                        App.ui.showAlert(error.message, "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                }
-                
-                overlay.classList.add('show');
-                
-                window.initMap = App.mapModule.initMap.bind(App.mapModule);
-                if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
-                   App.mapModule.initMap();
-                }
-            },
-            closeMapViewerModal() {
-                const { overlay } = App.elements.mapViewerModal;
-                overlay.classList.remove('show');
-                App.state.mapMode = null;
-                this.mapModule.clearApplicationLayers();
-            },
-            renderMapLegend() {
-                const { legend } = App.elements.mapViewerModal;
-                legend.innerHTML = `
-                    <h4 style="margin-top: 0; margin-bottom: 5px; font-size: 14px;">Legenda:</h4>
-                    <div style="display: flex; align-items: center; margin-bottom: 3px;"><div style="width: 15px; height: 15px; background: rgba(76, 175, 80, 0.7); border: 1px solid #388E3C; margin-right: 5px;"></div> Aplicação Correta</div>
-                    <div style="display: flex; align-items: center; margin-bottom: 3px;"><div style="width: 15px; height: 15px; background: rgba(211, 47, 47, 0.7); border: 1px solid #D32F2F; margin-right: 5px;"></div> Desperdício</div>
-                    <div style="display: flex; align-items: center;"><div style="width: 15px; height: 15px; background: rgba(251, 192, 45, 0.7); border: 1px solid #F57C00; margin-right: 5px;"></div> Falha de Cobertura</div>
-                `;
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
             showAlert(message, type = 'success', duration = 3000) {
@@ -1088,13 +858,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             e.stopPropagation();
                             this.renderSubmenu(item);
                         });
-                    } else if (item.action) {
-                        btn.addEventListener('click', () => {
-                            this.closeAllMenus();
-                            if (App.actions[item.action]) {
-                                App.actions[item.action]();
-                            }
-                        });
                     } else {
                         btn.addEventListener('click', () => {
                             this.closeAllMenus();
@@ -1127,19 +890,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const subBtn = document.createElement('button');
                         subBtn.className = 'submenu-btn';
                         subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
-                        if (subItem.action) {
-                            subBtn.addEventListener('click', () => {
-                                this.closeAllMenus();
-                                if (App.actions[subItem.action]) {
-                                    App.actions[subItem.action]();
-                                }
-                            });
-                        } else {
-                            subBtn.addEventListener('click', () => {
-                                this.closeAllMenus();
-                                this.showTab(subItem.target);
-                            });
-                        }
+                        subBtn.addEventListener('click', () => {
+                            this.closeAllMenus();
+                            this.showTab(subItem.target);
+                        });
                         submenuContent.appendChild(subBtn);
                     }
                 });
@@ -1167,9 +921,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
+                const mapContainer = App.elements.monitoramentoAereo.container;
+                if (id === 'monitoramentoAereo') {
+                    mapContainer.classList.add('active');
+                    window.initMap = App.mapModule.initMap.bind(App.mapModule);
+                    if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+                       App.mapModule.initMap();
+                    }
+                } else {
+                    mapContainer.classList.remove('active');
+                }
+
                 document.querySelectorAll('.tab-content').forEach(tab => {
-                    tab.classList.remove('active');
-                    tab.hidden = true;
+                    if (tab.id !== 'monitoramentoAereo-container') {
+                        tab.classList.remove('active');
+                        tab.hidden = true;
+                    }
                 });
 
                 const tab = document.getElementById(id);
@@ -1289,20 +1056,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 switch(viewName) {
                     case 'selector':
                         dashEls.selector.style.display = 'grid';
-                        // Destroy charts when returning to the main selector to free up resources.
+                        // Apenas destrói os gráficos ao voltar para a seleção principal
                         App.charts.destroyChartsByIds([...brocaChartIds, ...perdaChartIds]);
                         break;
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
                         this.loadDashboardDates('broca');
-                        // The render function is now smart enough to avoid re-rendering if data is the same.
-                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
+                        // Não destrói os gráficos de 'perda' ao mudar para 'broca'
+                        if (!App.state.charts.graficoTop10FazendasBroca) {
+                            setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
+                        }
                         break;
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
                         this.loadDashboardDates('perda');
-                        // The render function is now smart enough to avoid re-rendering if data is the same.
-                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
+                        // Não destrói os gráficos de 'broca' ao mudar para 'perda'
+                        if (!App.state.charts.graficoPerdaPorFrenteTurno) {
+                            setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
+                        }
                         break;
                     case 'aerea':
                         dashEls.aereaView.style.display = 'block';
@@ -1380,8 +1151,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cadastros.farmSelect,
                     App.elements.broca.codigo,
                     App.elements.perda.codigo,
-                    App.elements.relatorioMonitoramento.fazendaFiltro,
-                    App.elements.ordemServicoModal.fazenda
+                    App.elements.relatorioMonitoramento.fazendaFiltro
                 ];
                 selects.forEach(select => {
                     if (!select) return;
@@ -2189,46 +1959,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (editFarmModalEls.closeBtn) editFarmModalEls.closeBtn.addEventListener('click', () => this.closeEditFarmModal());
                 if (editFarmModalEls.cancelBtn) editFarmModalEls.cancelBtn.addEventListener('click', () => this.closeEditFarmModal());
                 if (editFarmModalEls.saveBtn) editFarmModalEls.saveBtn.addEventListener('click', () => App.actions.saveFarmChanges());
-
-                if (App.elements.monitoramentoAereo.btnNewOrdemServico) App.elements.monitoramentoAereo.btnNewOrdemServico.addEventListener('click', () => App.ui.openOrdemServicoModal());
-
-                const osModal = App.elements.ordemServicoModal;
-                if (osModal.closeBtn) osModal.closeBtn.addEventListener('click', () => App.ui.closeOrdemServicoModal());
-                if (osModal.btnSelectOnMap) osModal.btnSelectOnMap.addEventListener('click', () => App.ui.openMapViewerModal('os_selection'));
-                if (osModal.cancelBtn) osModal.cancelBtn.addEventListener('click', () => App.ui.closeOrdemServicoModal());
-                if (osModal.saveBtn) osModal.saveBtn.addEventListener('click', () => App.actions.saveOrdemServico());
-
-                const mapViewerModal = App.elements.mapViewerModal;
-                if (mapViewerModal.closeBtn) mapViewerModal.closeBtn.addEventListener('click', () => App.ui.closeMapViewerModal());
-                
-                if (App.elements.monitoramentoAereo.ordemServicoList) {
-                    App.elements.monitoramentoAereo.ordemServicoList.addEventListener('change', e => {
-                        if (e.target.classList.contains('log-upload-input')) {
-                            const osId = e.target.id.replace('log-upload-', '');
-                            const file = e.target.files[0];
-                            App.actions.handleLogUpload(osId, file);
-                        }
-                    });
-
-                    App.elements.monitoramentoAereo.ordemServicoList.addEventListener('click', e => {
-                        const errorIcon = e.target.closest('[data-action="show-error"]');
-                        if (errorIcon) {
-                            const osId = errorIcon.dataset.osId;
-                            const aplicacao = App.state.aplicacoes.find(a => a.ordem_servico_id === osId);
-                            if (aplicacao && aplicacao.erro) {
-                                App.ui.showAlert(`Erro no Processamento: ${aplicacao.erro}`, 'error', 6000);
-                            } else {
-                                App.ui.showAlert('Não foi possível encontrar os detalhes do erro.', 'warning');
-                            }
-                        }
-                    });
-                }
-
-                if (App.elements.cadastros.btnSaveProduct) App.elements.cadastros.btnSaveProduct.addEventListener('click', () => App.actions.saveProduct());
-                if (App.elements.cadastros.productList) App.elements.cadastros.productList.addEventListener('click', e => {
-                    const btn = e.target.closest('button[data-action="delete-product"]');
-                    if (btn) App.actions.deleteProduct(btn.dataset.id);
-                });
 
                 if (App.elements.planejamento.btnAgendar) App.elements.planejamento.btnAgendar.addEventListener('click', () => App.actions.agendarInspecao());
                 if (App.elements.planejamento.btnSugerir) App.elements.planejamento.btnSugerir.addEventListener('click', () => App.gemini.getPlanningSuggestions());
@@ -3236,96 +2966,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Registo excluído com sucesso!');
                 });
             },
-            async saveProduct() {
-                const { productName, productActiveIngredient, productDosage } = App.elements.cadastros;
-                const name = productName.value.trim();
-                if (!name) {
-                    App.ui.showAlert("O nome do produto é obrigatório.", "error");
-                    return;
-                }
-                const productData = {
-                    name: name,
-                    activeIngredient: productActiveIngredient.value.trim(),
-                    dosage: parseFloat(productDosage.value) || null
-                };
-
-                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar o produto ${name}?`, async () => {
-                    try {
-                        await App.data.addDocument('produtos', productData);
-                        App.ui.showAlert("Produto adicionado com sucesso!");
-                        productName.value = '';
-                        productActiveIngredient.value = '';
-                        productDosage.value = '';
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao guardar o produto.", "error");
-                    }
-                });
-            },
-            deleteProduct(productId) {
-                const product = App.state.produtos.find(p => p.id === productId);
-                if (!product) return;
-                App.ui.showConfirmationModal(`Tem a certeza que deseja excluir o produto "${product.name}"?`, async () => {
-                    try {
-                        await App.data.deleteDocument('produtos', productId);
-                        App.ui.showAlert('Produto excluído com sucesso.', 'info');
-                    } catch (error) {
-                        App.ui.showAlert('Erro ao excluir o produto.', 'error');
-                    }
-                });
-            },
-            async saveOrdemServico() {
-                const { fazenda, data, produto, dosagem, larguraFaixa } = App.elements.ordemServicoModal;
-                const osData = {
-                    fazendaId: fazenda.value,
-                    produtoId: produto.value,
-                    data_planejada: data.value,
-                    dosagem: parseFloat(dosagem.value),
-                    largura_faixa: parseInt(larguraFaixa.value),
-                    talhoes: App.state.activeOrdemServico.selectedTalhoes // This needs to be populated by map interaction
-                };
-                
-                if (!osData.fazendaId || !osData.produtoId || !osData.data_planejada || isNaN(osData.dosagem) || isNaN(osData.largura_faixa) || !osData.talhoes || osData.talhoes.length === 0) {
-                    App.ui.showAlert("Preencha todos os campos obrigatórios e selecione pelo menos um talhão.", "error");
-                    return;
-                }
-
-                try {
-                    const response = await fetch(`${App.config.backendUrl}/api/ordens-servico`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(osData)
-                    });
-                    if (!response.ok) throw new Error('Falha ao criar Ordem de Serviço no servidor.');
-                    
-                    App.ui.showAlert("Ordem de Serviço criada com sucesso!");
-                    App.ui.closeOrdemServicoModal();
-                } catch (error) {
-                    App.ui.showAlert(error.message, "error");
-                }
-            },
-            async handleLogUpload(osId, file) {
-                if (!file) return;
-
-                App.ui.setLoading(true, "Enviando arquivo de log...");
-                const formData = new FormData();
-                formData.append('logFile', file);
-
-                try {
-                    const response = await fetch(`${App.config.backendUrl}/api/aplicacoes/upload-log/${osId}`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) throw new Error(result.message || 'Erro no servidor.');
-                    
-                    App.ui.showAlert(result.message, "success");
-                } catch (error) {
-                    App.ui.showAlert(`Falha no upload: ${error.message}`, "error");
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
             async importFarmsFromCSV(file) {
                  if (!file) return;
                  const reader = new FileReader();
@@ -3732,9 +3372,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.unreadNotificationCount = 0;
                 App.ui.updateNotificationBell();
             },
-            openTrapMap() {
-                App.ui.openMapViewerModal('view_traps');
-            },
             // NOVO: Ação para limpar todas as notificações
             clearAllNotifications() {
                 App.state.trapNotifications = [];
@@ -3999,18 +3636,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const themeColors = App.ui._getThemeColors();
 
                 dataLayer.setStyle(feature => {
-                    let fillOpacity = 0.20;
-                    let fillColor = themeColors.primary;
-                    if (feature.getProperty('isSelectedForOS')) {
-                        fillOpacity = 0.7;
-                        fillColor = '#FFD700'; // Amarelo para seleção de OS
-                    } else if (feature.getProperty('isSelected')) {
-                        fillOpacity = 0.85;
+                    let fillOpacity = 0.20; // Padrão (mais claro para realçar a seleção)
+                    if (feature.getProperty('isSelected')) {
+                        fillOpacity = 0.85; // Selecionado (bem destacado)
                     } else if (feature.getProperty('isHovered')) {
-                        fillOpacity = 0.60;
+                        fillOpacity = 0.60; // Hover (destaque intermediário)
                     }
                     return ({
-                        fillColor: fillColor,
+                        fillColor: themeColors.primary,
                         fillOpacity: fillOpacity,
                         strokeColor: '#FFD700',
                         strokeWeight: 2,
@@ -4028,11 +3661,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 dataLayer.addListener('click', (event) => {
-                    if (App.state.mapMode === 'os_selection') {
-                        this.toggleTalhaoSelection(event.feature);
-                        return;
-                    }
-
                     if (App.state.trapPlacementMode === 'manual_select') {
                         const selectedFeature = event.feature;
                         const userMarker = App.state.googleUserMarker;
@@ -4631,88 +4259,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.googleMap.setZoom(18);
                     this.showTrapInfo(trapId);
                 }
-            },
-            toggleTalhaoSelection(feature) {
-                if (!App.state.activeOrdemServico) return;
-
-                const talhaoId = feature.getProperty('id') || feature.getProperty('TALHAO_ID') || Date.now(); // Fallback ID
-                const talhaoName = feature.getProperty('CD_TALHAO') || feature.getProperty('TALHAO') || 'Talhão Desconhecido';
-                
-                const selectedTalhoes = App.state.activeOrdemServico.selectedTalhoes;
-                const index = selectedTalhoes.findIndex(t => t.id === talhaoId);
-
-                if (index > -1) {
-                    // Deselect
-                    selectedTalhoes.splice(index, 1);
-                    feature.setProperty('isSelectedForOS', false);
-                } else {
-                    // Select
-                    selectedTalhoes.push({
-                        id: talhaoId,
-                        name: talhaoName
-                    });
-                    feature.setProperty('isSelectedForOS', true);
-                }
-                App.ui.updateSelectedTalhoesList();
-            },
-
-            clearOsSelectionHighlights() {
-                const dataLayer = App.state.mapPolygons[0];
-                if (dataLayer) {
-                    dataLayer.forEach(feature => {
-                        if (feature.getProperty('isSelectedForOS')) {
-                            feature.setProperty('isSelectedForOS', false);
-                        }
-                    });
-                }
-            },
-            
-            clearApplicationLayers() {
-                App.state.mapResultLayers.forEach(layer => layer.setMap(null));
-                App.state.mapResultLayers = [];
-            },
-
-            drawApplicationResults(data) {
-                this.clearApplicationLayers();
-                const map = App.state.googleMap;
-                if (!map) return;
-
-                const bounds = new google.maps.LatLngBounds();
-
-                const createLayer = (geometry, color, zIndex) => {
-                    const layer = new google.maps.Data({ map });
-                    layer.addGeoJson({ type: 'Feature', geometry });
-                    layer.setStyle({
-                        fillColor: color,
-                        strokeColor: color,
-                        fillOpacity: 0.7,
-                        strokeWeight: 1,
-                        zIndex: zIndex
-                    });
-                    App.state.mapResultLayers.push(layer);
-                    
-                    // Extend bounds
-                    if (geometry) {
-                        const processPoints = (coords) => {
-                            if (Array.isArray(coords) && coords.length > 0) {
-                                if (typeof coords[0] === 'number') {
-                                    bounds.extend(new google.maps.LatLng(coords[1], coords[0]));
-                                } else {
-                                    coords.forEach(processPoints);
-                                }
-                            }
-                        };
-                        processPoints(geometry.coordinates);
-                    }
-                };
-
-                if (data.geometria_correta) createLayer(data.geometria_correta, '#4CAF50', 3); // Verde
-                if (data.geometria_desperdicio) createLayer(data.geometria_desperdicio, '#D32F2F', 2); // Vermelho
-                if (data.geometria_falha) createLayer(data.geometria_falha, '#FBC02D', 1); // Amarelo
-
-                if (!bounds.isEmpty()) {
-                    map.fitBounds(bounds);
-                }
             }
         },
 
@@ -4778,63 +4324,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 const canvas = document.getElementById(canvasId);
                 const ctx = canvas?.getContext('2d');
                 if (!ctx) return;
-
+            
                 const container = canvas.parentElement;
                 const loader = container.querySelector('.chart-loader');
-
-                // Use Chart.js's built-in method to get the chart instance.
-                const existingChart = Chart.getChart(canvasId);
-                if (existingChart) {
-                    // If the data is identical, no need to re-render.
-                    if (JSON.stringify(existingChart.config.data) === JSON.stringify(config.data)) {
-                        if (loader) loader.style.display = 'none';
-                        canvas.style.visibility = 'visible';
-                        return;
-                    }
-                    existingChart.destroy();
+            
+                // Cache check: if chart exists and data is identical, do nothing.
+                const existingChart = App.state.charts[id];
+                if (existingChart && JSON.stringify(existingChart.config.data) === JSON.stringify(config.data)) {
+                    if (loader) loader.style.display = 'none';
+                    canvas.style.visibility = 'visible';
+                    return;
                 }
-
-                if (!isExpanded && loader) {
-                    loader.style.display = 'block';
-                    canvas.style.visibility = 'hidden';
+            
+                if (!isExpanded) {
+                    if (loader) loader.style.display = 'block';
+                    canvas.style.visibility = 'hidden'; // Hide canvas before rendering
                 }
-
+                
+                const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+            
                 // A small delay can help ensure the loader is displayed before the chart starts rendering.
                 setTimeout(() => {
                     config.options = config.options || {};
                     config.options.animation = config.options.animation || {};
                     const existingOnComplete = config.options.animation.onComplete;
-
+            
                     config.options.animation.onComplete = (animation) => {
-                        if (!isExpanded && loader) {
-                            loader.style.display = 'none';
-                            canvas.style.visibility = 'visible';
+                        if (!isExpanded) {
+                            if (loader) loader.style.display = 'none';
+                            canvas.style.visibility = 'visible'; // Show canvas when animation is complete
                         }
-                        if (existingOnComplete) existingOnComplete(animation);
+                        if(existingOnComplete) existingOnComplete(animation);
                     };
-
+            
                     const newChart = new Chart(ctx, config);
                     if (isExpanded) {
                         App.state.expandedChart = newChart;
                     } else {
-                        // We no longer need to store the chart in App.state.charts
-                        // Chart.getChart(canvasId) is the source of truth.
+                        App.state.charts[id] = newChart;
                     }
                 }, 50);
             },
             
             destroyChartsByIds(ids) {
                 ids.forEach(id => {
-                    const chart = Chart.getChart(id);
-                    if (chart) {
+                    if (App.state.charts[id]) {
                         const canvas = document.getElementById(id);
                         if (canvas) {
                             const container = canvas.parentElement;
                             const loader = container.querySelector('.chart-loader');
                             if (loader) loader.style.display = 'block';
-                            canvas.style.visibility = 'hidden';
+                            canvas.style.visibility = 'hidden'; 
                         }
-                        chart.destroy();
+                        App.state.charts[id].destroy();
+                        delete App.state.charts[id];
                     }
                 });
             },
@@ -4847,33 +4393,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.expandedChart = null;
                 }
             },
-            openChartModal(chartId) {
-                const originalChart = App.state.charts[chartId];
-                if (!originalChart) return;
+            openChartModal(chartId) {
+                const originalChart = App.state.charts[chartId];
+                if (!originalChart) return;
 
-                const modal = App.elements.chartModal;
-                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).closest('.chart-card').querySelector('.chart-title').textContent;
-                
-                modal.title.textContent = originalTitle;
-                modal.overlay.classList.add('show');
-                
-                const config = JSON.parse(JSON.stringify(originalChart.config._config));
-                config.options.maintainAspectRatio = false;
-                
-                if (originalChart.config.options.plugins.datalabels.formatter) {
-                    config.options.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
-                }
+                const modal = App.elements.chartModal;
+                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).closest('.chart-card').querySelector('.chart-title').textContent;
+                
+                modal.title.textContent = originalTitle;
+                modal.overlay.classList.add('show');
+                
+                const config = JSON.parse(JSON.stringify(originalChart.config._config));
+                config.options.maintainAspectRatio = false;
+                
+                if (originalChart.config.options.plugins.datalabels.formatter) {
+                    config.options.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
+                }
 
-                this._createOrUpdateChart(chartId, config, true);
-            },
-            closeChartModal() {
-                const modal = App.elements.chartModal;
-                modal.overlay.classList.remove('show');
-                if (App.state.expandedChart) {
-                    App.state.expandedChart.destroy();
-                    App.state.expandedChart = null;
-                }
-            },
+                this._createOrUpdateChart(chartId, config, true);
+            },
+            closeChartModal() {
+                const modal = App.elements.chartModal;
+                modal.overlay.classList.remove('show');
+                if (App.state.expandedChart) {
+                    App.state.expandedChart.destroy();
+                    App.state.expandedChart = null;
+                }
+            },
 
             _renderChartAsync(renderFn) {
                 return new Promise(resolve => {
@@ -4884,522 +4430,522 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
             },
-            
-            async renderBrocaDashboardCharts() {
-                const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
-                App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
-                const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
+            
+            async renderBrocaDashboardCharts() {
+                const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
+                const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
 
                 await this._renderChartAsync(() => this.renderTop10FazendasBroca(data));
                 await this._renderChartAsync(() => this.renderBrocaMensal(data));
                 await this._renderChartAsync(() => this.renderBrocaPosicao(data));
                 await this._renderChartAsync(() => this.renderBrocaPorVariedade(data));
-            },
-            async renderPerdaDashboardCharts() {
-                const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
-                App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
-                const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
+            },
+            async renderPerdaDashboardCharts() {
+                const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
+                const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
                 await this._renderChartAsync(() => this.renderPerdaPorFrenteTurno(data));
                 await this._renderChartAsync(() => this.renderComposicaoPerdaPorFrente(data));
                 await this._renderChartAsync(() => this.renderTop10FazendasPerda(data));
                 await this._renderChartAsync(() => this.renderPerdaPorFrente(data));
-            },
-            renderTop10FazendasBroca(data) {
-                const fazendasMap = new Map();
-                data.forEach(item => {
-                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
-                    if (!fazendasMap.has(fazendaKey)) fazendasMap.set(fazendaKey, { totalEntrenos: 0, totalBrocado: 0 });
-                    const f = fazendasMap.get(fazendaKey);
-                    f.totalEntrenos += Number(item.entrenos);
-                    f.totalBrocado += Number(item.brocado);
-                });
-                const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }));
-                fazendasArray.sort((a, b) => b.indice - a.indice);
-                const top10 = fazendasArray.slice(0, 10);
-                
-                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+            },
+            renderTop10FazendasBroca(data) {
+                const fazendasMap = new Map();
+                data.forEach(item => {
+                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
+                    if (!fazendasMap.has(fazendaKey)) fazendasMap.set(fazendaKey, { totalEntrenos: 0, totalBrocado: 0 });
+                    const f = fazendasMap.get(fazendaKey);
+                    f.totalEntrenos += Number(item.entrenos);
+                    f.totalBrocado += Number(item.brocado);
+                });
+                const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }));
+                fazendasArray.sort((a, b) => b.indice - a.indice);
+                const top10 = fazendasArray.slice(0, 10);
+                
+                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoTop10FazendasBroca', {
-                    type: 'bar',
-                    data: {
-                        labels: top10.map(f => f.nome),
-                        datasets: [{
-                            label: 'Índice de Broca (%)',
-                            data: top10.map(f => f.indice),
-                            backgroundColor: this._getVibrantColors(top10.length)
-                        }]
-                    },
-                    options: { 
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor, 
-                                anchor: 'end', 
-                                align: 'end',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)}%`
-                            }
-                        }
-                    }
-                });
-            },
-            renderBrocaMensal(data) {
-                const dataByMonth = {};
-                data.forEach(item => {
-                    if (!item.data) return;
-                    const date = new Date(item.data + 'T03:00:00Z');
-                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                    const monthLabel = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
-                    if (!dataByMonth[monthKey]) dataByMonth[monthKey] = { totalBrocado: 0, totalEntrenos: 0, label: monthLabel };
-                    dataByMonth[monthKey].totalBrocado += Number(item.brocado);
-                    dataByMonth[monthKey].totalEntrenos += Number(item.entrenos);
-                });
-                const sortedMonths = Object.keys(dataByMonth).sort();
-                const labels = sortedMonths.map(key => dataByMonth[key].label);
-                const chartData = sortedMonths.map(key => {
-                    const monthData = dataByMonth[key];
-                    return monthData.totalEntrenos > 0 ? (monthData.totalBrocado / monthData.totalEntrenos) * 100 : 0;
-                });
-                
-                const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+                this._createOrUpdateChart('graficoTop10FazendasBroca', {
+                    type: 'bar',
+                    data: {
+                        labels: top10.map(f => f.nome),
+                        datasets: [{
+                            label: 'Índice de Broca (%)',
+                            data: top10.map(f => f.indice),
+                            backgroundColor: this._getVibrantColors(top10.length)
+                        }]
+                    },
+                    options: { 
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)}%`
+                            }
+                        }
+                    }
+                });
+            },
+            renderBrocaMensal(data) {
+                const dataByMonth = {};
+                data.forEach(item => {
+                    if (!item.data) return;
+                    const date = new Date(item.data + 'T03:00:00Z');
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    const monthLabel = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
+                    if (!dataByMonth[monthKey]) dataByMonth[monthKey] = { totalBrocado: 0, totalEntrenos: 0, label: monthLabel };
+                    dataByMonth[monthKey].totalBrocado += Number(item.brocado);
+                    dataByMonth[monthKey].totalEntrenos += Number(item.entrenos);
+                });
+                const sortedMonths = Object.keys(dataByMonth).sort();
+                const labels = sortedMonths.map(key => dataByMonth[key].label);
+                const chartData = sortedMonths.map(key => {
+                    const monthData = dataByMonth[key];
+                    return monthData.totalEntrenos > 0 ? (monthData.totalBrocado / monthData.totalEntrenos) * 100 : 0;
+                });
+                
+                const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoBrocaMensal', {
-                    type: 'line',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Índice Mensal (%)',
-                            data: chartData,
-                            fill: true,
-                            borderColor: App.ui._getThemeColors().primary,
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            tension: 0.4
-                        }]
-                    },
-                    options: { 
-                        ...commonOptions,
-                        scales: { 
-                            ...commonOptions.scales,
-                            y: { ...commonOptions.scales.y, grid: { color: 'transparent', drawBorder: false } } 
-                        },
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                anchor: 'end', align: 'top', offset: 8,
-                                color: datalabelColor,
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)}%`
-                            }
-                        }
-                    }
-                });
-            },
-            renderBrocaPosicao(data) {
-                const totalBase = data.reduce((sum, item) => sum + Number(item.base), 0);
-                const totalMeio = data.reduce((sum, item) => sum + Number(item.meio), 0);
-                const totalTopo = data.reduce((sum, item) => sum + Number(item.topo), 0);
-                const totalGeral = totalBase + totalMeio + totalTopo;
-                
-                const commonOptions = this._getCommonChartOptions();
+                this._createOrUpdateChart('graficoBrocaMensal', {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Índice Mensal (%)',
+                            data: chartData,
+                            fill: true,
+                            borderColor: App.ui._getThemeColors().primary,
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: { 
+                        ...commonOptions,
+                        scales: { 
+                            ...commonOptions.scales,
+                            y: { ...commonOptions.scales.y, grid: { color: 'transparent', drawBorder: false } } 
+                        },
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'top', offset: 8,
+                                color: datalabelColor,
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)}%`
+                            }
+                        }
+                    }
+                });
+            },
+            renderBrocaPosicao(data) {
+                const totalBase = data.reduce((sum, item) => sum + Number(item.base), 0);
+                const totalMeio = data.reduce((sum, item) => sum + Number(item.meio), 0);
+                const totalTopo = data.reduce((sum, item) => sum + Number(item.topo), 0);
+                const totalGeral = totalBase + totalMeio + totalTopo;
+                
+                const commonOptions = this._getCommonChartOptions();
 
-                this._createOrUpdateChart('graficoBrocaPosicao', {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Base', 'Meio', 'Topo'],
-                        datasets: [{
-                            label: 'Posição da Broca',
-                            data: [totalBase, totalMeio, totalTopo],
-                            backgroundColor: this._getVibrantColors(3)
-                        }]
-                    },
-                    options: { 
-                        responsive: true, maintainAspectRatio: false,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { ...commonOptions.plugins.legend, position: 'top' },
-                            datalabels: {
-                                color: '#FFFFFF', 
-                                font: { weight: 'bold', size: 16 },
-                                formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(2)}%` : '0.00%'
-                            }
-                        }
-                    }
-                });
-            },
-            renderBrocaPorVariedade(data) {
-                const variedadesMap = new Map();
-                const fazendas = App.state.fazendas;
+                this._createOrUpdateChart('graficoBrocaPosicao', {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Base', 'Meio', 'Topo'],
+                        datasets: [{
+                            label: 'Posição da Broca',
+                            data: [totalBase, totalMeio, totalTopo],
+                            backgroundColor: this._getVibrantColors(3)
+                        }]
+                    },
+                    options: { 
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { ...commonOptions.plugins.legend, position: 'top' },
+                            datalabels: {
+                                color: '#FFFFFF', 
+                                font: { weight: 'bold', size: 16 },
+                                formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(2)}%` : '0.00%'
+                            }
+                        }
+                    }
+                });
+            },
+            renderBrocaPorVariedade(data) {
+                const variedadesMap = new Map();
+                const fazendas = App.state.fazendas;
 
-                data.forEach(item => {
-                    const farm = fazendas.find(f => f.code === item.codigo);
-                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === item.talhao.toUpperCase());
-                    const variedade = talhao?.variedade || 'N/A';
+                data.forEach(item => {
+                    const farm = fazendas.find(f => f.code === item.codigo);
+                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === item.talhao.toUpperCase());
+                    const variedade = talhao?.variedade || 'N/A';
 
-                    if (!variedadesMap.has(variedade)) {
-                        variedadesMap.set(variedade, { totalEntrenos: 0, totalBrocado: 0 });
-                    }
-                    const v = variedadesMap.get(variedade);
-                    v.totalEntrenos += Number(item.entrenos);
-                    v.totalBrocado += Number(item.brocado);
-                });
+                    if (!variedadesMap.has(variedade)) {
+                        variedadesMap.set(variedade, { totalEntrenos: 0, totalBrocado: 0 });
+                    }
+                    const v = variedadesMap.get(variedade);
+                    v.totalEntrenos += Number(item.entrenos);
+                    v.totalBrocado += Number(item.brocado);
+                });
 
-                const variedadesArray = Array.from(variedadesMap.entries())
-                    .map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }))
-                    .filter(v => v.nome !== 'N/A');
-                    
-                variedadesArray.sort((a, b) => b.indice - a.indice);
-                const top10 = variedadesArray.slice(0, 10);
+                const variedadesArray = Array.from(variedadesMap.entries())
+                    .map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }))
+                    .filter(v => v.nome !== 'N/A');
+                    
+                variedadesArray.sort((a, b) => b.indice - a.indice);
+                const top10 = variedadesArray.slice(0, 10);
 
-                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoBrocaPorVariedade', {
-                    type: 'bar',
-                    data: {
-                        labels: top10.map(v => v.nome),
-                        datasets: [{
-                            label: 'Índice de Broca (%)',
-                            data: top10.map(v => v.indice),
-                            backgroundColor: this._getVibrantColors(top10.length).reverse()
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor, 
-                                anchor: 'end', 
-                                align: 'end',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)}%`
-                            }
-                        }
-                    }
-                });
-            },
-            renderPerdaPorFrenteTurno(data) {
-                const structuredData = {};
-                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-                const turnos = [...new Set(data.map(p => p.turno || 'N/A'))].sort();
+                this._createOrUpdateChart('graficoBrocaPorVariedade', {
+                    type: 'bar',
+                    data: {
+                        labels: top10.map(v => v.nome),
+                        datasets: [{
+                            label: 'Índice de Broca (%)',
+                            data: top10.map(v => v.indice),
+                            backgroundColor: this._getVibrantColors(top10.length).reverse()
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)}%`
+                            }
+                        }
+                    }
+                });
+            },
+            renderPerdaPorFrenteTurno(data) {
+                const structuredData = {};
+                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                const turnos = [...new Set(data.map(p => p.turno || 'N/A'))].sort();
 
-                turnos.forEach(turno => {
-                    structuredData[turno] = {};
-                    frentes.forEach(frente => {
-                        structuredData[turno][frente] = { total: 0, count: 0 };
-                    });
-                });
+                turnos.forEach(turno => {
+                    structuredData[turno] = {};
+                    frentes.forEach(frente => {
+                        structuredData[turno][frente] = { total: 0, count: 0 };
+                    });
+                });
 
-                data.forEach(p => {
-                    const frente = p.frenteServico || 'N/A';
-                    const turno = p.turno || 'N/A';
-                    if (structuredData[turno] && structuredData[turno][frente]) {
-                        structuredData[turno][frente].total += p.total;
-                        structuredData[turno][frente].count++;
-                    }
-                });
+                data.forEach(p => {
+                    const frente = p.frenteServico || 'N/A';
+                    const turno = p.turno || 'N/A';
+                    if (structuredData[turno] && structuredData[turno][frente]) {
+                        structuredData[turno][frente].total += p.total;
+                        structuredData[turno][frente].count++;
+                    }
+                });
 
-                const datasets = frentes.map((frente, index) => ({
-                    label: `Frente ${frente}`,
-                    data: turnos.map(turno => {
-                        const d = structuredData[turno][frente];
-                        return d.count > 0 ? d.total / d.count : 0;
-                    }),
-                    backgroundColor: this._getVibrantColors(frentes.length)[index]
-                }));
-                
-                const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+                const datasets = frentes.map((frente, index) => ({
+                    label: `Frente ${frente}`,
+                    data: turnos.map(turno => {
+                        const d = structuredData[turno][frente];
+                        return d.count > 0 ? d.total / d.count : 0;
+                    }),
+                    backgroundColor: this._getVibrantColors(frentes.length)[index]
+                }));
+                
+                const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
-                    type: 'bar',
-                    data: { labels: turnos.map(t => `Turno ${t}`), datasets },
-                    options: {
-                        ...commonOptions,
-                        scales: { 
-                            ...commonOptions.scales,
-                            y: { ...commonOptions.scales.y, title: { display: true, text: 'Perda Média (kg)', color: commonOptions.scales.y.ticks.color } } 
-                        },
-                        plugins: {
-                            ...commonOptions.plugins,
-                            datalabels: {
-                                color: datalabelColor,
-                                font: { weight: 'bold', size: 12 },
-                                formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
-                            }
-                        }
-                    }
-                });
-            },
-            renderComposicaoPerdaPorFrente(data) {
-                const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
-                const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
-                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-                const structuredData = {};
+                this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
+                    type: 'bar',
+                    data: { labels: turnos.map(t => `Turno ${t}`), datasets },
+                    options: {
+                        ...commonOptions,
+                        scales: { 
+                            ...commonOptions.scales,
+                            y: { ...commonOptions.scales.y, title: { display: true, text: 'Perda Média (kg)', color: commonOptions.scales.y.ticks.color } } 
+                        },
+                        plugins: {
+                            ...commonOptions.plugins,
+                            datalabels: {
+                                color: datalabelColor,
+                                font: { weight: 'bold', size: 12 },
+                                formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
+                            }
+                        }
+                    }
+                });
+            },
+            renderComposicaoPerdaPorFrente(data) {
+                const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
+                const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
+                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                const structuredData = {};
 
-                tiposDePerda.forEach(tipo => {
-                    structuredData[tipo] = {};
-                    frentes.forEach(frente => {
-                        structuredData[tipo][frente] = 0;
-                    });
-                });
+                tiposDePerda.forEach(tipo => {
+                    structuredData[tipo] = {};
+                    frentes.forEach(frente => {
+                        structuredData[tipo][frente] = 0;
+                    });
+                });
 
-                data.forEach(item => {
-                    const frente = item.frenteServico || 'N/A';
-                    tiposDePerda.forEach(tipo => {
-                        structuredData[tipo][frente] += item[tipo] || 0;
-                    });
-                });
+                data.forEach(item => {
+                    const frente = item.frenteServico || 'N/A';
+                    tiposDePerda.forEach(tipo => {
+                        structuredData[tipo][frente] += item[tipo] || 0;
+                    });
+                });
 
-                const datasets = frentes.map((frente, index) => ({
-                    label: `Frente ${frente}`,
-                    data: tiposDePerda.map(tipo => structuredData[tipo][frente]),
-                    backgroundColor: this._getVibrantColors(frentes.length)[index]
-                }));
+                const datasets = frentes.map((frente, index) => ({
+                    label: `Frente ${frente}`,
+                    data: tiposDePerda.map(tipo => structuredData[tipo][frente]),
+                    backgroundColor: this._getVibrantColors(frentes.length)[index]
+                }));
 
-                const commonOptions = this._getCommonChartOptions();
-                
-                this._createOrUpdateChart('graficoComposicaoPerda', {
-                    type: 'bar',
-                    data: { labels: tiposLabels, datasets },
-                    options: {
-                        ...commonOptions,
-                        scales: { 
-                            x: { ...commonOptions.scales.x, stacked: true }, 
-                            y: { ...commonOptions.scales.y, stacked: true, title: { display: true, text: 'Perda Total (kg)', color: commonOptions.scales.y.ticks.color } } 
-                        },
-                        plugins: {
-                             ...commonOptions.plugins,
-                             datalabels: {
-                                color: '#FFFFFF',
-                                font: { weight: 'bold' },
-                                formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
-                            }
-                        }
-                    }
-                });
-            },
-            renderTop10FazendasPerda(data) {
-                const fazendas = {};
-                data.forEach(item => {
-                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
-                    if (!fazendas[fazendaKey]) fazendas[fazendaKey] = { total: 0, count: 0 };
-                    fazendas[fazendaKey].total += item.total;
-                    fazendas[fazendaKey].count++;
-                });
-                const sortedFazendas = Object.entries(fazendas)
-                    .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
-                    .sort((a, b) => b.media - a.media).slice(0, 10);
+                const commonOptions = this._getCommonChartOptions();
+                
+                this._createOrUpdateChart('graficoComposicaoPerda', {
+                    type: 'bar',
+                    data: { labels: tiposLabels, datasets },
+                    options: {
+                        ...commonOptions,
+                        scales: { 
+                            x: { ...commonOptions.scales.x, stacked: true }, 
+                            y: { ...commonOptions.scales.y, stacked: true, title: { display: true, text: 'Perda Total (kg)', color: commonOptions.scales.y.ticks.color } } 
+                        },
+                        plugins: {
+                             ...commonOptions.plugins,
+                             datalabels: {
+                                color: '#FFFFFF',
+                                font: { weight: 'bold' },
+                                formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
+                            }
+                        }
+                    }
+                });
+            },
+            renderTop10FazendasPerda(data) {
+                const fazendas = {};
+                data.forEach(item => {
+                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
+                    if (!fazendas[fazendaKey]) fazendas[fazendaKey] = { total: 0, count: 0 };
+                    fazendas[fazendaKey].total += item.total;
+                    fazendas[fazendaKey].count++;
+                });
+                const sortedFazendas = Object.entries(fazendas)
+                    .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
+                    .sort((a, b) => b.media - a.media).slice(0, 10);
 
-                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoTop10FazendasPerda', {
-                    type: 'bar',
-                    data: {
-                        labels: sortedFazendas.map(f => f.nome),
-                        datasets: [{
-                            label: 'Perda Média (kg)',
-                            data: sortedFazendas.map(f => f.media),
-                            backgroundColor: this._getVibrantColors(sortedFazendas.length)
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor, 
-                                anchor: 'end', 
-                                align: 'end',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)} kg`
-                            }
-                        }
-                    }
-                });
-            },
-            renderPerdaPorFrente(data) {
-                const frentes = {};
-                data.forEach(item => {
-                    const frente = item.frenteServico || 'N/A';
-                    if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
-                    frentes[frente].total += item.total;
-                    frentes[frente].count++;
-                });
-                const sortedFrentes = Object.entries(frentes)
-                    .map(([nome, data]) => ({ nome: `Frente ${nome}`, media: data.count > 0 ? data.total / data.count : 0 }))
-                    .sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
+                this._createOrUpdateChart('graficoTop10FazendasPerda', {
+                    type: 'bar',
+                    data: {
+                        labels: sortedFazendas.map(f => f.nome),
+                        datasets: [{
+                            label: 'Perda Média (kg)',
+                            data: sortedFazendas.map(f => f.media),
+                            backgroundColor: this._getVibrantColors(sortedFazendas.length)
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)} kg`
+                            }
+                        }
+                    }
+                });
+            },
+            renderPerdaPorFrente(data) {
+                const frentes = {};
+                data.forEach(item => {
+                    const frente = item.frenteServico || 'N/A';
+                    if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
+                    frentes[frente].total += item.total;
+                    frentes[frente].count++;
+                });
+                const sortedFrentes = Object.entries(frentes)
+                    .map(([nome, data]) => ({ nome: `Frente ${nome}`, media: data.count > 0 ? data.total / data.count : 0 }))
+                    .sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
 
-                const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+                const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoPerdaPorFrente', {
-                    type: 'bar',
-                    data: {
-                        labels: sortedFrentes.map(f => f.nome),
-                        datasets: [{
-                            label: 'Perda Média (kg)',
-                            data: sortedFrentes.map(f => f.media),
-                            backgroundColor: this._getVibrantColors(sortedFrentes.length)
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor, 
-                                anchor: 'end', 
-                                align: 'end',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)} kg`
-                            }
-                        }
-                    }
-                });
-            }
-        },
+                this._createOrUpdateChart('graficoPerdaPorFrente', {
+                    type: 'bar',
+                    data: {
+                        labels: sortedFrentes.map(f => f.nome),
+                        datasets: [{
+                            label: 'Perda Média (kg)',
+                            data: sortedFrentes.map(f => f.media),
+                            backgroundColor: this._getVibrantColors(sortedFrentes.length)
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)} kg`
+                            }
+                        }
+                    }
+                });
+            }
+        },
 
-        reports: {
-            _fetchAndDownloadReport(endpoint, filters, filename) {
-                const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
-                cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
+        reports: {
+            _fetchAndDownloadReport(endpoint, filters, filename) {
+                const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
+                cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
 
-                const params = new URLSearchParams(cleanFilters);
-                const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
-                
-                App.ui.setLoading(true, "A gerar relatório no servidor...");
-        
-                fetch(apiUrl)
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
-                        }
-                        return response.blob();
-                    })
-                    .then(blob => {
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.style.display = 'none';
-                        a.href = url;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                        a.remove();
-                        App.ui.showAlert('Relatório gerado com sucesso!');
-                    })
-                    .catch(error => {
-                        console.error('Erro ao gerar relatório via API:', error);
-                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
-                    })
-                    .finally(() => {
-                        App.ui.setLoading(false);
-                    });
-            },
-            
-            generateBrocamentoPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value,
-                    tipos: selectedTypes.join(',')
-                };
-                this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
-            },
-        
-            generateBrocamentoCSV() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value,
-                    tipos: selectedTypes.join(',')
-                };
-                this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
-            },
-        
-            generatePerdaPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    talhao: filtroTalhao.value,
-                    matricula: filtroOperador.value,
-                    frenteServico: filtroFrente.value,
-                    tipoRelatorio: tipoRelatorio.value,
-                    tipos: selectedTypes.join(',')
-                };
-                this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
-            },
-        
-            generatePerdaCSV() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value,
-                    tipos: selectedTypes.join(',')
-                };
-                this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
-            },
-        
-            generateCustomHarvestReport(format) {
-                const { select, optionsContainer, tipoRelatorioSelect } = App.elements.relatorioColheita;
-                const planId = select.value;
-                const reportType = tipoRelatorioSelect.value;
-                
-                if (!planId) {
-                    App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
-                    return;
-                }
-                
-                let endpoint = `colheita/${format}`;
-                const filters = { planId };
-                
-                if (reportType === 'detalhado') {
-                    const selectedColumns = {};
-                    optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                        selectedColumns[cb.dataset.column] = cb.checked;
-                    });
-                    filters.selectedColumns = JSON.stringify(selectedColumns);
-                } else {
-                    endpoint = `colheita/mensal/${format}`;
-                }
-                
-                this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
-            },
+                const params = new URLSearchParams(cleanFilters);
+                const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
+                
+                App.ui.setLoading(true, "A gerar relatório no servidor...");
+        
+                fetch(apiUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        a.remove();
+                        App.ui.showAlert('Relatório gerado com sucesso!');
+                    })
+                    .catch(error => {
+                        console.error('Erro ao gerar relatório via API:', error);
+                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
+                    })
+                    .finally(() => {
+                        App.ui.setLoading(false);
+                    });
+            },
+            
+            generateBrocamentoPDF() {
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: farm ? farm.code : '',
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
+                };
+                this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
+            },
+        
+            generateBrocamentoCSV() {
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: farm ? farm.code : '',
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
+                };
+                this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
+            },
+        
+            generatePerdaPDF() {
+                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: farm ? farm.code : '',
+                    talhao: filtroTalhao.value,
+                    matricula: filtroOperador.value,
+                    frenteServico: filtroFrente.value,
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
+                };
+                this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
+            },
+        
+            generatePerdaCSV() {
+                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.perda;
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: farm ? farm.code : '',
+                    tipoRelatorio: tipoRelatorio.value,
+                    tipos: selectedTypes.join(',')
+                };
+                this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
+            },
+        
+            generateCustomHarvestReport(format) {
+                const { select, optionsContainer, tipoRelatorioSelect } = App.elements.relatorioColheita;
+                const planId = select.value;
+                const reportType = tipoRelatorioSelect.value;
+                
+                if (!planId) {
+                    App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
+                    return;
+                }
+                
+                let endpoint = `colheita/${format}`;
+                const filters = { planId };
+                
+                if (reportType === 'detalhado') {
+                    const selectedColumns = {};
+                    optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                        selectedColumns[cb.dataset.column] = cb.checked;
+                    });
+                    filters.selectedColumns = JSON.stringify(selectedColumns);
+                } else {
+                    endpoint = `colheita/mensal/${format}`;
+                }
+                
+                this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
+            },
 
             generateArmadilhaPDF() {
                 const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
@@ -5472,7 +5018,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
             }
-        },
+        },
 
         pwa: {
             registerServiceWorker() {
@@ -5525,13 +5071,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-    };
+    };
 
-    // Disponibiliza a função de inicialização do mapa globalmente para o callback da API do Google
-    window.initMap = App.mapModule.initMap.bind(App.mapModule);
+    // Disponibiliza a função de inicialização do mapa globalmente para o callback da API do Google
+    window.initMap = App.mapModule.initMap.bind(App.mapModule);
 
-    // Inicia a aplicação
-    App.init();
+    // Inicia a aplicação
+    App.init();
 });
-
 
