@@ -2174,9 +2174,16 @@
             </section>
         </main>
         
-        <section id="monitoramentoAereo" class="tab-content card" aria-label="Monitoramento Aéreo" tabindex="0" hidden>
+        <section id="monitoramentoAereo" class="tab-content card" aria-label="Monitoramento de Armadilhas" tabindex="0" hidden>
             <div class="card-header-actions">
-                <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-plane-departure"></i> Monitoramento de Aplicação Aérea</h2>
+                <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-satellite-dish"></i> Monitoramento de Armadilhas</h2>
+            </div>
+            <p>Esta secção está em desenvolvimento. Em breve, poderá visualizar as suas armadilhas e dados de monitoramento diretamente no mapa aqui.</p>
+        </section>
+
+        <section id="pulverizacao" class="tab-content card" aria-label="Pulverização" tabindex="0" hidden>
+            <div class="card-header-actions">
+                <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-plane-departure"></i> Controle de Pulverização Aérea</h2>
                 <div class="button-group">
                     <button id="btnNewOrdemServico" class="save"><i class="fas fa-plus"></i> Nova Ordem de Serviço</button>
                 </div>
@@ -2374,7 +2381,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
-    <script src="https://unpkg.com/idb@7.1.1/build/index.js"></script>
     
     <script>
         function initMap() {
