@@ -2174,41 +2174,18 @@
             </section>
         </main>
         
-        <div id="monitoramentoAereo-container" class="tab-content">
-            <div id="aereo-sidebar">
-                <div class="sidebar-header">
-                    <h3>Ordens de Serviço</h3>
-                    <button id="btnNewOrdemServico" class="save" title="Nova Ordem de Serviço"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="ordemServicoList" class="sidebar-content">
-                    <!-- A lista de OS será renderizada aqui pelo JS -->
+        <section id="monitoramentoAereo" class="tab-content card" aria-label="Monitoramento Aéreo" tabindex="0" hidden>
+            <div class="card-header-actions">
+                <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-plane-departure"></i> Monitoramento de Aplicação Aérea</h2>
+                <div class="button-group">
+                    <button id="btnNewOrdemServico" class="save"><i class="fas fa-plus"></i> Nova Ordem de Serviço</button>
                 </div>
             </div>
-            <div id="map-container">
-                <div id="map-offline-status-container">
-                    <span id="map-offline-status-icon"><div class="spinner" style="width: 20px; height: 20px; border-width: 3px;"></div></span>
-                    <span id="map-offline-status-text">Verificando status do mapa offline...</span>
-                    <button id="btn-manual-cache-map" class="save" style="display: none;">Sincronizar Mapa</button>
-                </div>
-                <div id="map"></div>
-                <div class="map-controls">
-                    <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
-                        <i class="fas fa-location-arrow"></i>
-                    </button>
-                    <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                </div>
-                <div id="talhao-info-box" class="info-box">
-                    <button id="close-info-box" class="modal-close-btn">&times;</button>
-                    <div id="talhao-info-box-content"></div>
-                </div>
-                <div id="trap-info-box" class="info-box">
-                    <button id="close-trap-info-box" class="modal-close-btn">&times;</button>
-                    <div id="trap-info-box-content"></div>
-                </div>
+            <h3><i class="fas fa-tasks"></i> Ordens de Serviço</h3>
+            <div id="ordemServicoList" class="table-responsive">
+                <!-- A lista de OS será renderizada aqui pelo JS -->
             </div>
-        </div>
+        </section>
 
         <!-- MODAIS -->
         <div id="trapPlacementModal" class="modal-overlay">
@@ -2367,6 +2344,28 @@
             </div>
         </div>
 
+        <div id="mapViewerModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 95vw; height: 90vh; display: flex; flex-direction: column; padding: 15px;">
+                <div class="modal-header" style="padding-bottom: 10px; margin-bottom: 10px;">
+                    <h2 id="mapViewerTitle">Visualizador de Mapa</h2>
+                    <button id="mapViewerCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div id="map-container" style="flex-grow: 1; position: relative; border-radius: var(--border-radius); overflow: hidden;">
+                    <div id="map-offline-status-container">
+                        <span id="map-offline-status-icon"><div class="spinner" style="width: 20px; height: 20px; border-width: 3px;"></div></span>
+                        <span id="map-offline-status-text">Verificando status do mapa offline...</span>
+                        <button id="btn-manual-cache-map" class="save" style="display: none;">Sincronizar Mapa</button>
+                    </div>
+                    <div id="map" style="width: 100%; height: 100%;"></div>
+                    <div class="map-controls">
+                        <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim"><i class="fas fa-location-arrow"></i></button>
+                    </div>
+                    <div id="map-legend" style="position: absolute; bottom: 15px; right: 15px; background: color-mix(in srgb, var(--color-surface) 85%, transparent); backdrop-filter: blur(5px); padding: 10px; border-radius: var(--border-radius); box-shadow: var(--shadow-md); z-index: 2;">
+                        <!-- A legenda será preenchida pelo JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Bibliotecas Externas -->
@@ -2417,10 +2416,11 @@
                         </div>
                     </div>
                     <div id="osTalhaoSelectionContainer">
-                        <label>Talhões Selecionados (Clique no mapa para selecionar/deselecionar):</label>
+                        <label>Talhões Selecionados:</label>
                         <div id="osSelectedTalhoes" style="padding: 10px; background: var(--color-bg); border-radius: var(--border-radius); min-height: 40px; margin-top: 8px;">
                             <!-- Selected plots will be listed here -->
                         </div>
+                        <button id="btnSelectTalhoesOnMap" class="btn-secondary" style="width: 100%; margin-top: 10px;"><i class="fas fa-map-marked-alt"></i> Selecionar no Mapa</button>
                     </div>
                     <hr style="margin: 20px 0;">
                     <div class="form-row">
