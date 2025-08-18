@@ -92,12 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     ]
                 },
                 {
-                    label: 'AgroAéreo Tech', icon: 'fas fa-plane-up',
-                    submenu: [
-                        { label: 'Planejamento de Voos', icon: 'fas fa-plane-up', target: 'planejamentoVoos', permission: 'planejamentoVoos' },
-                    ]
-                },
-                {
                     label: 'Lançamentos', icon: 'fas fa-pen-to-square',
                     submenu: [
                         { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
@@ -125,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, planejamentoVoos: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
