@@ -1,7 +1,5 @@
 // server.js - Backend com Geração de PDF e Upload de Shapefile
 
-// server.js - Backend com Geração de PDF e Upload de Shapefile
-
 const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
@@ -9,19 +7,14 @@ const PDFDocument = require('pdfkit');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
-const fs = require('fs').promises;
 const axios = require('axios');
 const shp = require('shpjs');
-const DOMParser = require('xmldom').DOMParser;
-const { toGeoJSON } = require('@tmcw/togeojson');
-const turf = require('@turf/turf');
-const formidable = require('formidable');
+const pointInPolygon = require('point-in-polygon');
 
 const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-// Aumenta o limite do JSON para o upload de base64 e desativa o urlencoded do express, pois formidable cuidará dos formulários
 app.use(express.json({ limit: '50mb' }));
 
 try {
@@ -91,205 +84,6 @@ try {
             res.status(500).send({ message: `Erro no servidor ao processar o arquivo: ${error.message}` });
         }
     });
-
-    // --- [NOVO] ROTAS CRUD PARA AERONAVES ---
-    app.post('/api/aeronaves', async (req, res) => {
-        try {
-            const { prefixo, modelo, largura_faixa_aplicacao } = req.body;
-            if (!prefixo || !largura_faixa_aplicacao) {
-                return res.status(400).send({ message: 'Prefixo e Largura da Faixa são obrigatórios.' });
-            }
-            const docRef = await db.collection('aeronaves').add({
-                prefixo,
-                modelo,
-                largura_faixa_aplicacao: Number(largura_faixa_aplicacao),
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            res.status(201).send({ id: docRef.id, ...req.body });
-        } catch (error) {
-            res.status(500).send({ message: `Erro ao criar aeronave: ${error.message}` });
-        }
-    });
-
-    app.get('/api/aeronaves', async (req, res) => {
-        try {
-            const snapshot = await db.collection('aeronaves').orderBy('prefixo').get();
-            const aeronaves = [];
-            snapshot.forEach(doc => {
-                aeronaves.push({ id: doc.id, ...doc.data() });
-            });
-            res.status(200).send(aeronaves);
-        } catch (error) {
-            res.status(500).send({ message: `Erro ao buscar aeronaves: ${error.message}` });
-        }
-    });
-
-    // --- [NOVO] ROTAS CRUD PARA PRODUTOS DE PULVERIZAÇÃO ---
-     app.post('/api/produtos', async (req, res) => {
-        try {
-            const { nome, ingredienteAtivo } = req.body;
-            if (!nome) {
-                return res.status(400).send({ message: 'Nome do produto é obrigatório.' });
-            }
-            const docRef = await db.collection('produtosPulverizacao').add({
-                nome,
-                ingredienteAtivo,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            res.status(201).send({ id: docRef.id, ...req.body });
-        } catch (error) {
-            res.status(500).send({ message: `Erro ao criar produto: ${error.message}` });
-        }
-    });
-
-    app.get('/api/produtos', async (req, res) => {
-        try {
-            const snapshot = await db.collection('produtosPulverizacao').orderBy('nome').get();
-            const produtos = [];
-            snapshot.forEach(doc => {
-                produtos.push({ id: doc.id, ...doc.data() });
-            });
-            res.status(200).send(produtos);
-        } catch (error) {
-            res.status(500).send({ message: `Erro ao buscar produtos: ${error.message}` });
-        }
-    });
-
-    // --- [NOVO] ROTAS PARA ORDENS DE SERVIÇO ---
-    app.post('/api/ordens-servico', async (req, res) => {
-        try {
-            const osData = req.body;
-            if (!osData.dataOperacao || !osData.piloto || !osData.aeronaveId || !osData.produtoId) {
-                return res.status(400).send({ message: 'Dados da Ordem de Serviço incompletos.' });
-            }
-            const docRef = await db.collection('ordensServico').add({
-                ...osData,
-                status: 'Planejada',
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            res.status(201).send({ id: docRef.id });
-        } catch (error) {
-            res.status(500).send({ message: `Erro ao criar Ordem de Serviço: ${error.message}` });
-        }
-    });
-
-    app.get('/api/ordens-servico', async (req, res) => {
-        try {
-            const snapshot = await db.collection('ordensServico').orderBy('createdAt', 'desc').get();
-            const ordens = [];
-            snapshot.forEach(doc => {
-                ordens.push({ id: doc.id, ...doc.data() });
-            });
-            res.status(200).send(ordens);
-        } catch (error) {
-            res.status(500).send({ message: `Erro ao buscar Ordens de Serviço: ${error.message}` });
-        }
-    });
-
-    // --- [NOVO] ROTA DE ANÁLISE DE VOO ---
-
-    const getGeoJSONFromUrl = async (fileUrl) => {
-        const tempFilePath = path.join(os.tmpdir(), `temp_${Date.now()}`);
-        const response = await axios({ url: fileUrl, responseType: 'arraybuffer' });
-        await fs.writeFile(tempFilePath, response.data);
-
-        let geojson;
-        if (fileUrl.toLowerCase().includes('.kml')) {
-            const kmlContent = await fs.readFile(tempFilePath, 'utf8');
-            const kml = new DOMParser().parseFromString(kmlContent);
-            geojson = toGeoJSON.kml(kml);
-        } else if (fileUrl.toLowerCase().includes('.zip')) { // Assume SHP
-            const buffer = await fs.readFile(tempFilePath);
-            geojson = await shp(buffer);
-        } else {
-            throw new Error('Formato de arquivo de geometria não suportado. Use KML ou ZIP (para Shapefile).');
-        }
-
-        await fs.unlink(tempFilePath);
-        return geojson;
-    };
-
-
-    app.post('/api/ordens-servico/:id/analisar-voo', async (req, res) => {
-        const { id } = req.params;
-        const form = formidable({ multiples: false });
-
-        form.parse(req, async (err, fields, files) => {
-            if (err) {
-                return res.status(500).send({ message: `Erro no parse do formulário: ${err.message}` });
-            }
-
-            try {
-                const osRef = db.collection('ordensServico').doc(id);
-                const osDoc = await osRef.get();
-                if (!osDoc.exists) {
-                    return res.status(404).send({ message: 'Ordem de Serviço não encontrada.' });
-                }
-                const osData = osDoc.data();
-
-                // 1. Upload do log de voo
-                const logVooFile = files.logVoo;
-                if (!logVooFile) {
-                    return res.status(400).send({ message: 'Arquivo de log de voo não enviado.' });
-                }
-                const logVooPath = `executed_logs/${Date.now()}_${logVooFile.originalFilename}`;
-                await bucket.upload(logVooFile.filepath, { destination: logVooPath });
-                const logVooUrl = `https://storage.googleapis.com/${bucket.name}/${logVooPath}`;
-
-                // 2. Obter geometrias
-                const plannedGeoJSON = await getGeoJSONFromUrl(osData.geometriaPlanejadaUrl);
-                const executedGeoJSON = await getGeoJSONFromUrl(logVooUrl);
-
-                // 3. Obter dados da aeronave
-                const aeronaveDoc = await db.collection('aeronaves').doc(osData.aeronaveId).get();
-                if (!aeronaveDoc.exists) {
-                    return res.status(404).send({ message: 'Aeronave não encontrada.' });
-                }
-                const larguraFaixa = aeronaveDoc.data().largura_faixa_aplicacao; // em metros
-
-                // 4. Análise com Turf.js
-                const plannedPolygon = turf.multiPolygon(plannedGeoJSON.features[0].geometry.coordinates);
-                const executedLine = turf.lineString(executedGeoJSON.features[0].geometry.coordinates);
-
-                const bufferWidth = larguraFaixa / 2;
-                const bufferedExecuted = turf.buffer(executedLine, bufferWidth, { units: 'meters' });
-
-                const areaAplicada = turf.intersect(plannedPolygon, bufferedExecuted);
-                const areaFalha = turf.difference(plannedPolygon, bufferedExecuted);
-
-                // Cálculo de sobreposição (simplificado)
-                // Uma abordagem mais robusta poderia ser necessária para casos complexos
-                const areaSobreposicao = turf.area(bufferedExecuted) > turf.area(turf.union(bufferedExecuted)) ? turf.intersect(bufferedExecuted, bufferedExecuted) : null;
-
-                const analysisResult = {
-                    areaAplicada: areaAplicada ? turf.area(areaAplicada) : 0,
-                    areaFalha: areaFalha ? turf.area(areaFalha) : 0,
-                    areaTotalPlanejada: turf.area(plannedPolygon),
-                    geometriaAplicada: areaAplicada,
-                    geometriaFalha: areaFalha,
-                    geometriaSobreposicao: areaSobreposicao
-                };
-
-                // 5. Atualizar Ordem de Serviço
-                await osRef.update({
-                    status: 'Analisada',
-                    logVooUrl: logVooUrl,
-                    analysisResult: analysisResult,
-                    analyzedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-
-                res.status(200).send({
-                    message: 'Análise concluída com sucesso!',
-                    analysisResult
-                });
-
-            } catch (error) {
-                console.error("Erro detalhado na análise de voo:", error);
-                res.status(500).send({ message: `Erro ao processar análise de voo: ${error.message}` });
-            }
-        });
-    });
-
 
     // --- FUNÇÕES AUXILIARES ---
 
@@ -1485,78 +1279,6 @@ try {
         } catch (error) {
             console.error("Erro ao gerar CSV de Armadilhas Ativas:", error);
             res.status(500).send('Erro ao gerar relatório.');
-        }
-    });
-
-    app.get('/reports/pulverizacao/pdf', async (req, res) => {
-        const doc = new PDFDocument({ margin: 50, size: 'A4' });
-        const { osId, generatedBy } = req.query;
-
-        if (!osId) {
-            return res.status(400).send('ID da Ordem de Serviço é obrigatório.');
-        }
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=relatorio_pulverizacao_${osId}.pdf`);
-        doc.pipe(res);
-
-        try {
-            const osDoc = await db.collection('ordensServico').doc(osId).get();
-            if (!osDoc.exists) throw new Error('Ordem de Serviço não encontrada.');
-            const osData = osDoc.data();
-
-            const [aeronaveDoc, produtoDoc] = await Promise.all([
-                db.collection('aeronaves').doc(osData.aeronaveId).get(),
-                db.collection('produtosPulverizacao').doc(osData.produtoId).get()
-            ]);
-
-            const aeronaveData = aeronaveDoc.exists ? aeronaveDoc.data() : { prefixo: 'N/A' };
-            const produtoData = produtoDoc.exists ? produtoDoc.data() : { nome: 'N/A' };
-
-            await generatePdfHeader(doc, 'Relatório de Análise de Pulverização');
-
-            doc.fontSize(12).font('Helvetica-Bold').text('Dados da Operação', { underline: true });
-            doc.moveDown(0.5);
-
-            const infoY = doc.y;
-            doc.fontSize(10).font('Helvetica');
-            doc.text(`Data da Operação:`, { continued: true }).font('Helvetica-Bold').text(` ${osData.dataOperacao}`);
-            doc.text(`Piloto Responsável:`, { continued: true }).font('Helvetica-Bold').text(` ${osData.piloto}`);
-            doc.text(`Aeronave:`, { continued: true }).font('Helvetica-Bold').text(` ${aeronaveData.prefixo} (${aeronaveData.modelo || 'N/A'})`);
-            doc.text(`Produto Aplicado:`, { continued: true }).font('Helvetica-Bold').text(` ${produtoData.nome}`);
-            doc.text(`Dosagem:`, { continued: true }).font('Helvetica-Bold').text(` ${osData.dosagem} L/ha`);
-
-            doc.moveDown(2);
-
-            doc.fontSize(12).font('Helvetica-Bold').text('Resumo da Análise', { underline: true });
-            doc.moveDown(0.5);
-
-            const m2ToHa = (m2) => (m2 / 10000).toFixed(2);
-            const analysis = osData.analysisResult;
-            if (analysis) {
-                const totalPlanejadoHa = m2ToHa(analysis.areaTotalPlanejada);
-                const totalAplicadoHa = m2ToHa(analysis.areaAplicada);
-                const totalFalhaHa = m2ToHa(analysis.areaFalha);
-                const eficiencia = totalPlanejadoHa > 0 ? ((totalAplicadoHa / totalPlanejadoHa) * 100).toFixed(2) : 0;
-
-                doc.fontSize(10).font('Helvetica');
-                doc.text(`Área Total Planejada:`, { continued: true }).font('Helvetica-Bold').text(` ${totalPlanejadoHa} ha`);
-                doc.text(`Área Total Aplicada:`, { continued: true }).font('Helvetica-Bold').text(` ${totalAplicadoHa} ha`);
-                doc.fillColor('red').text(`Área com Falha:`, { continued: true }).font('Helvetica-Bold').text(` ${totalFalhaHa} ha`);
-                doc.fillColor('black').text(`Eficiência da Aplicação:`, { continued: true }).font('Helvetica-Bold').text(` ${eficiencia}%`);
-            } else {
-                doc.fontSize(10).font('Helvetica').text('Nenhuma análise encontrada para esta Ordem de Serviço.');
-            }
-
-            generatePdfFooter(doc, generatedBy);
-            doc.end();
-
-        } catch (error) {
-            console.error("Erro ao gerar PDF de Pulverização:", error);
-            if (!res.headersSent) {
-                doc.end();
-                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
-            }
         }
     });
 
