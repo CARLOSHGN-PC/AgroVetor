@@ -93,6 +93,29 @@ try {
         }
     });
 
+    app.get('/api/aplicacoes/:osId', async (req, res) => {
+        try {
+            const osId = req.params.osId;
+            const aplicacoesRef = db.collection('aplicacoes');
+            const snapshot = await aplicacoesRef.where('ordem_servico_id', '==', osId).limit(1).get();
+
+            if (snapshot.empty) {
+                return res.status(404).send({ message: 'Nenhum resultado de aplicação encontrado para esta Ordem de Serviço.' });
+            }
+            
+            let aplicacaoData;
+            snapshot.forEach(doc => {
+                aplicacaoData = { id: doc.id, ...doc.data() };
+            });
+
+            res.status(200).send(aplicacaoData);
+
+        } catch (error) {
+            console.error("Erro ao buscar resultado da aplicação:", error);
+            res.status(500).send({ message: `Erro no servidor: ${error.message}` });
+        }
+    });
+
     // --- FUNÇÕES AUXILIARES ---
 
     const formatNumber = (num) => {
@@ -346,49 +369,49 @@ try {
             if (!req.file) {
                 return res.status(400).send({ message: 'Nenhum arquivo de log enviado.' });
             }
-
+    
             const osId = req.params.osId;
             const ordemServicoRef = db.collection('ordens_servico').doc(osId);
             const ordemServicoDoc = await ordemServicoRef.get();
-
+    
             if (!ordemServicoDoc.exists) {
                 return res.status(404).send({ message: 'Ordem de Serviço não encontrada.' });
             }
-
+    
             const originalName = req.file.originalname;
             const fileName = `flight_logs/${osId}_${Date.now()}_${originalName}`;
             const file = bucket.file(fileName);
-
+    
             await file.save(req.file.buffer, {
                 metadata: {
                     contentType: req.file.mimetype,
                 },
             });
-
+    
             await file.makePublic();
             const downloadURL = file.publicUrl();
-
+    
             const novaAplicacao = {
                 ordem_servico_id: osId,
                 log_arquivo_url: downloadURL,
                 status: 'Processando',
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             };
-
+    
             const appDocRef = await db.collection('aplicacoes').add(novaAplicacao);
-
+    
             // Update the status of the service order
             await ordemServicoRef.update({ status: 'Processando' });
 
             // Iniciar o processamento em segundo plano (sem esperar a conclusão)
             processarLogVoo(appDocRef.id, req.file.buffer, { id: osId, ...ordemServicoDoc.data() }, db, admin);
-
-            res.status(201).send({
+            
+            res.status(201).send({ 
                 message: 'Log enviado com sucesso! O processamento foi iniciado.',
                 aplicacaoId: appDocRef.id,
-                url: downloadURL
+                url: downloadURL 
             });
-
+    
         } catch (error) {
             console.error("Erro ao fazer upload do log de voo:", error);
             res.status(500).send({ message: `Erro no servidor: ${error.message}` });
