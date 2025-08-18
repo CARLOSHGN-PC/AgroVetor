@@ -93,6 +93,29 @@ try {
         }
     });
 
+    app.get('/api/aplicacoes/:osId', async (req, res) => {
+        try {
+            const osId = req.params.osId;
+            const aplicacoesRef = db.collection('aplicacoes');
+            const snapshot = await aplicacoesRef.where('ordem_servico_id', '==', osId).limit(1).get();
+
+            if (snapshot.empty) {
+                return res.status(404).send({ message: 'Nenhum resultado de aplicação encontrado para esta Ordem de Serviço.' });
+            }
+
+            let aplicacaoData;
+            snapshot.forEach(doc => {
+                aplicacaoData = { id: doc.id, ...doc.data() };
+            });
+
+            res.status(200).send(aplicacaoData);
+
+        } catch (error) {
+            console.error("Erro ao buscar resultado da aplicação:", error);
+            res.status(500).send({ message: `Erro no servidor: ${error.message}` });
+        }
+    });
+
     // --- FUNÇÕES AUXILIARES ---
 
     const formatNumber = (num) => {

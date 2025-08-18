@@ -139,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ordens_servico: [],
             activeOrdemServico: null,
             mapMode: null, // Can be 'os_selection'
+            mapResultLayers: [],
             companyLogo: null,
             activeSubmenu: null,
             charts: {},
@@ -445,9 +446,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBox: document.getElementById('trap-info-box'),
                 trapInfoBoxContent: document.getElementById('trap-info-box-content'),
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
-                sidebar: document.getElementById('aereo-sidebar'),
                 ordemServicoList: document.getElementById('ordemServicoList'),
                 btnNewOrdemServico: document.getElementById('btnNewOrdemServico'),
+            },
+            mapViewerModal: {
+                overlay: document.getElementById('mapViewerModal'),
+                title: document.getElementById('mapViewerTitle'),
+                closeBtn: document.getElementById('mapViewerCloseBtn'),
+                mapContainer: document.getElementById('map-container'), // Note: this is now inside the modal
+                legend: document.getElementById('map-legend'),
             },
             ordemServicoModal: {
                 overlay: document.getElementById('ordemServicoModal'),
@@ -457,6 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fazenda: document.getElementById('osFazenda'),
                 data: document.getElementById('osData'),
                 selectedTalhoes: document.getElementById('osSelectedTalhoes'),
+                btnSelectOnMap: document.getElementById('btnSelectTalhoesOnMap'),
                 produto: document.getElementById('osProduto'),
                 dosagem: document.getElementById('osDosagem'),
                 larguraFaixa: document.getElementById('osLarguraFaixa'),
@@ -690,7 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'produtos', 'ordens_servico' ];
+                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'produtos', 'ordens_servico', 'aplicacoes' ];
                 
                 collectionsToListen.forEach(collectionName => {
                     const q = collection(db, collectionName);
@@ -883,37 +891,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 ordemServicoList.innerHTML = '';
                 if (App.state.ordens_servico.length === 0) {
-                    ordemServicoList.innerHTML = '<p style="padding: 15px;">Nenhuma Ordem de Serviço encontrada.</p>';
+                    ordemServicoList.innerHTML = '<p>Nenhuma Ordem de Serviço encontrada.</p>';
                     return;
                 }
 
-                App.state.ordens_servico.forEach(os => {
-                    const osEl = document.createElement('div');
-                    osEl.className = 'os-list-item';
-                    osEl.dataset.id = os.id;
+                const table = document.createElement('table');
+                table.className = 'harvestPlanTable'; // Reusing style
+                table.innerHTML = `<thead><tr><th>Fazenda</th><th>Produto</th><th>Data Planejada</th><th>Status</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
 
+                App.state.ordens_servico.forEach(os => {
                     const fazenda = App.state.fazendas.find(f => f.id === os.fazendaId);
                     const produto = App.state.produtos.find(p => p.id === os.produtoId);
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td data-label="Fazenda">${fazenda ? fazenda.name : 'N/A'}</td>
+                        <td data-label="Produto">${produto ? produto.name : 'N/A'}</td>
+                        <td data-label="Data">${new Date(os.data_planejada + 'T03:00:00Z').toLocaleDateString('pt-BR')}</td>
+                        <td data-label="Status"><span class="os-status ${os.status.toLowerCase().replace(/ /g, '-')}">${os.status}</span></td>
+                        <td data-label="Ações"></td>
+                    `;
 
-                    let uploadHTML = '';
-                    if (os.status === 'Pendente') {
-                        uploadHTML = `
-                            <div class="upload-button-container">
-                                <input type="file" id="log-upload-${os.id}" class="log-upload-input" style="display: none;" accept=".txt,.log,.csv">
-                                <button class="save" onclick="document.getElementById('log-upload-${os.id}').click()"><i class="fas fa-upload"></i> Enviar Log</button>
-                            </div>
-                        `;
+                    const actionsCell = row.querySelector('td[data-label="Ações"]');
+                    const statusCell = row.querySelector('td[data-label="Status"]');
+
+                    if (os.status === 'Erro no Processamento') {
+                        const errorIcon = document.createElement('i');
+                        errorIcon.className = 'fas fa-info-circle';
+                        errorIcon.style.marginLeft = '8px';
+                        errorIcon.style.cursor = 'pointer';
+                        errorIcon.style.color = 'var(--color-danger)';
+                        errorIcon.title = 'Ver Detalhes do Erro';
+                        errorIcon.dataset.action = 'show-error';
+                        errorIcon.dataset.osId = os.id;
+                        statusCell.appendChild(errorIcon);
                     }
 
-                    osEl.innerHTML = `
-                        <h4>${fazenda ? fazenda.name : 'Fazenda não encontrada'}</h4>
-                        <p><strong>Produto:</strong> ${produto ? produto.name : 'Produto não encontrado'}</p>
-                        <p><strong>Data:</strong> ${new Date(os.data_planejada + 'T03:00:00Z').toLocaleDateString('pt-BR')}</p>
-                        <span class="os-status ${os.status.toLowerCase().replace(' ', '-')}">${os.status}</span>
-                        ${uploadHTML}
-                    `;
-                    ordemServicoList.appendChild(osEl);
+                    if (os.status === 'Pendente') {
+                        const uploadInput = document.createElement('input');
+                        uploadInput.type = 'file';
+                        uploadInput.id = `log-upload-${os.id}`;
+                        uploadInput.className = 'log-upload-input';
+                        uploadInput.style.display = 'none';
+                        uploadInput.accept = ".txt,.log,.csv";
+
+                        const uploadBtn = document.createElement('button');
+                        uploadBtn.className = 'btn-excluir';
+                        uploadBtn.style.background = 'var(--color-info)';
+                        uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Log';
+                        uploadBtn.title = 'Enviar Log de Voo';
+                        uploadBtn.onclick = () => uploadInput.click();
+
+                        actionsCell.appendChild(uploadInput);
+                        actionsCell.appendChild(uploadBtn);
+                    } else if (os.status === 'Concluído') {
+                        const viewBtn = document.createElement('button');
+                        viewBtn.className = 'btn-excluir';
+                        viewBtn.style.background = 'var(--color-success)';
+                        viewBtn.innerHTML = '<i class="fas fa-map-marked-alt"></i> Ver';
+                        viewBtn.title = 'Ver Resultado no Mapa';
+                        viewBtn.onclick = () => App.ui.openMapViewerModal('view_results', os.id);
+                        actionsCell.appendChild(viewBtn);
+                    }
                 });
+
+                ordemServicoList.appendChild(table);
             },
             openOrdemServicoModal() {
                 const { overlay, fazenda, produto, selectedTalhoes } = App.elements.ordemServicoModal;
@@ -921,7 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.activeOrdemServico = { selectedTalhoes: [] };
                 App.state.mapMode = 'os_selection';
 
-                this.populateFazendaSelects(fazenda);
+                this.populateFazendaSelects();
                 this.populateProdutoSelect(produto);
                 selectedTalhoes.innerHTML = '<p>Selecione um ou mais talhões no mapa.</p>';
                 App.mapModule.clearOsSelectionHighlights();
@@ -955,6 +997,60 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectElement.innerHTML += `<option value="${p.id}">${p.name}</option>`;
                 });
                 selectElement.value = savedValue;
+            },
+            async openMapViewerModal(mode, data) {
+                const { overlay, title, legend } = App.elements.mapViewerModal;
+                App.state.mapMode = mode;
+
+                App.mapModule.clearApplicationLayers();
+                legend.innerHTML = '';
+
+                if (mode === 'os_selection') {
+                    title.textContent = 'Selecione os Talhões no Mapa';
+                } else if (mode === 'view_results') {
+                    const osId = data;
+                    const os = App.state.ordens_servico.find(o => o.id === osId);
+                    const fazenda = App.state.fazendas.find(f => f.id === os.fazendaId);
+                    title.textContent = `Aplicação: ${fazenda.name}`;
+
+                    try {
+                        App.ui.setLoading(true, "Buscando resultados...");
+                        const response = await fetch(`${App.config.backendUrl}/api/aplicacoes/${osId}`);
+                        if (!response.ok) {
+                            throw new Error('Não foi possível carregar os resultados da aplicação.');
+                        }
+                        const aplicacaoData = await response.json();
+                        App.mapModule.drawApplicationResults(aplicacaoData);
+                        this.renderMapLegend();
+
+                    } catch (error) {
+                        App.ui.showAlert(error.message, "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                }
+
+                overlay.classList.add('show');
+
+                window.initMap = App.mapModule.initMap.bind(App.mapModule);
+                if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+                   App.mapModule.initMap();
+                }
+            },
+            closeMapViewerModal() {
+                const { overlay } = App.elements.mapViewerModal;
+                overlay.classList.remove('show');
+                App.state.mapMode = null;
+                this.mapModule.clearApplicationLayers();
+            },
+            renderMapLegend() {
+                const { legend } = App.elements.mapViewerModal;
+                legend.innerHTML = `
+                    <h4 style="margin-top: 0; margin-bottom: 5px; font-size: 14px;">Legenda:</h4>
+                    <div style="display: flex; align-items: center; margin-bottom: 3px;"><div style="width: 15px; height: 15px; background: rgba(76, 175, 80, 0.7); border: 1px solid #388E3C; margin-right: 5px;"></div> Aplicação Correta</div>
+                    <div style="display: flex; align-items: center; margin-bottom: 3px;"><div style="width: 15px; height: 15px; background: rgba(211, 47, 47, 0.7); border: 1px solid #D32F2F; margin-right: 5px;"></div> Desperdício</div>
+                    <div style="display: flex; align-items: center;"><div style="width: 15px; height: 15px; background: rgba(251, 192, 45, 0.7); border: 1px solid #F57C00; margin-right: 5px;"></div> Falha de Cobertura</div>
+                `;
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
             showAlert(message, type = 'success', duration = 3000) {
@@ -1053,22 +1149,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
-                const mapContainer = App.elements.monitoramentoAereo.container;
-                if (id === 'monitoramentoAereo') {
-                    mapContainer.classList.add('active');
-                    window.initMap = App.mapModule.initMap.bind(App.mapModule);
-                    if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
-                       App.mapModule.initMap();
-                    }
-                } else {
-                    mapContainer.classList.remove('active');
-                }
-
                 document.querySelectorAll('.tab-content').forEach(tab => {
-                    if (tab.id !== 'monitoramentoAereo-container') {
-                        tab.classList.remove('active');
-                        tab.hidden = true;
-                    }
+                    tab.classList.remove('active');
+                    tab.hidden = true;
                 });
 
                 const tab = document.getElementById(id);
@@ -1283,7 +1366,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cadastros.farmSelect,
                     App.elements.broca.codigo,
                     App.elements.perda.codigo,
-                    App.elements.relatorioMonitoramento.fazendaFiltro
+                    App.elements.relatorioMonitoramento.fazendaFiltro,
+                    App.elements.ordemServicoModal.fazenda
                 ];
                 selects.forEach(select => {
                     if (!select) return;
@@ -2096,16 +2180,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const osModal = App.elements.ordemServicoModal;
                 if (osModal.closeBtn) osModal.closeBtn.addEventListener('click', () => App.ui.closeOrdemServicoModal());
+                if (osModal.btnSelectOnMap) osModal.btnSelectOnMap.addEventListener('click', () => App.ui.openMapViewerModal('os_selection'));
                 if (osModal.cancelBtn) osModal.cancelBtn.addEventListener('click', () => App.ui.closeOrdemServicoModal());
                 if (osModal.saveBtn) osModal.saveBtn.addEventListener('click', () => App.actions.saveOrdemServico());
 
-                if (App.elements.monitoramentoAereo.ordemServicoList) App.elements.monitoramentoAereo.ordemServicoList.addEventListener('change', e => {
-                    if (e.target.classList.contains('log-upload-input')) {
-                        const osId = e.target.id.replace('log-upload-', '');
-                        const file = e.target.files[0];
-                        App.actions.handleLogUpload(osId, file);
-                    }
-                });
+                const mapViewerModal = App.elements.mapViewerModal;
+                if (mapViewerModal.closeBtn) mapViewerModal.closeBtn.addEventListener('click', () => App.ui.closeMapViewerModal());
+
+                if (App.elements.monitoramentoAereo.ordemServicoList) {
+                    App.elements.monitoramentoAereo.ordemServicoList.addEventListener('change', e => {
+                        if (e.target.classList.contains('log-upload-input')) {
+                            const osId = e.target.id.replace('log-upload-', '');
+                            const file = e.target.files[0];
+                            App.actions.handleLogUpload(osId, file);
+                        }
+                    });
+
+                    App.elements.monitoramentoAereo.ordemServicoList.addEventListener('click', e => {
+                        const errorIcon = e.target.closest('[data-action="show-error"]');
+                        if (errorIcon) {
+                            const osId = errorIcon.dataset.osId;
+                            const aplicacao = App.state.aplicacoes.find(a => a.ordem_servico_id === osId);
+                            if (aplicacao && aplicacao.erro) {
+                                App.ui.showAlert(`Erro no Processamento: ${aplicacao.erro}`, 'error', 6000);
+                            } else {
+                                App.ui.showAlert('Não foi possível encontrar os detalhes do erro.', 'warning');
+                            }
+                        }
+                    });
+                }
 
                 if (App.elements.cadastros.btnSaveProduct) App.elements.cadastros.btnSaveProduct.addEventListener('click', () => App.actions.saveProduct());
                 if (App.elements.cadastros.productList) App.elements.cadastros.productList.addEventListener('click', e => {
@@ -4527,20 +4630,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     feature.setProperty('isSelectedForOS', false);
                 } else {
                     // Select
-                    const geometry = feature.getGeometry();
-                    const coordinates = [];
-                    geometry.getArray().forEach(path => {
-                        const pathCoords = [];
-                        path.getArray().forEach(latLng => {
-                            pathCoords.push([latLng.lng(), latLng.lat()]);
-                        });
-                        coordinates.push(pathCoords);
-                    });
-
                     selectedTalhoes.push({
                         id: talhaoId,
-                        name: talhaoName,
-                        geometria: { type: 'Polygon', coordinates: coordinates }
+                        name: talhaoName
                     });
                     feature.setProperty('isSelectedForOS', true);
                 }
@@ -4555,6 +4647,54 @@ document.addEventListener('DOMContentLoaded', () => {
                             feature.setProperty('isSelectedForOS', false);
                         }
                     });
+                }
+            },
+
+            clearApplicationLayers() {
+                App.state.mapResultLayers.forEach(layer => layer.setMap(null));
+                App.state.mapResultLayers = [];
+            },
+
+            drawApplicationResults(data) {
+                this.clearApplicationLayers();
+                const map = App.state.googleMap;
+                if (!map) return;
+
+                const bounds = new google.maps.LatLngBounds();
+
+                const createLayer = (geometry, color, zIndex) => {
+                    const layer = new google.maps.Data({ map });
+                    layer.addGeoJson({ type: 'Feature', geometry });
+                    layer.setStyle({
+                        fillColor: color,
+                        strokeColor: color,
+                        fillOpacity: 0.7,
+                        strokeWeight: 1,
+                        zIndex: zIndex
+                    });
+                    App.state.mapResultLayers.push(layer);
+
+                    // Extend bounds
+                    if (geometry) {
+                        const processPoints = (coords) => {
+                            if (Array.isArray(coords) && coords.length > 0) {
+                                if (typeof coords[0] === 'number') {
+                                    bounds.extend(new google.maps.LatLng(coords[1], coords[0]));
+                                } else {
+                                    coords.forEach(processPoints);
+                                }
+                            }
+                        };
+                        processPoints(geometry.coordinates);
+                    }
+                };
+
+                if (data.geometria_correta) createLayer(data.geometria_correta, '#4CAF50', 3); // Verde
+                if (data.geometria_desperdicio) createLayer(data.geometria_desperdicio, '#D32F2F', 2); // Vermelho
+                if (data.geometria_falha) createLayer(data.geometria_falha, '#FBC02D', 1); // Amarelo
+
+                if (!bounds.isEmpty()) {
+                    map.fitBounds(bounds);
                 }
             }
         },
