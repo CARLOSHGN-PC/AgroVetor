@@ -158,7 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
             notifiedTrapIds: new Set(), // NOVO: Controla pop-ups já exibidos na sessão
             trapPlacementMode: null,
             trapPlacementData: null,
-            shapefileURL: null, // Armazena a URL do shapefile para recarregamento manual
             newWorker: null, // Para armazenar o novo service worker quando uma atualização for encontrada
         },
         
@@ -437,10 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBox: document.getElementById('trap-info-box'),
                 trapInfoBoxContent: document.getElementById('trap-info-box-content'),
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
-                mapOfflineStatusContainer: document.getElementById('map-offline-status-container'),
-                mapOfflineStatusIcon: document.getElementById('map-offline-status-icon'),
-                mapOfflineStatusText: document.getElementById('map-offline-status-text'),
-                btnManualCacheMap: document.getElementById('btn-manual-cache-map'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -706,10 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const shapefileDocRef = doc(db, 'config', 'shapefile');
                 const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
                     if (doc.exists() && doc.data().shapefileURL) {
-                        App.state.shapefileURL = doc.data().shapefileURL; // Armazena a URL
                         App.mapModule.loadAndCacheShapes(doc.data().shapefileURL);
-                    } else {
-                        App.mapModule.updateOfflineStatus('no_shapefile');
                     }
                 });
                 App.state.unsubscribeListeners.push(unsubscribeShapefile);
@@ -932,7 +924,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    App.mapModule.checkInitialOfflineStatus(); // Verifica o status ao abrir a aba
                     window.initMap = App.mapModule.initMap.bind(App.mapModule);
                     if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
                        App.mapModule.initMap();
@@ -2054,15 +2045,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 const monitoramentoAereoEls = App.elements.monitoramentoAereo;
-                if (monitoramentoAereoEls.btnManualCacheMap) {
-                    monitoramentoAereoEls.btnManualCacheMap.addEventListener('click', () => {
-                        if (App.state.shapefileURL) {
-                            App.mapModule.loadAndCacheShapes(App.state.shapefileURL);
-                        } else {
-                            App.ui.showAlert('URL do mapa não encontrada. A sincronização automática irá tentar novamente.', 'warning');
-                        }
-                    });
-                }
                 if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => {
                     if (App.state.trapPlacementMode === 'manual_select') {
                         App.state.trapPlacementMode = null;
@@ -3599,45 +3581,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             },
 
-            updateOfflineStatus(status, message = '') {
-                const { mapOfflineStatusIcon, mapOfflineStatusText, btnManualCacheMap } = App.elements.monitoramentoAereo;
-                btnManualCacheMap.style.display = 'none';
-        
-                switch(status) {
-                    case 'downloading':
-                        mapOfflineStatusIcon.innerHTML = '<div class="spinner" style="width: 20px; height: 20px; border-width: 3px;"></div>';
-                        mapOfflineStatusText.textContent = 'A baixar dados do mapa para uso offline...';
-                        break;
-                    case 'ready':
-                        mapOfflineStatusIcon.innerHTML = '<i class="fas fa-check-circle" style="color: var(--color-success);"></i>';
-                        mapOfflineStatusText.textContent = 'Mapa pronto para uso offline.';
-                        btnManualCacheMap.style.display = 'inline-flex';
-                        break;
-                    case 'error':
-                        mapOfflineStatusIcon.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--color-danger);"></i>';
-                        mapOfflineStatusText.textContent = `Erro ao carregar mapa: ${message}`;
-                        btnManualCacheMap.style.display = 'inline-flex';
-                        break;
-                    case 'no_shapefile':
-                        mapOfflineStatusIcon.innerHTML = '<i class="fas fa-info-circle" style="color: var(--color-warning);"></i>';
-                        mapOfflineStatusText.textContent = 'Nenhum mapa de talhões configurado.';
-                        break;
-                    default:
-                        mapOfflineStatusIcon.innerHTML = '';
-                        mapOfflineStatusText.textContent = 'Verificando status do mapa offline...';
-                }
-            },
-
-            async checkInitialOfflineStatus() {
-                const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
-                if (buffer) {
-                    this.updateOfflineStatus('ready');
-                }
-            },
-
             async loadAndCacheShapes(url) {
                 if (!url) return;
-                this.updateOfflineStatus('downloading');
                 console.log("Iniciando o carregamento dos contornos do mapa em segundo plano...");
                 try {
                     const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
@@ -3655,11 +3600,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.loadShapesOnMap();
                     }
                     console.log("Contornos do mapa carregados com sucesso.");
-                    this.updateOfflineStatus('ready');
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
                     App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
-                    this.updateOfflineStatus('error', err.message);
                     this.loadOfflineShapes();
                 }
             },
