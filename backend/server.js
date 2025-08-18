@@ -1,6 +1,7 @@
 // server.js - Backend com Geração de PDF e Upload de Shapefile
 
 const express = require('express');
+const multer = require('multer');
 const admin = require('firebase-admin');
 const cors = require('cors');
 const PDFDocument = require('pdfkit');
