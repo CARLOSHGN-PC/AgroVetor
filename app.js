@@ -158,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             notifiedTrapIds: new Set(), // NOVO: Controla pop-ups já exibidos na sessão
             trapPlacementMode: null,
             trapPlacementData: null,
+            shapefileURL: null, // Armazena a URL do shapefile para recarregamento manual
             newWorker: null, // Para armazenar o novo service worker quando uma atualização for encontrada
         },
         
@@ -436,6 +437,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBox: document.getElementById('trap-info-box'),
                 trapInfoBoxContent: document.getElementById('trap-info-box-content'),
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
+                mapOfflineStatusContainer: document.getElementById('map-offline-status-container'),
+                mapOfflineStatusIcon: document.getElementById('map-offline-status-icon'),
+                mapOfflineStatusText: document.getElementById('map-offline-status-text'),
+                btnManualCacheMap: document.getElementById('btn-manual-cache-map'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -701,7 +706,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const shapefileDocRef = doc(db, 'config', 'shapefile');
                 const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
                     if (doc.exists() && doc.data().shapefileURL) {
+                        App.state.shapefileURL = doc.data().shapefileURL; // Armazena a URL
                         App.mapModule.loadAndCacheShapes(doc.data().shapefileURL);
+                    } else {
+                        App.mapModule.updateOfflineStatus('no_shapefile');
                     }
                 });
                 App.state.unsubscribeListeners.push(unsubscribeShapefile);
@@ -924,6 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
+                    App.mapModule.checkInitialOfflineStatus(); // Verifica o status ao abrir a aba
                     window.initMap = App.mapModule.initMap.bind(App.mapModule);
                     if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
                        App.mapModule.initMap();
@@ -1056,12 +1065,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 switch(viewName) {
                     case 'selector':
                         dashEls.selector.style.display = 'grid';
+                        // Apenas destrói os gráficos ao voltar para a seleção principal
                         App.charts.destroyChartsByIds([...brocaChartIds, ...perdaChartIds]);
                         break;
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
                         this.loadDashboardDates('broca');
-                        App.charts.destroyChartsByIds(perdaChartIds);
+                        // Não destrói os gráficos de 'perda' ao mudar para 'broca'
                         if (!App.state.charts.graficoTop10FazendasBroca) {
                             setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
                         }
@@ -1069,7 +1079,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
                         this.loadDashboardDates('perda');
-                        App.charts.destroyChartsByIds(brocaChartIds);
+                        // Não destrói os gráficos de 'broca' ao mudar para 'perda'
                         if (!App.state.charts.graficoPerdaPorFrenteTurno) {
                             setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
                         }
@@ -2044,6 +2054,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 const monitoramentoAereoEls = App.elements.monitoramentoAereo;
+                if (monitoramentoAereoEls.btnManualCacheMap) {
+                    monitoramentoAereoEls.btnManualCacheMap.addEventListener('click', () => {
+                        if (App.state.shapefileURL) {
+                            App.mapModule.loadAndCacheShapes(App.state.shapefileURL);
+                        } else {
+                            App.ui.showAlert('URL do mapa não encontrada. A sincronização automática irá tentar novamente.', 'warning');
+                        }
+                    });
+                }
                 if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => {
                     if (App.state.trapPlacementMode === 'manual_select') {
                         App.state.trapPlacementMode = null;
@@ -3454,6 +3473,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         gestureHandling: 'greedy'
                     });
 
+                    // Adiciona um listener para verificar a disponibilidade de imagens de satélite
+                    const maxZoomService = new google.maps.MaxZoomService();
+                    google.maps.event.addListenerOnce(App.state.googleMap, 'idle', () => {
+                        if (App.state.googleMap.getMapTypeId() !== 'satellite') {
+                            return; // Apenas verifica se estiver no modo satélite
+                        }
+                        const center = App.state.googleMap.getCenter();
+                        maxZoomService.getMaxZoomAtLatLng(center, (response) => {
+                            if (response && response.status !== google.maps.MaxZoomStatus.OK) {
+                                App.state.googleMap.setMapTypeId('roadmap');
+                                App.ui.showAlert("A imagem de satélite não está disponível para esta região. A exibir o mapa de ruas.", "info", 5000);
+                            }
+                        });
+                    });
+
                     this.watchUserPosition();
                     this.loadShapesOnMap();
                     this.loadTraps();
@@ -3565,8 +3599,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             },
 
+            updateOfflineStatus(status, message = '') {
+                const { mapOfflineStatusIcon, mapOfflineStatusText, btnManualCacheMap } = App.elements.monitoramentoAereo;
+                btnManualCacheMap.style.display = 'none';
+        
+                switch(status) {
+                    case 'downloading':
+                        mapOfflineStatusIcon.innerHTML = '<div class="spinner" style="width: 20px; height: 20px; border-width: 3px;"></div>';
+                        mapOfflineStatusText.textContent = 'A baixar dados do mapa para uso offline...';
+                        break;
+                    case 'ready':
+                        mapOfflineStatusIcon.innerHTML = '<i class="fas fa-check-circle" style="color: var(--color-success);"></i>';
+                        mapOfflineStatusText.textContent = 'Mapa pronto para uso offline.';
+                        btnManualCacheMap.style.display = 'inline-flex';
+                        break;
+                    case 'error':
+                        mapOfflineStatusIcon.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--color-danger);"></i>';
+                        mapOfflineStatusText.textContent = `Erro ao carregar mapa: ${message}`;
+                        btnManualCacheMap.style.display = 'inline-flex';
+                        break;
+                    case 'no_shapefile':
+                        mapOfflineStatusIcon.innerHTML = '<i class="fas fa-info-circle" style="color: var(--color-warning);"></i>';
+                        mapOfflineStatusText.textContent = 'Nenhum mapa de talhões configurado.';
+                        break;
+                    default:
+                        mapOfflineStatusIcon.innerHTML = '';
+                        mapOfflineStatusText.textContent = 'Verificando status do mapa offline...';
+                }
+            },
+
+            async checkInitialOfflineStatus() {
+                const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
+                if (buffer) {
+                    this.updateOfflineStatus('ready');
+                }
+            },
+
             async loadAndCacheShapes(url) {
                 if (!url) return;
+                this.updateOfflineStatus('downloading');
                 console.log("Iniciando o carregamento dos contornos do mapa em segundo plano...");
                 try {
                     const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
@@ -3584,9 +3655,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.loadShapesOnMap();
                     }
                     console.log("Contornos do mapa carregados com sucesso.");
+                    this.updateOfflineStatus('ready');
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
                     App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
+                    this.updateOfflineStatus('error', err.message);
                     this.loadOfflineShapes();
                 }
             },
@@ -4308,29 +4381,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 const canvas = document.getElementById(canvasId);
                 const ctx = canvas?.getContext('2d');
                 if (!ctx) return;
-
+            
                 const container = canvas.parentElement;
                 const loader = container.querySelector('.chart-loader');
-
-                if (!isExpanded && loader) loader.style.display = 'block';
+            
+                // Cache check: if chart exists and data is identical, do nothing.
+                const existingChart = App.state.charts[id];
+                if (existingChart && JSON.stringify(existingChart.config.data) === JSON.stringify(config.data)) {
+                    if (loader) loader.style.display = 'none';
+                    canvas.style.visibility = 'visible';
+                    return;
+                }
+            
+                if (!isExpanded) {
+                    if (loader) loader.style.display = 'block';
+                    canvas.style.visibility = 'hidden'; // Hide canvas before rendering
+                }
                 
                 const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
                 if (chartInstance) {
                     chartInstance.destroy();
                 }
-
-                // A small delay can help ensure the loader is displayed before the chart starts rendering,
-                // which can be a heavy operation.
+            
+                // A small delay can help ensure the loader is displayed before the chart starts rendering.
                 setTimeout(() => {
                     config.options = config.options || {};
                     config.options.animation = config.options.animation || {};
                     const existingOnComplete = config.options.animation.onComplete;
-
+            
                     config.options.animation.onComplete = (animation) => {
-                        if (!isExpanded && loader) loader.style.display = 'none';
+                        if (!isExpanded) {
+                            if (loader) loader.style.display = 'none';
+                            canvas.style.visibility = 'visible'; // Show canvas when animation is complete
+                        }
                         if(existingOnComplete) existingOnComplete(animation);
                     };
-
+            
                     const newChart = new Chart(ctx, config);
                     if (isExpanded) {
                         App.state.expandedChart = newChart;
@@ -4339,7 +4425,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }, 50);
             },
-               destroyChartsByIds(ids) {
+            
+            destroyChartsByIds(ids) {
                 ids.forEach(id => {
                     if (App.state.charts[id]) {
                         const canvas = document.getElementById(id);
@@ -4347,17 +4434,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             const container = canvas.parentElement;
                             const loader = container.querySelector('.chart-loader');
                             if (loader) loader.style.display = 'block';
-                            canvas.style.visibility = 'hidden';
-                            canvas.classList.remove('chart-rendered');
+                            canvas.style.visibility = 'hidden'; 
                         }
                         App.state.charts[id].destroy();
                         delete App.state.charts[id];
                     }
                 });
-               },
-               destroyAll() {
+            },
+            
+            destroyAll() {
                 this.destroyChartsByIds(Object.keys(App.state.charts));
-
+            
                 if (App.state.expandedChart) {
                     App.state.expandedChart.destroy();
                     App.state.expandedChart = null;
