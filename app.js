@@ -92,9 +92,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     ]
                 },
                 {
-                    label: 'AgroAéreo Tech', icon: 'fas fa-plane-up',
+                    label: 'Gestão de Pulverização', icon: 'fas fa-wind',
                     submenu: [
-                        { label: 'Planejamento de Voos', icon: 'fas fa-plane-up', target: 'planejamentoVoos', permission: 'planejamentoVoos' },
+                        { label: 'Ordem de Serviço', icon: 'fas fa-file-alt', target: 'gestaoPulverizacao', permission: 'gestaoPulverizacao' },
                     ]
                 },
                 {
@@ -111,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
+                        { label: 'Rel. de Pulverização', icon: 'fas fa-file-pdf', target: 'relatorioPulverizacao', permission: 'relatorioPulverizacao' },
                     ]
                 },
                 {
@@ -125,8 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, planejamentoVoos: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, gestaoPulverizacao: true, relatorioPulverizacao: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, gestaoPulverizacao: true, relatorioPulverizacao: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
@@ -267,6 +268,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 cardBroca: document.getElementById('card-broca'),
                 cardPerda: document.getElementById('card-perda'),
                 cardAerea: document.getElementById('card-aerea'),
+                sprayingOpsCount: document.getElementById('spraying-ops-count'),
+                sprayingTotalArea: document.getElementById('spraying-total-area'),
                 btnBackToSelectorBroca: document.getElementById('btn-back-to-selector-broca'),
                 btnBackToSelectorPerda: document.getElementById('btn-back-to-selector-perda'),
                 btnBackToSelectorAerea: document.getElementById('btn-back-to-selector-aerea'),
@@ -332,6 +335,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 csvUploadArea: document.getElementById('csvUploadArea'),
                 csvFileInput: document.getElementById('csvFileInput'),
                 btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
+
+                // Novos elementos para pulverização
+                aeronavePrefixo: document.getElementById('aeronavePrefixo'),
+                aeronaveModelo: document.getElementById('aeronaveModelo'),
+                aeronaveLarguraFaixa: document.getElementById('aeronaveLarguraFaixa'),
+                btnSalvarAeronave: document.getElementById('btnSalvarAeronave'),
+                listaAeronaves: document.getElementById('listaAeronaves'),
+
+                produtoNome: document.getElementById('produtoNome'),
+                produtoIngredienteAtivo: document.getElementById('produtoIngredienteAtivo'),
+                btnSalvarProduto: document.getElementById('btnSalvarProduto'),
+                listaProdutos: document.getElementById('listaProdutos'),
             },
             planejamento: {
                 tipo: document.getElementById('planoTipo'),
@@ -451,6 +466,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnPDF: document.getElementById('btnPDFMonitoramento'),
                 btnExcel: document.getElementById('btnExcelMonitoramento'),
             },
+            relatorioPulverizacao: {
+                osSelect: document.getElementById('pulverizacaoRelatorioOSSelect'),
+                btnPDF: document.getElementById('btnGerarRelatorioPulverizacaoPDF'),
+            },
             trapPlacementModal: {
                 overlay: document.getElementById('trapPlacementModal'),
                 body: document.getElementById('trapPlacementModalBody'),
@@ -458,6 +477,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 cancelBtn: document.getElementById('trapPlacementModalCancelBtn'),
                 manualBtn: document.getElementById('trapPlacementModalManualBtn'),
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
+            },
+            spraying: {
+                container: document.getElementById('gestaoPulverizacao'),
+                mapContainer: document.getElementById('pulverizacao-map-container'),
+                osList: document.getElementById('os-list'),
+                osData: document.getElementById('osData'),
+                osPiloto: document.getElementById('osPiloto'),
+                osAeronave: document.getElementById('osAeronave'),
+                osProduto: document.getElementById('osProduto'),
+                osDosagem: document.getElementById('osDosagem'),
+                osAreaPlanejadaUpload: document.getElementById('osAreaPlanejadaUpload'),
+                osAreaPlanejadaInput: document.getElementById('osAreaPlanejadaInput'),
+                osLogVooUpload: document.getElementById('osLogVooUpload'),
+                osLogVooInput: document.getElementById('osLogVooInput'),
+                btnSalvarOS: document.getElementById('btnSalvarOS'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
             updateModal: document.getElementById('updateModal'),
@@ -468,6 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
             OfflineDB.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
+            this.sprayingModule.init();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
@@ -825,6 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderPlanejamento();
                 this.showHarvestPlanList();
                 this.populateHarvestPlanSelect();
+                this.renderSprayingDashboard();
                 
                 if (document.getElementById('dashboard').classList.contains('active')) {
                    this.showDashboardView('broca'); 
@@ -934,6 +970,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
                        App.mapModule.initMap();
                     }
+                } else if (id === 'gestaoPulverizacao') {
+                    App.sprayingModule.populateDropdowns();
+                    App.sprayingModule.renderServiceOrders();
+                    App.sprayingModule.initMap();
                 } else {
                     mapContainer.classList.remove('active');
                 }
@@ -972,10 +1012,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
+                if (id === 'relatorioPulverizacao') this.populateSprayingReportSelect();
                 if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 
                 sessionStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
+            },
+
+            async renderSprayingDashboard() {
+                const { sprayingOpsCount, sprayingTotalArea } = App.elements.dashboard;
+                if (!sprayingOpsCount || !sprayingTotalArea) return;
+
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/ordens-servico`);
+                    const serviceOrders = await response.json();
+                    const analyzedOrders = serviceOrders.filter(os => os.status === 'Analisada' && os.analysisResult);
+
+                    const opsCount = analyzedOrders.length;
+                    const totalAreaM2 = analyzedOrders.reduce((sum, os) => sum + (os.analysisResult.areaAplicada || 0), 0);
+                    const totalAreaHa = totalAreaM2 / 10000; // Converte de m² para hectares
+
+                    sprayingOpsCount.textContent = opsCount;
+                    sprayingTotalArea.textContent = `${totalAreaHa.toFixed(2)} ha`;
+
+                } catch (error) {
+                    console.error("Erro ao renderizar dashboard de pulverização:", error);
+                    sprayingOpsCount.textContent = 'N/A';
+                    sprayingTotalArea.textContent = 'N/A';
+                }
+            },
+
+            async populateSprayingReportSelect() {
+                const { osSelect } = App.elements.relatorioPulverizacao;
+                if (!osSelect) return;
+
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/ordens-servico`);
+                    const serviceOrders = await response.json();
+                    const analyzedOrders = serviceOrders.filter(os => os.status === 'Analisada');
+
+                    if (analyzedOrders.length === 0) {
+                        osSelect.innerHTML = '<option value="">Nenhuma OS analisada encontrada</option>';
+                        return;
+                    }
+
+                    osSelect.innerHTML = '<option value="">Selecione uma Ordem de Serviço...</option>';
+                    analyzedOrders.forEach(os => {
+                        const data = os.createdAt ? new Date(os.createdAt._seconds * 1000).toLocaleDateString('pt-BR') : 'N/A';
+                        osSelect.innerHTML += `<option value="${os.id}">OS de ${data} - Piloto: ${os.piloto}</option>`;
+                    });
+
+                } catch (error) {
+                    console.error("Erro ao popular select de relatório de pulverização:", error);
+                    osSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+                }
             },
 
             showUpdatePrompt() {
@@ -1340,6 +1430,115 @@ document.addEventListener('DOMContentLoaded', () => {
                         const key = cb.dataset.permission;
                         cb.checked = !!permissions[key];
                     });
+                }
+            },
+
+            // --- [NOVO] Funções para Cadastro de Pulverização ---
+            async saveAeronave() {
+                const { aeronavePrefixo, aeronaveModelo, aeronaveLarguraFaixa } = App.elements.cadastros;
+                const data = {
+                    prefixo: aeronavePrefixo.value.trim(),
+                    modelo: aeronaveModelo.value.trim(),
+                    largura_faixa_aplicacao: aeronaveLarguraFaixa.value
+                };
+                if (!data.prefixo || !data.largura_faixa_aplicacao) {
+                    return App.ui.showAlert("Prefixo e Largura da Faixa são obrigatórios.", "error");
+                }
+                try {
+                    App.ui.setLoading(true);
+                    const response = await fetch(`${App.config.backendUrl}/api/aeronaves`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (!response.ok) throw new Error('Falha ao salvar aeronave no servidor.');
+                    App.ui.showAlert("Aeronave salva com sucesso!", "success");
+                    aeronavePrefixo.value = '';
+                    aeronaveModelo.value = '';
+                    aeronaveLarguraFaixa.value = '';
+                    this.renderAeronavesList();
+                } catch (error) {
+                    App.ui.showAlert(error.message, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async saveProduto() {
+                const { produtoNome, produtoIngredienteAtivo } = App.elements.cadastros;
+                const data = {
+                    nome: produtoNome.value.trim(),
+                    ingredienteAtivo: produtoIngredienteAtivo.value.trim(),
+                };
+                if (!data.nome) {
+                    return App.ui.showAlert("Nome do produto é obrigatório.", "error");
+                }
+                 try {
+                    App.ui.setLoading(true);
+                    const response = await fetch(`${App.config.backendUrl}/api/produtos`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (!response.ok) throw new Error('Falha ao salvar produto no servidor.');
+                    App.ui.showAlert("Produto salvo com sucesso!", "success");
+                    produtoNome.value = '';
+                    produtoIngredienteAtivo.value = '';
+                    this.renderProdutosList();
+                } catch (error) {
+                    App.ui.showAlert(error.message, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async renderAeronavesList() {
+                const { listaAeronaves } = App.elements.cadastros;
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/aeronaves`);
+                    if (!response.ok) throw new Error('Não foi possível carregar as aeronaves.');
+                    const aeronaves = await response.json();
+                    if (aeronaves.length === 0) {
+                        listaAeronaves.innerHTML = '<p>Nenhuma aeronave cadastrada.</p>';
+                        return;
+                    }
+                    const table = document.createElement('table');
+                    table.className = 'personnelTable'; // Reusing existing style
+                    table.innerHTML = `<thead><tr><th>Prefixo</th><th>Modelo</th><th>Largura da Faixa (m)</th></tr></thead><tbody></tbody>`;
+                    const tbody = table.querySelector('tbody');
+                    aeronaves.forEach(a => {
+                        const row = tbody.insertRow();
+                        row.innerHTML = `<td>${a.prefixo}</td><td>${a.modelo || ''}</td><td>${a.largura_faixa_aplicacao}</td>`;
+                    });
+                    listaAeronaves.innerHTML = '';
+                    listaAeronaves.appendChild(table);
+                } catch (error) {
+                    listaAeronaves.innerHTML = `<p style="color: var(--color-danger);">${error.message}</p>`;
+                }
+            },
+
+            async renderProdutosList() {
+                const { listaProdutos } = App.elements.cadastros;
+                 try {
+                    const response = await fetch(`${App.config.backendUrl}/api/produtos`);
+                    if (!response.ok) throw new Error('Não foi possível carregar os produtos.');
+                    const produtos = await response.json();
+                    if (produtos.length === 0) {
+                        listaProdutos.innerHTML = '<p>Nenhum produto cadastrado.</p>';
+                        return;
+                    }
+                    const table = document.createElement('table');
+                    table.className = 'personnelTable';
+                    table.innerHTML = `<thead><tr><th>Nome</th><th>Ingrediente Ativo</th></tr></thead><tbody></tbody>`;
+                    const tbody = table.querySelector('tbody');
+                    produtos.forEach(p => {
+                        const row = tbody.insertRow();
+                        row.innerHTML = `<td>${p.nome}</td><td>${p.ingredienteAtivo || ''}</td>`;
+                    });
+                    listaProdutos.innerHTML = '';
+                    listaProdutos.appendChild(table);
+                } catch (error) {
+                    listaProdutos.innerHTML = `<p style="color: var(--color-danger);">${error.message}</p>`;
                 }
             },
             _createModernUserCardHTML(user) {
@@ -2101,6 +2300,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (relatorioMonitoramentoEls.btnPDF) relatorioMonitoramentoEls.btnPDF.addEventListener('click', () => App.reports.generateArmadilhaPDF());
                 if (relatorioMonitoramentoEls.btnExcel) relatorioMonitoramentoEls.btnExcel.addEventListener('click', () => App.reports.generateArmadilhaCSV());
                 
+                const relatorioPulverizacaoEls = App.elements.relatorioPulverizacao;
+                if (relatorioPulverizacaoEls.btnPDF) relatorioPulverizacaoEls.btnPDF.addEventListener('click', () => App.reports.generateSprayingPDF());
+
                 if (App.elements.notificationContainer) App.elements.notificationContainer.addEventListener('click', (e) => {
                     const notification = e.target.closest('.trap-notification');
                     if (notification && notification.dataset.trapId) {
@@ -2139,6 +2341,12 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+            async uploadFile(file, path) {
+                if (!file) return null;
+                const storageRef = ref(storage, path);
+                await uploadBytes(storageRef, file);
+                return await getDownloadURL(storageRef);
+            },
             filterDashboardData(dataType, startDate, endDate) {
                 if (!startDate || !endDate) {
                     return App.state[dataType];
@@ -3439,6 +3647,294 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             getPlanningSuggestions() {
                 App.ui.showAlert("A sugestão de planejamento com IA ainda não foi implementada.", "info");
+            }
+        },
+
+        sprayingModule: {
+            init() {
+                App.state.sprayingMap = null;
+                App.state.selectedServiceOrderId = null;
+                App.state.analysisLayers = [];
+                this.setupEventListeners();
+            },
+
+            initMap() {
+                if (App.state.sprayingMap) return;
+                const { mapContainer } = App.elements.spraying;
+                if (typeof google !== 'undefined' && mapContainer) {
+                    App.state.sprayingMap = new google.maps.Map(mapContainer, {
+                        center: { lat: -21.17, lng: -48.45 },
+                        zoom: 13,
+                        mapTypeId: 'satellite',
+                        disableDefaultUI: true,
+                        zoomControl: true,
+                        mapTypeControl: true,
+                        streetViewControl: false,
+                    });
+                }
+            },
+
+            async renderServiceOrders() {
+                const { osList } = App.elements.spraying;
+                osList.innerHTML = '';
+                App.ui.setLoading(true, "Carregando Ordens de Serviço...");
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/ordens-servico`);
+                    if (!response.ok) throw new Error('Não foi possível carregar as Ordens de Serviço.');
+                    const serviceOrders = await response.json();
+
+                    if (serviceOrders.length === 0) {
+                        osList.innerHTML = '<p>Nenhuma Ordem de Serviço encontrada.</p>';
+                        return;
+                    }
+
+                    osList.innerHTML = serviceOrders.map(os => {
+                        const data = os.createdAt ? new Date(os.createdAt._seconds * 1000).toLocaleDateString('pt-BR') : 'N/A';
+                        const piloto = os.piloto || 'N/A';
+                        const isSelected = os.id === App.state.selectedServiceOrderId;
+                        return `<div class="plano-card ${isSelected ? 'selected' : ''}" style="margin-bottom: 10px; cursor: pointer;" data-os-id="${os.id}">
+                                    <div class="plano-title" style="font-size: 14px;">OS para ${piloto} em ${data}</div>
+                                    <div class="plano-status ${os.status.toLowerCase()}">${os.status}</div>
+                                </div>`;
+                    }).join('');
+
+                } catch (error) {
+                    osList.innerHTML = `<p style="color: var(--color-danger);">${error.message}</p>`;
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async selectServiceOrder(osId) {
+                this.clearAnalysisLayers();
+                App.state.selectedServiceOrderId = osId;
+                this.renderServiceOrders(); // Re-render to show selection
+
+                try {
+                    const osDoc = await App.data.getDocument('ordensServico', osId);
+                    if (osDoc && osDoc.geometriaPlanejadaUrl) {
+                        const response = await fetch(osDoc.geometriaPlanejadaUrl);
+                        const fileBlob = await response.blob();
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            // Assume que a URL é de um KML/ZIP que pode ser convertido
+                            // Para simplificar, vamos apenas desenhar se já tivermos a análise
+                            if (osDoc.analysisResult && osDoc.analysisResult.geometriaAplicada) {
+                                this.displayAnalysisOnMap(osDoc.analysisResult);
+                            } else {
+                                // Idealmente, aqui desenharíamos a área planejada.
+                                // Por enquanto, o mapa ficará em branco até a análise.
+                                console.log("OS selecionada, mas sem análise prévia para exibir.");
+                            }
+                        };
+                        reader.readAsArrayBuffer(fileBlob);
+                    }
+                     if (osDoc.analysisResult) {
+                        this.displayAnalysisOnMap(osDoc.analysisResult);
+                    }
+                } catch (error) {
+                    App.ui.showAlert("Erro ao carregar dados da OS selecionada.", "error");
+                }
+            },
+
+            clearAnalysisLayers() {
+                App.state.analysisLayers.forEach(layer => layer.setMap(null));
+                App.state.analysisLayers = [];
+            },
+
+            displayAnalysisOnMap(result) {
+                this.clearAnalysisLayers();
+                const map = App.state.sprayingMap;
+                if (!map) return;
+
+                const addGeoJsonLayer = (geojson, style) => {
+                    if (!geojson || !geojson.geometry) return;
+                    const layer = new google.maps.Data({ map: map });
+                    layer.addGeoJson(geojson);
+                    layer.setStyle(style);
+                    App.state.analysisLayers.push(layer);
+                    return layer;
+                };
+
+                addGeoJsonLayer(result.geometriaFalha, {
+                    fillColor: 'red',
+                    strokeColor: 'red',
+                    fillOpacity: 0.4,
+                    strokeWeight: 1
+                });
+
+                addGeoJsonLayer(result.geometriaAplicada, {
+                    fillColor: 'green',
+                    strokeColor: 'green',
+                    fillOpacity: 0.5,
+                    strokeWeight: 1
+                });
+
+                addGeoJsonLayer(result.geometriaSobreposicao, {
+                    fillColor: 'orange',
+                    strokeColor: 'orange',
+                    fillOpacity: 0.6,
+                    strokeWeight: 1
+                });
+
+                // Zoom to fit all layers
+                const bounds = new google.maps.LatLngBounds();
+                App.state.analysisLayers.forEach(layer => {
+                    layer.forEach(feature => {
+                        feature.getGeometry().forEachLatLng(latlng => bounds.extend(latlng));
+                    });
+                });
+                if (!bounds.isEmpty()) {
+                    map.fitBounds(bounds);
+                }
+            },
+
+            async analyzeFlightLog(event) {
+                const file = event.target.files[0];
+                const osId = App.state.selectedServiceOrderId;
+
+                if (!file) return;
+                if (!osId) {
+                    App.ui.showAlert("Por favor, selecione uma Ordem de Serviço antes de analisar o voo.", "warning");
+                    return;
+                }
+
+                App.ui.setLoading(true, "Analisando log de voo...");
+
+                const formData = new FormData();
+                formData.append('logVoo', file);
+
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/ordens-servico/${osId}/analisar-voo`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.message || "Erro desconhecido do servidor.");
+                    }
+
+                    App.ui.showAlert("Análise concluída com sucesso!", "success");
+                    this.displayAnalysisOnMap(result.analysisResult);
+                    this.renderServiceOrders(); // Atualiza o status na lista
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro na análise: ${error.message}`, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                    event.target.value = ''; // Limpa o input
+                }
+            },
+
+            async populateDropdowns() {
+                const { osAeronave, osProduto } = App.elements.spraying;
+                try {
+                    const [aeronavesRes, produtosRes] = await Promise.all([
+                        fetch(`${App.config.backendUrl}/api/aeronaves`),
+                        fetch(`${App.config.backendUrl}/api/produtos`)
+                    ]);
+                    const aeronaves = await aeronavesRes.json();
+                    const produtos = await produtosRes.json();
+
+                    osAeronave.innerHTML = '<option value="">Selecione uma aeronave...</option>';
+                    aeronaves.forEach(a => {
+                        osAeronave.innerHTML += `<option value="${a.id}">${a.prefixo} - ${a.modelo}</option>`;
+                    });
+
+                    osProduto.innerHTML = '<option value="">Selecione um produto...</option>';
+                    produtos.forEach(p => {
+                        osProduto.innerHTML += `<option value="${p.id}">${p.nome}</option>`;
+                    });
+                } catch (error) {
+                    console.error("Erro ao popular dropdowns:", error);
+                    App.ui.showAlert("Não foi possível carregar dados para os formulários.", "error");
+                }
+            },
+
+            setupEventListeners() {
+                const { btnSalvarOS, osAreaPlanejadaUpload, osAreaPlanejadaInput, osLogVooUpload, osLogVooInput, osList } = App.elements.spraying;
+
+                btnSalvarOS.addEventListener('click', () => this.saveServiceOrder());
+
+                osAreaPlanejadaUpload.addEventListener('click', () => osAreaPlanejadaInput.click());
+                osAreaPlanejadaInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) osAreaPlanejadaUpload.querySelector('p').textContent = file.name;
+                });
+
+                osLogVooUpload.addEventListener('click', () => osLogVooInput.click());
+                osLogVooInput.addEventListener('change', (e) => this.analyzeFlightLog(e));
+
+                osList.addEventListener('click', (e) => {
+                    const card = e.target.closest('.plano-card');
+                    if (card && card.dataset.osId) {
+                        this.selectServiceOrder(card.dataset.osId);
+                    }
+                });
+            },
+
+            async saveServiceOrder() {
+                const { osData, osPiloto, osAeronave, osProduto, osDosagem, osAreaPlanejadaInput, osAreaPlanejadaUpload } = App.elements.spraying;
+                const file = osAreaPlanejadaInput.files[0];
+
+                const osDataPayload = {
+                    dataOperacao: osData.value,
+                    piloto: osPiloto.value.trim(),
+                    aeronaveId: osAeronave.value,
+                    produtoId: osProduto.value,
+                    dosagem: Number(osDosagem.value),
+                    geometriaPlanejadaUrl: null
+                };
+
+                if (!osDataPayload.dataOperacao || !osDataPayload.piloto || !osDataPayload.aeronaveId || !osDataPayload.produtoId) {
+                    return App.ui.showAlert("Preencha todos os campos obrigatórios da Ordem de Serviço.", "error");
+                }
+                if (!file) {
+                    return App.ui.showAlert("Por favor, anexe o arquivo da área planejada (SHP/KML).", "error");
+                }
+
+                App.ui.setLoading(true, "A guardar Ordem de Serviço...");
+
+                try {
+                    // Primeiro, faz o upload do arquivo para o Firebase Storage
+                    const storageRef = ref(storage, `planned_areas/${Date.now()}_${file.name}`);
+                    await uploadBytes(storageRef, file);
+                    const downloadURL = await getDownloadURL(storageRef);
+
+                    osDataPayload.geometriaPlanejadaUrl = downloadURL;
+
+                    // Agora, envia os dados da OS (incluindo a URL do arquivo) para o backend
+                    const response = await fetch(`${App.config.backendUrl}/api/ordens-servico`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(osDataPayload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || "Falha ao salvar a Ordem de Serviço.");
+                    }
+
+                    App.ui.showAlert("Ordem de Serviço salva com sucesso!", "success");
+
+                    // Limpa o formulário
+                    osData.value = '';
+                    osPiloto.value = '';
+                    osAeronave.value = '';
+                    osProduto.value = '';
+                    osDosagem.value = '';
+                    osAreaPlanejadaInput.value = '';
+                    osAreaPlanejadaUpload.querySelector('p').textContent = 'Clique ou arraste a área planejada';
+
+                    this.renderServiceOrders();
+
+                } catch (error) {
+                    App.ui.showAlert(error.message, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
             }
         },
 
@@ -5023,6 +5519,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaCodigo: farm ? farm.code : ''
                 };
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
+            },
+
+            generateSprayingPDF() {
+                const { osSelect } = App.elements.relatorioPulverizacao;
+                const osId = osSelect.value;
+                if (!osId) {
+                    App.ui.showAlert("Por favor, selecione uma Ordem de Serviço.", "warning");
+                    return;
+                }
+                const filters = { osId };
+                this._fetchAndDownloadReport('pulverizacao/pdf', filters, `relatorio_pulverizacao_${osId}.pdf`);
             }
         },
 
