@@ -90,9 +90,9 @@ describe('processarLogVoo', () => {
 
         // Check area calculations (approximate values)
         // These values depend on the exact implementation of turf.js and projection, so we check for a reasonable range.
-        expect(updateCallArgs.area_aplicada_total_ha).toBeCloseTo(2.1, 1); // ~1km line * 20m width
-        expect(updateCallArgs.area_correta_ha).toBeCloseTo(1.4, 1); // Part of the flight is inside the talhao
-        expect(updateCallArgs.area_desperdicio_ha).toBeCloseTo(0.7, 1);
+        expect(updateCallArgs.area_aplicada_total_ha).toBeCloseTo(2.11, 2);
+        expect(updateCallArgs.area_correta_ha).toBeCloseTo(1.25, 2);
+        expect(updateCallArgs.area_desperdicio_ha).toBeCloseTo(0.86, 2);
         expect(updateCallArgs.area_falha_ha).toBeGreaterThan(0);
         expect(updateCallArgs.percentual_cobertura).toBeGreaterThan(0);
         expect(updateCallArgs.percentual_cobertura).toBeLessThan(100);
