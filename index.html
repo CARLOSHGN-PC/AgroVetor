@@ -1458,8 +1458,11 @@
                     </div>
                     <div id="card-aerea" class="dashboard-card">
                         <i class="icon fas fa-plane-departure"></i>
-                        <h3>Aplicação Aérea</h3>
-                        <p>Módulo para gestão e análise de aplicações aéreas.</p>
+                        <h3>Pulverização</h3>
+                        <div id="dashboard-spraying-data" style="font-size: 14px; color: var(--color-text-light); line-height: 1.4;">
+                            <p>Operações Realizadas: <strong id="spraying-ops-count" style="color: var(--color-info);">0</strong></p>
+                            <p>Área Total Aplicada: <strong id="spraying-total-area" style="color: var(--color-info);">0 ha</strong></p>
+                        </div>
                     </div>
                 </div>
 
@@ -1564,18 +1567,90 @@
                 </div>
 
                 <div id="dashboard-aerea" style="display: none;">
-                                <div class="dashboard-header">
-                                    <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
-                                    <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
-                                </div>
-                                <div class="card">
-                                  <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
-                                      <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
-                                      Este módulo ainda está em desenvolvimento.
-                                    </p>
-                                </div>
+                    <div class="dashboard-header">
+                        <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Pulverização</h2>
+                        <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    </div>
+                    <div class="card">
+                      <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
+                          <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
+                          Este é um resumo. A análise detalhada está disponível na seção de Pulverização.
+                        </p>
+                    </div>
                 </div>
 
+            </section>
+
+            <section id="gestaoPulverizacao" class="tab-content" aria-label="Gestão de Pulverização" tabindex="0" hidden>
+                <div style="display: flex; gap: 20px; height: calc(100vh - 110px);">
+                    <!-- Coluna da Esquerda (Formulário - 35%) -->
+                    <div style="width: 35%; display: flex; flex-direction: column; gap: 20px;">
+                        <div class="card" style="flex-grow: 1; overflow-y: auto; padding: 20px;">
+                            <h2 style="margin-top: 0; margin-bottom: 15px;"><i class="fas fa-file-alt" style="color: var(--color-info);"></i> Ordem de Serviço</h2>
+
+                            <div id="os-list-container">
+                                <h3 style="margin-top: 0;">Ordens de Serviço Criadas</h3>
+                                <div id="os-list" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--border-radius); padding: 10px;">
+                                    <!-- Lista de OS será populada aqui -->
+                                    <p>Nenhuma OS encontrada.</p>
+                                </div>
+                            </div>
+
+                            <hr style="margin: 20px 0;">
+
+                            <div id="os-form-container">
+                                 <h3>Criar/Editar OS</h3>
+                                <div class="form-col">
+                                    <label for="osData" class="required">Data da Operação:</label>
+                                    <input type="date" id="osData">
+                                </div>
+                                <div class="form-col">
+                                    <label for="osPiloto" class="required">Piloto Responsável:</label>
+                                    <input type="text" id="osPiloto" placeholder="Nome do piloto">
+                                </div>
+                                 <div class="form-col">
+                                    <label for="osAeronave" class="required">Aeronave:</label>
+                                    <select id="osAeronave"></select>
+                                </div>
+                                <div class="form-col">
+                                    <label for="osProduto" class="required">Produto:</label>
+                                    <select id="osProduto"></select>
+                                </div>
+                                <div class="form-col">
+                                    <label for="osDosagem" class="required">Dosagem (Litros/ha):</label>
+                                    <input type="number" id="osDosagem" placeholder="Ex: 20">
+                                </div>
+
+                                <div class="form-col" style="margin-top: 15px;">
+                                    <label>Área Planejada (SHP/KML):</label>
+                                    <div class="upload-area" id="osAreaPlanejadaUpload" style="padding: 1rem;">
+                                        <i class="fas fa-map-marked-alt fa-lg" style="color: var(--color-primary);"></i>
+                                        <p style="font-size: 14px;">Clique ou arraste a área planejada</p>
+                                    </div>
+                                    <input type="file" id="osAreaPlanejadaInput" accept=".zip,.kml" style="display: none;">
+                                </div>
+
+                                 <div class="form-col" style="margin-top: 15px;">
+                                    <label>Log de Voo Executado (KML):</label>
+                                    <div class="upload-area" id="osLogVooUpload" style="padding: 1rem;">
+                                        <i class="fas fa-plane-departure fa-lg" style="color: var(--color-accent);"></i>
+                                        <p style="font-size: 14px;">Clique ou arraste o log de voo</p>
+                                    </div>
+                                    <input type="file" id="osLogVooInput" accept=".kml" style="display: none;">
+                                </div>
+
+                                <button id="btnSalvarOS" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Salvar Ordem de Serviço</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coluna da Direita (Mapa - 65%) -->
+                    <div style="width: 65%;" class="card">
+                        <div id="pulverizacao-map-container" style="width: 100%; height: 100%; min-height: 500px; border-radius: var(--border-radius); background-color: #e0e0e0;">
+                             <!-- O mapa será renderizado aqui -->
+                        </div>
+                    </div>
+                </div>
             </section>
             
             <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
@@ -1851,6 +1926,22 @@
                 </div>
             </section>
 
+            <section id="relatorioPulverizacao" class="tab-content card" aria-label="Relatório de Pulverização" tabindex="0" hidden>
+                <h2><i class="fas fa-file-pdf"></i> Relatório de Análise de Pulverização</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">
+                    Selecione uma Ordem de Serviço que já tenha sido analisada para gerar o relatório em PDF.
+                </p>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="pulverizacaoRelatorioOSSelect" class="required">Ordem de Serviço Analisada:</label>
+                        <select id="pulverizacaoRelatorioOSSelect"></select>
+                    </div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnGerarRelatorioPulverizacaoPDF" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                </div>
+            </section>
+
             <section id="lancamentoPerda" class="tab-content card" aria-label="Lançamento Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-dollar-sign"></i> Lançamento Perda</h2>
                 <div class="form-row">
@@ -1929,6 +2020,48 @@
                     <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
                     <button id="btnDownloadCsvTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
                     <small class="csv-format-info">Formato: Cód;FAZENDA;TIPO;TALHÃO;Área;TCH;Variedade;Corte;Distancia;DataUltimaColheita</small>
+                </div>
+
+                <!-- CADASTRO DE AERONAVES -->
+                <div id="cadastroAeronavesContainer" class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
+                    <h3><i class="fas fa-plane"></i> Gerir Aeronaves</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="aeronavePrefixo" class="required">Prefixo:</label>
+                            <input type="text" id="aeronavePrefixo" placeholder="Ex: PR-ABC">
+                        </div>
+                        <div class="form-col">
+                            <label for="aeronaveModelo">Modelo:</label>
+                            <input type="text" id="aeronaveModelo" placeholder="Ex: Ipanema 202">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="aeronaveLarguraFaixa" class="required">Largura da Faixa de Aplicação (metros):</label>
+                            <input type="number" id="aeronaveLarguraFaixa" placeholder="Ex: 30">
+                        </div>
+                    </div>
+                    <button id="btnSalvarAeronave" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Salvar Aeronave</button>
+                    <h4 style="margin-top: 20px;">Aeronaves Cadastradas</h4>
+                    <div id="listaAeronaves" class="table-responsive"></div>
+                </div>
+
+                <!-- CADASTRO DE PRODUTOS -->
+                <div id="cadastroProdutosContainer" class="card" style="border-left-color: var(--color-success); margin-top: 30px;">
+                    <h3><i class="fas fa-flask"></i> Gerir Produtos de Pulverização</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="produtoNome" class="required">Nome do Produto:</label>
+                            <input type="text" id="produtoNome" placeholder="Ex: Herbicida Z">
+                        </div>
+                        <div class="form-col">
+                            <label for="produtoIngredienteAtivo">Ingrediente Ativo:</label>
+                            <input type="text" id="produtoIngredienteAtivo" placeholder="Ex: Glifosato">
+                        </div>
+                    </div>
+                    <button id="btnSalvarProduto" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Salvar Produto</button>
+                    <h4 style="margin-top: 20px;">Produtos Cadastrados</h4>
+                    <div id="listaProdutos" class="table-responsive"></div>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
