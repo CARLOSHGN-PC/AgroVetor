@@ -10,7 +10,6 @@ const os = require('os');
 const axios = require('axios');
 const shp = require('shpjs');
 const pointInPolygon = require('point-in-polygon');
-const turf = require('@turf/turf');
 const { processarLogVoo } = require('./processing');
 
 const app = express();
