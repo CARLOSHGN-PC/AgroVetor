@@ -2076,6 +2076,51 @@
                 </div>
 
             </section>
+
+            <section id="operacoes" class="tab-content" aria-label="Planejamento de Operações" tabindex="0" hidden>
+                <div style="display: flex; gap: 20px; height: 100%;">
+                    <!-- Coluna Esquerda: Formulário -->
+                    <div style="width: 30%; height: 100%; overflow-y: auto;">
+                        <div class="card">
+                            <h2><i class="fas fa-plane-departure" style="color: var(--color-info);"></i> Planejar Operação</h2>
+
+                            <div class="form-col">
+                                <label for="opFazenda" class="required">Fazenda:</label>
+                                <select id="opFazenda" required></select>
+                            </div>
+
+                            <div class="form-col">
+                                <label for="opTalhao" class="required">Talhão:</label>
+                                <select id="opTalhao" required disabled></select>
+                            </div>
+
+                            <div class="resultado" id="opArea" style="margin-top: 15px; display: none; border-left-color: var(--color-info);"></div>
+
+                            <div class="form-col" style="margin-top: 15px;">
+                                <label for="opProduto" class="required">Produto a ser Aplicado:</label>
+                                <select id="opProduto" required></select>
+                            </div>
+
+                            <div class="form-col">
+                                <label for="opDosagem" class="required">Dosagem (L/ha):</label>
+                                <input type="number" id="opDosagem" placeholder="Ex: 2.5" required>
+                            </div>
+
+                            <button class="save" id="btnSalvarOperacao" style="margin-top: 24px; width: 100%; background: linear-gradient(to right, var(--color-info), #42a5f5);">
+                                <i class="fas fa-save"></i> Guardar Operação
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Coluna Direita: Mapa -->
+                    <div style="width: 70%; height: calc(100vh - 110px); position: relative;">
+                        <div id="planning-map-container" style="width: 100%; height: 100%; border-radius: var(--border-radius-lg); overflow: hidden; background-color: #e0e0e0;">
+                            <!-- O mapa será renderizado aqui -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
