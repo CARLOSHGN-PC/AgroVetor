@@ -135,6 +135,10 @@ document.addEventListener('DOMContentLoaded', () => {
             planos: [],
             fazendas: [],
             personnel: [],
+            produtos: [],
+            ordens_servico: [],
+            activeOrdemServico: null,
+            mapMode: null, // Can be 'os_selection'
             companyLogo: null,
             activeSubmenu: null,
             charts: {},
@@ -326,6 +330,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 csvUploadArea: document.getElementById('csvUploadArea'),
                 csvFileInput: document.getElementById('csvFileInput'),
                 btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
+                productName: document.getElementById('productName'),
+                productActiveIngredient: document.getElementById('productActiveIngredient'),
+                productDosage: document.getElementById('productDosage'),
+                btnSaveProduct: document.getElementById('btnSaveProduct'),
+                productList: document.getElementById('productList'),
             },
             planejamento: {
                 tipo: document.getElementById('planoTipo'),
@@ -436,6 +445,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBox: document.getElementById('trap-info-box'),
                 trapInfoBoxContent: document.getElementById('trap-info-box-content'),
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
+                sidebar: document.getElementById('aereo-sidebar'),
+                ordemServicoList: document.getElementById('ordemServicoList'),
+                btnNewOrdemServico: document.getElementById('btnNewOrdemServico'),
+            },
+            ordemServicoModal: {
+                overlay: document.getElementById('ordemServicoModal'),
+                closeBtn: document.getElementById('ordemServicoModalCloseBtn'),
+                cancelBtn: document.getElementById('ordemServicoModalCancelBtn'),
+                saveBtn: document.getElementById('ordemServicoModalSaveBtn'),
+                fazenda: document.getElementById('osFazenda'),
+                data: document.getElementById('osData'),
+                selectedTalhoes: document.getElementById('osSelectedTalhoes'),
+                produto: document.getElementById('osProduto'),
+                dosagem: document.getElementById('osDosagem'),
+                larguraFaixa: document.getElementById('osLarguraFaixa'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -666,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas' ];
+                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'produtos', 'ordens_servico' ];
                 
                 collectionsToListen.forEach(collectionName => {
                     const q = collection(db, collectionName);
@@ -815,6 +839,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.populateOperatorSelects();
                 this.renderUsersList();
                 this.renderPersonnelList();
+                this.renderProductList();
+                this.renderOrdemServicoList();
                 this.renderLogoPreview();
                 this.renderPlanejamento();
                 this.showHarvestPlanList();
@@ -823,6 +849,112 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (document.getElementById('dashboard').classList.contains('active')) {
                    this.showDashboardView('broca'); 
                 }
+            },
+            renderProductList() {
+                const { productList } = App.elements.cadastros;
+                productList.innerHTML = '';
+                if (App.state.produtos.length === 0) {
+                    productList.innerHTML = '<p>Nenhum produto cadastrado.</p>';
+                    return;
+                }
+                const table = document.createElement('table');
+                table.id = 'productTable';
+                table.className = 'harvestPlanTable'; // Reusing style
+                table.innerHTML = `<thead><tr><th>Nome do Produto</th><th>Ingrediente Ativo</th><th>Dosagem Padrão</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+                App.state.produtos.sort((a, b) => a.name.localeCompare(b.name)).forEach(p => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td data-label="Nome">${p.name}</td>
+                        <td data-label="Ingrediente Ativo">${p.activeIngredient || ''}</td>
+                        <td data-label="Dosagem">${p.dosage || ''}</td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" data-action="delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                });
+                productList.appendChild(table);
+            },
+            renderOrdemServicoList() {
+                const { ordemServicoList } = App.elements.monitoramentoAereo;
+                if (!ordemServicoList) return;
+
+                ordemServicoList.innerHTML = '';
+                if (App.state.ordens_servico.length === 0) {
+                    ordemServicoList.innerHTML = '<p style="padding: 15px;">Nenhuma Ordem de Serviço encontrada.</p>';
+                    return;
+                }
+
+                App.state.ordens_servico.forEach(os => {
+                    const osEl = document.createElement('div');
+                    osEl.className = 'os-list-item';
+                    osEl.dataset.id = os.id;
+
+                    const fazenda = App.state.fazendas.find(f => f.id === os.fazendaId);
+                    const produto = App.state.produtos.find(p => p.id === os.produtoId);
+
+                    let uploadHTML = '';
+                    if (os.status === 'Pendente') {
+                        uploadHTML = `
+                            <div class="upload-button-container">
+                                <input type="file" id="log-upload-${os.id}" class="log-upload-input" style="display: none;" accept=".txt,.log,.csv">
+                                <button class="save" onclick="document.getElementById('log-upload-${os.id}').click()"><i class="fas fa-upload"></i> Enviar Log</button>
+                            </div>
+                        `;
+                    }
+
+                    osEl.innerHTML = `
+                        <h4>${fazenda ? fazenda.name : 'Fazenda não encontrada'}</h4>
+                        <p><strong>Produto:</strong> ${produto ? produto.name : 'Produto não encontrado'}</p>
+                        <p><strong>Data:</strong> ${new Date(os.data_planejada + 'T03:00:00Z').toLocaleDateString('pt-BR')}</p>
+                        <span class="os-status ${os.status.toLowerCase().replace(' ', '-')}">${os.status}</span>
+                        ${uploadHTML}
+                    `;
+                    ordemServicoList.appendChild(osEl);
+                });
+            },
+            openOrdemServicoModal() {
+                const { overlay, fazenda, produto, selectedTalhoes } = App.elements.ordemServicoModal;
+                
+                App.state.activeOrdemServico = { selectedTalhoes: [] };
+                App.state.mapMode = 'os_selection';
+
+                this.populateFazendaSelects(fazenda);
+                this.populateProdutoSelect(produto);
+                selectedTalhoes.innerHTML = '<p>Selecione um ou mais talhões no mapa.</p>';
+                App.mapModule.clearOsSelectionHighlights();
+
+                overlay.classList.add('show');
+            },
+            closeOrdemServicoModal() {
+                const { overlay } = App.elements.ordemServicoModal;
+                overlay.classList.remove('show');
+                
+                App.state.mapMode = null;
+                App.mapModule.clearOsSelectionHighlights();
+                App.state.activeOrdemServico = null;
+            },
+            updateSelectedTalhoesList() {
+                const { selectedTalhoes } = App.elements.ordemServicoModal;
+                const talhoes = App.state.activeOrdemServico.selectedTalhoes;
+
+                if (!talhoes || talhoes.length === 0) {
+                    selectedTalhoes.innerHTML = '<p>Selecione um ou mais talhões no mapa.</p>';
+                    return;
+                }
+
+                selectedTalhoes.innerHTML = talhoes.map(t => `<span class="badge" style="background: var(--color-primary); color: white; padding: 5px 10px; border-radius: 12px; margin-right: 5px;">${t.name}</span>`).join('');
+            },
+            populateProdutoSelect(selectElement) {
+                if (!selectElement) return;
+                const savedValue = selectElement.value;
+                selectElement.innerHTML = '<option value="">Selecione um produto...</option>';
+                App.state.produtos.forEach(p => {
+                    selectElement.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                });
+                selectElement.value = savedValue;
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
             showAlert(message, type = 'success', duration = 3000) {
@@ -1960,6 +2092,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (editFarmModalEls.cancelBtn) editFarmModalEls.cancelBtn.addEventListener('click', () => this.closeEditFarmModal());
                 if (editFarmModalEls.saveBtn) editFarmModalEls.saveBtn.addEventListener('click', () => App.actions.saveFarmChanges());
 
+                if (App.elements.monitoramentoAereo.btnNewOrdemServico) App.elements.monitoramentoAereo.btnNewOrdemServico.addEventListener('click', () => App.ui.openOrdemServicoModal());
+
+                const osModal = App.elements.ordemServicoModal;
+                if (osModal.closeBtn) osModal.closeBtn.addEventListener('click', () => App.ui.closeOrdemServicoModal());
+                if (osModal.cancelBtn) osModal.cancelBtn.addEventListener('click', () => App.ui.closeOrdemServicoModal());
+                if (osModal.saveBtn) osModal.saveBtn.addEventListener('click', () => App.actions.saveOrdemServico());
+                
+                if (App.elements.monitoramentoAereo.ordemServicoList) App.elements.monitoramentoAereo.ordemServicoList.addEventListener('change', e => {
+                    if (e.target.classList.contains('log-upload-input')) {
+                        const osId = e.target.id.replace('log-upload-', '');
+                        const file = e.target.files[0];
+                        App.actions.handleLogUpload(osId, file);
+                    }
+                });
+
+                if (App.elements.cadastros.btnSaveProduct) App.elements.cadastros.btnSaveProduct.addEventListener('click', () => App.actions.saveProduct());
+                if (App.elements.cadastros.productList) App.elements.cadastros.productList.addEventListener('click', e => {
+                    const btn = e.target.closest('button[data-action="delete-product"]');
+                    if (btn) App.actions.deleteProduct(btn.dataset.id);
+                });
+
                 if (App.elements.planejamento.btnAgendar) App.elements.planejamento.btnAgendar.addEventListener('click', () => App.actions.agendarInspecao());
                 if (App.elements.planejamento.btnSugerir) App.elements.planejamento.btnSugerir.addEventListener('click', () => App.gemini.getPlanningSuggestions());
                 if (App.elements.planejamento.lista) App.elements.planejamento.lista.addEventListener('click', (e) => { const button = e.target.closest('button[data-action]'); if(!button) return; const { action, id } = button.dataset; if (action === 'concluir') App.actions.marcarPlanoComoConcluido(id); if (action === 'excluir') App.actions.excluirPlano(id); });
@@ -2966,6 +3119,96 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Registo excluído com sucesso!');
                 });
             },
+            async saveProduct() {
+                const { productName, productActiveIngredient, productDosage } = App.elements.cadastros;
+                const name = productName.value.trim();
+                if (!name) {
+                    App.ui.showAlert("O nome do produto é obrigatório.", "error");
+                    return;
+                }
+                const productData = {
+                    name: name,
+                    activeIngredient: productActiveIngredient.value.trim(),
+                    dosage: parseFloat(productDosage.value) || null
+                };
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar o produto ${name}?`, async () => {
+                    try {
+                        await App.data.addDocument('produtos', productData);
+                        App.ui.showAlert("Produto adicionado com sucesso!");
+                        productName.value = '';
+                        productActiveIngredient.value = '';
+                        productDosage.value = '';
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao guardar o produto.", "error");
+                    }
+                });
+            },
+            deleteProduct(productId) {
+                const product = App.state.produtos.find(p => p.id === productId);
+                if (!product) return;
+                App.ui.showConfirmationModal(`Tem a certeza que deseja excluir o produto "${product.name}"?`, async () => {
+                    try {
+                        await App.data.deleteDocument('produtos', productId);
+                        App.ui.showAlert('Produto excluído com sucesso.', 'info');
+                    } catch (error) {
+                        App.ui.showAlert('Erro ao excluir o produto.', 'error');
+                    }
+                });
+            },
+            async saveOrdemServico() {
+                const { fazenda, data, produto, dosagem, larguraFaixa } = App.elements.ordemServicoModal;
+                const osData = {
+                    fazendaId: fazenda.value,
+                    produtoId: produto.value,
+                    data_planejada: data.value,
+                    dosagem: parseFloat(dosagem.value),
+                    largura_faixa: parseInt(larguraFaixa.value),
+                    talhoes: App.state.activeOrdemServico.selectedTalhoes // This needs to be populated by map interaction
+                };
+                
+                if (!osData.fazendaId || !osData.produtoId || !osData.data_planejada || isNaN(osData.dosagem) || isNaN(osData.largura_faixa) || !osData.talhoes || osData.talhoes.length === 0) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios e selecione pelo menos um talhão.", "error");
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/ordens-servico`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(osData)
+                    });
+                    if (!response.ok) throw new Error('Falha ao criar Ordem de Serviço no servidor.');
+                    
+                    App.ui.showAlert("Ordem de Serviço criada com sucesso!");
+                    App.ui.closeOrdemServicoModal();
+                } catch (error) {
+                    App.ui.showAlert(error.message, "error");
+                }
+            },
+            async handleLogUpload(osId, file) {
+                if (!file) return;
+
+                App.ui.setLoading(true, "Enviando arquivo de log...");
+                const formData = new FormData();
+                formData.append('logFile', file);
+
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/aplicacoes/upload-log/${osId}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) throw new Error(result.message || 'Erro no servidor.');
+                    
+                    App.ui.showAlert(result.message, "success");
+                } catch (error) {
+                    App.ui.showAlert(`Falha no upload: ${error.message}`, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
             async importFarmsFromCSV(file) {
                  if (!file) return;
                  const reader = new FileReader();
@@ -3636,14 +3879,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const themeColors = App.ui._getThemeColors();
 
                 dataLayer.setStyle(feature => {
-                    let fillOpacity = 0.20; // Padrão (mais claro para realçar a seleção)
-                    if (feature.getProperty('isSelected')) {
-                        fillOpacity = 0.85; // Selecionado (bem destacado)
+                    let fillOpacity = 0.20;
+                    let fillColor = themeColors.primary;
+                    if (feature.getProperty('isSelectedForOS')) {
+                        fillOpacity = 0.7;
+                        fillColor = '#FFD700'; // Amarelo para seleção de OS
+                    } else if (feature.getProperty('isSelected')) {
+                        fillOpacity = 0.85;
                     } else if (feature.getProperty('isHovered')) {
-                        fillOpacity = 0.60; // Hover (destaque intermediário)
+                        fillOpacity = 0.60;
                     }
                     return ({
-                        fillColor: themeColors.primary,
+                        fillColor: fillColor,
                         fillOpacity: fillOpacity,
                         strokeColor: '#FFD700',
                         strokeWeight: 2,
@@ -3661,6 +3908,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 dataLayer.addListener('click', (event) => {
+                    if (App.state.mapMode === 'os_selection') {
+                        this.toggleTalhaoSelection(event.feature);
+                        return;
+                    }
+
                     if (App.state.trapPlacementMode === 'manual_select') {
                         const selectedFeature = event.feature;
                         const userMarker = App.state.googleUserMarker;
@@ -4258,6 +4510,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.googleMap.panTo(position);
                     App.state.googleMap.setZoom(18);
                     this.showTrapInfo(trapId);
+                }
+            },
+            toggleTalhaoSelection(feature) {
+                if (!App.state.activeOrdemServico) return;
+
+                const talhaoId = feature.getProperty('id') || feature.getProperty('TALHAO_ID') || Date.now(); // Fallback ID
+                const talhaoName = feature.getProperty('CD_TALHAO') || feature.getProperty('TALHAO') || 'Talhão Desconhecido';
+                
+                const selectedTalhoes = App.state.activeOrdemServico.selectedTalhoes;
+                const index = selectedTalhoes.findIndex(t => t.id === talhaoId);
+
+                if (index > -1) {
+                    // Deselect
+                    selectedTalhoes.splice(index, 1);
+                    feature.setProperty('isSelectedForOS', false);
+                } else {
+                    // Select
+                    const geometry = feature.getGeometry();
+                    const coordinates = [];
+                    geometry.getArray().forEach(path => {
+                        const pathCoords = [];
+                        path.getArray().forEach(latLng => {
+                            pathCoords.push([latLng.lng(), latLng.lat()]);
+                        });
+                        coordinates.push(pathCoords);
+                    });
+
+                    selectedTalhoes.push({
+                        id: talhaoId,
+                        name: talhaoName,
+                        geometria: { type: 'Polygon', coordinates: coordinates }
+                    });
+                    feature.setProperty('isSelectedForOS', true);
+                }
+                App.ui.updateSelectedTalhoesList();
+            },
+
+            clearOsSelectionHighlights() {
+                const dataLayer = App.state.mapPolygons[0];
+                if (dataLayer) {
+                    dataLayer.forEach(feature => {
+                        if (feature.getProperty('isSelectedForOS')) {
+                            feature.setProperty('isSelectedForOS', false);
+                        }
+                    });
                 }
             }
         },
