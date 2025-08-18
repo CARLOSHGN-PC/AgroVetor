@@ -83,7 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
-                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                { label: 'Monitoramento de Armadilhas', icon: 'fas fa-satellite-dish', action: 'openTrapMap', permission: 'monitoramentoAereo' },
+                { label: 'Pulverização Aérea', icon: 'fas fa-plane-departure', target: 'pulverizacao', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -142,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
             mapResultLayers: [],
             companyLogo: null,
             activeSubmenu: null,
-            charts: {},
             harvestPlans: [],
             activeHarvestPlan: null,
             inactivityTimer: null,
@@ -998,7 +998,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 selectElement.value = savedValue;
             },
-            async openMapViewerModal(mode, data) {
+            async openMapViewerModal(mode = 'view_traps', data) {
                 const { overlay, title, legend } = App.elements.mapViewerModal;
                 App.state.mapMode = mode;
                 
@@ -1007,6 +1007,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (mode === 'os_selection') {
                     title.textContent = 'Selecione os Talhões no Mapa';
+                } else if (mode === 'view_traps') {
+                    title.textContent = 'Mapa de Monitoramento de Armadilhas';
                 } else if (mode === 'view_results') {
                     const osId = data;
                     const os = App.state.ordens_servico.find(o => o.id === osId);
@@ -1086,6 +1088,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             e.stopPropagation();
                             this.renderSubmenu(item);
                         });
+                    } else if (item.action) {
+                        btn.addEventListener('click', () => {
+                            this.closeAllMenus();
+                            if (App.actions[item.action]) {
+                                App.actions[item.action]();
+                            }
+                        });
                     } else {
                         btn.addEventListener('click', () => {
                             this.closeAllMenus();
@@ -1118,10 +1127,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         const subBtn = document.createElement('button');
                         subBtn.className = 'submenu-btn';
                         subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
-                        subBtn.addEventListener('click', () => {
-                            this.closeAllMenus();
-                            this.showTab(subItem.target);
-                        });
+                        if (subItem.action) {
+                            subBtn.addEventListener('click', () => {
+                                this.closeAllMenus();
+                                if (App.actions[subItem.action]) {
+                                    App.actions[subItem.action]();
+                                }
+                            });
+                        } else {
+                            subBtn.addEventListener('click', () => {
+                                this.closeAllMenus();
+                                this.showTab(subItem.target);
+                            });
+                        }
                         submenuContent.appendChild(subBtn);
                     }
                 });
@@ -1271,24 +1289,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 switch(viewName) {
                     case 'selector':
                         dashEls.selector.style.display = 'grid';
-                        // Apenas destrói os gráficos ao voltar para a seleção principal
+                        // Destroy charts when returning to the main selector to free up resources.
                         App.charts.destroyChartsByIds([...brocaChartIds, ...perdaChartIds]);
                         break;
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
                         this.loadDashboardDates('broca');
-                        // Não destrói os gráficos de 'perda' ao mudar para 'broca'
-                        if (!App.state.charts.graficoTop10FazendasBroca) {
-                            setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
-                        }
+                        // The render function is now smart enough to avoid re-rendering if data is the same.
+                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                         break;
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
                         this.loadDashboardDates('perda');
-                        // Não destrói os gráficos de 'broca' ao mudar para 'perda'
-                        if (!App.state.charts.graficoPerdaPorFrenteTurno) {
-                            setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
-                        }
+                        // The render function is now smart enough to avoid re-rendering if data is the same.
+                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
                         break;
                     case 'aerea':
                         dashEls.aereaView.style.display = 'block';
@@ -3718,6 +3732,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.unreadNotificationCount = 0;
                 App.ui.updateNotificationBell();
             },
+            openTrapMap() {
+                App.ui.openMapViewerModal('view_traps');
+            },
             // NOVO: Ação para limpar todas as notificações
             clearAllNotifications() {
                 App.state.trapNotifications = [];
@@ -4761,63 +4778,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 const canvas = document.getElementById(canvasId);
                 const ctx = canvas?.getContext('2d');
                 if (!ctx) return;
-            
+
                 const container = canvas.parentElement;
                 const loader = container.querySelector('.chart-loader');
-            
-                // Cache check: if chart exists and data is identical, do nothing.
-                const existingChart = App.state.charts[id];
-                if (existingChart && JSON.stringify(existingChart.config.data) === JSON.stringify(config.data)) {
-                    if (loader) loader.style.display = 'none';
-                    canvas.style.visibility = 'visible';
-                    return;
+
+                // Use Chart.js's built-in method to get the chart instance.
+                const existingChart = Chart.getChart(canvasId);
+                if (existingChart) {
+                    // If the data is identical, no need to re-render.
+                    if (JSON.stringify(existingChart.config.data) === JSON.stringify(config.data)) {
+                        if (loader) loader.style.display = 'none';
+                        canvas.style.visibility = 'visible';
+                        return;
+                    }
+                    existingChart.destroy();
                 }
-            
-                if (!isExpanded) {
-                    if (loader) loader.style.display = 'block';
-                    canvas.style.visibility = 'hidden'; // Hide canvas before rendering
+
+                if (!isExpanded && loader) {
+                    loader.style.display = 'block';
+                    canvas.style.visibility = 'hidden';
                 }
-                
-                const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
-                if (chartInstance) {
-                    chartInstance.destroy();
-                }
-            
+
                 // A small delay can help ensure the loader is displayed before the chart starts rendering.
                 setTimeout(() => {
                     config.options = config.options || {};
                     config.options.animation = config.options.animation || {};
                     const existingOnComplete = config.options.animation.onComplete;
-            
+
                     config.options.animation.onComplete = (animation) => {
-                        if (!isExpanded) {
-                            if (loader) loader.style.display = 'none';
-                            canvas.style.visibility = 'visible'; // Show canvas when animation is complete
+                        if (!isExpanded && loader) {
+                            loader.style.display = 'none';
+                            canvas.style.visibility = 'visible';
                         }
-                        if(existingOnComplete) existingOnComplete(animation);
+                        if (existingOnComplete) existingOnComplete(animation);
                     };
-            
+
                     const newChart = new Chart(ctx, config);
                     if (isExpanded) {
                         App.state.expandedChart = newChart;
                     } else {
-                        App.state.charts[id] = newChart;
+                        // We no longer need to store the chart in App.state.charts
+                        // Chart.getChart(canvasId) is the source of truth.
                     }
                 }, 50);
             },
             
             destroyChartsByIds(ids) {
                 ids.forEach(id => {
-                    if (App.state.charts[id]) {
+                    const chart = Chart.getChart(id);
+                    if (chart) {
                         const canvas = document.getElementById(id);
                         if (canvas) {
                             const container = canvas.parentElement;
                             const loader = container.querySelector('.chart-loader');
                             if (loader) loader.style.display = 'block';
-                            canvas.style.visibility = 'hidden'; 
+                            canvas.style.visibility = 'hidden';
                         }
-                        App.state.charts[id].destroy();
-                        delete App.state.charts[id];
+                        chart.destroy();
                     }
                 });
             },
