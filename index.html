@@ -806,6 +806,38 @@
           height: 100%;
           position: relative;
       }
+      #map-offline-status-container {
+        position: absolute;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+        background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+        backdrop-filter: blur(5px);
+        padding: 8px 12px;
+        border-radius: var(--border-radius);
+        box-shadow: var(--shadow-md);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      #map-offline-status-container .spinner {
+        width: 20px;
+        height: 20px;
+        border-width: 3px;
+      }
+      #map-offline-status-icon i {
+        font-size: 18px;
+      }
+      #btn-manual-cache-map {
+        padding: 4px 10px;
+        font-size: 12px;
+        margin-top: 0;
+        width: auto;
+        flex-shrink: 0;
+      }
       #map {
           width: 100%;
           height: 100%;
@@ -2048,6 +2080,11 @@
         
         <div id="monitoramentoAereo-container" class="tab-content">
             <div id="map-container">
+                <div id="map-offline-status-container">
+                    <span id="map-offline-status-icon"><div class="spinner" style="width: 20px; height: 20px; border-width: 3px;"></div></span>
+                    <span id="map-offline-status-text">Verificando status do mapa offline...</span>
+                    <button id="btn-manual-cache-map" class="save" style="display: none;">Sincronizar Mapa</button>
+                </div>
                 <div id="map"></div>
                 <div class="map-controls">
                     <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
