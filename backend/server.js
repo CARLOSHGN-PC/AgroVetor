@@ -85,6 +85,43 @@ try {
         }
     });
 
+    // ROTA PARA CRIAR ORDEM DE SERVIÇO DE PULVERIZAÇÃO
+    app.post('/api/service-orders', async (req, res) => {
+        try {
+            const { farm, plot, product, dosage, area, user } = req.body;
+
+            if (!farm || !plot || !product || !dosage || !area || !user) {
+                return res.status(400).send({ message: 'Dados insuficientes para criar a Ordem de Serviço.' });
+            }
+
+            const newServiceOrder = {
+                farmId: farm.id,
+                farmName: farm.name,
+                plotId: plot.id,
+                plotName: plot.name,
+                productId: product.id,
+                productName: product.name,
+                dosage: Number(dosage),
+                area: Number(area),
+                status: 'Planejada', // "Planned"
+                createdBy: {
+                    uid: user.uid,
+                    email: user.email,
+                    username: user.username,
+                },
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+
+            const docRef = await db.collection('serviceOrders').add(newServiceOrder);
+
+            res.status(201).send({ message: 'Ordem de Serviço criada com sucesso!', id: docRef.id });
+
+        } catch (error) {
+            console.error("Erro ao criar Ordem de Serviço:", error);
+            res.status(500).send({ message: `Erro no servidor ao criar Ordem de Serviço: ${error.message}` });
+        }
+    });
+
     // --- FUNÇÕES AUXILIARES ---
 
     const formatNumber = (num) => {
