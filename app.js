@@ -1151,27 +1151,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const brocaChartIds = ['graficoTop10FazendasBroca', 'graficoBrocaMensal', 'graficoBrocaPosicao', 'graficoBrocaPorVariedade'];
                 const perdaChartIds = ['graficoPerdaPorFrenteTurno', 'graficoComposicaoPerda', 'graficoTop10FazendasPerda', 'graficoPerdaPorFrente'];
 
+                // Destrói TODOS os gráficos do dashboard antes de decidir qual visão mostrar.
+                // Isso evita o erro "Canvas already in use" ao navegar entre os dashboards.
+                App.charts.destroyChartsByIds([...brocaChartIds, ...perdaChartIds]);
+
                 switch(viewName) {
                     case 'selector':
                         dashEls.selector.style.display = 'grid';
-                        // Apenas destrói os gráficos ao voltar para a seleção principal
-                        App.charts.destroyChartsByIds([...brocaChartIds, ...perdaChartIds]);
                         break;
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
                         this.loadDashboardDates('broca');
-                        // Não destrói os gráficos de 'perda' ao mudar para 'broca'
-                        if (!App.state.charts.graficoTop10FazendasBroca) {
-                            setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
-                        }
+                        // O timeout garante que o DOM seja atualizado antes de tentar renderizar o gráfico.
+                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                         break;
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
                         this.loadDashboardDates('perda');
-                        // Não destrói os gráficos de 'broca' ao mudar para 'perda'
-                        if (!App.state.charts.graficoPerdaPorFrenteTurno) {
-                            setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
-                        }
+                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
                         break;
                     case 'aerea':
                         dashEls.aereaView.style.display = 'block';
@@ -1494,6 +1491,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            async deleteAeronave(id) {
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir esta aeronave?", async () => {
+                    try {
+                        App.ui.setLoading(true, "A excluir aeronave...");
+                        const response = await fetch(`${App.config.backendUrl}/api/aeronaves/${id}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok) {
+                            const err = await response.json();
+                            throw new Error(err.message || 'Falha ao excluir aeronave.');
+                        }
+                        App.ui.showAlert("Aeronave excluída com sucesso!", "success");
+                        this.renderAeronavesList(); // Re-render the list
+                    } catch (error) {
+                        App.ui.showAlert(error.message, "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
             async renderAeronavesList() {
                 const { listaAeronaves } = App.elements.cadastros;
                 try {
@@ -1506,17 +1524,44 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     const table = document.createElement('table');
                     table.className = 'personnelTable'; // Reusing existing style
-                    table.innerHTML = `<thead><tr><th>Prefixo</th><th>Modelo</th><th>Largura da Faixa (m)</th></tr></thead><tbody></tbody>`;
+                    table.innerHTML = `<thead><tr><th>Prefixo</th><th>Modelo</th><th>Largura da Faixa (m)</th><th>Ações</th></tr></thead><tbody></tbody>`;
                     const tbody = table.querySelector('tbody');
                     aeronaves.forEach(a => {
                         const row = tbody.insertRow();
-                        row.innerHTML = `<td>${a.prefixo}</td><td>${a.modelo || ''}</td><td>${a.largura_faixa_aplicacao}</td>`;
+                        row.innerHTML = `
+                            <td>${a.prefixo}</td>
+                            <td>${a.modelo || ''}</td>
+                            <td>${a.largura_faixa_aplicacao}</td>
+                            <td><button class="btn-excluir" data-id="${a.id}" data-action="delete-aeronave"><i class="fas fa-trash"></i> Excluir</button></td>
+                        `;
                     });
                     listaAeronaves.innerHTML = '';
                     listaAeronaves.appendChild(table);
                 } catch (error) {
+                    console.error("Erro ao renderizar lista de aeronaves:", error);
                     listaAeronaves.innerHTML = `<p style="color: var(--color-danger);">${error.message}</p>`;
                 }
+            },
+
+            async deleteProduto(id) {
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este produto?", async () => {
+                    try {
+                        App.ui.setLoading(true, "A excluir produto...");
+                        const response = await fetch(`${App.config.backendUrl}/api/produtos/${id}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok) {
+                            const err = await response.json();
+                            throw new Error(err.message || 'Falha ao excluir produto.');
+                        }
+                        App.ui.showAlert("Produto excluído com sucesso!", "success");
+                        this.renderProdutosList(); // Re-render the list
+                    } catch (error) {
+                        App.ui.showAlert(error.message, "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
             },
 
             async renderProdutosList() {
@@ -1531,15 +1576,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     const table = document.createElement('table');
                     table.className = 'personnelTable';
-                    table.innerHTML = `<thead><tr><th>Nome</th><th>Ingrediente Ativo</th></tr></thead><tbody></tbody>`;
+                    table.innerHTML = `<thead><tr><th>Nome</th><th>Ingrediente Ativo</th><th>Ações</th></tr></thead><tbody></tbody>`;
                     const tbody = table.querySelector('tbody');
                     produtos.forEach(p => {
                         const row = tbody.insertRow();
-                        row.innerHTML = `<td>${p.nome}</td><td>${p.ingredienteAtivo || ''}</td>`;
+                        row.innerHTML = `
+                            <td>${p.nome}</td>
+                            <td>${p.ingredienteAtivo || ''}</td>
+                            <td><button class="btn-excluir" data-id="${p.id}" data-action="delete-produto"><i class="fas fa-trash"></i> Excluir</button></td>
+                        `;
                     });
                     listaProdutos.innerHTML = '';
                     listaProdutos.appendChild(table);
                 } catch (error) {
+                    console.error("Erro ao renderizar lista de produtos:", error);
                     listaProdutos.innerHTML = `<p style="color: var(--color-danger);">${error.message}</p>`;
                 }
             },
@@ -2049,7 +2099,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const item = e.target.closest('.notification-item');
                     if (item && item.dataset.trapId) {
                         const trapId = item.dataset.trapId;
-                        App.ui.showTab('monitoramentoAereo');
+                        App.ui.showTab('monitoramentoAereo-container');
                         App.mapModule.centerOnTrap(trapId);
                         App.elements.notificationBell.dropdown.classList.remove('show');
                     }
@@ -2143,6 +2193,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (App.elements.cadastros.btnSalvarAeronave) App.elements.cadastros.btnSalvarAeronave.addEventListener('click', () => App.ui.saveAeronave());
                 if (App.elements.cadastros.btnSalvarProduto) App.elements.cadastros.btnSalvarProduto.addEventListener('click', () => App.ui.saveProduto());
+
+                document.getElementById('cadastros')?.addEventListener('click', e => {
+                    const button = e.target.closest('button[data-action]');
+                    if (!button) return;
+
+                    const { action, id } = button.dataset;
+
+                    switch (action) {
+                        case 'delete-aeronave':
+                            App.ui.deleteAeronave(id);
+                            break;
+                        case 'delete-produto':
+                            App.ui.deleteProduto(id);
+                            break;
+                    }
+                });
+
                 if (App.elements.cadastros.btnSaveFarm) App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
                 if (App.elements.cadastros.btnDeleteAllFarms) App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
                 if (App.elements.cadastros.farmSelect) App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
@@ -2310,6 +2377,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.notificationContainer) App.elements.notificationContainer.addEventListener('click', (e) => {
                     const notification = e.target.closest('.trap-notification');
                     if (notification && notification.dataset.trapId) {
+                        App.ui.showTab('monitoramentoAereo-container');
                         App.mapModule.centerOnTrap(notification.dataset.trapId);
                     }
                 });
@@ -3888,17 +3956,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: formData
                     });
 
-                    const result = await response.json();
-
                     if (!response.ok) {
-                        throw new Error(result.message || "Erro desconhecido do servidor.");
+                        const errorBody = await response.text();
+                        console.error("Falha na resposta da API:", {
+                            status: response.status,
+                            statusText: response.statusText,
+                            body: errorBody
+                        });
+                        throw new Error(`Erro do servidor (${response.status}): ${errorBody || "Não foi possível obter detalhes do erro."}`);
                     }
 
+                    const result = await response.json();
                     App.ui.showAlert("Análise concluída com sucesso!", "success");
                     this.displayAnalysisOnMap(result.analysisResult);
                     this.renderServiceOrders(); // Atualiza o status na lista
 
                 } catch (error) {
+                    console.error("Erro detalhado ao analisar voo:", error);
                     App.ui.showAlert(`Erro na análise: ${error.message}`, "error");
                 } finally {
                     App.ui.setLoading(false);
@@ -4887,8 +4961,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 display: false,
                                 color: borderColor
                             },
-                            ticks: { color: textColor },
-                            grace: '10%'
+                            ticks: { color: textColor }
                         }
                     },
                     plugins: {
@@ -5099,7 +5172,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             data: chartData,
                             fill: true,
                             borderColor: App.ui._getThemeColors().primary,
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            backgroundColor: App.ui._getThemeColors().primary + '33', // Add 20% alpha
                             tension: 0.4
                         }]
                     },

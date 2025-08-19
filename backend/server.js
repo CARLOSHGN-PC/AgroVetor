@@ -20,7 +20,15 @@ const formidable = require('formidable');
 const app = express();
 const port = process.env.PORT || 3001;
 
-app.use(cors());
+// Configuração do CORS para permitir a origem específica do frontend
+const corsOptions = {
+  origin: ['https://agrovetor.store', 'http://127.0.0.1:5500'], // Adicionado localhost para desenvolvimento
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+
 // Aumenta o limite do JSON para o upload de base64 e desativa o urlencoded do express, pois formidable cuidará dos formulários
 app.use(express.json({ limit: '50mb' }));
 
@@ -124,6 +132,16 @@ try {
         }
     });
 
+    app.delete('/api/aeronaves/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            await db.collection('aeronaves').doc(id).delete();
+            res.status(200).send({ message: 'Aeronave excluída com sucesso.' });
+        } catch (error) {
+            res.status(500).send({ message: `Erro ao excluir aeronave: ${error.message}` });
+        }
+    });
+
     // --- [NOVO] ROTAS CRUD PARA PRODUTOS DE PULVERIZAÇÃO ---
      app.post('/api/produtos', async (req, res) => {
         try {
@@ -152,6 +170,16 @@ try {
             res.status(200).send(produtos);
         } catch (error) {
             res.status(500).send({ message: `Erro ao buscar produtos: ${error.message}` });
+        }
+    });
+
+    app.delete('/api/produtos/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            await db.collection('produtosPulverizacao').doc(id).delete();
+            res.status(200).send({ message: 'Produto excluído com sucesso.' });
+        } catch (error) {
+            res.status(500).send({ message: `Erro ao excluir produto: ${error.message}` });
         }
     });
 
@@ -212,10 +240,13 @@ try {
 
     app.post('/api/ordens-servico/:id/analisar-voo', async (req, res) => {
         const { id } = req.params;
+        console.log(`[LOG] Recebida requisição para analisar voo da OS: ${id}`);
+
         const form = formidable({ multiples: false });
 
         form.parse(req, async (err, fields, files) => {
             if (err) {
+                console.error(`[ERRO] Erro no formidable.parse para OS ${id}:`, err);
                 return res.status(500).send({ message: `Erro no parse do formulário: ${err.message}` });
             }
 
@@ -1560,77 +1591,6 @@ try {
         }
     });
 
-    app.get('/reports/pulverizacao/pdf', async (req, res) => {
-        const doc = new PDFDocument({ margin: 50, size: 'A4' });
-        const { osId, generatedBy } = req.query;
-
-        if (!osId) {
-            return res.status(400).send('ID da Ordem de Serviço é obrigatório.');
-        }
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=relatorio_pulverizacao_${osId}.pdf`);
-        doc.pipe(res);
-
-        try {
-            const osDoc = await db.collection('ordensServico').doc(osId).get();
-            if (!osDoc.exists) throw new Error('Ordem de Serviço não encontrada.');
-            const osData = osDoc.data();
-
-            const [aeronaveDoc, produtoDoc] = await Promise.all([
-                db.collection('aeronaves').doc(osData.aeronaveId).get(),
-                db.collection('produtosPulverizacao').doc(osData.produtoId).get()
-            ]);
-
-            const aeronaveData = aeronaveDoc.exists ? aeronaveDoc.data() : { prefixo: 'N/A' };
-            const produtoData = produtoDoc.exists ? produtoDoc.data() : { nome: 'N/A' };
-
-            await generatePdfHeader(doc, 'Relatório de Análise de Pulverização');
-
-            doc.fontSize(12).font('Helvetica-Bold').text('Dados da Operação', { underline: true });
-            doc.moveDown(0.5);
-
-            const infoY = doc.y;
-            doc.fontSize(10).font('Helvetica');
-            doc.text(`Data da Operação:`, { continued: true }).font('Helvetica-Bold').text(` ${osData.dataOperacao}`);
-            doc.text(`Piloto Responsável:`, { continued: true }).font('Helvetica-Bold').text(` ${osData.piloto}`);
-            doc.text(`Aeronave:`, { continued: true }).font('Helvetica-Bold').text(` ${aeronaveData.prefixo} (${aeronaveData.modelo || 'N/A'})`);
-            doc.text(`Produto Aplicado:`, { continued: true }).font('Helvetica-Bold').text(` ${produtoData.nome}`);
-            doc.text(`Dosagem:`, { continued: true }).font('Helvetica-Bold').text(` ${osData.dosagem} L/ha`);
-
-            doc.moveDown(2);
-
-            doc.fontSize(12).font('Helvetica-Bold').text('Resumo da Análise', { underline: true });
-            doc.moveDown(0.5);
-
-            const m2ToHa = (m2) => (m2 / 10000).toFixed(2);
-            const analysis = osData.analysisResult;
-            if (analysis) {
-                const totalPlanejadoHa = m2ToHa(analysis.areaTotalPlanejada);
-                const totalAplicadoHa = m2ToHa(analysis.areaAplicada);
-                const totalFalhaHa = m2ToHa(analysis.areaFalha);
-                const eficiencia = totalPlanejadoHa > 0 ? ((totalAplicadoHa / totalPlanejadoHa) * 100).toFixed(2) : 0;
-
-                doc.fontSize(10).font('Helvetica');
-                doc.text(`Área Total Planejada:`, { continued: true }).font('Helvetica-Bold').text(` ${totalPlanejadoHa} ha`);
-                doc.text(`Área Total Aplicada:`, { continued: true }).font('Helvetica-Bold').text(` ${totalAplicadoHa} ha`);
-                doc.fillColor('red').text(`Área com Falha:`, { continued: true }).font('Helvetica-Bold').text(` ${totalFalhaHa} ha`);
-                doc.fillColor('black').text(`Eficiência da Aplicação:`, { continued: true }).font('Helvetica-Bold').text(` ${eficiencia}%`);
-            } else {
-                doc.fontSize(10).font('Helvetica').text('Nenhuma análise encontrada para esta Ordem de Serviço.');
-            }
-
-            generatePdfFooter(doc, generatedBy);
-            doc.end();
-
-        } catch (error) {
-            console.error("Erro ao gerar PDF de Pulverização:", error);
-            if (!res.headersSent) {
-                doc.end();
-                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
-            }
-        }
-    });
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
