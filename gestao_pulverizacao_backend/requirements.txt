@@ -1,0 +1,6 @@
+Django
+djangorestframework
+djangorestframework-gis
+psycopg2-binary
+rasterio
+geopandas
