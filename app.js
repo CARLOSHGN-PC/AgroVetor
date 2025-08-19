@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
-                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo-container', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -2141,6 +2141,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
 
 
+                if (App.elements.cadastros.btnSalvarAeronave) App.elements.cadastros.btnSalvarAeronave.addEventListener('click', () => App.ui.saveAeronave());
+                if (App.elements.cadastros.btnSalvarProduto) App.elements.cadastros.btnSalvarProduto.addEventListener('click', () => App.ui.saveProduto());
                 if (App.elements.cadastros.btnSaveFarm) App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
                 if (App.elements.cadastros.btnDeleteAllFarms) App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
                 if (App.elements.cadastros.farmSelect) App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
@@ -4905,28 +4907,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const canvas = document.getElementById(canvasId);
                 const ctx = canvas?.getContext('2d');
                 if (!ctx) return;
+
+                // Destrói qualquer instância de gráfico existente no canvas para evitar erros.
+                const existingChartInstance = Chart.getChart(ctx);
+                if (existingChartInstance) {
+                    existingChartInstance.destroy();
+                }
             
                 const container = canvas.parentElement;
                 const loader = container.querySelector('.chart-loader');
-            
-                // Cache check: if chart exists and data is identical, do nothing.
-                const existingChart = App.state.charts[id];
-                if (existingChart && JSON.stringify(existingChart.config.data) === JSON.stringify(config.data)) {
-                    if (loader) loader.style.display = 'none';
-                    canvas.style.visibility = 'visible';
-                    return;
-                }
             
                 if (!isExpanded) {
                     if (loader) loader.style.display = 'block';
                     canvas.style.visibility = 'hidden'; // Hide canvas before rendering
                 }
                 
-                const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
-                if (chartInstance) {
-                    chartInstance.destroy();
-                }
-            
                 // A small delay can help ensure the loader is displayed before the chart starts rendering.
                 setTimeout(() => {
                     config.options = config.options || {};
