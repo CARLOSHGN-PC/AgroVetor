@@ -4909,9 +4909,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!ctx) return;
 
                 // Destrói qualquer instância de gráfico existente no canvas para evitar erros.
-                const existingChartInstance = Chart.getChart(ctx);
-                if (existingChartInstance) {
-                    existingChartInstance.destroy();
+                const existingChartOnCanvas = Chart.getChart(ctx);
+                if (existingChartOnCanvas) {
+                    existingChartOnCanvas.destroy();
                 }
             
                 const container = canvas.parentElement;
