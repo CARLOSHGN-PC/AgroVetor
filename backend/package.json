@@ -17,6 +17,7 @@
     "point-in-polygon": "^1.1.0",
     "shpjs": "^4.0.4",
     "@tmcw/togeojson": "^5.8.1",
-    "@turf/turf": "^6.5.0"
+    "@turf/turf": "^6.5.0",
+    "xmldom": "^0.6.0"
   }
 }
