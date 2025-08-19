@@ -187,8 +187,9 @@ try {
     app.post('/api/ordens-servico', async (req, res) => {
         try {
             const osData = req.body;
-            if (!osData.dataOperacao || !osData.piloto || !osData.aeronaveId || !osData.produtoId) {
-                return res.status(400).send({ message: 'Dados da Ordem de Serviço incompletos.' });
+            // Now expecting 'geometriaPlanejada' as a GeoJSON object in the body
+            if (!osData.dataOperacao || !osData.piloto || !osData.aeronaveId || !osData.produtoId || !osData.geometriaPlanejada) {
+                return res.status(400).send({ message: 'Dados da Ordem de Serviço incompletos. Geometria é necessária.' });
             }
             const docRef = await db.collection('ordensServico').add({
                 ...osData,
@@ -285,20 +286,28 @@ try {
                 const bufferWidth = larguraFaixa / 2;
                 const bufferedExecuted = turf.buffer(executedLine, bufferWidth, { units: 'meters' });
 
-                const areaAplicada = turf.intersect(plannedPolygon, bufferedExecuted);
-                const areaFalha = turf.difference(plannedPolygon, bufferedExecuted);
+                const areaAplicadaCorreta = turf.intersect(plannedPolygon, bufferedExecuted);
+                const areaDeFalha = turf.difference(plannedPolygon, bufferedExecuted);
+                const areaDeDesperdicio = turf.difference(bufferedExecuted, plannedPolygon);
 
-                // Cálculo de sobreposição (simplificado)
-                // Uma abordagem mais robusta poderia ser necessária para casos complexos
-                const areaSobreposicao = turf.area(bufferedExecuted) > turf.area(turf.union(bufferedExecuted)) ? turf.intersect(bufferedExecuted, bufferedExecuted) : null;
+                // Cálculo de sobreposição: A área de sobreposição é a diferença entre a área bruta do buffer
+                // e a área do buffer após a união de todas as suas partes (que remove sobreposições).
+                // Nota: Este método calcula a ÁREA da sobreposição, mas não a sua GEOMETRIA.
+                const areaBrutaAplicada = turf.area(bufferedExecuted);
+                const uniaoAplicada = turf.union(bufferedExecuted);
+                const areaUniaoAplicada = uniaoAplicada ? turf.area(uniaoAplicada) : 0;
+                const areaDeSobreposicao = areaBrutaAplicada - areaUniaoAplicada;
 
                 const analysisResult = {
-                    areaAplicada: areaAplicada ? turf.area(areaAplicada) : 0,
-                    areaFalha: areaFalha ? turf.area(areaFalha) : 0,
                     areaTotalPlanejada: turf.area(plannedPolygon),
-                    geometriaAplicada: areaAplicada,
-                    geometriaFalha: areaFalha,
-                    geometriaSobreposicao: areaSobreposicao
+                    areaAplicadaCorreta: areaAplicadaCorreta ? turf.area(areaAplicadaCorreta) : 0,
+                    areaDeFalha: areaDeFalha ? turf.area(areaDeFalha) : 0,
+                    areaDeDesperdicio: areaDeDesperdicio ? turf.area(areaDeDesperdicio) : 0,
+                    areaDeSobreposicao: areaDeSobreposicao > 0 ? areaDeSobreposicao : 0,
+                    geometriaAplicadaCorreta: areaAplicadaCorreta,
+                    geometriaFalha: areaDeFalha,
+                    geometriaDesperdicio: areaDeDesperdicio,
+                    geometriaSobreposicao: null // A geometria da sobreposição não é calculada por este método
                 };
 
                 // 5. Atualizar Ordem de Serviço
@@ -1562,19 +1571,27 @@ try {
             doc.fontSize(12).font('Helvetica-Bold').text('Resumo da Análise', { underline: true });
             doc.moveDown(0.5);
 
-            const m2ToHa = (m2) => (m2 / 10000).toFixed(2);
+            const m2ToHa = (m2) => (m2 / 10000).toFixed(4);
             const analysis = osData.analysisResult;
             if (analysis) {
-                const totalPlanejadoHa = m2ToHa(analysis.areaTotalPlanejada);
-                const totalAplicadoHa = m2ToHa(analysis.areaAplicada);
-                const totalFalhaHa = m2ToHa(analysis.areaFalha);
-                const eficiencia = totalPlanejadoHa > 0 ? ((totalAplicadoHa / totalPlanejadoHa) * 100).toFixed(2) : 0;
+                const totalPlanejadoHa = m2ToHa(analysis.areaTotalPlanejada || 0);
+                const areaAplicadaCorretaHa = m2ToHa(analysis.areaAplicadaCorreta || 0);
+                const areaDeFalhaHa = m2ToHa(analysis.areaDeFalha || 0);
+                const areaDeDesperdicioHa = m2ToHa(analysis.areaDeDesperdicio || 0);
+                const areaDeSobreposicaoHa = m2ToHa(analysis.areaDeSobreposicao || 0);
+
+                const eficiencia = parseFloat(totalPlanejadoHa) > 0 ? ((parseFloat(areaAplicadaCorretaHa) / parseFloat(totalPlanejadoHa)) * 100).toFixed(2) : 0;
 
                 doc.fontSize(10).font('Helvetica');
-                doc.text(`Área Total Planejada:`, { continued: true }).font('Helvetica-Bold').text(` ${totalPlanejadoHa} ha`);
-                doc.text(`Área Total Aplicada:`, { continued: true }).font('Helvetica-Bold').text(` ${totalAplicadoHa} ha`);
-                doc.fillColor('red').text(`Área com Falha:`, { continued: true }).font('Helvetica-Bold').text(` ${totalFalhaHa} ha`);
+                doc.text(`Área Planejada:`, { continued: true }).font('Helvetica-Bold').text(` ${totalPlanejadoHa} ha`);
+                doc.moveDown(0.5);
+                doc.fillColor('green').text(`Área Aplicada no Alvo:`, { continued: true }).font('Helvetica-Bold').text(` ${areaAplicadaCorretaHa} ha`);
+                doc.fillColor('red').text(`Área com Falha (Não Coberta):`, { continued: true }).font('Helvetica-Bold').text(` ${areaDeFalhaHa} ha`);
+                doc.fillColor('orange').text(`Área de Desperdício (Fora do Alvo):`, { continued: true }).font('Helvetica-Bold').text(` ${areaDeDesperdicioHa} ha`);
+                doc.fillColor('#00008B').text(`Área de Sobreposição:`, { continued: true }).font('Helvetica-Bold').text(` ${areaDeSobreposicaoHa} ha`);
+                doc.moveDown(0.5);
                 doc.fillColor('black').text(`Eficiência da Aplicação:`, { continued: true }).font('Helvetica-Bold').text(` ${eficiencia}%`);
+
             } else {
                 doc.fontSize(10).font('Helvetica').text('Nenhuma análise encontrada para esta Ordem de Serviço.');
             }
