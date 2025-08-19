@@ -963,44 +963,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
-                const mapContainer = App.elements.monitoramentoAereo.container;
+                // Hide all tab-like containers first
+                document.querySelectorAll('.tab-content').forEach(tab => {
+                    tab.classList.remove('active');
+                    tab.hidden = true;
+                });
+
+                // Activate the target tab
+                const tabToShow = document.getElementById(id);
+                if (tabToShow) {
+                    tabToShow.classList.add('active');
+                    tabToShow.hidden = false;
+                } else {
+                    // Fallback to dashboard if ID is invalid
+                    const dashboard = document.getElementById('dashboard');
+                    if (dashboard) {
+                        dashboard.classList.add('active');
+                        dashboard.hidden = false;
+                        id = 'dashboard'; // Update id for the rest of the function
+                    }
+                }
+
+                // Run initializations for the specific tab
                 if (id === 'monitoramentoAereo') {
-                    mapContainer.classList.add('active');
                     window.initMap = App.mapModule.initMap.bind(App.mapModule);
                     if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
                        App.mapModule.initMap();
                     }
                 } else if (id === 'gestaoPulverizacao') {
+                    // Since it's a full-screen module now, ensure other full-screen modules are inactive
+                    if (App.elements.monitoramentoAereo.container) {
+                        App.elements.monitoramentoAereo.container.classList.remove('active');
+                    }
                     App.sprayingModule.populateDropdowns();
                     App.sprayingModule.renderServiceOrders();
                     App.sprayingModule.initMap();
-                } else {
-                    mapContainer.classList.remove('active');
-                }
-
-                document.querySelectorAll('.tab-content').forEach(tab => {
-                    if (tab.id !== 'monitoramentoAereo-container') {
-                        tab.classList.remove('active');
-                        tab.hidden = true;
-                    }
-                });
-
-                const tab = document.getElementById(id);
-                if (tab) {
-                    tab.classList.add('active');
-                    tab.hidden = false;
-                }
-                
-                if (id === 'dashboard') {
+                } else if (id === 'dashboard') {
                    this.showDashboardView('broca'); 
-                } else if (id !== 'monitoramentoAereo' && App.state.googleMap) {
-                    // Oculta o mapa se não estivermos na aba de monitoramento
-                    const mapContainer = App.elements.monitoramentoAereo.container;
-                    if (mapContainer.classList.contains('active')) {
-                        mapContainer.classList.remove('active');
-                    }
                 }
                 
+                // Run other specific render/setup functions
                 if (id === 'excluirDados') this.renderExclusao();
                 if (id === 'gerenciarUsuarios') {
                     this.renderUsersList();
