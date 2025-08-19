@@ -825,6 +825,30 @@
           width: 100%;
       }
 
+      .spraying-column-form {
+        width: 30%;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .spraying-column-form .card {
+        flex-grow: 1;
+        margin-bottom: 0;
+        overflow-y: auto;
+      }
+      .spraying-column-map {
+        width: 70%;
+        margin-bottom: 0;
+        padding: 0;
+        border: none;
+      }
+       .spraying-column-map #pulverizacao-map-container {
+        height: 100%;
+        min-height: initial;
+        border-radius: var(--border-radius-lg);
+      }
+
       #map-container {
           flex-grow: 1;
           height: 100%;
@@ -1271,6 +1295,10 @@
         .spraying-container {
             flex-direction: column;
             height: auto !important; /* Override inline height */
+        }
+        .spraying-column-form,
+        .spraying-column-map {
+            width: 100%;
         }
       }
 
@@ -2229,7 +2257,7 @@
         <section id="gestaoPulverizacao" class="tab-content" aria-label="Gestão de Pulverização" tabindex="0" hidden>
             <div class="spraying-container">
                 <!-- Coluna da Esquerda (Formulário) -->
-                <div class="spraying-column-form" style="flex: 1; min-width: 400px; display: flex; flex-direction: column; gap: 20px;">
+                <div class="spraying-column-form">
                     <div class="card" style="flex-grow: 1; overflow-y: auto; padding: 20px;">
                         <h2 style="margin-top: 0; margin-bottom: 15px;"><i class="fas fa-file-alt" style="color: var(--color-info);"></i> Ordem de Serviço</h2>
 
@@ -2290,7 +2318,7 @@
                 </div>
 
                 <!-- Coluna da Direita (Mapa) -->
-                <div class="spraying-column-map card" style="flex: 2; min-width: 400px;">
+                <div class="spraying-column-map card">
                     <div id="pulverizacao-map-container" style="width: 100%; height: 100%; min-height: 500px; border-radius: var(--border-radius); background-color: #e0e0e0;">
                          <!-- O mapa será renderizado aqui -->
                     </div>
