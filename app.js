@@ -3655,6 +3655,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.sprayingMap = null;
                 App.state.selectedServiceOrderId = null;
                 App.state.analysisLayers = [];
+                App.state.sprayingPreviewLayer = null;
                 this.setupEventListeners();
             },
 
@@ -3666,11 +3667,83 @@ document.addEventListener('DOMContentLoaded', () => {
                         center: { lat: -21.17, lng: -48.45 },
                         zoom: 13,
                         mapTypeId: 'satellite',
-                        disableDefaultUI: true,
-                        zoomControl: true,
-                        mapTypeControl: true,
+                        mapTypeControl: false,
                         streetViewControl: false,
                     });
+                }
+            },
+
+            async handleFileUploadForPreview(event) {
+                const file = event.target.files[0];
+                if (!file) {
+                    return;
+                }
+
+                App.ui.setLoading(true, "Processando arquivo...");
+                try {
+                    let geojson;
+                    if (file.name.toLowerCase().endsWith('.kml')) {
+                        const kmlText = await file.text();
+                        const dom = new DOMParser().parseFromString(kmlText, 'text/xml');
+                        geojson = toGeoJSON.kml(dom);
+                    } else if (file.name.toLowerCase().endsWith('.zip')) {
+                        const buffer = await file.arrayBuffer();
+                        geojson = await shp(buffer);
+                    } else {
+                        throw new Error("Formato de arquivo não suportado. Use KML ou ZIP (para Shapefile).");
+                    }
+
+                    this.drawGeoJsonOnSprayingMap(geojson);
+                    App.ui.showAlert("Pré-visualização da área carregada no mapa.", "success");
+
+                } catch (error) {
+                    console.error("Erro ao pré-visualizar arquivo:", error);
+                    App.ui.showAlert(`Erro ao carregar pré-visualização: ${error.message}`, "error");
+                    this.clearPreviewLayer();
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            drawGeoJsonOnSprayingMap(geojson) {
+                this.clearPreviewLayer();
+                const map = App.state.sprayingMap;
+                if (!map) {
+                    App.ui.showAlert("Mapa não inicializado.", "error");
+                    return;
+                }
+                if (!geojson) {
+                    App.ui.showAlert("GeoJSON inválido ou vazio.", "error");
+                    return;
+                }
+                App.ui.showAlert("Desenhando no mapa...", "info", 1000);
+                const layer = new google.maps.Data({ map: map });
+                layer.addGeoJson(geojson);
+                layer.setStyle({
+                    fillColor: 'blue',
+                    strokeColor: 'blue',
+                    fillOpacity: 0.3,
+                    strokeWeight: 2
+                });
+
+                App.state.sprayingPreviewLayer = layer;
+
+                const bounds = new google.maps.LatLngBounds();
+                layer.forEach(feature => {
+                    const geom = feature.getGeometry();
+                    if (geom) {
+                        geom.forEachLatLng(latlng => bounds.extend(latlng));
+                    }
+                });
+                if (!bounds.isEmpty()) {
+                    map.fitBounds(bounds);
+                }
+            },
+
+            clearPreviewLayer() {
+                if (App.state.sprayingPreviewLayer) {
+                    App.state.sprayingPreviewLayer.setMap(null);
+                    App.state.sprayingPreviewLayer = null;
                 }
             },
 
@@ -3707,6 +3780,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async selectServiceOrder(osId) {
                 this.clearAnalysisLayers();
+                this.clearPreviewLayer();
                 App.state.selectedServiceOrderId = osId;
                 this.renderServiceOrders(); // Re-render to show selection
 
@@ -3861,7 +3935,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 osAreaPlanejadaUpload.addEventListener('click', () => osAreaPlanejadaInput.click());
                 osAreaPlanejadaInput.addEventListener('change', (e) => {
                     const file = e.target.files[0];
-                    if (file) osAreaPlanejadaUpload.querySelector('p').textContent = file.name;
+                    if (file) {
+                        osAreaPlanejadaUpload.querySelector('p').textContent = file.name;
+                        this.handleFileUploadForPreview(e);
+                    }
                 });
 
                 osLogVooUpload.addEventListener('click', () => osLogVooInput.click());
