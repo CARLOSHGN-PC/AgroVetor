@@ -985,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Run initializations for the specific tab
-                if (id === 'monitoramentoAereo') {
+                if (id === 'monitoramentoAereo-container') {
                     window.initMap = App.mapModule.initMap.bind(App.mapModule);
                     if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
                        App.mapModule.initMap();
