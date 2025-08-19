@@ -802,6 +802,29 @@
       #monitoramentoAereo-container.active {
           display: flex;
       }
+
+      /* [NOVO] Estilos para o container de pulverização em tela cheia */
+      #gestaoPulverizacao {
+        position: fixed;
+        top: 70px;
+        left: 0;
+        width: 100%;
+        height: calc(100% - 70px);
+        background-color: var(--color-bg);
+        z-index: 999;
+        display: none;
+        padding: 20px;
+      }
+      #gestaoPulverizacao.active {
+          display: block;
+      }
+      #gestaoPulverizacao .spraying-container {
+          display: flex;
+          gap: 20px;
+          height: 100%;
+          width: 100%;
+      }
+
       #map-container {
           flex-grow: 1;
           height: 100%;
@@ -1588,78 +1611,6 @@
 
             </section>
 
-            <section id="gestaoPulverizacao" class="tab-content" aria-label="Gestão de Pulverização" tabindex="0" hidden>
-                <div class="spraying-container" style="display: flex; gap: 20px; height: calc(100vh - 110px);">
-                    <!-- Coluna da Esquerda (Formulário) -->
-                    <div class="spraying-column-form" style="flex: 1; min-width: 400px; display: flex; flex-direction: column; gap: 20px;">
-                        <div class="card" style="flex-grow: 1; overflow-y: auto; padding: 20px;">
-                            <h2 style="margin-top: 0; margin-bottom: 15px;"><i class="fas fa-file-alt" style="color: var(--color-info);"></i> Ordem de Serviço</h2>
-
-                            <div id="os-list-container">
-                                <h3 style="margin-top: 0;">Ordens de Serviço Criadas</h3>
-                                <div id="os-list" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--border-radius); padding: 10px;">
-                                    <!-- Lista de OS será populada aqui -->
-                                    <p>Nenhuma OS encontrada.</p>
-                                </div>
-                            </div>
-
-                            <hr style="margin: 20px 0;">
-
-                            <div id="os-form-container">
-                                 <h3>Criar/Editar OS</h3>
-                                <div class="form-col">
-                                    <label for="osData" class="required">Data da Operação:</label>
-                                    <input type="date" id="osData">
-                                </div>
-                                <div class="form-col">
-                                    <label for="osPiloto" class="required">Piloto Responsável:</label>
-                                    <input type="text" id="osPiloto" placeholder="Nome do piloto">
-                                </div>
-                                 <div class="form-col">
-                                    <label for="osAeronave" class="required">Aeronave:</label>
-                                    <select id="osAeronave"></select>
-                                </div>
-                                <div class="form-col">
-                                    <label for="osProduto" class="required">Produto:</label>
-                                    <select id="osProduto"></select>
-                                </div>
-                                <div class="form-col">
-                                    <label for="osDosagem" class="required">Dosagem (Litros/ha):</label>
-                                    <input type="number" id="osDosagem" placeholder="Ex: 20">
-                                </div>
-
-                                <div class="form-col" style="margin-top: 15px;">
-                                    <label>Área Planejada (SHP/KML):</label>
-                                    <div class="upload-area" id="osAreaPlanejadaUpload" style="padding: 1rem;">
-                                        <i class="fas fa-map-marked-alt fa-lg" style="color: var(--color-primary);"></i>
-                                        <p style="font-size: 14px;">Clique ou arraste a área planejada</p>
-                                    </div>
-                                    <input type="file" id="osAreaPlanejadaInput" accept=".zip,.kml" style="display: none;">
-                                </div>
-
-                                 <div class="form-col" style="margin-top: 15px;">
-                                    <label>Log de Voo Executado (KML):</label>
-                                    <div class="upload-area" id="osLogVooUpload" style="padding: 1rem;">
-                                        <i class="fas fa-plane-departure fa-lg" style="color: var(--color-accent);"></i>
-                                        <p style="font-size: 14px;">Clique ou arraste o log de voo</p>
-                                    </div>
-                                    <input type="file" id="osLogVooInput" accept=".kml" style="display: none;">
-                                </div>
-
-                                <button id="btnSalvarOS" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Salvar Ordem de Serviço</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Coluna da Direita (Mapa) -->
-                    <div class="spraying-column-map card" style="flex: 2; min-width: 400px;">
-                        <div id="pulverizacao-map-container" style="width: 100%; height: 100%; min-height: 500px; border-radius: var(--border-radius); background-color: #e0e0e0;">
-                             <!-- O mapa será renderizado aqui -->
-                        </div>
-                    </div>
-                </div>
-            </section>
-            
             <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
                 <div class="card-header-actions">
                     <h2 style="color: var(--color-success); margin: 0;"><i class="fas fa-stream"></i> Planejamento de Colheita</h2>
@@ -2274,6 +2225,78 @@
                 </div>
             </section>
         </main>
+
+        <section id="gestaoPulverizacao" class="tab-content" aria-label="Gestão de Pulverização" tabindex="0" hidden>
+            <div class="spraying-container">
+                <!-- Coluna da Esquerda (Formulário) -->
+                <div class="spraying-column-form" style="flex: 1; min-width: 400px; display: flex; flex-direction: column; gap: 20px;">
+                    <div class="card" style="flex-grow: 1; overflow-y: auto; padding: 20px;">
+                        <h2 style="margin-top: 0; margin-bottom: 15px;"><i class="fas fa-file-alt" style="color: var(--color-info);"></i> Ordem de Serviço</h2>
+
+                        <div id="os-list-container">
+                            <h3 style="margin-top: 0;">Ordens de Serviço Criadas</h3>
+                            <div id="os-list" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--border-radius); padding: 10px;">
+                                <!-- Lista de OS será populada aqui -->
+                                <p>Nenhuma OS encontrada.</p>
+                            </div>
+                        </div>
+
+                        <hr style="margin: 20px 0;">
+
+                        <div id="os-form-container">
+                             <h3>Criar/Editar OS</h3>
+                            <div class="form-col">
+                                <label for="osData" class="required">Data da Operação:</label>
+                                <input type="date" id="osData">
+                            </div>
+                            <div class="form-col">
+                                <label for="osPiloto" class="required">Piloto Responsável:</label>
+                                <input type="text" id="osPiloto" placeholder="Nome do piloto">
+                            </div>
+                             <div class="form-col">
+                                <label for="osAeronave" class="required">Aeronave:</label>
+                                <select id="osAeronave"></select>
+                            </div>
+                            <div class="form-col">
+                                <label for="osProduto" class="required">Produto:</label>
+                                <select id="osProduto"></select>
+                            </div>
+                            <div class="form-col">
+                                <label for="osDosagem" class="required">Dosagem (Litros/ha):</label>
+                                <input type="number" id="osDosagem" placeholder="Ex: 20">
+                            </div>
+
+                            <div class="form-col" style="margin-top: 15px;">
+                                <label>Área Planejada (SHP/KML):</label>
+                                <div class="upload-area" id="osAreaPlanejadaUpload" style="padding: 1rem;">
+                                    <i class="fas fa-map-marked-alt fa-lg" style="color: var(--color-primary);"></i>
+                                    <p style="font-size: 14px;">Clique ou arraste a área planejada</p>
+                                </div>
+                                <input type="file" id="osAreaPlanejadaInput" accept=".zip,.kml" style="display: none;">
+                            </div>
+
+                             <div class="form-col" style="margin-top: 15px;">
+                                <label>Log de Voo Executado (KML):</label>
+                                <div class="upload-area" id="osLogVooUpload" style="padding: 1rem;">
+                                    <i class="fas fa-plane-departure fa-lg" style="color: var(--color-accent);"></i>
+                                    <p style="font-size: 14px;">Clique ou arraste o log de voo</p>
+                                </div>
+                                <input type="file" id="osLogVooInput" accept=".kml" style="display: none;">
+                            </div>
+
+                            <button id="btnSalvarOS" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Salvar Ordem de Serviço</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna da Direita (Mapa) -->
+                <div class="spraying-column-map card" style="flex: 2; min-width: 400px;">
+                    <div id="pulverizacao-map-container" style="width: 100%; height: 100%; min-height: 500px; border-radius: var(--border-radius); background-color: #e0e0e0;">
+                         <!-- O mapa será renderizado aqui -->
+                    </div>
+                </div>
+            </div>
+        </section>
         
         <div id="monitoramentoAereo-container" class="tab-content">
             <div id="map-container">
