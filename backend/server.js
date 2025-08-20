@@ -246,88 +246,63 @@ try {
         if (!model) {
             return res.status(503).json({ message: "O serviço de IA não está disponível. Verifique a chave de API no servidor." });
         }
-        const { prompt, contextData, task } = req.body;
+        const { prompt } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ message: 'O prompt é obrigatório.' });
         }
 
-        let finalContextData = contextData;
-
-        // Se a tarefa for prever ATR, busca o histórico ESTRUTURADO
-        if (task === 'predict_atr' && contextData.codigoFazenda) {
-            try {
-                const historyQuery = await db.collection('historicalHarvests')
-                    .where('codigoFazenda', '==', contextData.codigoFazenda)
-                    .orderBy('safra', 'desc')
-                    .limit(100)
-                    .get();
-
-                if (!historyQuery.empty) {
-                    const historicalData = [];
-                    historyQuery.forEach(doc => {
-                        const data = doc.data();
-                        historicalData.push({
-                            safra: data.safra,
-                            variedade: data.variedade,
-                            toneladas: data.toneladas,
-                            atrRealizado: data.atrRealizado,
-                            tchRealizado: data.tchRealizado
-                        });
-                    });
-                    finalContextData.historicalData = historicalData;
-                }
-            } catch (e) {
-                console.error("Erro ao buscar histórico para a IA:", e);
-                // Continua sem o histórico se der erro, não para a execução
-            }
-        }
-
         try {
-            const fullPrompt = `
-                Você é um especialista em agronomia e agricultura de precisão para o cultivo de cana-de-açúcar.
-                Seu nome é AgroVetor AI.
-                Analise o contexto fornecido e responda à solicitação do usuário de forma clara, objetiva e em formato JSON.
-
-                **Contexto Fornecido:**
-                ${JSON.stringify(finalContextData, null, 2)}
-
-                **Regras de Análise:**
-                1.  Se o contexto incluir "historicalData", ele contém dados de safras passadas para o mesmo talhão. Use esses dados como a principal fonte para a sua previsão.
-                2.  **Cálculo de ATR Ponderado:** Ao prever o ATR (Açúcar Total Recuperável), você DEVE usar uma média ponderada pela produção (toneladas). A fórmula é: SUM(atrRealizado * toneladas) / SUM(toneladas).
-                3.  **Justificativa:** Baseie sua previsão na média ponderada e considere a variedade da cana e a safra (ano). Se a variedade for a mesma, a média ponderada é um forte indicador. Se for diferente, ajuste a previsão ligeiramente com base no potencial conhecido da nova variedade, mas ainda use a média ponderada como referência principal.
-                4.  Sempre forneça uma justificativa clara para sua previsão no campo "justificativa" do JSON de resposta.
-
-                **Solicitação do Usuário:**
-                ${prompt}
-
-                **Exemplo de Resposta para Previsão de ATR:**
-                {
-                  "previsao_atr": 135.5,
-                  "justificativa": "A previsão foi baseada na média ponderada do ATR dos últimos 3 anos, que é de 134.8 kg/ton. Foi aplicado um pequeno ajuste positivo devido à nova variedade (CTC4) ter um potencial de ATR ligeiramente superior à média histórica da fazenda."
-                }
-
-                **Sua Resposta (em formato JSON):**
-            `;
-
-            const result = await model.generateContent(fullPrompt);
+            const result = await model.generateContent(prompt);
             const response = await result.response;
             let text = response.text();
 
-            // Limpeza básica para garantir que a saída seja um JSON válido
             text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-
-            try {
-                const jsonResponse = JSON.parse(text);
-                res.status(200).json(jsonResponse);
-            } catch (e) {
-                console.error("Erro ao fazer parse da resposta da IA para JSON:", e);
-                res.status(500).json({ message: "A IA retornou uma resposta em formato inválido.", details: text });
-            }
+            const jsonResponse = JSON.parse(text);
+            res.status(200).json(jsonResponse);
 
         } catch (error) {
             console.error("Erro ao chamar a API do Gemini:", error);
             res.status(500).json({ message: 'Erro ao comunicar com a IA.' });
+        }
+    });
+
+    // ROTA PARA CÁLCULO DE ATR PONDERADO
+    app.post('/api/calculate-atr', async (req, res) => {
+        const { codigoFazenda } = req.body;
+        if (!codigoFazenda) {
+            return res.status(400).json({ message: 'O código da fazenda é obrigatório.' });
+        }
+
+        try {
+            const historyQuery = await db.collection('historicalHarvests')
+                .where('codigoFazenda', '==', codigoFazenda)
+                .get();
+
+            if (historyQuery.empty) {
+                return res.status(200).json({ predicted_atr: 0, message: "Sem histórico para esta fazenda." });
+            }
+
+            let totalAtrPonderado = 0;
+            let totalToneladas = 0;
+
+            historyQuery.forEach(doc => {
+                const data = doc.data();
+                const atr = parseFloat(String(data.atrRealizado).replace(',', '.')) || 0;
+                const toneladas = parseFloat(String(data.toneladas).replace(',', '.')) || 0;
+                if (atr > 0 && toneladas > 0) {
+                    totalAtrPonderado += atr * toneladas;
+                    totalToneladas += toneladas;
+                }
+            });
+
+            const predicted_atr = totalToneladas > 0 ? totalAtrPonderado / totalToneladas : 0;
+
+            return res.status(200).json({ predicted_atr });
+
+        } catch (e) {
+            console.error("Erro ao calcular ATR ponderado no backend:", e);
+            res.status(500).json({ message: 'Erro no servidor ao calcular o ATR.' });
         }
     });
 
