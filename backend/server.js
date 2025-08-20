@@ -116,14 +116,29 @@ try {
 
             // 2. Pede para a IA mapear as colunas
             const mappingPrompt = `
-                Analise esta amostra de um relatório CSV e identifique as colunas correspondentes aos seguintes campos:
-                'codigoFazenda', 'talhao', 'safra', 'variedade', 'atrRealizado', 'tchRealizado', 'toneladas', 'area'.
-                Se uma coluna como 'tchRealizado' não existir, mas 'toneladas' e 'area' existirem, indique as colunas para cálculo.
-                O separador do CSV é ';'.
-                Retorne um JSON com o mapeamento. As chaves devem ser os nomes das colunas originais e os valores devem ser os nomes padronizados.
-                Exemplo de Resposta: { "COD_FAZENDA": "codigoFazenda", "TALHÃO": "talhao", "ATR": "atrRealizado", "TON": "toneladas", "ÁREA": "area" }
+                Sua tarefa é analisar uma amostra de um relatório de colheita em CSV e criar um mapeamento JSON das colunas.
+                O objetivo é mapear os cabeçalhos do relatório para um formato padrão. O separador é ';'.
 
-                Amostra:
+                Os campos padrão que eu preciso são:
+                'codigoFazenda', 'talhao', 'safra', 'variedade', 'atrRealizado', 'tchRealizado', e, se possível, 'toneladas' e 'area' para calcular o TCH.
+
+                Se a coluna 'tchRealizado' (Toneladas de Cana por Hectare) não existir, mas colunas para 'toneladas' e 'area' existirem, mapeie-as para que eu possa calcular o TCH (toneladas / area).
+
+                **Exemplo 1:**
+                Amostra: "COD;FAZENDA;TALHÃO;VARIEDADE;CORTE;TCH;ATR"
+                Resposta JSON esperada: { "COD": "codigoFazenda", "FAZENDA": "nomeFazenda", "TALHÃO": "talhao", "VARIEDADE": "variedade", "TCH": "tchRealizado", "ATR": "atrRealizado" }
+
+                **Exemplo 2:**
+                Amostra: "Cod Faz;Talhão;Area (ha);Ton. Entregue;Safra;ATR"
+                Resposta JSON esperada: { "Cod Faz": "codigoFazenda", "Talhão": "talhao", "Area (ha)": "area", "Ton. Entregue": "toneladas", "Safra": "safra", "ATR": "atrRealizado" }
+
+                **Exemplo 3 (Nomes complexos):**
+                Amostra: "cd_fazenda;ds_talhao;nu_safra;ds_variedade;vl_atr_realizado;vl_tch_estimado"
+                Resposta JSON esperada: { "cd_fazenda": "codigoFazenda", "ds_talhao": "talhao", "nu_safra": "safra", "ds_variedade": "variedade", "vl_atr_realizado": "atrRealizado", "vl_tch_estimado": "tchRealizado" }
+
+                Agora, analise a amostra real abaixo e forneça apenas o objeto JSON correspondente, sem nenhum texto adicional.
+
+                **Amostra Real:**
                 ${sample}
             `;
 
