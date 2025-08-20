@@ -361,7 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 addOrEditTitle: document.getElementById('addOrEditSequenceTitle'),
                 editingGroupId: document.getElementById('editingGroupId'),
                 btnOptimize: document.getElementById('btnOptimizeHarvest'),
-                btnPredictAtr: document.getElementById('btnPredictAtr'),
                 tableBody: document.querySelector('#harvestPlanTable tbody'),
                 summary: document.getElementById('harvestSummary'),
             },
@@ -456,6 +455,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
+        },
+
+        debounce(func, delay = 1000) {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    func.apply(this, args);
+                }, delay);
+            };
         },
 
         init() {
@@ -1966,7 +1975,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (harvestEls.btnAddOrUpdate) harvestEls.btnAddOrUpdate.addEventListener('click', () => App.actions.addOrUpdateHarvestSequence());
                 if (harvestEls.btnCancelEdit) harvestEls.btnCancelEdit.addEventListener('click', () => App.actions.cancelEditSequence());
                 if (harvestEls.btnOptimize) harvestEls.btnOptimize.addEventListener('click', () => App.gemini.getOptimizedHarvestSequence());
-                if (harvestEls.btnPredictAtr) harvestEls.btnPredictAtr.addEventListener('click', () => App.gemini.getAtrPrediction());
+
+                const debouncedAtrPrediction = App.debounce(() => App.gemini.getAtrPrediction());
+                if (harvestEls.fazenda) harvestEls.fazenda.addEventListener('change', debouncedAtrPrediction);
+                if (harvestEls.talhaoSelectionList) harvestEls.talhaoSelectionList.addEventListener('click', (e) => {
+                    if (e.target.type === 'checkbox') {
+                        debouncedAtrPrediction();
+                    }
+                });
+
                 if (harvestEls.tableBody) {
                     harvestEls.tableBody.addEventListener('click', e => {
                         const removeBtn = e.target.closest('button[data-action="remove-harvest"]');
@@ -3442,25 +3459,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const prompt = `
-                    Otimize a seguinte sequência de colheita de cana-de-açúcar.
-                    Critérios de otimização, em ordem de importância:
-                    1. ATR: Priorize valores mais altos.
-                    2. Dias de Aplicação do Maturador: Priorize cana que está no pico de maturação (idealmente entre 15-30 dias após aplicação). Evite colher muito cedo ou muito tarde.
-                    3. Idade da Cana: Dê preferência para cana mais velha (maior idade em meses).
-                    4. Proximidade na sequência original: Tente não alterar drasticamente a ordem se os outros critérios forem muito similares.
+                    Otimize a seguinte sequência de colheita de cana-de-açúcar para o mês de ${new Date(plan.startDate).toLocaleString('pt-BR', { month: 'long' })}.
+                    Sua tarefa é ser um especialista em agronomia e otimizar a logística de colheita.
                     
-                    Retorne um array JSON contendo APENAS os IDs dos grupos na ordem otimizada. O array deve se chamar "optimizedSequence".
+                    Critérios de otimização, em ordem de importância:
+                    1.  **Potencial de Açúcar (ATR):** Priorize o ATR mais alto. É o fator mais importante.
+                    2.  **Maturador:** Se houver maturador aplicado, a colheita ideal é entre 15 e 30 dias após a aplicação. Priorize talhões nessa janela.
+                    3.  **Variedade vs. Mês:** Considere a época ideal de colheita para cada variedade. Variedades de início de safra devem ser colhidas mais cedo (Abril, Maio), as de meio no meio, e as de fim de safra mais tarde (Setembro, Outubro). Use seu conhecimento para julgar.
+                    4.  **Idade da Cana:** Cana mais velha (maior idade em meses) geralmente deve ser priorizada, mas os critérios acima são mais importantes.
+                    5.  **Proximidade na Sequência Original:** Se todos os outros critérios forem semelhantes, tente manter a ordem original para não atrapalhar a logística.
+
+                    Analise os dados de cada grupo e retorne um array JSON contendo APENAS os IDs dos grupos na ordem otimizada. O array deve se chamar "optimizedSequence".
                     Exemplo de Resposta: { "optimizedSequence": [1678886400000, 1678886500000, ...] }
                 `;
 
-                const contextData = plan.sequence.map((group, index) => ({
-                    id: group.id,
-                    fazendaName: group.fazendaName,
-                    originalOrder: index + 1,
-                    atr: group.atr,
-                    averageAgeMonths: App.actions.calculateAverageAge(group, new Date(plan.startDate)),
-                    maturadorDays: App.actions.calculateMaturadorDays(group)
-                }));
+                const contextData = plan.sequence.map((group, index) => {
+                    const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
+                    const varieties = new Set();
+                    group.plots.forEach(plot => {
+                        const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
+                        if (talhao?.variedade) {
+                            varieties.add(talhao.variedade);
+                        }
+                    });
+
+                    return {
+                        id: group.id,
+                        fazendaName: group.fazendaName,
+                        varieties: Array.from(varieties),
+                        originalOrder: index + 1,
+                        atr: group.atr,
+                        averageAgeMonths: App.actions.calculateAverageAge(group, new Date(plan.startDate)),
+                        maturadorDays: App.actions.calculateMaturadorDays(group)
+                    };
+                });
 
                 const result = await this._callGeminiAPI(prompt, contextData, "A otimizar sequência com IA...");
 
