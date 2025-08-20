@@ -2162,7 +2162,8 @@
             console.log("Google Maps API loaded.");
         }
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&libraries=geometry&callback=initMap" async defer></script>
+    <!-- A chave da API do Google Maps também deve ser gerida de forma segura e não hardcoded -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=geometry&callback=initMap" async defer></script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>

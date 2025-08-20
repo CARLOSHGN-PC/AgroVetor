@@ -10,6 +10,7 @@ const os = require('os');
 const axios = require('axios');
 const shp = require('shpjs');
 const pointInPolygon = require('point-in-polygon');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -84,6 +85,61 @@ try {
             res.status(500).send({ message: `Erro no servidor ao processar o arquivo: ${error.message}` });
         }
     });
+
+    // --- ROTAS DA IA (GEMINI) ---
+    // A chave da API deve ser guardada como uma variável de ambiente no servidor (ex: .env)
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) {
+        console.warn("A variável de ambiente GEMINI_API_KEY não está definida. As funcionalidades de IA não estarão disponíveis.");
+    } else {
+        const genAI = new GoogleGenerativeAI(geminiApiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash"});
+
+        app.post('/api/gemini/generate', async (req, res) => {
+            const { prompt, contextData } = req.body;
+
+            if (!prompt) {
+                return res.status(400).json({ message: 'O prompt é obrigatório.' });
+            }
+
+            try {
+                const fullPrompt = `
+                    Você é um especialista em agronomia e agricultura de precisão para o cultivo de cana-de-açúcar.
+                    Seu nome é AgroVetor AI.
+                    Analise o contexto fornecido e responda à solicitação do usuário de forma clara, objetiva e em formato JSON.
+
+                    **Contexto Fornecido:**
+                    ${JSON.stringify(contextData, null, 2)}
+
+                    **Solicitação do Usuário:**
+                    ${prompt}
+
+                    **Sua Resposta (em formato JSON):**
+                `;
+
+                const result = await model.generateContent(fullPrompt);
+                const response = await result.response;
+                let text = response.text();
+
+                // Limpeza básica para garantir que a saída seja um JSON válido
+                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+                try {
+                    const jsonResponse = JSON.parse(text);
+                    res.status(200).json(jsonResponse);
+                } catch (e) {
+                    console.error("Erro ao fazer parse da resposta da IA para JSON:", e);
+                    res.status(500).json({ message: "A IA retornou uma resposta em formato inválido.", details: text });
+                }
+
+            } catch (error) {
+                console.error("Erro ao chamar a API do Gemini:", error);
+                res.status(500).json({ message: 'Erro ao comunicar com a IA.' });
+            }
+        });
+
+        console.log('Rota da IA (/api/gemini/generate) ativada.');
+    }
 
     // --- FUNÇÕES AUXILIARES ---
 
@@ -1281,6 +1337,62 @@ try {
             res.status(500).send('Erro ao gerar relatório.');
         }
     });
+
+} catch (error) {
+    console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
+    // --- ROTAS DA IA (GEMINI) ---
+    const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyDgIgShHS_wU2UWAMsOShHU3wIVxM4cnJk";
+    if (!geminiApiKey) {
+        console.warn("A variável de ambiente GEMINI_API_KEY não está definida. As funcionalidades de IA não estarão disponíveis.");
+    } else {
+        const genAI = new GoogleGenerativeAI(geminiApiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash"});
+
+        app.post('/api/gemini/generate', async (req, res) => {
+            const { prompt, contextData } = req.body;
+
+            if (!prompt) {
+                return res.status(400).json({ message: 'O prompt é obrigatório.' });
+            }
+
+            try {
+                const fullPrompt = `
+                    Você é um especialista em agronomia e agricultura de precisão para o cultivo de cana-de-açúcar.
+                    Seu nome é AgroVetor AI.
+                    Analise o contexto fornecido e responda à solicitação do usuário de forma clara, objetiva e em formato JSON.
+
+                    **Contexto Fornecido:**
+                    ${JSON.stringify(contextData, null, 2)}
+
+                    **Solicitação do Usuário:**
+                    ${prompt}
+
+                    **Sua Resposta (em formato JSON):**
+                `;
+
+                const result = await model.generateContent(fullPrompt);
+                const response = await result.response;
+                let text = response.text();
+
+                // Limpeza básica para garantir que a saída seja um JSON válido
+                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+                try {
+                    const jsonResponse = JSON.parse(text);
+                    res.status(200).json(jsonResponse);
+                } catch (e) {
+                    console.error("Erro ao fazer parse da resposta da IA para JSON:", e);
+                    res.status(500).json({ message: "A IA retornou uma resposta em formato inválido.", details: text });
+                }
+
+            } catch (error) {
+                console.error("Erro ao chamar a API do Gemini:", error);
+                res.status(500).json({ message: 'Erro ao comunicar com a IA.' });
+            }
+        });
+
+        console.log('Rota da IA (/api/gemini/generate) ativada.');
+    }
 
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
