@@ -124,18 +124,19 @@ try {
 
                 Se a coluna 'tchRealizado' (Toneladas de Cana por Hectare) não existir, mas colunas para 'toneladas' e 'area' existirem, mapeie-as para que eu possa calcular o TCH (toneladas / area).
 
-                **Exemplo 1:**
+                **Exemplo Principal (Formato do Cliente):**
+                Amostra: "Ano;Propriedade;Fazenda;Prev. Corte (Qz/Mês);Talhão;Área Ha (Colheita);Corte;Parte;Tmp. Cana;Encerramento;Estim. Corte;Estim. Ton;Real Cortado;Cortado Ton;Terceiros;Terceiros;ATR;Variedade Cana;Distância (Km);Muda;Replan;Irrigado"
+                Resposta JSON esperada: { "Ano": "safra", "Fazenda": "nomeFazenda", "Talhão": "talhao", "Área Ha (Colheita)": "area", "Cortado Ton": "toneladas", "ATR": "atrRealizado", "Variedade Cana": "variedade" }
+
+                **Exemplo 2 (Formato Simples):**
                 Amostra: "COD;FAZENDA;TALHÃO;VARIEDADE;CORTE;TCH;ATR"
                 Resposta JSON esperada: { "COD": "codigoFazenda", "FAZENDA": "nomeFazenda", "TALHÃO": "talhao", "VARIEDADE": "variedade", "TCH": "tchRealizado", "ATR": "atrRealizado" }
 
-                **Exemplo 2:**
+                **Exemplo 3 (Nomes Abreviados):**
                 Amostra: "Cod Faz;Talhão;Area (ha);Ton. Entregue;Safra;ATR"
                 Resposta JSON esperada: { "Cod Faz": "codigoFazenda", "Talhão": "talhao", "Area (ha)": "area", "Ton. Entregue": "toneladas", "Safra": "safra", "ATR": "atrRealizado" }
 
-                **Exemplo 3 (Nomes complexos):**
-                Amostra: "cd_fazenda;ds_talhao;nu_safra;ds_variedade;vl_atr_realizado;vl_tch_estimado"
-                Resposta JSON esperada: { "cd_fazenda": "codigoFazenda", "ds_talhao": "talhao", "nu_safra": "safra", "ds_variedade": "variedade", "vl_atr_realizado": "atrRealizado", "vl_tch_estimado": "tchRealizado" }
-
+                Ignore colunas que não parecem relevantes para o cálculo de produtividade (ex: 'Propriedade', 'Muda', 'Replan'). Se houver colunas duplicadas como 'Terceiros', ignore-as.
                 Agora, analise a amostra real abaixo e forneça apenas o objeto JSON correspondente, sem nenhum texto adicional.
 
                 **Amostra Real:**
@@ -182,6 +183,7 @@ try {
                                 talhao: record.talhao || null,
                                 safra: record.safra || null,
                                 variedade: record.variedade || null,
+                                toneladas: parseFloat(String(record.toneladas).replace(',', '.')) || 0,
                                 atrRealizado: parseFloat(String(record.atrRealizado).replace(',', '.')) || 0,
                                 tchRealizado: parseFloat(String(record.tchRealizado).replace(',', '.')) || 0,
                                 importedAt: new Date(),
@@ -230,6 +232,7 @@ try {
                         historicalData.push({
                             safra: data.safra,
                             variedade: data.variedade,
+                            toneladas: data.toneladas,
                             atrRealizado: data.atrRealizado,
                             tchRealizado: data.tchRealizado
                         });
@@ -251,10 +254,20 @@ try {
                 **Contexto Fornecido:**
                 ${JSON.stringify(finalContextData, null, 2)}
 
-                Se o contexto incluir um campo "historicalData", ele contém uma lista de dados de safras passadas para o mesmo talhão. Use esses dados como a principal fonte para a sua previsão.
+                **Regras de Análise:**
+                1.  Se o contexto incluir "historicalData", ele contém dados de safras passadas para o mesmo talhão. Use esses dados como a principal fonte para a sua previsão.
+                2.  **Cálculo de ATR Ponderado:** Ao prever o ATR (Açúcar Total Recuperável), você DEVE usar uma média ponderada pela produção (toneladas). A fórmula é: SUM(atrRealizado * toneladas) / SUM(toneladas).
+                3.  **Justificativa:** Baseie sua previsão na média ponderada e considere a variedade da cana e a safra (ano). Se a variedade for a mesma, a média ponderada é um forte indicador. Se for diferente, ajuste a previsão ligeiramente com base no potencial conhecido da nova variedade, mas ainda use a média ponderada como referência principal.
+                4.  Sempre forneça uma justificativa clara para sua previsão no campo "justificativa" do JSON de resposta.
 
                 **Solicitação do Usuário:**
                 ${prompt}
+
+                **Exemplo de Resposta para Previsão de ATR:**
+                {
+                  "previsao_atr": 135.5,
+                  "justificativa": "A previsão foi baseada na média ponderada do ATR dos últimos 3 anos, que é de 134.8 kg/ton. Foi aplicado um pequeno ajuste positivo devido à nova variedade (CTC4) ter um potencial de ATR ligeiramente superior à média histórica da fazenda."
+                }
 
                 **Sua Resposta (em formato JSON):**
             `;
