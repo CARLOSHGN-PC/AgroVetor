@@ -2003,6 +2003,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const debouncedAtrPrediction = App.debounce(() => App.gemini.getAtrPrediction());
                 if (harvestEls.fazenda) harvestEls.fazenda.addEventListener('change', debouncedAtrPrediction);
+                if (harvestEls.selectAllTalhoes) harvestEls.selectAllTalhoes.addEventListener('change', debouncedAtrPrediction);
                 if (harvestEls.talhaoSelectionList) harvestEls.talhaoSelectionList.addEventListener('click', (e) => {
                     if (e.target.type === 'checkbox') {
                         debouncedAtrPrediction();
@@ -3603,23 +3604,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async getAtrPrediction() {
                 const { fazenda: fazendaSelect, talhaoSelectionList, atr: atrInput } = App.elements.harvest;
+                const atrSpinner = document.getElementById('atr-spinner');
 
-                // Re-habilita o campo para permitir nova previsão
-                atrInput.disabled = false;
                 atrInput.value = '';
 
                 const farmId = fazendaSelect.value;
-                if (!farmId) {
-                    return; // Sai silenciosamente se nenhuma fazenda está selecionada
+                const selectedCheckboxes = talhaoSelectionList.querySelectorAll('input[type="checkbox"]:checked');
+
+                if (!farmId || selectedCheckboxes.length === 0) {
+                    return;
                 }
+
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm) return;
 
-                const selectedCheckboxes = talhaoSelectionList.querySelectorAll('input[type="checkbox"]:checked');
-                if (selectedCheckboxes.length === 0) {
-                    App.ui.showAlert("Selecione pelo menos um talhão para prever o ATR.", "warning");
-                    return;
-                }
+                if(atrSpinner) atrSpinner.style.display = 'inline-block';
 
                 const talhaoNames = Array.from(selectedCheckboxes).map(cb => {
                     const talhaoId = parseInt(cb.dataset.talhaoId, 10);
@@ -3638,19 +3637,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 const contextData = {
                     codigoFazenda: farm.code,
                     talhao: talhaoNames.join(', '),
-                    // O backend usará estes dados para buscar o histórico no Firestore
                 };
 
-                const result = await this._callGeminiAPI(prompt, contextData, "A prever ATR com IA...", "predict_atr");
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/gemini/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prompt, contextData, task: "predict_atr" }),
+                    });
 
-                if (result && result.predicted_atr && typeof result.predicted_atr === 'number') {
-                    atrInput.value = result.predicted_atr.toFixed(2);
-                    atrInput.disabled = true; // Bloqueia o campo após a previsão
-                    App.ui.showAlert("Previsão de ATR preenchida pela IA!", "success");
-                } else {
-                    // Não mostra alerta de erro se a IA não conseguir prever, apenas não preenche.
-                    // O usuário pode então preencher manualmente.
-                    atrInput.disabled = false;
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
+                    }
+                    const result = await response.json();
+
+                    if (result && result.predicted_atr && typeof result.predicted_atr === 'number') {
+                        atrInput.value = result.predicted_atr.toFixed(2);
+                    }
+                } catch (error) {
+                    console.error("Erro na chamada da API Gemini para ATR:", error);
+                } finally {
+                    if(atrSpinner) atrSpinner.style.display = 'none';
                 }
             }
         },
