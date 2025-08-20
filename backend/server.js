@@ -89,7 +89,7 @@ try {
     });
 
     // ROTA PARA INGESTÃO INTELIGENTE DE RELATÓRIO HISTÓRICO
-    app.post('/api/import/historical-report', async (req, res) => {
+    app.post('/api/upload/historical-report', async (req, res) => {
         const { reportData } = req.body;
         if (!reportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
