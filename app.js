@@ -8,11 +8,8 @@ import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // As chaves de API e configurações do Firebase devem ser guardadas em variáveis de ambiente
-    // e injetadas no momento do build, ou carregadas de um endpoint seguro.
-    // NÃO DEVEM ser guardadas diretamente no código em produção.
     const firebaseConfig = {
-        apiKey: "YOUR_FIREBASE_API_KEY", // SUBSTITUIR PELA CHAVE REAL
+        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
         authDomain: "agrovetor-v2.firebaseapp.com",
         projectId: "agrovetor-v2",
         storageBucket: "agrovetor-v2.firebasestorage.app",
