@@ -1493,7 +1493,15 @@
                         <input type="hidden" id="editingGroupId">
                         <div class="form-row">
                             <div class="form-col" style="flex-grow: 2;"><label for="harvestFazenda" class="required">Fazenda:</label><select id="harvestFazenda" required></select></div>
-                            <div class="form-col"><label for="harvestAtr" class="required">ATR Previsto:</label><input type="number" id="harvestAtr" placeholder="Ex: 130.5"></div>
+                            <div class="form-col">
+                                <label for="harvestAtr" class="required">ATR Previsto:</label>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="number" id="harvestAtr" placeholder="Ex: 130.5" style="margin-top: 0;">
+                                    <button id="btnPredictAtr" class="btn-ai" style="padding: 8px 12px; margin-top: 0; width: auto; font-size: 14px;" title="Prever ATR com IA">
+                                        <i class="fas fa-magic"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="form-row">
@@ -1932,6 +1940,18 @@
                         <p>Clique ou arraste um arquivo .zip aqui</p>
                     </div>
                     <input type="file" id="shapefileInput" accept=".zip" style="display: none;">
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
+                    <h3><i class="fas fa-history"></i> Importar Histórico de Safras (para IA)</h3>
+                    <p>Faça o upload de um ficheiro CSV com todos os dados de safras passadas para alimentar o modelo de IA e melhorar as previsões de ATR.</p>
+                    <div class="upload-area" id="historicalHarvestCsvUploadArea">
+                        <i class="fas fa-file-csv fa-2x" style="color: var(--color-purple);"></i>
+                        <p>Clique ou arraste o ficheiro CSV do histórico aqui</p>
+                    </div>
+                    <input type="file" id="historicalHarvestCsvInput" accept=".csv" style="display: none;">
+                    <button id="btnDownloadHistoricalHarvestCsvTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-purple);"><i class="fas fa-download"></i> Baixar Modelo CSV (Histórico)</button>
+                    <small class="csv-format-info">Formato: CodigoFazenda;Talhao;Safra;Variedade;ATR_Realizado;TCH_Realizado</small>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">

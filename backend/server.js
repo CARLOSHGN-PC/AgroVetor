@@ -11,6 +11,8 @@ const axios = require('axios');
 const shp = require('shpjs');
 const pointInPolygon = require('point-in-polygon');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const csv = require('csv-parser');
+const { Readable } = require('stream');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -86,6 +88,52 @@ try {
         }
     });
 
+    // ROTA PARA IMPORTAR HISTÓRICO DE SAFRA
+    app.post('/api/import/historical-harvest', async (req, res) => {
+        const { csvData } = req.body;
+        if (!csvData) {
+            return res.status(400).json({ message: 'Nenhum dado de CSV foi enviado.' });
+        }
+
+        const results = [];
+        const stream = Readable.from(csvData);
+
+        stream
+            .pipe(csv({ separator: ';' }))
+            .on('data', (data) => results.push(data))
+            .on('end', async () => {
+                if (results.length === 0) {
+                    return res.status(400).json({ message: 'CSV vazio ou em formato inválido.' });
+                }
+
+                const batch = db.batch();
+                let count = 0;
+
+                results.forEach(row => {
+                    const docRef = db.collection('historicalHarvests').doc();
+                    const record = {
+                        codigoFazenda: row.CodigoFazenda || null,
+                        talhao: row.Talhao || null,
+                        safra: row.Safra || null,
+                        variedade: row.Variedade || null,
+                        atrRealizado: parseFloat(String(row.ATR_Realizado).replace(',', '.')) || 0,
+                        tchRealizado: parseFloat(String(row.TCH_Realizado).replace(',', '.')) || 0,
+                        importedAt: new Date(),
+                    };
+                    batch.set(docRef, record);
+                    count++;
+                });
+
+                try {
+                    await batch.commit();
+                    res.status(200).json({ message: `${count} registros históricos importados com sucesso!` });
+                } catch (error) {
+                    console.error("Erro ao salvar dados históricos no Firestore:", error);
+                    res.status(500).json({ message: 'Erro no servidor ao salvar os dados históricos.' });
+                }
+            });
+    });
+
     // --- ROTAS DA IA (GEMINI) ---
     // A chave da API deve ser guardada como uma variável de ambiente no servidor (ex: .env)
     const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyDgIgShHS_wU2UWAMsOShHU3wIVxM4cnJk";
@@ -96,10 +144,36 @@ try {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash"});
 
         app.post('/api/gemini/generate', async (req, res) => {
-            const { prompt, contextData } = req.body;
+            const { prompt, contextData, task } = req.body;
 
             if (!prompt) {
                 return res.status(400).json({ message: 'O prompt é obrigatório.' });
+            }
+
+            let finalContextData = contextData;
+
+            // Se a tarefa for prever ATR, busca o histórico
+            if (task === 'predict_atr' && contextData.codigoFazenda && contextData.talhao) {
+                try {
+                    const historyQuery = await db.collection('historicalHarvests')
+                        .where('codigoFazenda', '==', contextData.codigoFazenda)
+                        .where('talhao', '==', contextData.talhao)
+                        .orderBy('safra', 'desc')
+                        .limit(5)
+                        .get();
+
+                    if (!historyQuery.empty) {
+                        const historicalData = [];
+                        historyQuery.forEach(doc => {
+                            historicalData.push(doc.data());
+                        });
+                        // Adiciona o histórico ao contexto que será enviado para a IA
+                        finalContextData.historicalData = historicalData;
+                    }
+                } catch (e) {
+                    console.error("Erro ao buscar histórico para a IA:", e);
+                    // Continua sem o histórico se der erro, não para a execução
+                }
             }
 
             try {
@@ -109,7 +183,7 @@ try {
                     Analise o contexto fornecido e responda à solicitação do usuário de forma clara, objetiva e em formato JSON.
 
                     **Contexto Fornecido:**
-                    ${JSON.stringify(contextData, null, 2)}
+                    ${JSON.stringify(finalContextData, null, 2)}
 
                     **Solicitação do Usuário:**
                     ${prompt}
