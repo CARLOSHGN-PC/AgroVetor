@@ -3656,15 +3656,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if(atrSpinner) atrSpinner.style.display = 'inline-block';
 
-                const talhaoNames = Array.from(selectedCheckboxes).map(cb => {
-                    const talhaoId = parseInt(cb.dataset.talhaoId, 10);
-                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
-                    return talhao ? talhao.name : null;
-                }).filter(Boolean);
-
                 const prompt = `
-                    Preveja o valor do ATR (Açúcar Total Recuperável) para o(s) seguinte(s) talhão(ões).
-                    Baseie sua previsão principalmente nos dados históricos fornecidos no contexto. Considere também a variedade e a safra atual.
+                    Preveja o valor do ATR (Açúcar Total Recuperável) para a seguinte fazenda.
+                    Baseie sua previsão principalmente nos dados históricos fornecidos no contexto, usando a média ponderada por tonelada.
                     Retorne um JSON com uma única chave, "predicted_atr", e o valor numérico previsto.
                     Se não houver dados históricos, use seu conhecimento geral sobre as variedades de cana para fazer uma estimativa.
                     Exemplo de Resposta: { "predicted_atr": 138.5 }
@@ -3672,7 +3666,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const contextData = {
                     codigoFazenda: farm.code,
-                    talhao: talhaoNames.join(', '),
                 };
 
                 try {
