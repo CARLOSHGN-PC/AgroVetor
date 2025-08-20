@@ -116,7 +116,19 @@ try {
             const mappingResult = await model.generateContent(mappingPrompt);
             const mappingResponse = await mappingResult.response;
             let mappingText = mappingResponse.text().replace(/```json/g, '').replace(/```/g, '').trim();
-            const columnMapping = JSON.parse(mappingText);
+
+            let columnMapping;
+            try {
+                columnMapping = JSON.parse(mappingText);
+            } catch (e) {
+                console.error("Erro: A IA retornou um JSON inválido para o mapeamento de colunas.", mappingText);
+                return res.status(500).json({ message: "A IA não conseguiu entender a estrutura das colunas do seu relatório. Verifique se o arquivo é um CSV válido com cabeçalhos." });
+            }
+
+            if (!columnMapping || Object.keys(columnMapping).length === 0) {
+                console.error("Erro: O mapeamento de colunas da IA está vazio ou inválido.", columnMapping);
+                return res.status(500).json({ message: "A IA não conseguiu identificar colunas válidas no seu relatório." });
+            }
 
             // 3. Processa o CSV completo com o mapeamento da IA
             const records = [];
