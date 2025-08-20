@@ -251,9 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnDownloadClosedTemplate: document.getElementById('btnDownloadClosedTemplate'),
                 shapefileUploadArea: document.getElementById('shapefileUploadArea'),
                 shapefileInput: document.getElementById('shapefileInput'),
-                historicalHarvestCsvUploadArea: document.getElementById('historicalHarvestCsvUploadArea'),
-                historicalHarvestCsvInput: document.getElementById('historicalHarvestCsvInput'),
-                btnDownloadHistoricalHarvestCsvTemplate: document.getElementById('btnDownloadHistoricalHarvestCsvTemplate'),
+                historicalReportUploadArea: document.getElementById('historicalReportUploadArea'),
+                historicalReportInput: document.getElementById('historicalReportInput'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -1907,9 +1906,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.btnDownloadClosedTemplate) companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
                 if (companyConfigEls.shapefileUploadArea) companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
-                if (companyConfigEls.historicalHarvestCsvUploadArea) companyConfigEls.historicalHarvestCsvUploadArea.addEventListener('click', () => companyConfigEls.historicalHarvestCsvInput.click());
-                if (companyConfigEls.historicalHarvestCsvInput) companyConfigEls.historicalHarvestCsvInput.addEventListener('change', (e) => App.actions.importHistoricalHarvestFromCSV(e.target.files[0]));
-                if (companyConfigEls.btnDownloadHistoricalHarvestCsvTemplate) companyConfigEls.btnDownloadHistoricalHarvestCsvTemplate.addEventListener('click', () => App.actions.downloadHistoricalHarvestCsvTemplate());
+                if (companyConfigEls.historicalReportUploadArea) companyConfigEls.historicalReportUploadArea.addEventListener('click', () => companyConfigEls.historicalReportInput.click());
+                if (companyConfigEls.historicalReportInput) companyConfigEls.historicalReportInput.addEventListener('change', (e) => App.actions.uploadHistoricalReport(e.target.files[0]));
 
 
                 if (App.elements.cadastros.btnSaveFarm) App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
@@ -3169,30 +3167,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
-            downloadHistoricalHarvestCsvTemplate() {
-                const headers = "CodigoFazenda;Talhao;Safra;Variedade;ATR_Realizado;TCH_Realizado";
-                const exampleRow = "4012;T-01;2023;RB867515;135.2;95.5";
-                const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", "modelo_historico_safras.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            },
-            async importHistoricalHarvestFromCSV(file) {
+            async uploadHistoricalReport(file) {
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = async (event) => {
-                    const csvData = event.target.result;
-                    App.ui.setLoading(true, "A importar dados históricos...");
+                    const reportData = event.target.result;
+                    App.ui.setLoading(true, "A enviar relatório para análise da IA...");
                     try {
-                        const response = await fetch(`${App.config.backendUrl}/api/import/historical-harvest`, {
+                        const response = await fetch(`${App.config.backendUrl}/api/upload/historical-report`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ csvData }),
+                            body: JSON.stringify({ reportData }),
                         });
                         const result = await response.json();
                         if (!response.ok) {
@@ -3200,10 +3185,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         App.ui.showAlert(result.message, 'success');
                     } catch (error) {
-                        App.ui.showAlert(`Erro ao importar dados: ${error.message}`, 'error');
+                        App.ui.showAlert(`Erro ao enviar relatório: ${error.message}`, 'error');
                     } finally {
                         App.ui.setLoading(false);
-                        App.elements.companyConfig.historicalHarvestCsvInput.value = '';
+                        App.elements.companyConfig.historicalReportInput.value = '';
                     }
                 };
                 reader.readAsText(file, 'ISO-8859-1');
