@@ -83,6 +83,14 @@ document.addEventListener('DOMContentLoaded', () => {
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
+                {
+                    label: 'Pulverização', icon: 'fas fa-spray-can-sparkles',
+                    submenu: [
+                        { label: 'Dashboard', icon: 'fas fa-chart-pie', target: 'sprayingDashboard', permission: 'sprayingDashboard' },
+                        { label: 'Ordens de Serviço', icon: 'fas fa-file-alt', target: 'sprayingWorkOrders', permission: 'sprayingWorkOrders' },
+                        { label: 'Cadastros', icon: 'fas fa-book', target: 'sprayingCadastros', permission: 'sprayingCadastros' },
+                    ]
+                },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
@@ -119,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, sprayingDashboard: true, sprayingWorkOrders: true, sprayingCadastros: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
@@ -158,6 +166,10 @@ document.addEventListener('DOMContentLoaded', () => {
             notifiedTrapIds: new Set(), // NOVO: Controla pop-ups já exibidos na sessão
             trapPlacementMode: null,
             trapPlacementData: null,
+            workOrderMap: null,
+            workOrderMapPolygons: [],
+            selectedWorkOrderFields: [],
+            activeApplicationResult: null,
             newWorker: null, // Para armazenar o novo service worker quando uma atualização for encontrada
         },
         
@@ -453,6 +465,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 manualBtn: document.getElementById('trapPlacementModalManualBtn'),
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
+            sprayingCadastros: {
+                tabs: document.querySelectorAll('#sprayingCadastros .menu-btn'),
+                tabContents: document.querySelectorAll('#sprayingCadastros .tab-content'),
+                farmName: document.getElementById('sprayingFarmName'),
+                farmCity: document.getElementById('sprayingFarmCity'),
+                farmState: document.getElementById('sprayingFarmState'),
+                btnSaveFarm: document.getElementById('btnSaveSprayingFarm'),
+                farmsList: document.getElementById('sprayingFarmsList'),
+                productName: document.getElementById('sprayingProductName'),
+                productIngredient: document.getElementById('sprayingProductIngredient'),
+                productDosage: document.getElementById('sprayingProductDosage'),
+                btnSaveProduct: document.getElementById('btnSaveSprayingProduct'),
+                productsList: document.getElementById('sprayingProductsList'),
+                aircraftPrefix: document.getElementById('sprayingAircraftPrefix'),
+                aircraftModel: document.getElementById('sprayingAircraftModel'),
+                aircraftSwath: document.getElementById('sprayingAircraftSwath'),
+                btnSaveAircraft: document.getElementById('btnSaveSprayingAircraft'),
+                aircraftsList: document.getElementById('sprayingAircraftsList'),
+            },
+            sprayingWorkOrders: {
+                farmSelect: document.getElementById('woFarmSelect'),
+            },
+            sprayingApplicationResult: {
+                container: document.getElementById('sprayingApplicationResult'),
+                btnBack: document.getElementById('btnBackToWOList'),
+                appliedArea: document.getElementById('resultAppliedArea'),
+                wasteArea: document.getElementById('resultWasteArea'),
+                missedArea: document.getElementById('resultMissedArea'),
+                efficiency: document.getElementById('resultEfficiency'),
+                map: document.getElementById('resultMap'),
+                mapContainer: document.getElementById('woMapContainer'),
+                map: document.getElementById('woMap'),
+                selectedFieldsList: document.getElementById('woSelectedFieldsList'),
+                productSelect: document.getElementById('woProductSelect'),
+                aircraftSelect: document.getElementById('woAircraftSelect'),
+                applicationDate: document.getElementById('woApplicationDate'),
+                flightLogFile: document.getElementById('woFlightLogFile'),
+                btnSave: document.getElementById('btnSaveWorkOrder'),
+                list: document.getElementById('workOrdersList'),
+            },
             installAppBtn: document.getElementById('installAppBtn'),
             updateModal: document.getElementById('updateModal'),
             newUpdateBtn: document.getElementById('newUpdateBtn'),
@@ -492,6 +544,102 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
+            },
+
+            async saveWorkOrder() {
+                const { farmSelect, productSelect, aircraftSelect, applicationDate, flightLogFile } = App.elements.sprayingWorkOrders;
+                const { selectedWorkOrderFields } = App.state;
+
+                if (!farmSelect.value || !productSelect.value || !aircraftSelect.value || !applicationDate.value) {
+                    App.ui.showAlert('Por favor, preencha todos os campos obrigatórios (Fazenda, Produto, Aeronave, Data).', 'error');
+                    return;
+                }
+                if (selectedWorkOrderFields.length === 0) {
+                    App.ui.showAlert('Selecione pelo menos um talhão no mapa.', 'error');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('farmId', farmSelect.value);
+                formData.append('productId', productSelect.value);
+                formData.append('aircraftId', aircraftSelect.value);
+                formData.append('applicationDate', applicationDate.value);
+                formData.append('fields', JSON.stringify(selectedWorkOrderFields));
+
+                if (flightLogFile.files[0]) {
+                    formData.append('flightLog', flightLogFile.files[0]);
+                }
+
+                App.ui.setLoading(true, 'Salvando Ordem de Serviço...');
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/spraying/work-orders`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const errorResult = await response.json();
+                        throw new Error(errorResult.message || 'Erro no servidor');
+                    }
+
+                    App.ui.showAlert('Ordem de Serviço salva com sucesso!', 'success');
+
+                    farmSelect.value = '';
+                    productSelect.value = '';
+                    aircraftSelect.value = '';
+                    applicationDate.value = '';
+                    flightLogFile.value = '';
+                    App.state.selectedWorkOrderFields = [];
+                    App.mapModule.loadFieldsOnMap(null);
+
+                    this.loadWorkOrders();
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao salvar Ordem de Serviço: ${error.message}`, 'error');
+                    console.error('Error saving work order:', error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async loadWorkOrders() {
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/spraying/work-orders`);
+            },
+
+            async showApplicationResult(workOrderId) {
+                App.ui.setLoading(true, 'Carregando análise de voo...');
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/spraying/applications/work-order/${workOrderId}`);
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.message || 'Resultado não encontrado');
+                    }
+                    const resultData = await response.json();
+                    App.state.activeApplicationResult = resultData;
+
+                    document.querySelectorAll('.tab-content').forEach(tab => {
+                        tab.classList.remove('active');
+                        tab.hidden = true;
+                    });
+                    const resultTab = App.elements.sprayingApplicationResult.container;
+                    resultTab.classList.add('active');
+                    resultTab.hidden = false;
+
+                    App.ui.renderApplicationResult();
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao carregar resultado: ${error.message}`, 'error');
+                } finally {
+                    App.ui.setLoading(false);
+                }
+                    if (!response.ok) throw new Error('Network error');
+                    const workOrders = await response.json();
+                    App.ui.renderWorkOrdersList(workOrders);
+                } catch (error) {
+                    App.ui.showAlert('Erro ao carregar Ordens de Serviço.', 'error');
+                    console.error('Error loading work orders:', error);
+                }
             },
             async login() {
                 const email = App.elements.loginUser.value.trim();
@@ -964,6 +1112,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
+                if (id === 'sprayingCadastros') {
+                    this.renderSprayingTabs();
+                    App.actions.loadAllSprayingMasterData();
+                }
+                if (id === 'sprayingWorkOrders') {
+                    // A pequena espera garante que a aba está visível antes de o mapa ser inicializado
+                    setTimeout(() => {
+                        App.mapModule.initWorkOrderMap();
+                        this.populateWorkOrderSelects();
+                        App.actions.loadWorkOrders();
+                    }, 50);
+                }
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
@@ -1076,7 +1236,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         break;
                     case 'aerea':
-                        dashEls.aereaView.style.display = 'block';
+                        // Navigate directly to the new module's main screen
+                        this.showTab('sprayingDashboard');
                         break;
                 }
             },
@@ -1495,6 +1656,72 @@ document.addEventListener('DOMContentLoaded', () => {
             renderHarvestSequence() {
                 if (!App.state.activeHarvestPlan) return;
                 const { tableBody, summary } = App.elements.harvest;
+            },
+
+            renderSprayingTabs() {
+                const { tabs, tabContents } = App.elements.sprayingCadastros;
+
+                const showTabContent = (targetId) => {
+                    tabContents.forEach(content => {
+                        content.style.display = content.id === targetId ? 'block' : 'none';
+                    });
+                    tabs.forEach(tab => {
+                        tab.classList.toggle('active', tab.dataset.target === targetId);
+                    });
+                }
+
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        showTabContent(tab.dataset.target);
+                    });
+                });
+
+                // Show the first tab by default
+                if (tabs.length > 0) {
+                    showTabContent(tabs[0].dataset.target);
+                }
+            },
+
+            renderSprayingFarmsList(farms = []) {
+                const { farmsList } = App.elements.sprayingCadastros;
+                farmsList.innerHTML = '';
+                if (farms.length === 0) {
+                    farmsList.innerHTML = '<li>Nenhuma fazenda cadastrada.</li>';
+                    return;
+                }
+                farms.forEach(farm => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span>${farm.name} (${farm.city} - ${farm.state})</span> <button class="btn-excluir" data-id="${farm.id}" data-type="farm"><i class="fas fa-trash"></i></button>`;
+                    farmsList.appendChild(li);
+                });
+            },
+
+            renderSprayingProductsList(products = []) {
+                const { productsList } = App.elements.sprayingCadastros;
+                productsList.innerHTML = '';
+                if (products.length === 0) {
+                    productsList.innerHTML = '<li>Nenhum produto cadastrado.</li>';
+                    return;
+                }
+                products.forEach(product => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span>${product.name} - ${product.activeIngredient} (${product.defaultDosage} L/ha)</span> <button class="btn-excluir" data-id="${product.id}" data-type="product"><i class="fas fa-trash"></i></button>`;
+                    productsList.appendChild(li);
+                });
+            },
+
+            renderSprayingAircraftsList(aircrafts = []) {
+                const { aircraftsList } = App.elements.sprayingCadastros;
+                aircraftsList.innerHTML = '';
+                if (aircrafts.length === 0) {
+                    aircraftsList.innerHTML = '<li>Nenhuma aeronave cadastrada.</li>';
+                    return;
+                }
+                aircrafts.forEach(aircraft => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span>${aircraft.prefix} - ${aircraft.model} (Faixa: ${aircraft.swathWidth}m)</span> <button class="btn-excluir" data-id="${aircraft.id}" data-type="aircraft"><i class="fas fa-trash"></i></button>`;
+                    aircraftsList.appendChild(li);
+                });
                 const { startDate, dailyRate, sequence, closedTalhaoIds = [] } = App.state.activeHarvestPlan;
                 
                 tableBody.innerHTML = '';
@@ -1764,8 +1991,214 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
+            populateWorkOrderSelects() {
+                const { farmSelect, productSelect, aircraftSelect } = App.elements.sprayingWorkOrders;
+
+                // For farms, we use the main fazendas list which is already in state.
+                farmSelect.innerHTML = '<option value="">Selecione uma fazenda...</option>';
+                App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
+                    farmSelect.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
+                });
+
+                const populateSelect = async (select, url, nameProp, valueProp = 'id', defaultOption) => {
+                    select.innerHTML = `<option value="">${defaultOption}</option>`;
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error('Network error');
+                        const data = await response.json();
+                        data.sort((a, b) => a.name.localeCompare(b.name)).forEach(item => {
+                            const name = typeof nameProp === 'function' ? nameProp(item) : item[nameProp];
+                            const value = item[valueProp];
+                            select.innerHTML += `<option value="${value}">${name}</option>`;
+                        });
+                    } catch (error) {
+                        select.innerHTML = '<option value="">Erro ao carregar</option>';
+                        console.error(`Failed to load data for ${select.id}:`, error);
+                    }
+                };
+
+                populateSelect(productSelect, `${App.config.backendUrl}/api/spraying/products`, 'name', 'id', 'Carregando produtos...');
+                populateSelect(aircraftSelect, `${App.config.backendUrl}/api/spraying/aircrafts`, item => `${item.prefix} - ${item.model}`, 'id', 'Carregando aeronaves...');
+            },
+
+            renderWorkOrdersList(workOrders = []) {
+                const { list } = App.elements.sprayingWorkOrders;
+                list.innerHTML = '';
+
+                if (workOrders.length === 0) {
+                    list.innerHTML = '<p>Nenhuma ordem de serviço encontrada.</p>';
+                    return;
+                }
+
+                const getStatusChip = (status) => {
+                    let color, text;
+                    switch (status) {
+                        case 'Completed':
+                            color = 'var(--color-success)';
+                            text = 'Concluída';
+                            break;
+                        case 'Processing':
+                            color = 'var(--color-info)';
+                            text = 'Processando';
+                            break;
+                        case 'Pending':
+                        default:
+                            color = 'var(--color-warning)';
+                            text = 'Pendente';
+                            break;
+                    }
+                    return `<span class="plano-status" style="background-color: ${color}; color: white;">${text}</span>`;
+                };
+
+                workOrders.sort((a,b) => new Date(b.applicationDate) - new Date(a.applicationDate)).forEach(wo => {
+                    const card = document.createElement('div');
+                    card.className = 'plano-card';
+                    card.style.borderLeftColor = 'var(--color-info)';
+
+                    const formattedDate = new Date(wo.applicationDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-file-alt"></i> OS #${wo.id.substring(0, 8)}...</span>
+                            ${getStatusChip(wo.status)}
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-tractor"></i> Fazenda: <strong>${wo.Farm?.name || 'N/A'}</strong></div>
+                            <div><i class="fas fa-calendar-day"></i> Data: <strong>${formattedDate}</strong></div>
+                            <div><i class="fas fa-vial"></i> Produto: <strong>${wo.Product?.name || 'N/A'}</strong></div>
+                            <div><i class="fas fa-plane"></i> Aeronave: <strong>${wo.Aircraft?.prefix || 'N/A'}</strong></div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <strong>Talhões:</strong> ${wo.fields.map(f => f.name).join(', ')}
+                        </div>
+                        <div class="plano-actions">
+                            ${wo.status === 'Completed' ? `<button class="btn-secondary" data-action="view-results" data-id="${wo.id}"><i class="fas fa-chart-area"></i> Ver Resultados</button>` : ''}
+                            ${!wo.flightLogUrl && wo.status === 'Pending' ? `<button class="btn-secondary" style="background: var(--color-warning)" data-action="upload-log" data-id="${wo.id}"><i class="fas fa-upload"></i> Anexar Log</button>` : ''}
+                            <button class="btn-excluir" data-action="delete-wo" data-id="${wo.id}"><i class="fas fa-trash"></i> Excluir</button>
+                        </div>
+                    `;
+                    list.appendChild(card);
+                });
+            },
+
+            renderWorkOrdersList(workOrders = []) {
+                const { list } = App.elements.sprayingWorkOrders;
+                list.innerHTML = '';
+
+                if (workOrders.length === 0) {
+                    list.innerHTML = '<p>Nenhuma ordem de serviço encontrada.</p>';
+                    return;
+                }
+
+                const getStatusChip = (status) => {
+                    let color, text;
+                    switch (status) {
+                        case 'Completed':
+                            color = 'var(--color-success)';
+                            text = 'Concluída';
+                            break;
+                        case 'Processing':
+                            color = 'var(--color-info)';
+                            text = 'Processando';
+                            break;
+                        case 'Pending':
+                        default:
+                            color = 'var(--color-warning)';
+                            text = 'Pendente';
+                            break;
+                    }
+                    return `<span class="plano-status" style="background-color: ${color}; color: white;">${text}</span>`;
+                };
+
+                workOrders.sort((a,b) => new Date(b.applicationDate) - new Date(a.applicationDate)).forEach(wo => {
+                    const card = document.createElement('div');
+                    card.className = 'plano-card';
+                    card.style.borderLeftColor = 'var(--color-info)';
+
+                    const formattedDate = new Date(wo.applicationDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-file-alt"></i> OS #${wo.id.substring(0, 8)}...</span>
+                            ${getStatusChip(wo.status)}
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-tractor"></i> Fazenda: <strong>${wo.Farm?.name || 'N/A'}</strong></div>
+                            <div><i class="fas fa-calendar-day"></i> Data: <strong>${formattedDate}</strong></div>
+                            <div><i class="fas fa-vial"></i> Produto: <strong>${wo.Product?.name || 'N/A'}</strong></div>
+                            <div><i class="fas fa-plane"></i> Aeronave: <strong>${wo.Aircraft?.prefix || 'N/A'}</strong></div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <strong>Talhões:</strong> ${wo.fields.map(f => f.name).join(', ')}
+                        </div>
+                        <div class="plano-actions">
+                            ${wo.status === 'Completed' ? `<button class="btn-secondary" data-action="view-results" data-id="${wo.workOrderId || wo.id}"><i class="fas fa-chart-area"></i> Ver Resultados</button>` : ''}
+                            ${!wo.flightLogUrl && wo.status === 'Pending' ? `<button class="btn-secondary" style="background: var(--color-warning)" data-action="upload-log" data-id="${wo.id}"><i class="fas fa-upload"></i> Anexar Log</button>` : ''}
+                            <button class="btn-excluir" data-action="delete-wo" data-id="${wo.id}"><i class="fas fa-trash"></i> Excluir</button>
+                        </div>
+                    `;
+                    list.appendChild(card);
+                });
+            },
+
+            renderApplicationResult() {
+                const result = App.state.activeApplicationResult;
+                if (!result) return;
+
+                const els = App.elements.sprayingApplicationResult;
+                const summary = result.summary || {};
+                const totalArea = summary.totalArea || 0;
+                const appliedArea = summary.appliedArea || 0;
+
+                els.appliedArea.textContent = `${appliedArea.toFixed(2)} ha`;
+                els.wasteArea.textContent = `${(summary.wasteArea || 0).toFixed(2)} ha`;
+                els.missedArea.textContent = `${(summary.missedArea || 0).toFixed(2)} ha`;
+
+                const efficiency = totalArea > 0 ? (appliedArea / totalArea) * 100 : 0;
+                els.efficiency.textContent = `${efficiency.toFixed(1)}%`;
+
+                setTimeout(() => {
+                    App.mapModule.initResultMap();
+                }, 50);
+            },
+
             _createPermissionItemHTML(perm, permissions = {}) {
                 if (!perm.permission) return '';
+            },
+
+            populateWorkOrderSelects() {
+                const { farmSelect, productSelect, aircraftSelect } = App.elements.sprayingWorkOrders;
+
+                const populateSelect = async (select, url, nameProp, valueProp, defaultOption) => {
+                    select.innerHTML = `<option value="">${defaultOption}</option>`;
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error('Network error');
+                        const data = await response.json();
+                        // Use the main fazendas list for the farm dropdown to ensure access to farm 'code'
+                        const sourceData = select === farmSelect ? App.state.fazendas : data;
+
+                        sourceData.sort((a, b) => a.name.localeCompare(b.name)).forEach(item => {
+                            const name = nameProp(item);
+                            const value = item[valueProp];
+                            select.innerHTML += `<option value="${value}">${name}</option>`;
+                        });
+
+                    } catch (error) {
+                        select.innerHTML = '<option value="">Erro ao carregar</option>';
+                        console.error(`Failed to load data for ${select.id}:`, error);
+                    }
+                };
+
+                // For farms, we use the main fazendas list which is already in state.
+                const farmSelect = App.elements.sprayingWorkOrders.farmSelect;
+                farmSelect.innerHTML = '<option value="">Selecione uma fazenda...</option>';
+                App.state.fazendas.sort((a, b) => a.name.localeCompare(b.name)).forEach(farm => {
+                    farmSelect.innerHTML += `<option value="${farm.id}">${farm.name}</option>`;
+                });
+
+                populateSelect(App.elements.sprayingWorkOrders.productSelect, `${App.config.backendUrl}/api/spraying/products`, item => item.name, 'id', 'Carregando produtos...');
+                populateSelect(App.elements.sprayingWorkOrders.aircraftSelect, `${App.config.backendUrl}/api/spraying/aircrafts`, item => `${item.prefix} - ${item.model}`, 'id', 'Carregando aeronaves...');
                 const isChecked = permissions[perm.permission];
                 return `
                     <label class="permission-item">
@@ -2129,10 +2562,219 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.newUpdateBtn) App.elements.newUpdateBtn.addEventListener('click', () => App.pwa.skipWaiting());
                 const updateAppBtnModal = document.getElementById('update-app-btn-modal');
                 if (updateAppBtnModal) updateAppBtnModal.addEventListener('click', () => App.pwa.skipWaiting());
+
+                // Spraying Module Listeners
+                const sprayEls = App.elements.sprayingCadastros;
+                if(sprayEls.btnSaveFarm) sprayEls.btnSaveFarm.addEventListener('click', () => App.actions.saveSprayingData('farm'));
+                if(sprayEls.btnSaveProduct) sprayEls.btnSaveProduct.addEventListener('click', () => App.actions.saveSprayingData('product'));
+                if(sprayEls.btnSaveAircraft) sprayEls.btnSaveAircraft.addEventListener('click', () => App.actions.saveSprayingData('aircraft'));
+
+                const setupDeleteListener = (listElement) => {
+                    if(listElement) {
+                        listElement.addEventListener('click', (e) => {
+                            const button = e.target.closest('button.btn-excluir');
+                            if (button) {
+                                const { id, type } = button.dataset;
+                                App.actions.deleteSprayingData(type, id);
+                            }
+                        });
+                    }
+                };
+
+                setupDeleteListener(sprayEls.farmsList);
+                setupDeleteListener(sprayEls.productsList);
+                setupDeleteListener(sprayEls.aircraftsList);
+
+                const woEls = App.elements.sprayingWorkOrders;
+                if(woEls.farmSelect) {
+                    woEls.farmSelect.addEventListener('change', (e) => {
+                        App.mapModule.loadFieldsOnMap(e.target.value);
+                    });
+                }
+
+                if(woEls.btnSave) {
+                    woEls.btnSave.addEventListener('click', () => App.actions.saveWorkOrder());
+                }
+
+                if(woEls.list) {
+                    woEls.list.addEventListener('click', (e) => {
+                        const button = e.target.closest('button[data-action]');
+                        if(!button) return;
+
+                        const { action, id } = button.dataset;
+
+                        if(action === 'delete-wo') {
+                            App.ui.showAlert(`Ação de exclusão para OS ${id} ainda não implementada.`, 'info');
+                        } else if (action === 'view-results') {
+                             App.actions.showApplicationResult(id);
+                        } else if (action === 'upload-log') {
+                             App.ui.showAlert(`Ação para anexar log para OS ${id} ainda não implementada.`, 'info');
+                        }
+                    });
+                }
+
+                const resultEls = App.elements.sprayingApplicationResult;
+                if(resultEls.btnBack) {
+                    resultEls.btnBack.addEventListener('click', () => {
+                        App.ui.showTab('sprayingWorkOrders');
+                    });
+                }
             }
         },
         
         actions: {
+            async loadAllSprayingMasterData() {
+                try {
+                    const [farms, products, aircrafts] = await Promise.all([
+                        fetch(`${App.config.backendUrl}/api/spraying/farms`).then(res => res.json()),
+                        fetch(`${App.config.backendUrl}/api/spraying/products`).then(res => res.json()),
+                        fetch(`${App.config.backendUrl}/api/spraying/aircrafts`).then(res => res.json()),
+                    ]);
+                    App.ui.renderSprayingFarmsList(farms || []);
+                    App.ui.renderSprayingProductsList(products || []);
+                    App.ui.renderSprayingAircraftsList(aircrafts || []);
+                } catch (error) {
+                    App.ui.showAlert('Erro ao carregar dados de pulverização.', 'error');
+                    console.error(error);
+                }
+            },
+
+            async saveSprayingData(type) {
+                let url, body, elements;
+                const els = App.elements.sprayingCadastros;
+
+                switch(type) {
+                    case 'farm':
+                        url = `${App.config.backendUrl}/api/spraying/farms`;
+                        body = { name: els.farmName.value, city: els.farmCity.value, state: els.farmState.value };
+                        elements = [els.farmName, els.farmCity, els.farmState];
+                        break;
+                    case 'product':
+                        url = `${App.config.backendUrl}/api/spraying/products`;
+                        body = { name: els.productName.value, activeIngredient: els.productIngredient.value, defaultDosage: parseFloat(els.productDosage.value) };
+                        elements = [els.productName, els.productIngredient, els.productDosage];
+                        break;
+                    case 'aircraft':
+                        url = `${App.config.backendUrl}/api/spraying/aircrafts`;
+                        body = { prefix: els.aircraftPrefix.value, model: els.aircraftModel.value, swathWidth: parseFloat(els.aircraftSwath.value) };
+                        elements = [els.aircraftPrefix, els.aircraftModel, els.aircraftSwath];
+                        break;
+                    default: return;
+                }
+
+                if (Object.values(body).some(v => v === '' || v === null || (typeof v === 'number' && isNaN(v)) )) {
+                    App.ui.showAlert('Por favor, preencha todos os campos.', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    if (!response.ok) throw new Error(await response.text());
+
+                    App.ui.showAlert(`${type.charAt(0).toUpperCase() + type.slice(1)} salvo com sucesso!`, 'success');
+                    elements.forEach(el => el.value = '');
+                    this.loadAllSprayingMasterData(); // Recarregar lista
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao salvar ${type}.`, 'error');
+                    console.error(error);
+                }
+            },
+
+            async deleteSprayingData(type, id) {
+                if (!id || !type) return;
+
+                App.ui.showConfirmationModal(`Tem certeza que deseja excluir este item?`, async () => {
+            },
+
+            async saveWorkOrder() {
+                const { farmSelect, productSelect, aircraftSelect, applicationDate, flightLogFile } = App.elements.sprayingWorkOrders;
+                const { selectedWorkOrderFields } = App.state;
+
+                // Validation
+                if (!farmSelect.value || !productSelect.value || !aircraftSelect.value || !applicationDate.value) {
+                    App.ui.showAlert('Por favor, preencha todos os campos obrigatórios (Fazenda, Produto, Aeronave, Data).', 'error');
+                    return;
+                }
+                if (selectedWorkOrderFields.length === 0) {
+                    App.ui.showAlert('Selecione pelo menos um talhão no mapa.', 'error');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('farmId', farmSelect.value);
+                formData.append('productId', productSelect.value);
+                formData.append('aircraftId', aircraftSelect.value);
+                formData.append('applicationDate', applicationDate.value);
+                formData.append('fields', JSON.stringify(selectedWorkOrderFields));
+
+                if (flightLogFile.files[0]) {
+                    formData.append('flightLog', flightLogFile.files[0]);
+                }
+
+                App.ui.setLoading(true, 'Salvando Ordem de Serviço...');
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/spraying/work-orders`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const errorResult = await response.json();
+                        throw new Error(errorResult.message || 'Erro no servidor');
+                    }
+
+                    App.ui.showAlert('Ordem de Serviço salva com sucesso!', 'success');
+
+                    farmSelect.value = '';
+                    productSelect.value = '';
+                    aircraftSelect.value = '';
+                    applicationDate.value = '';
+                    flightLogFile.value = '';
+                    App.state.selectedWorkOrderFields = [];
+                    App.mapModule.loadFieldsOnMap(null);
+
+                    this.loadWorkOrders();
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao salvar Ordem de Serviço: ${error.message}`, 'error');
+                    console.error('Error saving work order:', error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async loadWorkOrders() {
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/spraying/work-orders`);
+                    if (!response.ok) throw new Error('Network error');
+                    const workOrders = await response.json();
+                    App.ui.renderWorkOrdersList(workOrders);
+                } catch (error) {
+                    App.ui.showAlert('Erro ao carregar Ordens de Serviço.', 'error');
+                    console.error('Error loading work orders:', error);
+                }
+                    try {
+                        const response = await fetch(`${App.config.backendUrl}/api/spraying/${type}s/${id}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.message || 'Erro no servidor');
+                        }
+                        App.ui.showAlert('Item excluído com sucesso!', 'success');
+                        this.loadAllSprayingMasterData(); // Recarregar dados
+                    } catch (error) {
+                        App.ui.showAlert(`Erro ao excluir: ${error.message}`, 'error');
+                        console.error(`Erro ao excluir ${type}:`, error);
+                    }
+                });
+            },
+
             filterDashboardData(dataType, startDate, endDate) {
                 if (!startDate || !endDate) {
                     return App.state[dataType];
@@ -3437,6 +4079,233 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         mapModule: {
+            resultMapInstance: null,
+            resultDataLayer: null,
+            initResultMap() {
+                if (this.resultMapInstance) {
+                    this.drawApplicationResult();
+                    return;
+                }
+
+                const mapContainer = App.elements.sprayingApplicationResult.map;
+                if (!mapContainer || typeof google === 'undefined') return;
+
+                try {
+                    this.resultMapInstance = new google.maps.Map(mapContainer, {
+                        center: { lat: -21.17, lng: -48.45 },
+                        zoom: 15,
+                        mapTypeId: 'satellite',
+                        disableDefaultUI: true,
+                        zoomControl: true,
+                        gestureHandling: 'greedy'
+                    });
+
+                    this.drawApplicationResult();
+
+                } catch (e) {
+                    console.error("Erro ao inicializar o mapa de resultado:", e);
+                }
+            },
+
+            drawApplicationResult() {
+                const map = this.resultMapInstance;
+                const result = App.state.activeApplicationResult;
+                if (!map || !result) return;
+
+                if (this.resultDataLayer) {
+                    this.resultDataLayer.setMap(null);
+                }
+
+                this.resultDataLayer = new google.maps.Data({ map: map });
+                const bounds = new google.maps.LatLngBounds();
+
+                const addGeoJson = (geoJson, properties) => {
+                    if (geoJson && (geoJson.features?.length > 0 || geoJson.coordinates?.length > 0)) {
+                        try {
+                            const features = this.resultDataLayer.addGeoJson(geoJson);
+                            features.forEach(feature => {
+                                Object.keys(properties).forEach(key => feature.setProperty(key, properties[key]));
+                                const geom = feature.getGeometry();
+                                geom.forEachLatLng(latlng => bounds.extend(latlng));
+                            });
+                        } catch(e) {
+                            console.error("Error adding GeoJSON:", e, geoJson);
+                        }
+                    }
+                };
+
+                addGeoJson(result.geometry.applied, { type: 'applied' });
+                addGeoJson(result.geometry.waste, { type: 'waste' });
+                addGeoJson(result.geometry.miss, { type: 'miss' });
+                addGeoJson(result.geometry.field, { type: 'field' });
+
+                this.resultDataLayer.setStyle(feature => {
+                    const type = feature.getProperty('type');
+                    switch(type) {
+                        case 'applied': return { fillColor: '#4caf50', fillOpacity: 0.7, strokeWeight: 0, clickable: false };
+                        case 'waste': return { fillColor: '#f44336', fillOpacity: 0.7, strokeWeight: 0, clickable: false };
+                        case 'miss': return { fillColor: '#ffeb3b', fillOpacity: 0.7, strokeWeight: 0, clickable: false };
+                        case 'field': return { fillColor: 'transparent', strokeColor: '#FFFFFF', strokeWeight: 2, clickable: false };
+                        default: return {};
+                    }
+                });
+
+                if (!bounds.isEmpty()) {
+                    map.fitBounds(bounds);
+                }
+            },
+            initWorkOrderMap() {
+                if (App.state.workOrderMap) {
+                    return;
+                }
+                if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                    // Try to init again after a short delay, in case the Google script hasn't run yet
+                    setTimeout(() => this.initWorkOrderMap(), 500);
+                    console.error("API do Google Maps não está carregada, tentando novamente em 500ms.");
+                    return;
+                }
+
+                try {
+                    const mapContainer = App.elements.sprayingWorkOrders.map;
+                    if (!mapContainer) return; // Don't try to init if the element isn't visible
+
+                    App.state.workOrderMap = new google.maps.Map(mapContainer, {
+                        center: { lat: -21.17, lng: -48.45 },
+                        zoom: 13,
+                        mapTypeId: 'satellite',
+                        disableDefaultUI: true,
+                        zoomControl: true,
+                        mapTypeControl: true,
+                        streetViewControl: false,
+                        gestureHandling: 'greedy'
+                    });
+
+                } catch (e) {
+                    console.error("Erro ao inicializar o mapa de Ordem de Serviço:", e);
+                    App.ui.showAlert("Não foi possível carregar o mapa.", "error");
+                }
+            },
+
+            loadFieldsOnMap(farmId) {
+                const map = App.state.workOrderMap;
+                if (!map || !App.state.geoJsonData) {
+                    App.ui.showAlert('Dados geográficos do mapa ainda não carregados. Tente novamente em alguns segundos.', 'warning');
+                    return;
+                }
+
+                App.state.workOrderMapPolygons.forEach(p => p.setMap(null));
+                App.state.workOrderMapPolygons = [];
+                App.state.selectedWorkOrderFields = [];
+                this.updateSelectedFieldsList();
+
+                if (!farmId) return;
+
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm) {
+                    App.ui.showAlert('Fazenda selecionada não encontrada nos cadastros gerais.', 'error');
+                    return;
+                }
+                const farmCode = farm.code;
+
+                const dataLayer = new google.maps.Data({ map: map });
+                dataLayer.addGeoJson(App.state.geoJsonData);
+                App.state.workOrderMapPolygons.push(dataLayer);
+
+                const themeColors = App.ui._getThemeColors();
+                let bounds = new google.maps.LatLngBounds();
+
+                dataLayer.setStyle(feature => {
+                    const props = {};
+                    feature.forEachProperty((value, property) => { props[property.toUpperCase()] = value; });
+                    const findProp = (keys) => {
+                        for (const key of keys) { if (props[key.toUpperCase()] !== undefined) return props[key.toUpperCase()]; }
+                        return null;
+                    };
+                    const featureFarmCode = findProp(['CD_FAZENDA', 'COD_FAZEN', 'FAZENDA_CD', 'FARM_CODE', 'COD_IMOVEL']);
+
+                    const isVisible = String(featureFarmCode) === String(farmCode);
+
+                    if (isVisible) {
+                         try {
+                            const geom = feature.getGeometry();
+                            geom.forEachLatLng(latlng => bounds.extend(latlng));
+                         } catch(e) { /* ignore features with no geometry */ }
+                    }
+
+                    return {
+                        fillColor: themeColors.primary,
+                        fillOpacity: feature.getProperty('isSelected') ? 0.85 : 0.4,
+                        strokeColor: '#FFD700',
+                        strokeWeight: feature.getProperty('isSelected') ? 3 : 1,
+                        visible: isVisible,
+                        clickable: isVisible,
+                        cursor: 'pointer'
+                    };
+                });
+
+                if (!bounds.isEmpty()) {
+                    map.fitBounds(bounds);
+                } else {
+                    App.ui.showAlert('Nenhum talhão com dados geográficos encontrado para esta fazenda.', 'warning');
+                }
+
+                dataLayer.addListener('click', (event) => {
+                    const feature = event.feature;
+                    const props = {};
+                    feature.forEachProperty((value, property) => { props[property.toUpperCase()] = value; });
+                    const findProp = (keys) => {
+                        for (const key of keys) { if (props[key.toUpperCase()] !== undefined) return props[key.toUpperCase()]; } return null;
+                    };
+
+                    const featureFarmCode = findProp(['CD_FAZENDA', 'COD_FAZEN', 'FAZENDA_CD', 'FARM_CODE', 'COD_IMOVEL']);
+                    const fieldName = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO', 'NAME']);
+                    const fieldArea = findProp(['AREA_HA', 'AREA', 'HECTARES']) || 0;
+                    const fieldId = `${featureFarmCode}-${fieldName}`;
+
+                    if (!fieldName) {
+                        App.ui.showAlert('Não foi possível identificar o talhão clicado.', 'error');
+                        return;
+                    }
+
+                    const isSelected = !feature.getProperty('isSelected');
+                    feature.setProperty('isSelected', isSelected);
+
+                    const index = App.state.selectedWorkOrderFields.findIndex(f => f.id === fieldId);
+
+                    if (isSelected && index === -1) {
+                        App.state.selectedWorkOrderFields.push({ id: fieldId, name: fieldName, area: parseFloat(fieldArea) });
+                    } else if (!isSelected && index > -1) {
+                        App.state.selectedWorkOrderFields.splice(index, 1);
+                    }
+
+                    this.updateSelectedFieldsList();
+                });
+            },
+
+            updateSelectedFieldsList() {
+                const { selectedFieldsList } = App.elements.sprayingWorkOrders;
+                const { selectedWorkOrderFields } = App.state;
+                selectedFieldsList.innerHTML = '';
+                if (selectedWorkOrderFields.length === 0) {
+                    selectedFieldsList.innerHTML = '<li>Nenhum talhão selecionado.</li>';
+                    return;
+                }
+                let totalArea = 0;
+                selectedWorkOrderFields.forEach(field => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${field.name}</strong> (${field.area.toFixed(2)} ha)`;
+                    li.dataset.fieldId = field.id;
+                    selectedFieldsList.appendChild(li);
+                    totalArea += field.area;
+                });
+                const summaryLi = document.createElement('li');
+                summaryLi.style.marginTop = '10px';
+                summaryLi.style.borderTop = `1px solid var(--color-border)`;
+                summaryLi.style.paddingTop = '10px';
+                summaryLi.innerHTML = `<strong>Total Selecionado:</strong> ${selectedWorkOrderFields.length} talhões | <strong>Área Total:</strong> ${totalArea.toFixed(2)} ha`;
+                selectedFieldsList.appendChild(summaryLi);
+            },
+
             initMap() {
                 if (App.state.googleMap) return;
                 if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
