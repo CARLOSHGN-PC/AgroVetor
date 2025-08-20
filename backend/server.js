@@ -332,6 +332,51 @@ try {
         }
     });
 
+    async function deleteCollection(db, collectionPath, batchSize) {
+        const collectionRef = db.collection(collectionPath);
+        const query = collectionRef.orderBy('__name__').limit(batchSize);
+
+        return new Promise((resolve, reject) => {
+            deleteQueryBatch(db, query, resolve, reject);
+        });
+    }
+
+    async function deleteQueryBatch(db, query, resolve, reject) {
+        try {
+            const snapshot = await query.get();
+
+            const batchSize = snapshot.size;
+            if (batchSize === 0) {
+                resolve();
+                return;
+            }
+
+            const batch = db.batch();
+            snapshot.docs.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+
+            process.nextTick(() => {
+                deleteQueryBatch(db, query, resolve, reject);
+            });
+        } catch(err) {
+            reject(err);
+        }
+    }
+
+    app.post('/api/delete/historical-data', async (req, res) => {
+        try {
+            console.log("Iniciando a exclusão da coleção 'historicalHarvests'...");
+            await deleteCollection(db, 'historicalHarvests', 400);
+            console.log("Coleção 'historicalHarvests' excluída com sucesso.");
+            res.status(200).json({ message: 'Todos os dados do histórico da IA foram excluídos com sucesso.' });
+        } catch (error) {
+            console.error("Erro ao excluir o histórico da IA:", error);
+            res.status(500).json({ message: 'Ocorreu um erro no servidor ao tentar excluir o histórico.' });
+        }
+    });
+
     // --- FUNÇÕES AUXILIARES ---
 
     const formatNumber = (num) => {

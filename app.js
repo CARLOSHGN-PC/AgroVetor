@@ -253,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 shapefileInput: document.getElementById('shapefileInput'),
                 historicalReportUploadArea: document.getElementById('historicalReportUploadArea'),
                 historicalReportInput: document.getElementById('historicalReportInput'),
+                btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -1917,6 +1918,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
 
                 // Event listeners for historical report upload
+                if (companyConfigEls.btnDeleteHistoricalData) {
+                    companyConfigEls.btnDeleteHistoricalData.addEventListener('click', () => App.actions.deleteHistoricalData());
+                }
                 if (companyConfigEls.historicalReportUploadArea) {
                     const uploadArea = companyConfigEls.historicalReportUploadArea;
                     const input = companyConfigEls.historicalReportInput;
@@ -3236,6 +3240,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 reader.readAsDataURL(file);
             },
+
+            async deleteHistoricalData() {
+                const confirmationText = "EXCLUIR HISTORICO";
+                App.ui.showConfirmationModal(
+                    `Esta ação é irreversível e irá apagar TODOS os dados históricos de colheita que a IA usa para previsões. Para confirmar, digite "${confirmationText}" no campo abaixo.`,
+                    async (userInput) => {
+                        if (userInput.confirmationModalInput !== confirmationText) {
+                            App.ui.showAlert("A confirmação não corresponde. Ação cancelada.", "warning");
+                            return;
+                        }
+
+                        App.ui.setLoading(true, "A apagar histórico...");
+                        try {
+                            const response = await fetch(`${App.config.backendUrl}/api/delete/historical-data`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                            });
+                            const result = await response.json();
+                            if (!response.ok) {
+                                throw new Error(result.message || 'Erro no servidor');
+                            }
+                            App.ui.showAlert(result.message, 'success');
+                        } catch (error) {
+                            App.ui.showAlert(`Erro ao apagar o histórico: ${error.message}`, 'error');
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    },
+                    [{ id: 'confirmationModalInput', placeholder: `Digite "${confirmationText}"`, required: true }]
+                );
+            },
+
             async importHarvestReport(file, type) {
                 if (!file) return;
         
