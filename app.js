@@ -1915,8 +1915,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.btnDownloadClosedTemplate) companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
                 if (companyConfigEls.shapefileUploadArea) companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
-                if (companyConfigEls.historicalReportUploadArea) companyConfigEls.historicalReportUploadArea.addEventListener('click', () => companyConfigEls.historicalReportInput.click());
-                if (companyConfigEls.historicalReportInput) companyConfigEls.historicalReportInput.addEventListener('change', (e) => App.actions.uploadHistoricalReport(e.target.files[0]));
+
+                // Event listeners for historical report upload
+                if (companyConfigEls.historicalReportUploadArea) {
+                    const uploadArea = companyConfigEls.historicalReportUploadArea;
+                    const input = companyConfigEls.historicalReportInput;
+
+                    uploadArea.addEventListener('click', () => input.click());
+                    input.addEventListener('change', (e) => App.actions.uploadHistoricalReport(e.target.files[0]));
+
+                    uploadArea.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        uploadArea.classList.add('dragover');
+                    });
+
+                    uploadArea.addEventListener('dragleave', () => {
+                        uploadArea.classList.remove('dragover');
+                    });
+
+                    uploadArea.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        uploadArea.classList.remove('dragover');
+                        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                            App.actions.uploadHistoricalReport(e.dataTransfer.files[0]);
+                            input.files = e.dataTransfer.files; // Optional: syncs the file list
+                        }
+                    });
+                }
 
 
                 if (App.elements.cadastros.btnSaveFarm) App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
