@@ -486,6 +486,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.actions.saveUserProfileLocally(App.state.currentUser);
                             App.ui.showAppScreen();
                             App.data.listenToAllData();
+
+                            const draftRestored = await App.actions.checkForDraft();
+                            if (!draftRestored) {
+                                const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
+                                App.ui.showTab(lastTab || 'dashboard');
+                            }
+
                             if (navigator.onLine) {
                                 App.actions.syncOfflineWrites();
                             }
@@ -815,8 +822,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.renderMenu();
                 this.renderAllDynamicContent();
-                const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
-                this.showTab(lastTab || 'dashboard');
                 App.actions.resetInactivityTimer();
             },
             renderAllDynamicContent() {
@@ -1437,7 +1442,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     lista.appendChild(card);
                 });
             },
-            showHarvestPlanList() {
+            async showHarvestPlanList() {
+                const userId = App.state.currentUser?.uid;
+                if (userId && App.state.activeHarvestPlan) {
+                    try {
+                        await App.data.deleteDocument('userDrafts', userId);
+                    } catch (error) {
+                        console.error("Não foi possível apagar o rascunho do Firestore:", error);
+                    }
+                }
+
                 App.state.activeHarvestPlan = null;
                 App.elements.harvest.plansListContainer.style.display = 'block';
                 App.elements.harvest.planEditor.style.display = 'none';
@@ -2007,12 +2021,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const debouncedAtrPrediction = App.debounce(() => App.gemini.getAtrPrediction());
                 if (harvestEls.fazenda) harvestEls.fazenda.addEventListener('change', debouncedAtrPrediction);
-                if (harvestEls.selectAllTalhoes) harvestEls.selectAllTalhoes.addEventListener('change', debouncedAtrPrediction);
-                if (harvestEls.talhaoSelectionList) harvestEls.talhaoSelectionList.addEventListener('click', (e) => {
-                    if (e.target.type === 'checkbox') {
-                        debouncedAtrPrediction();
-                    }
-                });
 
                 if (harvestEls.tableBody) {
                     harvestEls.tableBody.addEventListener('click', e => {
@@ -2634,7 +2642,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     operadorNome.style.color = 'var(--color-danger)';
                 }
             },
-            editHarvestPlan(planId = null) {
+            async editHarvestPlan(planId = null) {
                 App.ui.showHarvestPlanEditor();
                 const { frontName, startDate, dailyRate } = App.elements.harvest;
                 
@@ -2649,6 +2657,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         sequence: [],
                         closedTalhaoIds: [] 
                     };
+                }
+
+                try {
+                    const userId = App.state.currentUser.uid;
+                    App.state.activeHarvestPlan.draftTimestamp = new Date().toISOString();
+                    await App.data.setDocument('userDrafts', userId, App.state.activeHarvestPlan);
+                } catch (error) {
+                    console.error("Não foi possível guardar o rascunho no Firestore:", error);
                 }
                 
                 frontName.value = App.state.activeHarvestPlan.frontName;
@@ -3487,7 +3503,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     App.ui.showAlert(`Falha ao sincronizar ${remainingWrites.length} registos. Tentarão novamente mais tarde.`, 'warning');
                 }
-            }
+            },
+
+            async checkForDraft() {
+                const userId = App.state.currentUser.uid;
+                try {
+                    const draft = await App.data.getDocument('userDrafts', userId);
+                    if (draft) {
+                        App.state.activeHarvestPlan = draft;
+                        App.ui.showTab('planejamentoColheita');
+                        App.ui.showHarvestPlanEditor();
+
+                        const { frontName, startDate, dailyRate } = App.elements.harvest;
+                        frontName.value = App.state.activeHarvestPlan.frontName;
+                        startDate.value = App.state.activeHarvestPlan.startDate;
+                        dailyRate.value = App.state.activeHarvestPlan.dailyRate;
+
+                        App.ui.renderHarvestSequence();
+                        return true;
+                    }
+                } catch (error) {
+                    console.error("Erro ao verificar o rascunho:", error);
+                }
+                return false;
+            },
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...", task = null) {
@@ -3645,9 +3684,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 atrInput.value = '';
 
                 const farmId = fazendaSelect.value;
-                const selectedCheckboxes = talhaoSelectionList.querySelectorAll('input[type="checkbox"]:checked');
 
-                if (!farmId || selectedCheckboxes.length === 0) {
+                if (!farmId) {
+                    atrInput.value = '';
                     return;
                 }
 
