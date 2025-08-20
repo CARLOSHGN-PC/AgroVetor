@@ -546,101 +546,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            async saveWorkOrder() {
-                const { farmSelect, productSelect, aircraftSelect, applicationDate, flightLogFile } = App.elements.sprayingWorkOrders;
-                const { selectedWorkOrderFields } = App.state;
-
-                if (!farmSelect.value || !productSelect.value || !aircraftSelect.value || !applicationDate.value) {
-                    App.ui.showAlert('Por favor, preencha todos os campos obrigatórios (Fazenda, Produto, Aeronave, Data).', 'error');
-                    return;
-                }
-                if (selectedWorkOrderFields.length === 0) {
-                    App.ui.showAlert('Selecione pelo menos um talhão no mapa.', 'error');
-                    return;
-                }
-
-                const formData = new FormData();
-                formData.append('farmId', farmSelect.value);
-                formData.append('productId', productSelect.value);
-                formData.append('aircraftId', aircraftSelect.value);
-                formData.append('applicationDate', applicationDate.value);
-                formData.append('fields', JSON.stringify(selectedWorkOrderFields));
-
-                if (flightLogFile.files[0]) {
-                    formData.append('flightLog', flightLogFile.files[0]);
-                }
-
-                App.ui.setLoading(true, 'Salvando Ordem de Serviço...');
-                try {
-                    const response = await fetch(`${App.config.backendUrl}/api/spraying/work-orders`, {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (!response.ok) {
-                        const errorResult = await response.json();
-                        throw new Error(errorResult.message || 'Erro no servidor');
-                    }
-
-                    App.ui.showAlert('Ordem de Serviço salva com sucesso!', 'success');
-
-                    farmSelect.value = '';
-                    productSelect.value = '';
-                    aircraftSelect.value = '';
-                    applicationDate.value = '';
-                    flightLogFile.value = '';
-                    App.state.selectedWorkOrderFields = [];
-                    App.mapModule.loadFieldsOnMap(null);
-
-                    this.loadWorkOrders();
-
-                } catch (error) {
-                    App.ui.showAlert(`Erro ao salvar Ordem de Serviço: ${error.message}`, 'error');
-                    console.error('Error saving work order:', error);
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-
-            async loadWorkOrders() {
-                try {
-                    const response = await fetch(`${App.config.backendUrl}/api/spraying/work-orders`);
-            },
-
-            async showApplicationResult(workOrderId) {
-                App.ui.setLoading(true, 'Carregando análise de voo...');
-                try {
-                    const response = await fetch(`${App.config.backendUrl}/api/spraying/applications/work-order/${workOrderId}`);
-                    if (!response.ok) {
-                        const err = await response.json();
-                        throw new Error(err.message || 'Resultado não encontrado');
-                    }
-                    const resultData = await response.json();
-                    App.state.activeApplicationResult = resultData;
-
-                    document.querySelectorAll('.tab-content').forEach(tab => {
-                        tab.classList.remove('active');
-                        tab.hidden = true;
-                    });
-                    const resultTab = App.elements.sprayingApplicationResult.container;
-                    resultTab.classList.add('active');
-                    resultTab.hidden = false;
-
-                    App.ui.renderApplicationResult();
-
-                } catch (error) {
-                    App.ui.showAlert(`Erro ao carregar resultado: ${error.message}`, 'error');
-                } finally {
-                    App.ui.setLoading(false);
-                }
-                    if (!response.ok) throw new Error('Network error');
-                    const workOrders = await response.json();
-                    App.ui.renderWorkOrdersList(workOrders);
-                } catch (error) {
-                    App.ui.showAlert('Erro ao carregar Ordens de Serviço.', 'error');
-                    console.error('Error loading work orders:', error);
-                }
-            },
             async login() {
                 const email = App.elements.loginUser.value.trim();
                 const password = App.elements.loginPass.value;
@@ -1188,6 +1093,84 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            renderSprayingDashboard() {
+                const container = App.elements.dashboard.aereaView;
+                // Check if already rendered to avoid re-creating elements and listeners
+                if (container.querySelector('.dashboard-header')) return;
+
+                container.innerHTML = `
+                    <div class="dashboard-header">
+                        <button class="btn-back" id="btn-back-to-selector-aerea"><i class="fas fa-arrow-left"></i> Voltar</button>
+                        <h2>Dashboard de Pulverização</h2>
+                        <div class="date-filter">
+                            <input type="date" id="sprayingDashboardInicio">
+                            <input type="date" id="sprayingDashboardFim">
+                            <button id="btnFiltrarSprayingDashboard"><i class="fas fa-filter"></i> Filtrar</button>
+                        </div>
+                    </div>
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <h4>Área Total Aplicada</h4>
+                            <p id="spraying-total-applied-area">0 ha</p>
+                        </div>
+                        <div class="kpi-card">
+                            <h4>Desperdício Total</h4>
+                            <p id="spraying-total-waste-area">0 ha</p>
+                        </div>
+                        <div class="kpi-card">
+                            <h4>Eficiência Média</h4>
+                            <p id="spraying-overall-efficiency">0%</p>
+                        </div>
+                    </div>
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <div class="chart-title-container">
+                                <h3 class="chart-title">Área Aplicada por Fazenda</h3>
+                                <button class="btn-expand-chart" data-chart-id="sprayingChartByFarm"><i class="fas fa-expand-alt"></i></button>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="sprayingChartByFarm"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-title-container">
+                                <h3 class="chart-title">Uso de Produto (por área)</h3>
+                                <button class="btn-expand-chart" data-chart-id="sprayingChartByProduct"><i class="fas fa-expand-alt"></i></button>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="sprayingChartByProduct"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-title-container">
+                                <h3 class="chart-title">Eficiência por Aeronave</h3>
+                                <button class="btn-expand-chart" data-chart-id="sprayingChartByAircraft"><i class="fas fa-expand-alt"></i></button>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="sprayingChartByAircraft"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-title-container">
+                                <h3 class="chart-title">Aplicações Mensais</h3>
+                                <button class="btn-expand-chart" data-chart-id="sprayingChartMonthly"><i class="fas fa-expand-alt"></i></button>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-loader"></div>
+                                <canvas id="sprayingChartMonthly"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Add event listeners for the new elements
+                container.querySelector('#btn-back-to-selector-aerea').addEventListener('click', () => App.ui.showDashboardView('selector'));
+                container.querySelector('#btnFiltrarSprayingDashboard').addEventListener('click', () => App.charts.renderSprayingDashboardCharts());
+            },
+
             timeSince(date) {
                 const seconds = Math.floor((new Date() - date) / 1000);
                 let interval = seconds / 31536000;
@@ -1236,8 +1219,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         break;
                     case 'aerea':
-                        // Navigate directly to the new module's main screen
-                        this.showTab('sprayingDashboard');
+                        this.renderSprayingDashboard();
+                        dashEls.aereaView.style.display = 'block';
+                        this.loadDashboardDates('spraying');
+                        if (!App.state.charts.sprayingChartByFarm) {
+                             setTimeout(() => App.charts.renderSprayingDashboardCharts(), 150);
+                        }
                         break;
                 }
             },
@@ -1273,6 +1260,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (type === 'perda') {
                     App.elements.dashboard.perdaDashboardInicio.value = firstDayOfYear;
                     App.elements.dashboard.perdaDashboardFim.value = todayDate;
+                } else if (type === 'spraying') {
+                    document.getElementById('sprayingDashboardInicio').value = firstDayOfYear;
+                    document.getElementById('sprayingDashboardFim').value = todayDate;
                 }
                 App.actions.saveDashboardDates(type, firstDayOfYear, todayDate);
             },
@@ -1285,6 +1275,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (type === 'perda') {
                         App.elements.dashboard.perdaDashboardInicio.value = savedDates.start;
                         App.elements.dashboard.perdaDashboardFim.value = savedDates.end;
+                    } else if (type === 'spraying') {
+                        document.getElementById('sprayingDashboardInicio').value = savedDates.start;
+                        document.getElementById('sprayingDashboardFim').value = savedDates.end;
                     }
                 } else {
                     this.setDefaultDatesForDashboard(type);
@@ -1303,58 +1296,144 @@ document.addEventListener('DOMContentLoaded', () => {
                 formElement.querySelectorAll('.info-display').forEach(el => el.textContent = '');
                 formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '');
             },
+            _populateSelect(select, data, options) {
+                if (!select) return;
+                const { nameProp, valueProp, firstOptionText, preserveValue, sortFn } = options;
+                const currentValue = preserveValue ? select.value : null;
+
+                select.innerHTML = `<option value="">${firstOptionText}</option>`;
+
+                if(sortFn) data.sort(sortFn);
+
+                data.forEach(item => {
+                    const name = typeof nameProp === 'function' ? nameProp(item) : item[nameProp];
+                    const value = typeof valueProp === 'function' ? valueProp(item) : item[valueProp];
+                    select.innerHTML += `<option value="${value}">${name}</option>`;
+                });
+
+                if (preserveValue) {
+                    select.value = currentValue;
+                }
+            },
+
+            populateWorkOrderSelects() {
+                const { farmSelect, productSelect, aircraftSelect } = App.elements.sprayingWorkOrders;
+
+                // Use the generic helper for spraying module selects that fetch data
+                const populateSelectFromAPI = async (select, url, nameProp, valueProp = 'id', defaultOption) => {
+                    select.innerHTML = `<option value="">${defaultOption}</option>`;
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error('Network error');
+                        const data = await response.json();
+                        this._populateSelect(select, data, {
+                            nameProp: nameProp,
+                            valueProp: valueProp,
+                            firstOptionText: 'Selecione...',
+                            preserveValue: false,
+                            sortFn: (a,b) => (a.name || a.prefix).localeCompare(b.name || b.prefix)
+                        });
+                    } catch (error) {
+                        select.innerHTML = '<option value="">Erro ao carregar</option>';
+                        console.error(`Failed to load data for ${select.id}:`, error);
+                    }
+                };
+
+                // For farms, we use the main fazendas list which is already in state.
+                this._populateSelect(farmSelect, App.state.fazendas, {
+                    nameProp: farm => `${farm.code} - ${farm.name}`,
+                    valueProp: 'id',
+                    firstOptionText: 'Selecione uma fazenda...',
+                    preserveValue: false,
+                    sortFn: (a,b) => parseInt(a.code) - parseInt(b.code)
+                });
+
+                populateSelectFromAPI(productSelect, `${App.config.backendUrl}/api/spraying/products`, 'name', 'id', 'Carregando produtos...');
+                populateSelectFromAPI(aircraftSelect, `${App.config.backendUrl}/api/spraying/aircrafts`, item => `${item.prefix} - ${item.model}`, 'id', 'Carregando aeronaves...');
+            },
+
+            renderWorkOrdersList(workOrders = []) {
+                const { list } = App.elements.sprayingWorkOrders;
+                list.innerHTML = '';
+
+                if (workOrders.length === 0) {
+                    list.innerHTML = '<p>Nenhuma ordem de serviço encontrada.</p>';
+                    return;
+                }
+
+                const getStatusChip = (status) => {
+                    let color, text;
+                    switch (status) {
+                        case 'Completed': color = 'var(--color-success)'; text = 'Concluída'; break;
+                        case 'Processing': color = 'var(--color-info)'; text = 'Processando'; break;
+                        case 'Pending': default: color = 'var(--color-warning)'; text = 'Pendente'; break;
+                    }
+                    return `<span class="plano-status" style="background-color: ${color}; color: white;">${text}</span>`;
+                };
+
+                workOrders.sort((a,b) => new Date(b.applicationDate) - new Date(a.applicationDate)).forEach(wo => {
+                    const card = document.createElement('div');
+                    card.className = 'plano-card';
+                    card.style.borderLeftColor = 'var(--color-info)';
+                    const formattedDate = new Date(wo.applicationDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-file-alt"></i> OS #${wo.id.substring(0, 8)}...</span>
+                            ${getStatusChip(wo.status)}
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-tractor"></i> Fazenda: <strong>${wo.Farm?.name || 'N/A'}</strong></div>
+                            <div><i class="fas fa-calendar-day"></i> Data: <strong>${formattedDate}</strong></div>
+                            <div><i class="fas fa-vial"></i> Produto: <strong>${wo.Product?.name || 'N/A'}</strong></div>
+                            <div><i class="fas fa-plane"></i> Aeronave: <strong>${wo.Aircraft?.prefix || 'N/A'}</strong></div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <strong>Talhões:</strong> ${wo.fields.map(f => f.name).join(', ')}
+                        </div>
+                        <div class="plano-actions">
+                            ${wo.status === 'Completed' ? `<button class="btn-secondary" data-action="view-results" data-id="${wo.id}"><i class="fas fa-chart-area"></i> Ver Resultados</button>` : ''}
+                            <button class="btn-excluir" data-action="delete-wo" data-id="${wo.id}"><i class="fas fa-trash"></i> Excluir</button>
+                        </div>
+                    `;
+                    list.appendChild(card);
+                });
+            },
+
             populateFazendaSelects() {
                 const selects = [
-                    App.elements.broca.filtroFazenda,
-                    App.elements.perda.filtroFazenda,
-                    App.elements.planejamento.fazenda,
-                    App.elements.harvest.fazenda,
-                    App.elements.cadastros.farmSelect,
-                    App.elements.broca.codigo,
-                    App.elements.perda.codigo,
-                    App.elements.relatorioMonitoramento.fazendaFiltro
+                    App.elements.broca.filtroFazenda, App.elements.perda.filtroFazenda,
+                    App.elements.planejamento.fazenda, App.elements.harvest.fazenda,
+                    App.elements.cadastros.farmSelect, App.elements.broca.codigo,
+                    App.elements.perda.codigo, App.elements.relatorioMonitoramento.fazendaFiltro
                 ];
+                const sortedFarms = [...App.state.fazendas].sort((a, b) => parseInt(a.code) - parseInt(b.code));
                 selects.forEach(select => {
                     if (!select) return;
-                    const currentValue = select.value;
-                    select.innerHTML = '<option value="">Selecione...</option>';
-                    if(select.id.includes('Filtro')) {
-                        select.innerHTML = '<option value="">Todas</option>';
-                    }
-                    App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
-                        select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
+                    this._populateSelect(select, sortedFarms, {
+                        nameProp: farm => `${farm.code} - ${farm.name}`,
+                        valueProp: 'id',
+                        firstOptionText: select.id.includes('Filtro') ? 'Todas' : 'Selecione...',
+                        preserveValue: true
                     });
-                    select.value = currentValue;
                 });
             },
             populateUserSelects() {
-                const select = App.elements.planejamento.responsavel;
-                select.innerHTML = '<option value="">Selecione...</option>';
-                App.state.users
-                    .filter(u => u.role === 'tecnico' || u.role === 'colaborador' || u.role === 'supervisor' || u.role === 'admin')
-                    .sort((a, b) => (a.username || '').localeCompare(b.username || ''))
-                    .forEach(user => { select.innerHTML += `<option value="${user.username}">${user.username}</option>`; });
+                const sortedUsers = [...App.state.users]
+                    .filter(u => ['tecnico', 'colaborador', 'supervisor', 'admin'].includes(u.role))
+                    .sort((a, b) => (a.username || '').localeCompare(b.username || ''));
+
+                this._populateSelect(App.elements.planejamento.responsavel, sortedUsers, {
+                    nameProp: 'username', valueProp: 'username',
+                    firstOptionText: 'Selecione...', preserveValue: true
+                });
             },
             populateOperatorSelects() {
-                const selects = [App.elements.perda.filtroOperador];
-                selects.forEach(select => {
-                    if (!select) return;
-
-                    const currentValue = select.value;
-                    let firstOptionHTML = '';
-                    if (select.id === 'operadorFiltroPerda') {
-                        firstOptionHTML = '<option value="">Todos</option>';
-                    } else {
-                        firstOptionHTML = '<option value="">Selecione um operador...</option>';
-                    }
-                    select.innerHTML = firstOptionHTML;
-                    
-                    App.state.personnel
-                        .sort((a, b) => a.name.localeCompare(b.name))
-                        .forEach(p => {
-                            select.innerHTML += `<option value="${p.matricula}">${p.matricula} - ${p.name}</option>`;
-                        });
-                    select.value = currentValue;
+                const sortedPersonnel = [...App.state.personnel].sort((a, b) => a.name.localeCompare(b.name));
+                this._populateSelect(App.elements.perda.filtroOperador, sortedPersonnel, {
+                    nameProp: p => `${p.matricula} - ${p.name}`,
+                    valueProp: 'matricula',
+                    firstOptionText: 'Todos', preserveValue: true
                 });
             },
             renderFarmSelect() {
@@ -1991,214 +2070,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
-            populateWorkOrderSelects() {
-                const { farmSelect, productSelect, aircraftSelect } = App.elements.sprayingWorkOrders;
-
-                // For farms, we use the main fazendas list which is already in state.
-                farmSelect.innerHTML = '<option value="">Selecione uma fazenda...</option>';
-                App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
-                    farmSelect.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
-                });
-
-                const populateSelect = async (select, url, nameProp, valueProp = 'id', defaultOption) => {
-                    select.innerHTML = `<option value="">${defaultOption}</option>`;
-                    try {
-                        const response = await fetch(url);
-                        if (!response.ok) throw new Error('Network error');
-                        const data = await response.json();
-                        data.sort((a, b) => a.name.localeCompare(b.name)).forEach(item => {
-                            const name = typeof nameProp === 'function' ? nameProp(item) : item[nameProp];
-                            const value = item[valueProp];
-                            select.innerHTML += `<option value="${value}">${name}</option>`;
-                        });
-                    } catch (error) {
-                        select.innerHTML = '<option value="">Erro ao carregar</option>';
-                        console.error(`Failed to load data for ${select.id}:`, error);
-                    }
-                };
-
-                populateSelect(productSelect, `${App.config.backendUrl}/api/spraying/products`, 'name', 'id', 'Carregando produtos...');
-                populateSelect(aircraftSelect, `${App.config.backendUrl}/api/spraying/aircrafts`, item => `${item.prefix} - ${item.model}`, 'id', 'Carregando aeronaves...');
-            },
-
-            renderWorkOrdersList(workOrders = []) {
-                const { list } = App.elements.sprayingWorkOrders;
-                list.innerHTML = '';
-
-                if (workOrders.length === 0) {
-                    list.innerHTML = '<p>Nenhuma ordem de serviço encontrada.</p>';
-                    return;
-                }
-
-                const getStatusChip = (status) => {
-                    let color, text;
-                    switch (status) {
-                        case 'Completed':
-                            color = 'var(--color-success)';
-                            text = 'Concluída';
-                            break;
-                        case 'Processing':
-                            color = 'var(--color-info)';
-                            text = 'Processando';
-                            break;
-                        case 'Pending':
-                        default:
-                            color = 'var(--color-warning)';
-                            text = 'Pendente';
-                            break;
-                    }
-                    return `<span class="plano-status" style="background-color: ${color}; color: white;">${text}</span>`;
-                };
-
-                workOrders.sort((a,b) => new Date(b.applicationDate) - new Date(a.applicationDate)).forEach(wo => {
-                    const card = document.createElement('div');
-                    card.className = 'plano-card';
-                    card.style.borderLeftColor = 'var(--color-info)';
-
-                    const formattedDate = new Date(wo.applicationDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-
-                    card.innerHTML = `
-                        <div class="plano-header">
-                            <span class="plano-title"><i class="fas fa-file-alt"></i> OS #${wo.id.substring(0, 8)}...</span>
-                            ${getStatusChip(wo.status)}
-                        </div>
-                        <div class="plano-details">
-                            <div><i class="fas fa-tractor"></i> Fazenda: <strong>${wo.Farm?.name || 'N/A'}</strong></div>
-                            <div><i class="fas fa-calendar-day"></i> Data: <strong>${formattedDate}</strong></div>
-                            <div><i class="fas fa-vial"></i> Produto: <strong>${wo.Product?.name || 'N/A'}</strong></div>
-                            <div><i class="fas fa-plane"></i> Aeronave: <strong>${wo.Aircraft?.prefix || 'N/A'}</strong></div>
-                        </div>
-                        <div style="margin-top: 10px;">
-                            <strong>Talhões:</strong> ${wo.fields.map(f => f.name).join(', ')}
-                        </div>
-                        <div class="plano-actions">
-                            ${wo.status === 'Completed' ? `<button class="btn-secondary" data-action="view-results" data-id="${wo.id}"><i class="fas fa-chart-area"></i> Ver Resultados</button>` : ''}
-                            ${!wo.flightLogUrl && wo.status === 'Pending' ? `<button class="btn-secondary" style="background: var(--color-warning)" data-action="upload-log" data-id="${wo.id}"><i class="fas fa-upload"></i> Anexar Log</button>` : ''}
-                            <button class="btn-excluir" data-action="delete-wo" data-id="${wo.id}"><i class="fas fa-trash"></i> Excluir</button>
-                        </div>
-                    `;
-                    list.appendChild(card);
-                });
-            },
-
-            renderWorkOrdersList(workOrders = []) {
-                const { list } = App.elements.sprayingWorkOrders;
-                list.innerHTML = '';
-
-                if (workOrders.length === 0) {
-                    list.innerHTML = '<p>Nenhuma ordem de serviço encontrada.</p>';
-                    return;
-                }
-
-                const getStatusChip = (status) => {
-                    let color, text;
-                    switch (status) {
-                        case 'Completed':
-                            color = 'var(--color-success)';
-                            text = 'Concluída';
-                            break;
-                        case 'Processing':
-                            color = 'var(--color-info)';
-                            text = 'Processando';
-                            break;
-                        case 'Pending':
-                        default:
-                            color = 'var(--color-warning)';
-                            text = 'Pendente';
-                            break;
-                    }
-                    return `<span class="plano-status" style="background-color: ${color}; color: white;">${text}</span>`;
-                };
-
-                workOrders.sort((a,b) => new Date(b.applicationDate) - new Date(a.applicationDate)).forEach(wo => {
-                    const card = document.createElement('div');
-                    card.className = 'plano-card';
-                    card.style.borderLeftColor = 'var(--color-info)';
-
-                    const formattedDate = new Date(wo.applicationDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-
-                    card.innerHTML = `
-                        <div class="plano-header">
-                            <span class="plano-title"><i class="fas fa-file-alt"></i> OS #${wo.id.substring(0, 8)}...</span>
-                            ${getStatusChip(wo.status)}
-                        </div>
-                        <div class="plano-details">
-                            <div><i class="fas fa-tractor"></i> Fazenda: <strong>${wo.Farm?.name || 'N/A'}</strong></div>
-                            <div><i class="fas fa-calendar-day"></i> Data: <strong>${formattedDate}</strong></div>
-                            <div><i class="fas fa-vial"></i> Produto: <strong>${wo.Product?.name || 'N/A'}</strong></div>
-                            <div><i class="fas fa-plane"></i> Aeronave: <strong>${wo.Aircraft?.prefix || 'N/A'}</strong></div>
-                        </div>
-                        <div style="margin-top: 10px;">
-                            <strong>Talhões:</strong> ${wo.fields.map(f => f.name).join(', ')}
-                        </div>
-                        <div class="plano-actions">
-                            ${wo.status === 'Completed' ? `<button class="btn-secondary" data-action="view-results" data-id="${wo.workOrderId || wo.id}"><i class="fas fa-chart-area"></i> Ver Resultados</button>` : ''}
-                            ${!wo.flightLogUrl && wo.status === 'Pending' ? `<button class="btn-secondary" style="background: var(--color-warning)" data-action="upload-log" data-id="${wo.id}"><i class="fas fa-upload"></i> Anexar Log</button>` : ''}
-                            <button class="btn-excluir" data-action="delete-wo" data-id="${wo.id}"><i class="fas fa-trash"></i> Excluir</button>
-                        </div>
-                    `;
-                    list.appendChild(card);
-                });
-            },
-
-            renderApplicationResult() {
-                const result = App.state.activeApplicationResult;
-                if (!result) return;
-
-                const els = App.elements.sprayingApplicationResult;
-                const summary = result.summary || {};
-                const totalArea = summary.totalArea || 0;
-                const appliedArea = summary.appliedArea || 0;
-
-                els.appliedArea.textContent = `${appliedArea.toFixed(2)} ha`;
-                els.wasteArea.textContent = `${(summary.wasteArea || 0).toFixed(2)} ha`;
-                els.missedArea.textContent = `${(summary.missedArea || 0).toFixed(2)} ha`;
-
-                const efficiency = totalArea > 0 ? (appliedArea / totalArea) * 100 : 0;
-                els.efficiency.textContent = `${efficiency.toFixed(1)}%`;
-
-                setTimeout(() => {
-                    App.mapModule.initResultMap();
-                }, 50);
-            },
-
             _createPermissionItemHTML(perm, permissions = {}) {
                 if (!perm.permission) return '';
-            },
-
-            populateWorkOrderSelects() {
-                const { farmSelect, productSelect, aircraftSelect } = App.elements.sprayingWorkOrders;
-
-                const populateSelect = async (select, url, nameProp, valueProp, defaultOption) => {
-                    select.innerHTML = `<option value="">${defaultOption}</option>`;
-                    try {
-                        const response = await fetch(url);
-                        if (!response.ok) throw new Error('Network error');
-                        const data = await response.json();
-                        // Use the main fazendas list for the farm dropdown to ensure access to farm 'code'
-                        const sourceData = select === farmSelect ? App.state.fazendas : data;
-
-                        sourceData.sort((a, b) => a.name.localeCompare(b.name)).forEach(item => {
-                            const name = nameProp(item);
-                            const value = item[valueProp];
-                            select.innerHTML += `<option value="${value}">${name}</option>`;
-                        });
-
-                    } catch (error) {
-                        select.innerHTML = '<option value="">Erro ao carregar</option>';
-                        console.error(`Failed to load data for ${select.id}:`, error);
-                    }
-                };
-
-                // For farms, we use the main fazendas list which is already in state.
-                const farmSelect = App.elements.sprayingWorkOrders.farmSelect;
-                farmSelect.innerHTML = '<option value="">Selecione uma fazenda...</option>';
-                App.state.fazendas.sort((a, b) => a.name.localeCompare(b.name)).forEach(farm => {
-                    farmSelect.innerHTML += `<option value="${farm.id}">${farm.name}</option>`;
-                });
-
-                populateSelect(App.elements.sprayingWorkOrders.productSelect, `${App.config.backendUrl}/api/spraying/products`, item => item.name, 'id', 'Carregando produtos...');
-                populateSelect(App.elements.sprayingWorkOrders.aircraftSelect, `${App.config.backendUrl}/api/spraying/aircrafts`, item => `${item.prefix} - ${item.model}`, 'id', 'Carregando aeronaves...');
                 const isChecked = permissions[perm.permission];
                 return `
                     <label class="permission-item">
@@ -2689,9 +2562,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!id || !type) return;
 
                 App.ui.showConfirmationModal(`Tem certeza que deseja excluir este item?`, async () => {
+                    try {
+                        const response = await fetch(`${App.config.backendUrl}/api/spraying/${type}s/${id}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.message || 'Erro no servidor');
+                        }
+                        App.ui.showAlert('Item excluído com sucesso!', 'success');
+                        this.loadAllSprayingMasterData(); // Recarregar dados
+                    } catch (error) {
+                        App.ui.showAlert(`Erro ao excluir: ${error.message}`, 'error');
+                        console.error(`Erro ao excluir ${type}:`, error);
+                    }
+                });
             },
 
-            async saveWorkOrder() {
+            async showApplicationResult(workOrderId) {
+                App.ui.setLoading(true, 'Carregando análise de voo...');
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/spraying/applications/work-order/${workOrderId}`);
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.message || 'Resultado não encontrado');
+                    }
+                    const resultData = await response.json();
+                    App.state.activeApplicationResult = resultData;
+
+                    App.ui.showTab('sprayingApplicationResult');
+
+                    App.ui.renderApplicationResult();
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao carregar resultado: ${error.message}`, 'error');
+                    console.error('Error loading application result:', error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
                 const { farmSelect, productSelect, aircraftSelect, applicationDate, flightLogFile } = App.elements.sprayingWorkOrders;
                 const { selectedWorkOrderFields } = App.state;
 
@@ -2758,19 +2667,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Erro ao carregar Ordens de Serviço.', 'error');
                     console.error('Error loading work orders:', error);
                 }
+            },
+
+            async deleteWorkOrder(workOrderId) {
+                if (!workOrderId) return;
+
+                App.ui.showConfirmationModal(`Tem certeza que deseja excluir esta Ordem de Serviço?`, async () => {
                     try {
-                        const response = await fetch(`${App.config.backendUrl}/api/spraying/${type}s/${id}`, {
+                        const response = await fetch(`${App.config.backendUrl}/api/spraying/work-orders/${workOrderId}`, {
                             method: 'DELETE'
                         });
                         if (!response.ok) {
                             const error = await response.json();
                             throw new Error(error.message || 'Erro no servidor');
                         }
-                        App.ui.showAlert('Item excluído com sucesso!', 'success');
-                        this.loadAllSprayingMasterData(); // Recarregar dados
+                        App.ui.showAlert('Ordem de Serviço excluída com sucesso!', 'success');
+                        this.loadWorkOrders(); // Refresh list
                     } catch (error) {
                         App.ui.showAlert(`Erro ao excluir: ${error.message}`, 'error');
-                        console.error(`Erro ao excluir ${type}:`, error);
+                        console.error(`Erro ao excluir Ordem de Serviço:`, error);
                     }
                 });
             },
@@ -5251,6 +5166,151 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.charts[id].destroy();
                         delete App.state.charts[id];
                     }
+                });
+            },
+
+            async renderSprayingDashboardCharts() {
+                const inicioEl = document.getElementById('sprayingDashboardInicio');
+                const fimEl = document.getElementById('sprayingDashboardFim');
+
+                App.actions.saveDashboardDates('spraying', inicioEl.value, fimEl.value);
+
+                App.ui.setLoading(true, "Carregando dados do dashboard...");
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/spraying/applications`);
+                    if (!response.ok) throw new Error('Falha ao carregar os dados das aplicações');
+                    const applications = await response.json();
+
+                    const filteredData = applications.filter(app => {
+                        if (!app.processedAt || !app.processedAt.seconds) return false;
+                        const appDate = new Date(app.processedAt.seconds * 1000).toISOString().split('T')[0];
+                        return (!inicioEl.value || appDate >= inicioEl.value) && (!fimEl.value || appDate <= fimEl.value);
+                    });
+
+                    this.renderSprayingKPIs(filteredData);
+                    this.renderSprayingChartByFarm(filteredData);
+                    this.renderSprayingChartByProduct(filteredData);
+                    this.renderSprayingChartByAircraft(filteredData);
+                    this.renderSprayingChartMonthly(filteredData);
+
+                } catch (error) {
+                    App.ui.showAlert('Erro ao carregar dados do dashboard de pulverização.', 'error');
+                    console.error(error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            renderSprayingKPIs(data) {
+                const totalApplied = data.reduce((sum, app) => sum + (app.analysis.areas.totalAppliedHa || 0), 0);
+                const totalWaste = data.reduce((sum, app) => sum + (app.analysis.areas.wasteHa || 0), 0);
+                const totalEfficiencySum = data.reduce((sum, app) => sum + (app.analysis.areas.efficiency || 0), 0);
+                const avgEfficiency = data.length > 0 ? totalEfficiencySum / data.length : 0;
+
+                document.getElementById('spraying-total-applied-area').textContent = `${totalApplied.toFixed(2)} ha`;
+                document.getElementById('spraying-total-waste-area').textContent = `${totalWaste.toFixed(2)} ha`;
+                document.getElementById('spraying-overall-efficiency').textContent = `${avgEfficiency.toFixed(1)}%`;
+            },
+
+            renderSprayingChartByFarm(data) {
+                const farmsMap = new Map();
+                data.forEach(app => {
+                    const farmName = app.farm?.name || 'N/A';
+                    if (!farmsMap.has(farmName)) farmsMap.set(farmName, 0);
+                    farmsMap.set(farmName, farmsMap.get(farmName) + (app.analysis.areas.appliedCorrectlyHa || 0));
+                });
+
+                const sortedFarms = [...farmsMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+                this._createOrUpdateChart('sprayingChartByFarm', {
+                    type: 'bar',
+                    data: {
+                        labels: sortedFarms.map(f => f[0]),
+                        datasets: [{
+                            label: 'Área Aplicada (ha)',
+                            data: sortedFarms.map(f => f[1]),
+                            backgroundColor: this._getVibrantColors(sortedFarms.length),
+                        }]
+                    },
+                    options: this._getCommonChartOptions({ hasLongLabels: true })
+                });
+            },
+
+            renderSprayingChartByProduct(data) {
+                const productsMap = new Map();
+                data.forEach(app => {
+                    const productName = app.product?.name || 'N/A';
+                    if (!productsMap.has(productName)) productsMap.set(productName, 0);
+                    productsMap.set(productName, productsMap.get(productName) + (app.analysis.areas.appliedCorrectlyHa || 0));
+                });
+
+                this._createOrUpdateChart('sprayingChartByProduct', {
+                    type: 'doughnut',
+                    data: {
+                        labels: [...productsMap.keys()],
+                        datasets: [{
+                            data: [...productsMap.values()],
+                            backgroundColor: this._getVibrantColors(productsMap.size),
+                        }]
+                    },
+                    options: this._getCommonChartOptions()
+                });
+            },
+
+            renderSprayingChartByAircraft(data) {
+                const aircraftsMap = new Map();
+                data.forEach(app => {
+                    const aircraftPrefix = app.aircraft?.prefix || 'N/A';
+                    if (!aircraftsMap.has(aircraftPrefix)) aircraftsMap.set(aircraftPrefix, { totalEfficiency: 0, count: 0 });
+                    const ac = aircraftsMap.get(aircraftPrefix);
+                    ac.totalEfficiency += app.analysis.areas.efficiency || 0;
+                    ac.count++;
+                });
+
+                const aircraftsArray = [...aircraftsMap.entries()].map(([prefix, d]) => ({
+                    prefix,
+                    avgEfficiency: d.count > 0 ? d.totalEfficiency / d.count : 0
+                }));
+
+                this._createOrUpdateChart('sprayingChartByAircraft', {
+                    type: 'bar',
+                    data: {
+                        labels: aircraftsArray.map(ac => ac.prefix),
+                        datasets: [{
+                            label: 'Eficiência Média (%)',
+                            data: aircraftsArray.map(ac => ac.avgEfficiency),
+                            backgroundColor: this._getVibrantColors(aircraftsArray.length),
+                        }]
+                    },
+                    options: this._getCommonChartOptions()
+                });
+            },
+
+            renderSprayingChartMonthly(data) {
+                const monthsMap = new Map();
+                data.forEach(app => {
+                    if (!app.processedAt || !app.processedAt.seconds) return;
+                    const date = new Date(app.processedAt.seconds * 1000);
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    if (!monthsMap.has(monthKey)) monthsMap.set(monthKey, 0);
+                    monthsMap.set(monthKey, monthsMap.get(monthKey) + (app.analysis.areas.totalAppliedHa || 0));
+                });
+
+                const sortedMonths = [...monthsMap.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+
+                this._createOrUpdateChart('sprayingChartMonthly', {
+                    type: 'line',
+                    data: {
+                        labels: sortedMonths.map(m => new Date(m[0]+'-02').toLocaleString('pt-BR', {month: 'short', year: '2-digit'})),
+                        datasets: [{
+                            label: 'Área Aplicada (ha)',
+                            data: sortedMonths.map(m => m[1]),
+                            borderColor: App.ui._getThemeColors().primary,
+                            tension: 0.1,
+                            fill: true
+                        }]
+                    },
+                    options: this._getCommonChartOptions()
                 });
             },
             

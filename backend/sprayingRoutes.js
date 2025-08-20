@@ -1,5 +1,4 @@
 const express = require('express');
-const express = require('express');
 const router = express.Router();
 const admin = require('firebase-admin');
 const turf = require('@turf/turf');
@@ -313,6 +312,48 @@ router.get('/aircrafts', async (req, res) => {
         const snapshot = await aircraftsCollection.orderBy('prefix').get();
         const aircrafts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         res.status(200).send(aircrafts);
+    } catch (error) {
+        handleError(res, error);
+    }
+});
+
+
+// --- Applications ---
+const applicationsCollection = db.collection('spraying_applications');
+
+// Get all Applications for dashboarding
+router.get('/applications', async (req, res) => {
+    try {
+        const snapshot = await applicationsCollection.orderBy('processedAt', 'desc').get();
+        const applications = [];
+
+        // We need to enrich the application data with details from other collections
+        for (const doc of snapshot.docs) {
+            const appData = doc.data();
+
+            // Get Work Order details
+            const woDoc = await workOrdersCollection.doc(appData.workOrderId).get();
+            if (!woDoc.exists) continue; // Skip if related work order is deleted
+            const woData = woDoc.data();
+
+            // Get Farm, Product, Aircraft details
+            const farmId = woData.farmId; // Assuming farmId is on the work order
+            const farmDoc = farmId ? await db.collection('spraying_farms').doc(farmId).get() : null;
+
+            const productDoc = await productsCollection.doc(woData.productId).get();
+            const aircraftDoc = await aircraftsCollection.doc(woData.aircraftId).get();
+
+            applications.push({
+                id: doc.id,
+                ...appData,
+                workOrder: { ...woData },
+                farm: farmDoc && farmDoc.exists ? { id: farmDoc.id, ...farmDoc.data() } : { name: 'N/A' },
+                product: productDoc.exists ? { id: productDoc.id, ...productDoc.data() } : { name: 'N/A' },
+                aircraft: aircraftDoc.exists ? { id: aircraftDoc.id, ...aircraftDoc.data() } : { prefix: 'N/A' },
+            });
+        }
+
+        res.status(200).send(applications);
     } catch (error) {
         handleError(res, error);
     }
