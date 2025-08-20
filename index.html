@@ -1941,19 +1941,14 @@
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
-                    <h3><i class="fas fa-history"></i> Importar Relatório Histórico (para IA)</h3>
-                    <p>Faça o upload do seu relatório histórico (em formato .txt ou .csv). A IA irá ler o conteúdo para analisar os dados e melhorar as previsões.</p>
+                    <h3><i class="fas fa-history"></i> Gerir Histórico de Dados da IA</h3>
+                    <p>Faça o upload de relatórios (.csv, .txt, .xlsx) para treinar a IA. Você também pode apagar todos os dados históricos para começar do zero.</p>
                     <div class="upload-area" id="historicalReportUploadArea">
                         <i class="fas fa-file-alt fa-2x" style="color: var(--color-purple);"></i>
                         <p>Clique ou arraste o seu relatório para aqui</p>
                     </div>
-                <style>
-                    .upload-area.dragover {
-                        border-color: var(--color-purple);
-                        background-color: var(--color-primary-light);
-                    }
-                </style>
-                    <input type="file" id="historicalReportInput" accept=".csv,.txt" style="display: none;">
+                    <input type="file" id="historicalReportInput" accept=".csv,.txt,.xlsx" style="display: none;">
+                    <button id="btnDeleteHistoricalData" class="btn-excluir" style="width: 100%; max-width: 300px; margin-top: 15px; justify-content: center;"><i class="fas fa-trash"></i> Apagar Todo o Histórico</button>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
