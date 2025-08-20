@@ -11,6 +11,8 @@ const axios = require('axios');
 const shp = require('shpjs');
 const pointInPolygon = require('point-in-polygon');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const csv = require('csv-parser');
+const { Readable } = require('stream');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -86,23 +88,74 @@ try {
         }
     });
 
-    // ROTA PARA UPLOAD DO RELATÓRIO DE HISTÓRICO BRUTO
-    app.post('/api/upload/historical-report', async (req, res) => {
+    // ROTA PARA INGESTÃO INTELIGENTE DE RELATÓRIO HISTÓRICO
+    app.post('/api/import/historical-report', async (req, res) => {
         const { reportData } = req.body;
         if (!reportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
         }
 
         try {
-            const docRef = db.collection('config').doc('historicalReport');
-            await docRef.set({
-                rawData: reportData,
-                lastUpdated: new Date(),
-            });
-            res.status(200).json({ message: 'Relatório histórico atualizado com sucesso!' });
+            // 1. Pega uma amostra do CSV para a IA analisar
+            const lines = reportData.split('\n');
+            const sample = lines.slice(0, 5).join('\n'); // Header + 4 linhas
+
+            // 2. Pede para a IA mapear as colunas
+            const mappingPrompt = `
+                Analise esta amostra de um relatório CSV e identifique as colunas correspondentes aos seguintes campos:
+                'codigoFazenda', 'talhao', 'safra', 'variedade', 'atrRealizado', 'tchRealizado', 'toneladas', 'area'.
+                Se uma coluna como 'tchRealizado' não existir, mas 'toneladas' e 'area' existirem, indique as colunas para cálculo.
+                O separador do CSV é ';'.
+                Retorne um JSON com o mapeamento. As chaves devem ser os nomes das colunas originais e os valores devem ser os nomes padronizados.
+                Exemplo de Resposta: { "COD_FAZENDA": "codigoFazenda", "TALHÃO": "talhao", "ATR": "atrRealizado", "TON": "toneladas", "ÁREA": "area" }
+
+                Amostra:
+                ${sample}
+            `;
+
+            const mappingResult = await model.generateContent(mappingPrompt);
+            const mappingResponse = await mappingResult.response;
+            let mappingText = mappingResponse.text().replace(/```json/g, '').replace(/```/g, '').trim();
+            const columnMapping = JSON.parse(mappingText);
+
+            // 3. Processa o CSV completo com o mapeamento da IA
+            const records = [];
+            const stream = Readable.from(reportData);
+            stream.pipe(csv({ separator: ';', mapHeaders: ({ header }) => columnMapping[header] || null }))
+                .on('data', (data) => records.push(data))
+                .on('end', async () => {
+                    // 4. Salva em batches no Firestore
+                    const batchSize = 400;
+                    for (let i = 0; i < records.length; i += batchSize) {
+                        const batch = db.batch();
+                        const chunk = records.slice(i, i + batchSize);
+
+                        chunk.forEach(record => {
+                            // Calcula TCH se necessário
+                            if (!record.tchRealizado && record.toneladas && record.area) {
+                                record.tchRealizado = parseFloat(record.toneladas) / parseFloat(record.area);
+                            }
+                            // Limpa e formata os dados
+                            const finalRecord = {
+                                codigoFazenda: record.codigoFazenda || null,
+                                talhao: record.talhao || null,
+                                safra: record.safra || null,
+                                variedade: record.variedade || null,
+                                atrRealizado: parseFloat(String(record.atrRealizado).replace(',', '.')) || 0,
+                                tchRealizado: parseFloat(String(record.tchRealizado).replace(',', '.')) || 0,
+                                importedAt: new Date(),
+                            };
+                            const docRef = db.collection('historicalHarvests').doc();
+                            batch.set(docRef, finalRecord);
+                        });
+                        await batch.commit();
+                    }
+                    res.status(200).json({ message: `${records.length} registros históricos importados e processados com sucesso pela IA!` });
+                });
+
         } catch (error) {
-            console.error("Erro ao salvar relatório histórico no Firestore:", error);
-            res.status(500).json({ message: 'Erro no servidor ao salvar o relatório.' });
+            console.error("Erro na ingestão inteligente de relatório:", error);
+            res.status(500).json({ message: 'Erro no servidor ao processar o relatório com a IA.' });
         }
     });
 
@@ -124,16 +177,31 @@ try {
 
             let finalContextData = contextData;
 
-            // Se a tarefa for prever ATR, busca o relatório histórico bruto
-            if (task === 'predict_atr') {
+            // Se a tarefa for prever ATR, busca o histórico ESTRUTURADO
+            if (task === 'predict_atr' && contextData.codigoFazenda && contextData.talhao) {
                 try {
-                    const reportDoc = await db.collection('config').doc('historicalReport').get();
-                    if (reportDoc.exists && reportDoc.data().rawData) {
-                        // Adiciona o relatório bruto ao contexto que será enviado para a IA
-                        finalContextData.historicalReportRaw = reportDoc.data().rawData;
+                    const historyQuery = await db.collection('historicalHarvests')
+                        .where('codigoFazenda', '==', contextData.codigoFazenda)
+                        .where('talhao', '==', contextData.talhao)
+                        .orderBy('safra', 'desc')
+                        .limit(5)
+                        .get();
+
+                    if (!historyQuery.empty) {
+                        const historicalData = [];
+                        historyQuery.forEach(doc => {
+                            const data = doc.data();
+                            historicalData.push({
+                                safra: data.safra,
+                                variedade: data.variedade,
+                                atrRealizado: data.atrRealizado,
+                                tchRealizado: data.tchRealizado
+                            });
+                        });
+                        finalContextData.historicalData = historicalData;
                     }
                 } catch (e) {
-                    console.error("Erro ao buscar relatório histórico para a IA:", e);
+                    console.error("Erro ao buscar histórico para a IA:", e);
                     // Continua sem o histórico se der erro, não para a execução
                 }
             }
@@ -147,7 +215,7 @@ try {
                     **Contexto Fornecido:**
                     ${JSON.stringify(finalContextData, null, 2)}
 
-                    Se o contexto incluir um campo "historicalReportRaw", ele contém um relatório bruto com dados históricos. Você deve primeiro analisar esse relatório para extrair informações relevantes (como ATR e TCH de safras passadas para a fazenda/talhão em questão) antes de responder à solicitação do usuário.
+                    Se o contexto incluir um campo "historicalData", ele contém uma lista de dados de safras passadas para o mesmo talhão. Use esses dados como a principal fonte para a sua previsão.
 
                     **Solicitação do Usuário:**
                     ${prompt}
