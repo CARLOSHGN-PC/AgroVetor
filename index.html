@@ -1493,7 +1493,13 @@
                         <input type="hidden" id="editingGroupId">
                         <div class="form-row">
                             <div class="form-col" style="flex-grow: 2;"><label for="harvestFazenda" class="required">Fazenda:</label><select id="harvestFazenda" required></select></div>
-                            <div class="form-col"><label for="harvestAtr" class="required">ATR Previsto:</label><input type="number" id="harvestAtr" placeholder="Ex: 130.5"></div>
+                            <div class="form-col">
+                                <label for="harvestAtr" class="required">ATR Previsto:</label>
+                                <div style="display: flex; align-items: center;">
+                                    <input type="number" id="harvestAtr" placeholder="Selecione talhões..." readonly>
+                                    <i id="atr-spinner" class="fas fa-spinner fa-spin" style="display: none; margin-left: 10px; color: var(--color-primary);"></i>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="form-row">
