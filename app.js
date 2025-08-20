@@ -2017,9 +2017,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (harvestEls.btnAddOrUpdate) harvestEls.btnAddOrUpdate.addEventListener('click', () => App.actions.addOrUpdateHarvestSequence());
                 if (harvestEls.btnCancelEdit) harvestEls.btnCancelEdit.addEventListener('click', () => App.actions.cancelEditSequence());
-                if (harvestEls.btnOptimize) harvestEls.btnOptimize.addEventListener('click', () => App.gemini.getOptimizedHarvestSequence());
+                if (harvestEls.btnOptimize) {
+                    harvestEls.btnOptimize.innerHTML = `<i class="fas fa-brain"></i> Otimizar Colheita`;
+                    harvestEls.btnOptimize.addEventListener('click', () => App.gemini.getOptimizedHarvestSequence());
+                }
 
-                const debouncedAtrPrediction = App.debounce(() => App.gemini.getAtrPrediction());
+                const debouncedAtrPrediction = App.debounce(() => App.actions.getAtrPrediction());
                 if (harvestEls.fazenda) harvestEls.fazenda.addEventListener('change', debouncedAtrPrediction);
 
                 if (harvestEls.tableBody) {
@@ -3527,9 +3530,67 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return false;
             },
+
+            async getAtrPrediction() {
+                const { fazenda: fazendaSelect, atr: atrInput } = App.elements.harvest;
+                const atrSpinner = document.getElementById('atr-spinner');
+
+                atrInput.value = '';
+                atrInput.readOnly = true; // Impede a digitação durante o cálculo
+                atrInput.placeholder = 'Calculando...';
+
+                const farmId = fazendaSelect.value;
+
+                if (!farmId) {
+                    atrInput.placeholder = 'ATR Previsto';
+                    atrInput.readOnly = false;
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm) {
+                    atrInput.readOnly = false;
+                    return;
+                }
+
+                if(atrSpinner) atrSpinner.style.display = 'inline-block';
+
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/calculate-atr`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ codigoFazenda: farm.code }),
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
+                    }
+                    const result = await response.json();
+
+                    if (result && typeof result.predicted_atr === 'number') {
+                        if (result.predicted_atr > 0) {
+                            atrInput.value = result.predicted_atr.toFixed(2);
+                            atrInput.placeholder = 'ATR Previsto';
+                        } else {
+                            atrInput.placeholder = 'Sem histórico';
+                            App.ui.showAlert('Nenhum histórico de ATR encontrado para esta fazenda.', 'info');
+                        }
+                    } else {
+                         atrInput.placeholder = 'Sem histórico';
+                    }
+                } catch (error) {
+                    console.error("Erro ao buscar ATR previsto:", error);
+                    App.ui.showAlert(`Não foi possível calcular o ATR: ${error.message}`, 'error');
+                    atrInput.placeholder = 'Erro ao calcular';
+                } finally {
+                    if(atrSpinner) atrSpinner.style.display = 'none';
+                    atrInput.readOnly = false;
+                }
+            },
         },
         gemini: {
-            async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...", task = null) {
+            async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
                 App.ui.setLoading(true, loadingMessage);
                 try {
                     const response = await fetch(`${App.config.backendUrl}/api/gemini/generate`, {
@@ -3677,58 +3738,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async getAtrPrediction() {
-                const { fazenda: fazendaSelect, talhaoSelectionList, atr: atrInput } = App.elements.harvest;
-                const atrSpinner = document.getElementById('atr-spinner');
-
-                atrInput.value = '';
-
-                const farmId = fazendaSelect.value;
-
-                if (!farmId) {
-                    atrInput.value = '';
-                    return;
-                }
-
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) return;
-
-                if(atrSpinner) atrSpinner.style.display = 'inline-block';
-
-                const prompt = `
-                    Preveja o valor do ATR (Açúcar Total Recuperável) para a seguinte fazenda.
-                    Baseie sua previsão principalmente nos dados históricos fornecidos no contexto, usando a média ponderada por tonelada.
-                    Retorne um JSON com uma única chave, "predicted_atr", e o valor numérico previsto.
-                    Se não houver dados históricos, use seu conhecimento geral sobre as variedades de cana para fazer uma estimativa.
-                    Exemplo de Resposta: { "predicted_atr": 138.5 }
-                `;
-
-                const contextData = {
-                    codigoFazenda: farm.code,
-                };
-
-                try {
-                    const response = await fetch(`${App.config.backendUrl}/api/gemini/generate`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt, contextData, task: "predict_atr" }),
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
-                    }
-                    const result = await response.json();
-
-                    if (result && result.predicted_atr && typeof result.predicted_atr === 'number') {
-                        atrInput.value = result.predicted_atr.toFixed(2);
-                    }
-                } catch (error) {
-                    console.error("Erro na chamada da API Gemini para ATR:", error);
-                } finally {
-                    if(atrSpinner) atrSpinner.style.display = 'none';
-                }
-            }
         },
 
         mapModule: {
