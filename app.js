@@ -3233,7 +3233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.elements.companyConfig.historicalReportInput.value = '';
                     }
                 };
-                reader.readAsText(file, 'ISO-8859-1');
+                reader.readAsDataURL(file);
             },
             async importHarvestReport(file, type) {
                 if (!file) return;

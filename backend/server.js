@@ -115,13 +115,12 @@ try {
 
             // Checa se o dado enviado é uma data URL (padrão do FileReader.readAsDataURL)
             if (originalReportData.startsWith('data:')) {
-                const parts = originalReportData.split(';base64,');
-                const mimeType = parts[0].split(':')[1];
-                const base64Data = parts[1];
+                const base64Data = originalReportData.split(';base64,')[1] || '';
                 const buffer = Buffer.from(base64Data, 'base64');
 
-                // Se for um arquivo Excel
-                if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || mimeType === 'application/vnd.ms-excel') {
+                // Magic number check for ZIP files (XLSX, etc.)
+                // 0x50, 0x4B are the hex codes for 'P' and 'K'
+                if (buffer && buffer.length > 1 && buffer[0] === 0x50 && buffer[1] === 0x4B) {
                     const workbook = xlsx.read(buffer, { type: 'buffer' });
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
@@ -132,9 +131,10 @@ try {
                     // Constrói a string CSV com ';' como separador para manter a consistência
                     reportText = dataAsJson.map(row =>
                         row.map(cell => {
+                            const cellStr = String(cell);
                             // Se a célula contém ';' ou '"', a envolve em aspas duplas
-                            if (typeof cell === 'string' && (cell.includes(';') || cell.includes('"'))) {
-                                return `"${cell.replace(/"/g, '""')}"`;
+                            if (cellStr.includes(';') || cellStr.includes('"')) {
+                                return `"${cellStr.replace(/"/g, '""')}"`;
                             }
                             return cell;
                         }).join(';')
