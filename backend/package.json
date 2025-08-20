@@ -18,6 +18,7 @@
     "pdfkit": "0.13.0",
     "pdfkit-table": "0.1.99",
     "point-in-polygon": "^1.1.0",
-    "shpjs": "^4.0.4"
+    "shpjs": "^4.0.4",
+    "@google/generative-ai": "^0.14.1"
   }
 }

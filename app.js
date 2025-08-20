@@ -8,8 +8,11 @@ import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // As chaves de API e configurações do Firebase devem ser guardadas em variáveis de ambiente
+    // e injetadas no momento do build, ou carregadas de um endpoint seguro.
+    // NÃO DEVEM ser guardadas diretamente no código em produção.
     const firebaseConfig = {
-        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
+        apiKey: "YOUR_FIREBASE_API_KEY", // SUBSTITUIR PELA CHAVE REAL
         authDomain: "agrovetor-v2.firebaseapp.com",
         projectId: "agrovetor-v2",
         storageBucket: "agrovetor-v2.firebasestorage.app",
@@ -3379,27 +3382,137 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         gemini: {
-            getOptimizedHarvestSequence() {
-                if (!App.state.activeHarvestPlan || App.state.activeHarvestPlan.sequence.length === 0) {
+            async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
+                App.ui.setLoading(true, loadingMessage);
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/gemini/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prompt, contextData }),
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao comunicar com a IA: ${error.message}`, 'error');
+                    console.error("Erro na chamada da API Gemini:", error);
+                    return null;
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async getOptimizedHarvestSequence() {
+                const plan = App.state.activeHarvestPlan;
+                if (!plan || plan.sequence.length === 0) {
                     App.ui.showAlert("Adicione fazendas à sequência antes de otimizar.", "warning");
                     return;
                 }
-                
-                App.ui.setLoading(true, "A otimizar com IA...");
 
-                setTimeout(() => {
-                    App.state.activeHarvestPlan.sequence.sort((a, b) => (b.atr || 0) - (a.atr || 0));
+                const prompt = `
+                    Otimize a seguinte sequência de colheita de cana-de-açúcar.
+                    Critérios de otimização, em ordem de importância:
+                    1. ATR: Priorize valores mais altos.
+                    2. Dias de Aplicação do Maturador: Priorize cana que está no pico de maturação (idealmente entre 15-30 dias após aplicação). Evite colher muito cedo ou muito tarde.
+                    3. Idade da Cana: Dê preferência para cana mais velha (maior idade em meses).
+                    4. Proximidade na sequência original: Tente não alterar drasticamente a ordem se os outros critérios forem muito similares.
                     
-                    App.ui.setLoading(false);
+                    Retorne um array JSON contendo APENAS os IDs dos grupos na ordem otimizada. O array deve se chamar "optimizedSequence".
+                    Exemplo de Resposta: { "optimizedSequence": [1678886400000, 1678886500000, ...] }
+                `;
+
+                const contextData = plan.sequence.map((group, index) => ({
+                    id: group.id,
+                    fazendaName: group.fazendaName,
+                    originalOrder: index + 1,
+                    atr: group.atr,
+                    averageAgeMonths: App.actions.calculateAverageAge(group, new Date(plan.startDate)),
+                    maturadorDays: App.actions.calculateMaturadorDays(group)
+                }));
+
+                const result = await this._callGeminiAPI(prompt, contextData, "A otimizar sequência com IA...");
+
+                if (result && result.optimizedSequence && Array.isArray(result.optimizedSequence)) {
+                    const optimizedIds = result.optimizedSequence;
+                    const newSequence = [];
+                    const groupMap = new Map(plan.sequence.map(g => [g.id, g]));
+
+                    optimizedIds.forEach(id => {
+                        if (groupMap.has(id)) {
+                            newSequence.push(groupMap.get(id));
+                            groupMap.delete(id);
+                        }
+                    });
+
+                    // Adiciona quaisquer grupos que a IA possa ter esquecido no final
+                    groupMap.forEach(group => newSequence.push(group));
+
+                    plan.sequence = newSequence;
                     App.ui.renderHarvestSequence();
-                    App.ui.showAlert("Sequência de colheita otimizada pela IA (priorizando maior ATR)!", "info");
-                }, 2000);
+                    App.ui.showAlert("Sequência de colheita otimizada pela IA!", "success");
+                } else {
+                    App.ui.showAlert("A IA não conseguiu otimizar a sequência ou retornou um formato inválido.", "error");
+                }
             },
-            getDashboardAnalysis() {
-                App.ui.showAlert("A análise do dashboard com IA ainda não foi implementada.", "info");
-            },
-            getPlanningSuggestions() {
-                App.ui.showAlert("A sugestão de planejamento com IA ainda não foi implementada.", "info");
+
+            async getPlanningSuggestions() {
+                const pendingPlans = App.state.planos.filter(p => p.status === 'Pendente');
+                if (pendingPlans.length === 0) {
+                    App.ui.showAlert("Não há inspeções pendentes para analisar.", "info");
+                    return;
+                }
+
+                const prompt = `
+                    Com base na lista de inspeções de broca e perdas pendentes, sugira uma ordem de prioridade.
+                    Critérios de prioridade:
+                    1. Atraso: Inspeções com data prevista no passado são mais urgentes.
+                    2. Histórico: Fazendas com histórico de problemas (se disponível no contexto) devem ser priorizadas.
+                    3. Tipo: Inspeções de broca podem ser mais críticas se houver um surto conhecido.
+
+                    Retorne um JSON com duas chaves: "analysis" (uma breve análise em texto sobre a sugestão) e "priority" (um array com os IDs dos planos na ordem de prioridade).
+                    Exemplo: { "analysis": "A inspeção na Fazenda X está atrasada e deve ser feita primeiro...", "priority": ["id_plano_1", "id_plano_2", ...] }
+                `;
+
+                const contextData = pendingPlans.map(p => ({
+                    id: p.id,
+                    fazenda: p.fazendaCodigo,
+                    talhao: p.talhao,
+                    tipo: p.tipo,
+                    dataPrevista: p.dataPrevista,
+                    responsavel: p.usuarioResponsavel
+                }));
+
+                const result = await this._callGeminiAPI(prompt, contextData, "A obter sugestões da IA...");
+
+                if (result && result.analysis && result.priority) {
+                    const reorderedPlans = [...App.state.planos];
+                    const priorityMap = new Map(result.priority.map((id, index) => [id, index]));
+
+                    reorderedPlans.sort((a, b) => {
+                        const priorityA = priorityMap.has(a.id) ? priorityMap.get(a.id) : Infinity;
+                        const priorityB = priorityMap.has(b.id) ? priorityMap.get(b.id) : Infinity;
+                        return priorityA - priorityB;
+                    });
+
+                    App.state.planos = reorderedPlans;
+                    App.ui.renderPlanejamento();
+
+                    App.ui.showConfirmationModal(
+                        result.analysis,
+                        () => {}, // Apenas para mostrar a informação
+                        false
+                    );
+                    const modal = App.elements.confirmationModal;
+                    modal.title.textContent = "Sugestão da AgroVetor AI";
+                    modal.confirmBtn.textContent = "OK";
+                    modal.cancelBtn.style.display = 'none';
+
+                } else {
+                    App.ui.showAlert("A IA não conseguiu gerar sugestões ou retornou um formato inválido.", "error");
+                }
             }
         },
 
