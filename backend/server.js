@@ -35,6 +35,17 @@ try {
     const bucket = admin.storage().bucket();
     console.log('Firebase Admin SDK inicializado com sucesso e conectado ao bucket.');
 
+    // --- INICIALIZAÇÃO DA IA (GEMINI) ---
+    const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyDgIgShHS_wU2UWAMsOShHU3wIVxM4cnJk";
+    let model;
+    if (!geminiApiKey) {
+        console.warn("A variável de ambiente GEMINI_API_KEY não está definida. As funcionalidades de IA não estarão disponíveis.");
+    } else {
+        const genAI = new GoogleGenerativeAI(geminiApiKey);
+        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash"});
+        console.log('Gemini AI Model inicializado com sucesso.');
+    }
+
     app.get('/', (req, res) => {
         res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
     });
@@ -90,6 +101,9 @@ try {
 
     // ROTA PARA INGESTÃO INTELIGENTE DE RELATÓRIO HISTÓRICO
     app.post('/api/upload/historical-report', async (req, res) => {
+        if (!model) {
+            return res.status(503).json({ message: "O serviço de IA não está disponível. Verifique a chave de API no servidor." });
+        }
         const { reportData } = req.body;
         if (!reportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
@@ -171,93 +185,85 @@ try {
         }
     });
 
-    // --- ROTAS DA IA (GEMINI) ---
-    // A chave da API deve ser guardada como uma variável de ambiente no servidor (ex: .env)
-    const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyDgIgShHS_wU2UWAMsOShHU3wIVxM4cnJk";
-    if (!geminiApiKey) {
-        console.warn("A variável de ambiente GEMINI_API_KEY não está definida. As funcionalidades de IA não estarão disponíveis.");
-    } else {
-        const genAI = new GoogleGenerativeAI(geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash"});
+    // --- ROTA DE GERAÇÃO DA IA (GEMINI) ---
+    app.post('/api/gemini/generate', async (req, res) => {
+        if (!model) {
+            return res.status(503).json({ message: "O serviço de IA não está disponível. Verifique a chave de API no servidor." });
+        }
+        const { prompt, contextData, task } = req.body;
 
-        app.post('/api/gemini/generate', async (req, res) => {
-            const { prompt, contextData, task } = req.body;
+        if (!prompt) {
+            return res.status(400).json({ message: 'O prompt é obrigatório.' });
+        }
 
-            if (!prompt) {
-                return res.status(400).json({ message: 'O prompt é obrigatório.' });
-            }
+        let finalContextData = contextData;
 
-            let finalContextData = contextData;
+        // Se a tarefa for prever ATR, busca o histórico ESTRUTURADO
+        if (task === 'predict_atr' && contextData.codigoFazenda && contextData.talhao) {
+            try {
+                const historyQuery = await db.collection('historicalHarvests')
+                    .where('codigoFazenda', '==', contextData.codigoFazenda)
+                    .where('talhao', '==', contextData.talhao)
+                    .orderBy('safra', 'desc')
+                    .limit(5)
+                    .get();
 
-            // Se a tarefa for prever ATR, busca o histórico ESTRUTURADO
-            if (task === 'predict_atr' && contextData.codigoFazenda && contextData.talhao) {
-                try {
-                    const historyQuery = await db.collection('historicalHarvests')
-                        .where('codigoFazenda', '==', contextData.codigoFazenda)
-                        .where('talhao', '==', contextData.talhao)
-                        .orderBy('safra', 'desc')
-                        .limit(5)
-                        .get();
-
-                    if (!historyQuery.empty) {
-                        const historicalData = [];
-                        historyQuery.forEach(doc => {
-                            const data = doc.data();
-                            historicalData.push({
-                                safra: data.safra,
-                                variedade: data.variedade,
-                                atrRealizado: data.atrRealizado,
-                                tchRealizado: data.tchRealizado
-                            });
+                if (!historyQuery.empty) {
+                    const historicalData = [];
+                    historyQuery.forEach(doc => {
+                        const data = doc.data();
+                        historicalData.push({
+                            safra: data.safra,
+                            variedade: data.variedade,
+                            atrRealizado: data.atrRealizado,
+                            tchRealizado: data.tchRealizado
                         });
-                        finalContextData.historicalData = historicalData;
-                    }
-                } catch (e) {
-                    console.error("Erro ao buscar histórico para a IA:", e);
-                    // Continua sem o histórico se der erro, não para a execução
+                    });
+                    finalContextData.historicalData = historicalData;
                 }
+            } catch (e) {
+                console.error("Erro ao buscar histórico para a IA:", e);
+                // Continua sem o histórico se der erro, não para a execução
             }
+        }
+
+        try {
+            const fullPrompt = `
+                Você é um especialista em agronomia e agricultura de precisão para o cultivo de cana-de-açúcar.
+                Seu nome é AgroVetor AI.
+                Analise o contexto fornecido e responda à solicitação do usuário de forma clara, objetiva e em formato JSON.
+
+                **Contexto Fornecido:**
+                ${JSON.stringify(finalContextData, null, 2)}
+
+                Se o contexto incluir um campo "historicalData", ele contém uma lista de dados de safras passadas para o mesmo talhão. Use esses dados como a principal fonte para a sua previsão.
+
+                **Solicitação do Usuário:**
+                ${prompt}
+
+                **Sua Resposta (em formato JSON):**
+            `;
+
+            const result = await model.generateContent(fullPrompt);
+            const response = await result.response;
+            let text = response.text();
+
+            // Limpeza básica para garantir que a saída seja um JSON válido
+            text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
             try {
-                const fullPrompt = `
-                    Você é um especialista em agronomia e agricultura de precisão para o cultivo de cana-de-açúcar.
-                    Seu nome é AgroVetor AI.
-                    Analise o contexto fornecido e responda à solicitação do usuário de forma clara, objetiva e em formato JSON.
-
-                    **Contexto Fornecido:**
-                    ${JSON.stringify(finalContextData, null, 2)}
-
-                    Se o contexto incluir um campo "historicalData", ele contém uma lista de dados de safras passadas para o mesmo talhão. Use esses dados como a principal fonte para a sua previsão.
-
-                    **Solicitação do Usuário:**
-                    ${prompt}
-
-                    **Sua Resposta (em formato JSON):**
-                `;
-
-                const result = await model.generateContent(fullPrompt);
-                const response = await result.response;
-                let text = response.text();
-
-                // Limpeza básica para garantir que a saída seja um JSON válido
-                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-
-                try {
-                    const jsonResponse = JSON.parse(text);
-                    res.status(200).json(jsonResponse);
-                } catch (e) {
-                    console.error("Erro ao fazer parse da resposta da IA para JSON:", e);
-                    res.status(500).json({ message: "A IA retornou uma resposta em formato inválido.", details: text });
-                }
-
-            } catch (error) {
-                console.error("Erro ao chamar a API do Gemini:", error);
-                res.status(500).json({ message: 'Erro ao comunicar com a IA.' });
+                const jsonResponse = JSON.parse(text);
+                res.status(200).json(jsonResponse);
+            } catch (e) {
+                console.error("Erro ao fazer parse da resposta da IA para JSON:", e);
+                res.status(500).json({ message: "A IA retornou uma resposta em formato inválido.", details: text });
             }
-        });
 
-        console.log('Rota da IA (/api/gemini/generate) ativada.');
-    }
+        } catch (error) {
+            console.error("Erro ao chamar a API do Gemini:", error);
+            res.status(500).json({ message: 'Erro ao comunicar com a IA.' });
+        }
+    });
 
     // --- FUNÇÕES AUXILIARES ---
 
