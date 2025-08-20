@@ -3603,10 +3603,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async getAtrPrediction() {
                 const { fazenda: fazendaSelect, talhaoSelectionList, atr: atrInput } = App.elements.harvest;
+
+                // Re-habilita o campo para permitir nova previsão
+                atrInput.disabled = false;
+                atrInput.value = '';
+
                 const farmId = fazendaSelect.value;
                 if (!farmId) {
-                    App.ui.showAlert("Por favor, selecione uma fazenda primeiro.", "warning");
-                    return;
+                    return; // Sai silenciosamente se nenhuma fazenda está selecionada
                 }
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm) return;
@@ -3641,9 +3645,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (result && result.predicted_atr && typeof result.predicted_atr === 'number') {
                     atrInput.value = result.predicted_atr.toFixed(2);
+                    atrInput.disabled = true; // Bloqueia o campo após a previsão
                     App.ui.showAlert("Previsão de ATR preenchida pela IA!", "success");
                 } else {
-                    App.ui.showAlert("A IA não conseguiu prever o ATR ou retornou um formato inválido.", "error");
+                    // Não mostra alerta de erro se a IA não conseguir prever, apenas não preenche.
+                    // O usuário pode então preencher manualmente.
+                    atrInput.disabled = false;
                 }
             }
         },
