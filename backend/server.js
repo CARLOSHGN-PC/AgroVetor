@@ -36,6 +36,10 @@ try {
         res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
     });
 
+    // Rotas do Módulo de Pulverização
+    const sprayingRoutes = require('./sprayingRoutes');
+    app.use('/api/spraying', sprayingRoutes);
+
     // ROTA PARA UPLOAD DO LOGO
     app.post('/upload-logo', async (req, res) => {
         const { logoBase64 } = req.body;

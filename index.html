@@ -1564,15 +1564,176 @@
 
                 <div id="dashboard-aerea" style="display: none;">
                                 <div class="dashboard-header">
-                                    <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
-                                    <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                                    <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Módulo de Pulverização</h2>
+                                    <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar ao Início</button>
                                 </div>
                                 <div class="card">
-                                  <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
-                                      <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
-                                      Este módulo ainda está em desenvolvimento.
-                                    </p>
+                                  <p>Bem-vindo ao módulo de gestão de pulverização. Navegue pelas seções usando o menu lateral.</p>
                                 </div>
+                </div>
+
+            </section>
+
+            <section id="sprayingDashboard" class="tab-content card" aria-label="Dashboard de Pulverização" tabindex="0" hidden>
+                <h2><i class="fas fa-chart-pie"></i> Dashboard de Pulverização</h2>
+                <p>Em desenvolvimento...</p>
+            </section>
+
+            <section id="sprayingWorkOrders" class="tab-content" aria-label="Ordens de Serviço de Pulverização" tabindex="0" hidden>
+                <div class="card">
+                    <h2><i class="fas fa-file-alt"></i> Nova Ordem de Serviço (Pulverização)</h2>
+            </section>
+
+            <section id="sprayingApplicationResult" class="tab-content" aria-label="Resultado da Análise de Voo" tabindex="0" hidden>
+                <div class="card">
+                    <div class="dashboard-header">
+                         <h2 style="color: var(--color-success);"><i class="fas fa-chart-area"></i> Relatório Pós-Voo</h2>
+                         <button id="btnBackToWOList" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar para Ordens de Serviço</button>
+                    </div>
+
+                    <!-- KPIs -->
+                    <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                        <div class="kpi-card" style="border-left-color: var(--color-success);">
+                            <div class="icon" style="background-color: var(--color-success);"><i class="fas fa-check-circle"></i></div>
+                            <div class="text">
+                                <div id="resultAppliedArea" class="value">0 ha</div>
+                                <div class="label">Área Aplicada</div>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-danger);">
+                            <div class="icon" style="background-color: var(--color-danger);"><i class="fas fa-spray-can-sparkles"></i></div>
+                            <div class="text">
+                                <div id="resultWasteArea" class="value">0 ha</div>
+                                <div class="label">Desperdício (Overspray)</div>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-warning);">
+                            <div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="text">
+                                <div id="resultMissedArea" class="value">0 ha</div>
+                                <div class="label">Área com Falha</div>
+                            </div>
+                        </div>
+                         <div class="kpi-card" style="border-left-color: var(--color-info);">
+                            <div class="icon" style="background-color: var(--color-info);"><i class="fas fa-tachometer-alt"></i></div>
+                            <div class="text">
+                                <div id="resultEfficiency" class="value">0%</div>
+                                <div class="label">Eficiência da Aplicação</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Map -->
+                    <div id="resultMapContainer" style="height: 600px; margin-top: 20px; border-radius: var(--border-radius); border: 1px solid var(--color-border); position: relative;">
+                        <div id="resultMap" style="width: 100%; height: 100%;"></div>
+                        <!-- Map Legend -->
+                        <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(255,255,255,0.8); padding: 10px; border-radius: 8px; z-index: 10;">
+                            <h4 style="margin-top: 0;">Legenda:</h4>
+                            <div style="display: flex; align-items: center; margin-top: 5px;"><div style="width: 20px; height: 20px; background: #4caf50; margin-right: 5px; border: 1px solid #000;"></div> Área Aplicada</div>
+                            <div style="display: flex; align-items: center; margin-top: 5px;"><div style="width: 20px; height: 20px; background: #f44336; margin-right: 5px; border: 1px solid #000;"></div> Desperdício</div>
+                            <div style="display: flex; align-items: center; margin-top: 5px;"><div style="width: 20px; height: 20px; background: #ffeb3b; margin-right: 5px; border: 1px solid #000;"></div> Falha</div>
+                        </div>
+                    </div>
+                </div>
+
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="woFarmSelect" class="required">1. Selecione a Fazenda:</label>
+                            <select id="woFarmSelect"></select>
+                        </div>
+                    </div>
+
+                    <!-- Map and Field Selection -->
+                    <div id="woMapContainer" style="height: 500px; margin-top: 20px; border-radius: var(--border-radius); border: 1px solid var(--color-border); position: relative;">
+                        <div id="woMap" style="width: 100%; height: 100%;"></div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <h3>Talhões Selecionados:</h3>
+                        <ul id="woSelectedFieldsList" style="list-style: none; padding: 10px; background-color: var(--color-bg); border-radius: var(--border-radius);">
+                            <li>Nenhum talhão selecionado.</li>
+                        </ul>
+                    </div>
+
+                    <hr style="margin: 20px 0;">
+
+                    <!-- Other Work Order fields -->
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="woProductSelect" class="required">2. Selecione o Produto:</label>
+                            <select id="woProductSelect"></select>
+                        </div>
+                        <div class="form-col">
+                            <label for="woAircraftSelect" class="required">3. Selecione a Aeronave:</label>
+                            <select id="woAircraftSelect"></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="woApplicationDate" class="required">Data da Aplicação:</label>
+                            <input type="date" id="woApplicationDate">
+                        </div>
+                         <div class="form-col">
+                            <label for="woFlightLogFile">4. Anexar Log de Voo (.kml):</label>
+                            <input type="file" id="woFlightLogFile" accept=".kml">
+                        </div>
+                    </div>
+                    <button class="save" id="btnSaveWorkOrder"><i class="fas fa-save"></i> Salvar Ordem de Serviço</button>
+                </div>
+
+                <div class="card" style="margin-top: 30px;">
+                    <h2><i class="fas fa-tasks"></i> Ordens de Serviço Existentes</h2>
+                    <div id="workOrdersList">
+                        <p>Nenhuma ordem de serviço encontrada.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="sprayingCadastros" class="tab-content card" aria-label="Cadastros de Pulverização" tabindex="0" hidden>
+                <h2><i class="fas fa-book"></i> Cadastros (Módulo de Pulverização)</h2>
+
+                <!-- Abas de Navegação -->
+                <div class="form-row" style="border-bottom: 1px solid var(--color-border); margin-bottom: 20px;">
+                    <button class="menu-btn active" data-tab="spraying-farms-tab"><i class="fas fa-tractor"></i> Fazendas</button>
+                    <button class="menu-btn" data-tab="spraying-products-tab"><i class="fas fa-vial"></i> Produtos</button>
+                    <button class="menu-btn" data-tab="spraying-aircrafts-tab"><i class="fas fa-plane"></i> Aeronaves</button>
+                </div>
+
+                <!-- Conteúdo das Abas -->
+                <div id="spraying-farms-tab" class="tab-content active">
+                    <h3>Cadastro de Fazendas</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="sprayingFarmName">Nome da Fazenda:</label><input type="text" id="sprayingFarmName" placeholder="Ex: Fazenda São João"></div>
+                        <div class="form-col"><label for="sprayingFarmCity">Cidade:</label><input type="text" id="sprayingFarmCity" placeholder="Ex: Ribeirão Preto"></div>
+                        <div class="form-col"><label for="sprayingFarmState">Estado:</label><input type="text" id="sprayingFarmState" placeholder="Ex: SP"></div>
+                    </div>
+                    <button class="save" id="btnSaveSprayingFarm"><i class="fas fa-save"></i> Salvar Fazenda</button>
+                    <h4 style="margin-top: 30px;">Fazendas Cadastradas</h4>
+                    <div id="sprayingFarmsList" class="fazenda-list"></div>
+                </div>
+
+                <div id="spraying-products-tab" class="tab-content">
+                    <h3>Cadastro de Produtos</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="sprayingProductName">Nome do Produto:</label><input type="text" id="sprayingProductName" placeholder="Ex: Herbicida XPTO"></div>
+                        <div class="form-col"><label for="sprayingProductIngredient">Ingrediente Ativo:</label><input type="text" id="sprayingProductIngredient" placeholder="Ex: Glifosato"></div>
+                        <div class="form-col"><label for="sprayingProductDosage">Dosagem Padrão (L/ha):</label><input type="number" id="sprayingProductDosage" placeholder="Ex: 2.5"></div>
+                    </div>
+                    <button class="save" id="btnSaveSprayingProduct"><i class="fas fa-save"></i> Salvar Produto</button>
+                    <h4 style="margin-top: 30px;">Produtos Cadastrados</h4>
+                    <div id="sprayingProductsList" class="fazenda-list"></div>
+                </div>
+
+                <div id="spraying-aircrafts-tab" class="tab-content">
+                    <h3>Cadastro de Aeronaves</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="sprayingAircraftPrefix">Prefixo:</label><input type="text" id="sprayingAircraftPrefix" placeholder="Ex: PT-ABC"></div>
+                        <div class="form-col"><label for="sprayingAircraftModel">Modelo:</label><input type="text" id="sprayingAircraftModel" placeholder="Ex: Ipanema"></div>
+                        <div class="form-col"><label for="sprayingAircraftSwath">Largura da Faixa (metros):</label><input type="number" id="sprayingAircraftSwath" placeholder="Ex: 20"></div>
+                    </div>
+                    <button class="save" id="btnSaveSprayingAircraft"><i class="fas fa-save"></i> Salvar Aeronave</button>
+                    <h4 style="margin-top: 30px;">Aeronaves Cadastradas</h4>
+                    <div id="sprayingAircraftsList" class="fazenda-list"></div>
                 </div>
 
             </section>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Sample Flight Path</name>
+    <Placemark>
+      <name>Flight Path</name>
+      <LineString>
+        <coordinates>
+          -48.45, -21.17, 0
+          -48.44, -21.17, 0
+          -48.44, -21.18, 0
+          -48.45, -21.18, 0
+          -48.45, -21.17, 0
+        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>
