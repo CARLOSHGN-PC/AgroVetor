@@ -255,13 +255,12 @@ try {
         let finalContextData = contextData;
 
         // Se a tarefa for prever ATR, busca o histórico ESTRUTURADO
-        if (task === 'predict_atr' && contextData.codigoFazenda && contextData.talhao) {
+        if (task === 'predict_atr' && contextData.codigoFazenda) {
             try {
                 const historyQuery = await db.collection('historicalHarvests')
                     .where('codigoFazenda', '==', contextData.codigoFazenda)
-                    .where('talhao', '==', contextData.talhao)
                     .orderBy('safra', 'desc')
-                    .limit(5)
+                    .limit(100)
                     .get();
 
                 if (!historyQuery.empty) {
