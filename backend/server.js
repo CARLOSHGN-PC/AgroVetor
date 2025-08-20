@@ -13,6 +13,7 @@ const pointInPolygon = require('point-in-polygon');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const csv = require('csv-parser');
 const { Readable } = require('stream');
+const xlsx = require('xlsx');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -104,14 +105,52 @@ try {
         if (!model) {
             return res.status(503).json({ message: "O serviço de IA não está disponível. Verifique a chave de API no servidor." });
         }
-        const { reportData } = req.body;
-        if (!reportData) {
+        const { reportData: originalReportData } = req.body;
+        if (!originalReportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
         }
 
         try {
+            let reportText;
+
+            // Checa se o dado enviado é uma data URL (padrão do FileReader.readAsDataURL)
+            if (originalReportData.startsWith('data:')) {
+                const parts = originalReportData.split(';base64,');
+                const mimeType = parts[0].split(':')[1];
+                const base64Data = parts[1];
+                const buffer = Buffer.from(base64Data, 'base64');
+
+                // Se for um arquivo Excel
+                if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || mimeType === 'application/vnd.ms-excel') {
+                    const workbook = xlsx.read(buffer, { type: 'buffer' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+
+                    // Converte a planilha para um array de arrays
+                    const dataAsJson = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+                    // Constrói a string CSV com ';' como separador para manter a consistência
+                    reportText = dataAsJson.map(row =>
+                        row.map(cell => {
+                            // Se a célula contém ';' ou '"', a envolve em aspas duplas
+                            if (typeof cell === 'string' && (cell.includes(';') || cell.includes('"'))) {
+                                return `"${cell.replace(/"/g, '""')}"`;
+                            }
+                            return cell;
+                        }).join(';')
+                    ).join('\n');
+
+                } else {
+                    // Assume que é um arquivo de texto (csv, txt)
+                    reportText = buffer.toString('utf8');
+                }
+            } else {
+                // Fallback para o caso de receber texto puro
+                reportText = originalReportData;
+            }
+
             // 1. Pega uma amostra do CSV para a IA analisar
-            const lines = reportData.split('\n');
+            const lines = reportText.split('\n');
             const sample = lines.slice(0, 5).join('\n'); // Header + 4 linhas
 
             // 2. Pede para a IA mapear as colunas
@@ -120,7 +159,7 @@ try {
                 O objetivo é mapear os cabeçalhos do relatório para um formato padrão. O separador é ';'.
 
                 Os campos padrão que eu preciso são:
-                'codigoFazenda', 'talhao', 'safra', 'variedade', 'atrRealizado', 'tchRealizado', e, se possível, 'toneladas' e 'area' para calcular o TCH.
+                'codigoFazenda', 'nomeFazenda', 'talhao', 'safra', 'variedade', 'atrRealizado', 'tchRealizado', e, se possível, 'toneladas' e 'area' para calcular o TCH.
 
                 Se a coluna 'tchRealizado' (Toneladas de Cana por Hectare) não existir, mas colunas para 'toneladas' e 'area' existirem, mapeie-as para que eu possa calcular o TCH (toneladas / area).
 
@@ -162,7 +201,7 @@ try {
 
             // 3. Processa o CSV completo com o mapeamento da IA
             const records = [];
-            const stream = Readable.from(reportData);
+            const stream = Readable.from(reportText); // Usar o texto processado
             stream.pipe(csv({ separator: ';', mapHeaders: ({ header }) => columnMapping[header] || null }))
                 .on('data', (data) => records.push(data))
                 .on('end', async () => {
