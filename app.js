@@ -251,6 +251,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnDownloadClosedTemplate: document.getElementById('btnDownloadClosedTemplate'),
                 shapefileUploadArea: document.getElementById('shapefileUploadArea'),
                 shapefileInput: document.getElementById('shapefileInput'),
+                historicalHarvestCsvUploadArea: document.getElementById('historicalHarvestCsvUploadArea'),
+                historicalHarvestCsvInput: document.getElementById('historicalHarvestCsvInput'),
+                btnDownloadHistoricalHarvestCsvTemplate: document.getElementById('btnDownloadHistoricalHarvestCsvTemplate'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -359,6 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 addOrEditTitle: document.getElementById('addOrEditSequenceTitle'),
                 editingGroupId: document.getElementById('editingGroupId'),
                 btnOptimize: document.getElementById('btnOptimizeHarvest'),
+                btnPredictAtr: document.getElementById('btnPredictAtr'),
                 tableBody: document.querySelector('#harvestPlanTable tbody'),
                 summary: document.getElementById('harvestSummary'),
             },
@@ -1903,6 +1907,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.btnDownloadClosedTemplate) companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
                 if (companyConfigEls.shapefileUploadArea) companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
+                if (companyConfigEls.historicalHarvestCsvUploadArea) companyConfigEls.historicalHarvestCsvUploadArea.addEventListener('click', () => companyConfigEls.historicalHarvestCsvInput.click());
+                if (companyConfigEls.historicalHarvestCsvInput) companyConfigEls.historicalHarvestCsvInput.addEventListener('change', (e) => App.actions.importHistoricalHarvestFromCSV(e.target.files[0]));
+                if (companyConfigEls.btnDownloadHistoricalHarvestCsvTemplate) companyConfigEls.btnDownloadHistoricalHarvestCsvTemplate.addEventListener('click', () => App.actions.downloadHistoricalHarvestCsvTemplate());
 
 
                 if (App.elements.cadastros.btnSaveFarm) App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
@@ -1961,6 +1968,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (harvestEls.btnAddOrUpdate) harvestEls.btnAddOrUpdate.addEventListener('click', () => App.actions.addOrUpdateHarvestSequence());
                 if (harvestEls.btnCancelEdit) harvestEls.btnCancelEdit.addEventListener('click', () => App.actions.cancelEditSequence());
                 if (harvestEls.btnOptimize) harvestEls.btnOptimize.addEventListener('click', () => App.gemini.getOptimizedHarvestSequence());
+                if (harvestEls.btnPredictAtr) harvestEls.btnPredictAtr.addEventListener('click', () => App.gemini.getAtrPrediction());
                 if (harvestEls.tableBody) {
                     harvestEls.tableBody.addEventListener('click', e => {
                         const removeBtn = e.target.closest('button[data-action="remove-harvest"]');
@@ -3161,6 +3169,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.click();
                 document.body.removeChild(link);
             },
+            downloadHistoricalHarvestCsvTemplate() {
+                const headers = "CodigoFazenda;Talhao;Safra;Variedade;ATR_Realizado;TCH_Realizado";
+                const exampleRow = "4012;T-01;2023;RB867515;135.2;95.5";
+                const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", "modelo_historico_safras.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            },
+            async importHistoricalHarvestFromCSV(file) {
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    const csvData = event.target.result;
+                    App.ui.setLoading(true, "A importar dados históricos...");
+                    try {
+                        const response = await fetch(`${App.config.backendUrl}/api/import/historical-harvest`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ csvData }),
+                        });
+                        const result = await response.json();
+                        if (!response.ok) {
+                            throw new Error(result.message || 'Erro no servidor');
+                        }
+                        App.ui.showAlert(result.message, 'success');
+                    } catch (error) {
+                        App.ui.showAlert(`Erro ao importar dados: ${error.message}`, 'error');
+                    } finally {
+                        App.ui.setLoading(false);
+                        App.elements.companyConfig.historicalHarvestCsvInput.value = '';
+                    }
+                };
+                reader.readAsText(file, 'ISO-8859-1');
+            },
             async importHarvestReport(file, type) {
                 if (!file) return;
         
@@ -3379,13 +3426,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         gemini: {
-            async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
+            async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...", task = null) {
                 App.ui.setLoading(true, loadingMessage);
                 try {
                     const response = await fetch(`${App.config.backendUrl}/api/gemini/generate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt, contextData }),
+                        body: JSON.stringify({ prompt, contextData, task }),
                     });
 
                     if (!response.ok) {
@@ -3509,6 +3556,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } else {
                     App.ui.showAlert("A IA não conseguiu gerar sugestões ou retornou um formato inválido.", "error");
+                }
+            },
+
+            async getAtrPrediction() {
+                const { fazenda: fazendaSelect, talhaoSelectionList, atr: atrInput } = App.elements.harvest;
+                const farmId = fazendaSelect.value;
+                if (!farmId) {
+                    App.ui.showAlert("Por favor, selecione uma fazenda primeiro.", "warning");
+                    return;
+                }
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm) return;
+
+                const selectedCheckboxes = talhaoSelectionList.querySelectorAll('input[type="checkbox"]:checked');
+                if (selectedCheckboxes.length === 0) {
+                    App.ui.showAlert("Selecione pelo menos um talhão para prever o ATR.", "warning");
+                    return;
+                }
+
+                const talhaoNames = Array.from(selectedCheckboxes).map(cb => {
+                    const talhaoId = parseInt(cb.dataset.talhaoId, 10);
+                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
+                    return talhao ? talhao.name : null;
+                }).filter(Boolean);
+
+                const prompt = `
+                    Preveja o valor do ATR (Açúcar Total Recuperável) para o(s) seguinte(s) talhão(ões).
+                    Baseie sua previsão principalmente nos dados históricos fornecidos no contexto. Considere também a variedade e a safra atual.
+                    Retorne um JSON com uma única chave, "predicted_atr", e o valor numérico previsto.
+                    Se não houver dados históricos, use seu conhecimento geral sobre as variedades de cana para fazer uma estimativa.
+                    Exemplo de Resposta: { "predicted_atr": 138.5 }
+                `;
+
+                const contextData = {
+                    codigoFazenda: farm.code,
+                    talhao: talhaoNames.join(', '),
+                    // O backend usará estes dados para buscar o histórico no Firestore
+                };
+
+                const result = await this._callGeminiAPI(prompt, contextData, "A prever ATR com IA...", "predict_atr");
+
+                if (result && result.predicted_atr && typeof result.predicted_atr === 'number') {
+                    atrInput.value = result.predicted_atr.toFixed(2);
+                    App.ui.showAlert("Previsão de ATR preenchida pela IA!", "success");
+                } else {
+                    App.ui.showAlert("A IA não conseguiu prever o ATR ou retornou um formato inválido.", "error");
                 }
             }
         },
