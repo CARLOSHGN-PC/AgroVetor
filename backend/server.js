@@ -37,10 +37,10 @@ try {
     console.log('Firebase Admin SDK inicializado com sucesso e conectado ao bucket.');
 
     // --- INICIALIZAÇÃO DA IA (GEMINI) ---
-    const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyDgIgShHS_wU2UWAMsOShHU3wIVxM4cnJk";
+    const geminiApiKey = ""; // Chave de API removida a pedido do utilizador.
     let model;
     if (!geminiApiKey) {
-        console.warn("A variável de ambiente GEMINI_API_KEY não está definida. As funcionalidades de IA não estarão disponíveis.");
+        console.warn("A funcionalidade de IA está desativada. Nenhuma chave de API foi fornecida.");
     } else {
         const genAI = new GoogleGenerativeAI(geminiApiKey);
         model = genAI.getGenerativeModel({ model: "gemini-1.5-flash"});
@@ -103,7 +103,7 @@ try {
     // ROTA PARA INGESTÃO INTELIGENTE DE RELATÓRIO HISTÓRICO
     app.post('/api/upload/historical-report', async (req, res) => {
         if (!model) {
-            return res.status(503).json({ message: "O serviço de IA não está disponível. Verifique a chave de API no servidor." });
+            return res.status(503).json({ message: "Esta funcionalidade de IA está temporariamente desativada." });
         }
         const { reportData: originalReportData } = req.body;
         if (!originalReportData) {
@@ -244,7 +244,7 @@ try {
     // --- ROTA DE GERAÇÃO DA IA (GEMINI) ---
     app.post('/api/gemini/generate', async (req, res) => {
         if (!model) {
-            return res.status(503).json({ message: "O serviço de IA não está disponível. Verifique a chave de API no servidor." });
+            return res.status(503).json({ message: "Esta funcionalidade de IA está temporariamente desativada." });
         }
         const { prompt } = req.body;
 
