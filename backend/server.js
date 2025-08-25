@@ -100,11 +100,8 @@ try {
         }
     });
 
-    // ROTA PARA INGESTÃO INTELIGENTE DE RELATÓRIO HISTÓRICO
+    // ROTA PARA INGESTÃO DE RELATÓRIO HISTÓRICO (SEM IA)
     app.post('/api/upload/historical-report', async (req, res) => {
-        if (!model) {
-            return res.status(503).json({ message: "Esta funcionalidade de IA está temporariamente desativada." });
-        }
         const { reportData: originalReportData } = req.body;
         if (!originalReportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
@@ -119,125 +116,71 @@ try {
                 const buffer = Buffer.from(base64Data, 'base64');
 
                 // Magic number check for ZIP files (XLSX, etc.)
-                // 0x50, 0x4B are the hex codes for 'P' and 'K'
                 if (buffer && buffer.length > 1 && buffer[0] === 0x50 && buffer[1] === 0x4B) {
                     const workbook = xlsx.read(buffer, { type: 'buffer' });
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
-
-                    // Converte a planilha para um array de arrays
                     const dataAsJson = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-
-                    // Constrói a string CSV com ';' como separador para manter a consistência
-                    reportText = dataAsJson.map(row =>
-                        row.map(cell => {
-                            const cellStr = String(cell);
-                            // Se a célula contém ';' ou '"', a envolve em aspas duplas
-                            if (cellStr.includes(';') || cellStr.includes('"')) {
-                                return `"${cellStr.replace(/"/g, '""')}"`;
-                            }
-                            return cell;
-                        }).join(';')
-                    ).join('\n');
-
+                    reportText = dataAsJson.map(row => row.join(';')).join('\n');
                 } else {
                     // Assume que é um arquivo de texto (csv, txt)
                     reportText = buffer.toString('utf8');
                 }
             } else {
-                // Fallback para o caso de receber texto puro
                 reportText = originalReportData;
             }
 
-            // 1. Pega uma amostra do CSV para a IA analisar
-            const lines = reportText.split('\n');
-            const sample = lines.slice(0, 5).join('\n'); // Header + 4 linhas
-
-            // 2. Pede para a IA mapear as colunas
-            const mappingPrompt = `
-                Sua tarefa é analisar uma amostra de um relatório de colheita em CSV e criar um mapeamento JSON das colunas.
-                O objetivo é mapear os cabeçalhos do relatório para um formato padrão. O separador é ';'.
-
-                Os campos padrão que eu preciso são:
-                'codigoFazenda', 'nomeFazenda', 'talhao', 'safra', 'variedade', 'atrRealizado', 'tchRealizado', e, se possível, 'toneladas' e 'area' para calcular o TCH.
-
-                Se a coluna 'tchRealizado' (Toneladas de Cana por Hectare) não existir, mas colunas para 'toneladas' e 'area' existirem, mapeie-as para que eu possa calcular o TCH (toneladas / area).
-
-                **Exemplo Principal (Formato do Cliente):**
-                Amostra: "Ano;Propriedade;Fazenda;Prev. Corte (Qz/Mês);Talhão;Área Ha (Colheita);Corte;Parte;Tmp. Cana;Encerramento;Estim. Corte;Estim. Ton;Real Cortado;Cortado Ton;Terceiros;Terceiros;ATR;Variedade Cana;Distância (Km);Muda;Replan;Irrigado"
-                Resposta JSON esperada: { "Ano": "safra", "Fazenda": "nomeFazenda", "Talhão": "talhao", "Área Ha (Colheita)": "area", "Cortado Ton": "toneladas", "ATR": "atrRealizado", "Variedade Cana": "variedade" }
-
-                **Exemplo 2 (Formato Simples):**
-                Amostra: "COD;FAZENDA;TALHÃO;VARIEDADE;CORTE;TCH;ATR"
-                Resposta JSON esperada: { "COD": "codigoFazenda", "FAZENDA": "nomeFazenda", "TALHÃO": "talhao", "VARIEDADE": "variedade", "TCH": "tchRealizado", "ATR": "atrRealizado" }
-
-                **Exemplo 3 (Nomes Abreviados):**
-                Amostra: "Cod Faz;Talhão;Area (ha);Ton. Entregue;Safra;ATR"
-                Resposta JSON esperada: { "Cod Faz": "codigoFazenda", "Talhão": "talhao", "Area (ha)": "area", "Ton. Entregue": "toneladas", "Safra": "safra", "ATR": "atrRealizado" }
-
-                Ignore colunas que não parecem relevantes para o cálculo de produtividade (ex: 'Propriedade', 'Muda', 'Replan'). Se houver colunas duplicadas como 'Terceiros', ignore-as.
-                Agora, analise a amostra real abaixo e forneça apenas o objeto JSON correspondente, sem nenhum texto adicional.
-
-                **Amostra Real:**
-                ${sample}
-            `;
-
-            const mappingResult = await model.generateContent(mappingPrompt);
-            const mappingResponse = await mappingResult.response;
-            let mappingText = mappingResponse.text().replace(/```json/g, '').replace(/```/g, '').trim();
-
-            let columnMapping;
-            try {
-                columnMapping = JSON.parse(mappingText);
-            } catch (e) {
-                console.error("Erro: A IA retornou um JSON inválido para o mapeamento de colunas.", mappingText);
-                return res.status(500).json({ message: "A IA não conseguiu entender a estrutura das colunas do seu relatório. Verifique se o arquivo é um CSV válido com cabeçalhos." });
-            }
-
-            if (!columnMapping || Object.keys(columnMapping).length === 0) {
-                console.error("Erro: O mapeamento de colunas da IA está vazio ou inválido.", columnMapping);
-                return res.status(500).json({ message: "A IA não conseguiu identificar colunas válidas no seu relatório." });
-            }
-
-            // 3. Processa o CSV completo com o mapeamento da IA
             const records = [];
-            const stream = Readable.from(reportText); // Usar o texto processado
-            stream.pipe(csv({ separator: ';', mapHeaders: ({ header }) => columnMapping[header] || null }))
-                .on('data', (data) => records.push(data))
-                .on('end', async () => {
-                    // 4. Salva em batches no Firestore
-                    const batchSize = 400;
-                    for (let i = 0; i < records.length; i += batchSize) {
-                        const batch = db.batch();
-                        const chunk = records.slice(i, i + batchSize);
+            const stream = Readable.from(reportText);
 
-                        chunk.forEach(record => {
-                            // Calcula TCH se necessário
-                            if (!record.tchRealizado && record.toneladas && record.area) {
-                                record.tchRealizado = parseFloat(record.toneladas) / parseFloat(record.area);
-                            }
-                            // Limpa e formata os dados
-                            const finalRecord = {
-                                codigoFazenda: String(record.codigoFazenda || '').trim(),
-                                talhao: record.talhao || null,
-                                safra: record.safra || null,
-                                variedade: record.variedade || null,
-                                toneladas: parseFloat(String(record.toneladas).replace(',', '.')) || 0,
-                                atrRealizado: parseFloat(String(record.atrRealizado).replace(',', '.')) || 0,
-                                tchRealizado: parseFloat(String(record.tchRealizado).replace(',', '.')) || 0,
-                                importedAt: new Date(),
-                            };
-                            const docRef = db.collection('historicalHarvests').doc();
-                            batch.set(docRef, finalRecord);
-                        });
-                        await batch.commit();
-                    }
-                    res.status(200).json({ message: `${records.length} registros históricos importados e processados com sucesso pela IA!` });
-                });
+            stream.pipe(csv({
+                separator: ';',
+                mapHeaders: ({ header }) => header.trim().toLowerCase() // Normaliza o cabeçalho
+            }))
+            .on('data', (data) => records.push(data))
+            .on('end', async () => {
+                if (records.length === 0) {
+                    return res.status(400).json({ message: "O relatório parece estar vazio ou em um formato incorreto." });
+                }
+
+                // Valida se os cabeçalhos necessários existem no primeiro registro
+                const requiredHeaders = ['codigofazenda', 'toneladas', 'atr'];
+                const firstRecordHeaders = Object.keys(records[0]);
+                const missingHeaders = requiredHeaders.filter(h => !firstRecordHeaders.includes(h));
+
+                if (missingHeaders.length > 0) {
+                    return res.status(400).json({ message: `Cabeçalhos em falta no seu relatório. É necessário ter as colunas: ${missingHeaders.join(', ')}` });
+                }
+
+                const batchSize = 400;
+                for (let i = 0; i < records.length; i += batchSize) {
+                    const batch = db.batch();
+                    const chunk = records.slice(i, i + batchSize);
+
+                    chunk.forEach(record => {
+                        const finalRecord = {
+                            codigoFazenda: String(record.codigofazenda || '').trim(),
+                            talhao: record.talhao || null,
+                            safra: record.safra || null,
+                            variedade: record.variedade || null,
+                            toneladas: parseFloat(String(record.toneladas || '0').replace(',', '.')) || 0,
+                            atrRealizado: parseFloat(String(record.atr || '0').replace(',', '.')) || 0,
+                            importedAt: new Date(),
+                        };
+
+                        if (finalRecord.codigoFazenda && finalRecord.toneladas > 0 && finalRecord.atrRealizado > 0) {
+                             const docRef = db.collection('historicalHarvests').doc();
+                             batch.set(docRef, finalRecord);
+                        }
+                    });
+                    await batch.commit();
+                }
+                res.status(200).json({ message: `${records.length} registros históricos importados com sucesso!` });
+            });
 
         } catch (error) {
-            console.error("Erro na ingestão inteligente de relatório:", error);
-            res.status(500).json({ message: 'Erro no servidor ao processar o relatório com a IA.' });
+            console.error("Erro na ingestão de relatório histórico:", error);
+            res.status(500).json({ message: 'Erro no servidor ao processar o relatório.' });
         }
     });
 
