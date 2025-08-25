@@ -1941,14 +1941,17 @@
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
-                    <h3><i class="fas fa-history"></i> Gerir Histórico de Dados da IA</h3>
-                    <p>Faça o upload de relatórios (.csv, .txt, .xlsx) para treinar a IA. Você também pode apagar todos os dados históricos para começar do zero.</p>
+                    <h3><i class="fas fa-history"></i> Gerir Histórico de Dados para Cálculo de ATR</h3>
+                    <p>Faça o upload de um relatório com o histórico de colheitas para alimentar o cálculo automático de ATR. O arquivo deve seguir o modelo fornecido.</p>
                     <div class="upload-area" id="historicalReportUploadArea">
                         <i class="fas fa-file-alt fa-2x" style="color: var(--color-purple);"></i>
                         <p>Clique ou arraste o seu relatório para aqui</p>
                     </div>
                     <input type="file" id="historicalReportInput" accept=".csv,.txt,.xlsx" style="display: none;">
-                    <button id="btnDeleteHistoricalData" class="btn-excluir" style="width: 100%; max-width: 300px; margin-top: 15px; justify-content: center;"><i class="fas fa-trash"></i> Apagar Todo o Histórico</button>
+                    <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; justify-content: center;">
+                         <button id="btnDownloadHistoricalTemplate" class="save" style="max-width: 300px; margin-top: 0; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo</button>
+                         <button id="btnDeleteHistoricalData" class="btn-excluir" style="width: 100%; max-width: 300px; margin-top: 0; justify-content: center;"><i class="fas fa-trash"></i> Apagar Todo o Histórico</button>
+                    </div>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">

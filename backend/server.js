@@ -160,14 +160,12 @@ try {
                     chunk.forEach(record => {
                         const finalRecord = {
                             codigoFazenda: String(record.codigofazenda || '').trim(),
-                            talhao: record.talhao || null,
-                            safra: record.safra || null,
-                            variedade: record.variedade || null,
                             toneladas: parseFloat(String(record.toneladas || '0').replace(',', '.')) || 0,
                             atrRealizado: parseFloat(String(record.atr || '0').replace(',', '.')) || 0,
                             importedAt: new Date(),
                         };
 
+                        // Não salva mais campos opcionais como talhao, safra, variedade
                         if (finalRecord.codigoFazenda && finalRecord.toneladas > 0 && finalRecord.atrRealizado > 0) {
                              const docRef = db.collection('historicalHarvests').doc();
                              batch.set(docRef, finalRecord);
