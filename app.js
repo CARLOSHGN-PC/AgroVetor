@@ -253,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 shapefileInput: document.getElementById('shapefileInput'),
                 historicalReportUploadArea: document.getElementById('historicalReportUploadArea'),
                 historicalReportInput: document.getElementById('historicalReportInput'),
+                btnDownloadHistoricalTemplate: document.getElementById('btnDownloadHistoricalTemplate'),
                 btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
             },
             dashboard: {
@@ -1932,6 +1933,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
 
                 // Event listeners for historical report upload
+                if (companyConfigEls.btnDownloadHistoricalTemplate) {
+                    companyConfigEls.btnDownloadHistoricalTemplate.addEventListener('click', () => App.actions.downloadHistoricalReportTemplate());
+                }
                 if (companyConfigEls.btnDeleteHistoricalData) {
                     companyConfigEls.btnDeleteHistoricalData.addEventListener('click', () => App.actions.deleteHistoricalData());
                 }
@@ -3127,6 +3131,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const link = document.createElement("a");
                 link.setAttribute("href", url);
                 link.setAttribute("download", "modelo_cadastro_fazendas.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            },
+
+            downloadHistoricalReportTemplate() {
+                const headers = "CodigoFazenda;Toneladas;ATR";
+                const exampleRow = "4012;5000;135.50";
+                const csvContent = "\uFEFF" + headers + "\n" + exampleRow;
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", "modelo_historico_atr.csv");
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
