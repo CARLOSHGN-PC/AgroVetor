@@ -218,7 +218,7 @@ try {
                             }
                             // Limpa e formata os dados
                             const finalRecord = {
-                                codigoFazenda: record.codigoFazenda || null,
+                                codigoFazenda: String(record.codigoFazenda || '').trim(),
                                 talhao: record.talhao || null,
                                 safra: record.safra || null,
                                 variedade: record.variedade || null,
@@ -275,8 +275,9 @@ try {
         }
 
         try {
+            const farmCodeStr = String(codigoFazenda || '').trim();
             const historyQuery = await db.collection('historicalHarvests')
-                .where('codigoFazenda', '==', codigoFazenda)
+                .where('codigoFazenda', '==', farmCodeStr)
                 .get();
 
             if (historyQuery.empty) {
