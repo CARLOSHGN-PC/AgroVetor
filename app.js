@@ -826,19 +826,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.resetInactivityTimer();
             },
             renderAllDynamicContent() {
-                this.populateFazendaSelects();
-                this.populateUserSelects();
-                this.populateOperatorSelects();
-                this.renderUsersList();
-                this.renderPersonnelList();
-                this.renderLogoPreview();
-                this.renderPlanejamento();
-                this.showHarvestPlanList();
-                this.populateHarvestPlanSelect();
-                
-                if (document.getElementById('dashboard').classList.contains('active')) {
-                   this.showDashboardView('broca'); 
-                }
+                const renderWithCatch = (name, fn) => {
+                    try {
+                        fn();
+                    } catch (error) {
+                        console.error(`Error rendering component: ${name}`, error);
+                        // Optionally, display a message to the user in the specific component's area
+                    }
+                };
+
+                renderWithCatch('populateFazendaSelects', () => this.populateFazendaSelects());
+                renderWithCatch('populateUserSelects', () => this.populateUserSelects());
+                renderWithCatch('populateOperatorSelects', () => this.populateOperatorSelects());
+                renderWithCatch('renderUsersList', () => this.renderUsersList());
+                renderWithCatch('renderPersonnelList', () => this.renderPersonnelList());
+                renderWithCatch('renderLogoPreview', () => this.renderLogoPreview());
+                renderWithCatch('renderPlanejamento', () => this.renderPlanejamento());
+                renderWithCatch('showHarvestPlanList', () => this.showHarvestPlanList());
+                renderWithCatch('populateHarvestPlanSelect', () => this.populateHarvestPlanSelect());
+
+                renderWithCatch('dashboard-view', () => {
+                    if (document.getElementById('dashboard').classList.contains('active')) {
+                        this.showDashboardView('broca');
+                    }
+                });
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
             showAlert(message, type = 'success', duration = 3000) {
