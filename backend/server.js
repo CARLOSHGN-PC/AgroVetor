@@ -18,7 +18,12 @@ const xlsx = require('xlsx');
 const app = express();
 const port = process.env.PORT || 3001;
 
-app.use(cors());
+const corsOptions = {
+    origin: 'https://agrovetor.store',
+    optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 
 try {
