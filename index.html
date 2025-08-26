@@ -76,7 +76,7 @@
           padding: 20px; 
       }
       
-      #loginBox { 
+      #loginBox {
           background: color-mix(in srgb, var(--color-surface) 60%, transparent);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
@@ -87,18 +87,53 @@
           width: 100%; 
           max-width: 400px; 
           text-align: center; 
-          animation: fadeIn 0.5s ease-out; 
+          animation: slideUpFadeIn 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
           position: relative; 
           overflow: hidden; 
       }
 
       #loginBox::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(to right, var(--color-primary), var(--color-accent)); }
-      @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-      #loginBox h2 { margin-bottom: 24px; color: var(--color-primary); font-weight: 600; font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 10px; }
-      .input-group { margin-bottom: 20px; text-align: left; position: relative; }
-      .input-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--color-text-light); font-size: 14px; transition: var(--transition); }
-      #loginBox input { width: 100%; padding: 14px 16px; border-radius: var(--border-radius); border: 1px solid var(--color-border); font-size: 16px; outline: none; transition: var(--transition); background-color: var(--color-bg); box-shadow: var(--shadow-sm); color: var(--color-text); }
-      #loginBox input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent); background-color: var(--color-surface); }
+      @keyframes slideUpFadeIn { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+      #loginBox h2 { margin-bottom: 30px; color: var(--color-primary); font-weight: 600; font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+
+      .input-field {
+          position: relative;
+          margin-bottom: 30px;
+      }
+
+      .input-field input {
+          width: 100%;
+          padding: 10px 5px;
+          font-size: 16px;
+          color: var(--color-text);
+          border: none;
+          border-bottom: 2px solid var(--color-border);
+          background-color: transparent;
+          outline: none;
+          transition: border-color 0.3s;
+      }
+
+      .input-field label {
+          position: absolute;
+          top: 50%;
+          left: 5px;
+          transform: translateY(-50%);
+          color: var(--color-text-light);
+          font-size: 16px;
+          pointer-events: none;
+          transition: all 0.3s ease;
+      }
+
+      .input-field input:focus + label,
+      .input-field input:not(:placeholder-shown) + label {
+          top: -10px;
+          font-size: 12px;
+          color: var(--color-primary);
+      }
+
+      .input-field input:focus {
+          border-bottom-color: var(--color-primary);
+      }
       #btnLogin { margin-top: 24px; width: 100%; padding: 16px; background: linear-gradient(to right, var(--color-primary), var(--color-accent)); color: var(--color-white); border: none; border-radius: var(--border-radius); font-weight: 600; font-size: 16px; cursor: pointer; transition: var(--transition); display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: var(--shadow-md); position: relative; overflow: hidden; }
       #btnLogin:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
       #loginMessage { color: var(--color-danger); min-height: 20px; margin-top: 16px; font-size: 14px; font-weight: 500; transition: var(--transition); }
@@ -1267,13 +1302,13 @@
         <div id="loginBox" role="main" aria-label="Tela de login">
             <div id="loginForm">
                 <h2><i class="fas fa-leaf"></i> AGROVETOR</h2>
-                <div class="input-group">
+                <div class="input-field">
+                    <input id="loginUser" type="email" placeholder=" " required />
                     <label for="loginUser">Email</label>
-                    <input id="loginUser" type="email" placeholder="Digite o seu email" aria-label="Campo email" />
                 </div>
-                <div class="input-group">
+                <div class="input-field">
+                    <input id="loginPass" type="password" placeholder=" " required />
                     <label for="loginPass">Senha</label>
-                    <input id="loginPass" type="password" placeholder="Digite a sua senha" aria-label="Campo senha" />
                 </div>
                 <button id="btnLogin" aria-label="Botão de login"><i class="fas fa-sign-in-alt"></i> LOGIN</button>
                 <div id="loginMessage" role="alert" aria-live="assertive"></div>
