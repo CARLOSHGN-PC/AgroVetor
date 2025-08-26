@@ -1154,16 +1154,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.perda.codigo,
                     App.elements.relatorioMonitoramento.fazendaFiltro
                 ];
+
+                const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
+
                 selects.forEach(select => {
                     if (!select) return;
                     const currentValue = select.value;
-                    select.innerHTML = '<option value="">Selecione...</option>';
-                    if(select.id.includes('Filtro')) {
-                        select.innerHTML = '<option value="">Todas</option>';
+                    let firstOption = '<option value="">Selecione...</option>';
+                    if (select.id.includes('Filtro')) {
+                        firstOption = '<option value="">Todas</option>';
                     }
-                    App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
+                    select.innerHTML = firstOption;
+
+                    let farmsToShow = App.state.fazendas;
+
+                    if (select.id === 'harvestFazenda') {
+                        farmsToShow = App.state.fazendas.filter(farm => {
+                            if (!farm.talhoes || farm.talhoes.length === 0) {
+                                return false;
+                            }
+                            const hasAvailablePlot = farm.talhoes.some(talhao => !unavailableTalhaoIds.has(talhao.id));
+                            return hasAvailablePlot;
+                        });
+                    }
+
+                    farmsToShow.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
                         select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
                     });
+
                     select.value = currentValue;
                 });
             },
@@ -2335,6 +2353,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         
                 return assignedIds;
+            },
+            getUnavailableTalhaoIds() {
+                const unavailableIds = new Set();
+                const allPlans = App.state.harvestPlans || [];
+
+                allPlans.forEach(plan => {
+                    const closedIdsInThisPlan = new Set(plan.closedTalhaoIds || []);
+                    (plan.sequence || []).forEach(group => {
+                        (group.plots || []).forEach(plot => {
+                            if (!closedIdsInThisPlan.has(plot.talhaoId)) {
+                                unavailableIds.add(plot.talhaoId);
+                            }
+                        });
+                    });
+                });
+                return unavailableIds;
             },
             async saveFarm() {
                 const { farmCode, farmName, farmTypeCheckboxes } = App.elements.cadastros;
