@@ -225,18 +225,19 @@ try {
                 return res.status(200).json({ predicted_atr: 0, message: "Sem histórico para esta fazenda." });
             }
 
-            let totalAtrPonderado = 0;
-            let totalToneladas = 0;
+            const historicalData = [];
+            historyQuery.forEach(doc => historicalData.push(doc.data()));
 
-            historyQuery.forEach(doc => {
-                const data = doc.data();
+            const { totalAtrPonderado, totalToneladas } = historicalData.reduce((acc, data) => {
                 const atr = parseFloat(String(data.atrRealizado).replace(',', '.')) || 0;
                 const toneladas = parseFloat(String(data.toneladas).replace(',', '.')) || 0;
+
                 if (atr > 0 && toneladas > 0) {
-                    totalAtrPonderado += atr * toneladas;
-                    totalToneladas += toneladas;
+                    acc.totalAtrPonderado += atr * toneladas;
+                    acc.totalToneladas += toneladas;
                 }
-            });
+                return acc;
+            }, { totalAtrPonderado: 0, totalToneladas: 0 });
 
             const predicted_atr = totalToneladas > 0 ? totalAtrPonderado / totalToneladas : 0;
 
