@@ -1540,7 +1540,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Talhões" class="talhao-list-cell">${group.plots.map(p => p.talhaoName).join(', ')}</td>
                         <td data-label="Área (ha)">${areaColhida.toFixed(2)} / ${group.totalArea.toFixed(2)}</td>
                         <td data-label="Prod. (ton)">${producaoColhida.toFixed(2)} / ${group.totalProducao.toFixed(2)}</td>
-                        <td data-label="ATR"><span class="editable-atr" data-id="${group.id}">${group.atr || 'N/A'}</span></td>
+                        <td data-label="ATR"><span>${group.atr || 'N/A'}</span></td>
                         <td data-label="Idade (m)">${idadeMediaMeses}</td>
                         <td data-label="Maturador">${group.maturador || 'N/A'}</td>
                         <td data-label="Dias Aplic.">${diasAplicacao}</td>
@@ -2036,7 +2036,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         const editBtn = e.target.closest('button[data-action="edit-harvest-group"]');
                         if(editBtn) App.actions.editHarvestSequenceGroup(editBtn.dataset.id);
                         const atrSpan = e.target.closest('.editable-atr');
-                        if (atrSpan) App.actions.editHarvestSequenceATR(atrSpan.dataset.id);
+                        if (atrSpan) {
+                            // A função de edição foi removida a pedido.
+                        }
                     });
                     [harvestEls.frontName, harvestEls.startDate, harvestEls.dailyRate].forEach(el => {
                         if(el) el.addEventListener('input', () => App.actions.updateActiveHarvestPlanDetails())
@@ -2835,17 +2837,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Grupo removido da sequência.', 'info');
                 });
             },
-            editHarvestSequenceATR(groupId) {
-                if (!App.state.activeHarvestPlan) return;
-                const group = App.state.activeHarvestPlan.sequence.find(g => g.id == groupId);
-                if (!group) return;
-
-                const newATR = prompt(`Editar ATR para a fazenda ${group.fazendaName}:`, group.atr);
-                if (newATR !== null && !isNaN(parseFloat(newATR))) {
-                    group.atr = parseFloat(newATR);
-                    App.ui.renderHarvestSequence();
-                }
-            },
             reorderHarvestSequence(draggedId, targetId) {
                 if (!App.state.activeHarvestPlan) return;
                 const sequence = App.state.activeHarvestPlan.sequence;
@@ -3603,7 +3594,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     atrInput.placeholder = 'Erro ao calcular';
                 } finally {
                     if(atrSpinner) atrSpinner.style.display = 'none';
-                    atrInput.readOnly = false;
                 }
             },
         },
