@@ -1169,7 +1169,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     let farmsToShow = App.state.fazendas;
 
                     if (select.id === 'harvestFazenda') {
+                        const editingGroupId = App.elements.harvest.editingGroupId.value;
+                        let farmOfEditedGroup = null;
+
+                        if (editingGroupId && App.state.activeHarvestPlan) {
+                            const editedGroup = App.state.activeHarvestPlan.sequence.find(g => g.id == editingGroupId);
+                            if (editedGroup) {
+                                farmOfEditedGroup = App.state.fazendas.find(f => f.code === editedGroup.fazendaCodigo);
+                            }
+                        }
+
                         farmsToShow = App.state.fazendas.filter(farm => {
+                            if (farmOfEditedGroup && farm.id === farmOfEditedGroup.id) {
+                                return true; // Always show the farm being edited.
+                            }
                             if (!farm.talhoes || farm.talhoes.length === 0) {
                                 return false;
                             }
@@ -2721,6 +2734,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dailyRate.value = App.state.activeHarvestPlan.dailyRate;
 
                 App.ui.renderHarvestSequence();
+                App.ui.populateFazendaSelects();
                 this.cancelEditSequence();
             },
             updateActiveHarvestPlanDetails() {
@@ -2873,6 +2887,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     App.ui.renderHarvestSequence();
+                    App.ui.populateFazendaSelects();
                     App.actions.cancelEditSequence();
                     App.ui.showAlert('Grupo removido da sequência.', 'info');
                 });
