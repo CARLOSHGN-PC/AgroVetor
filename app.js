@@ -1300,10 +1300,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 
-                const allAssignedTalhaoIds = App.actions.getAssignedTalhaoIds(editingGroupId.value);
+                const allUnavailableTalhaoIds = App.actions.getUnavailableTalhaoIds({ editingGroupId: editingGroupId.value });
                 const closedTalhaoIds = new Set(App.state.activeHarvestPlan?.closedTalhaoIds || []);
                 
-                const availableTalhoes = farm.talhoes.filter(t => !allAssignedTalhaoIds.has(t.id));
+                const availableTalhoes = farm.talhoes.filter(t => !allUnavailableTalhaoIds.has(t.id));
         
                 const talhoesToShow = [...availableTalhoes];
                 if (plotIdsToCheck.length > 0) {
@@ -2333,31 +2333,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            getAssignedTalhaoIds(editingGroupId = null) {
-                const assignedIds = new Set();
-                const allPlans = App.state.harvestPlans;
-        
-                allPlans.forEach(plan => {
-                    if (App.state.activeHarvestPlan && plan.id === App.state.activeHarvestPlan.id) {
-                        plan.sequence.forEach(group => {
-                            if (editingGroupId && group.id == editingGroupId) {
-                                return;
-                            }
-                            group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                        });
-                    } else {
-                        plan.sequence.forEach(group => {
-                            group.plots.forEach(plot => assignedIds.add(plot.talhaoId));
-                        });
-                    }
-                });
-        
-                return assignedIds;
-            },
-            getUnavailableTalhaoIds() {
+            getUnavailableTalhaoIds(options = {}) {
+                const { editingGroupId = null } = options;
                 const unavailableIds = new Set();
                 const allPlans = App.state.harvestPlans || [];
 
+                // 1. Get plots from all saved plans.
                 allPlans.forEach(plan => {
                     const closedIdsInThisPlan = new Set(plan.closedTalhaoIds || []);
                     (plan.sequence || []).forEach(group => {
@@ -2368,6 +2349,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     });
                 });
+
+                // 2. Add plots from the current unsaved plan's sequence in the UI.
+                if (App.state.activeHarvestPlan && App.state.activeHarvestPlan.sequence) {
+                    App.state.activeHarvestPlan.sequence.forEach(group => {
+                        // If editing, exclude the group being edited so its plots can be re-selected.
+                        if (editingGroupId && group.id == editingGroupId) {
+                            return;
+                        }
+                        (group.plots || []).forEach(plot => {
+                            unavailableIds.add(plot.talhaoId);
+                        });
+                    });
+                }
+
                 return unavailableIds;
             },
             async saveFarm() {
