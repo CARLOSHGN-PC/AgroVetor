@@ -2059,6 +2059,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             cb.checked = isChecked;
                         }
                     });
+                    if (isChecked) {
+                        App.elements.harvest.btnAddOrUpdate.click();
+                    }
                 });
 
                 if (harvestEls.btnAddOrUpdate) harvestEls.btnAddOrUpdate.addEventListener('click', () => App.actions.addOrUpdateHarvestSequence());
@@ -2827,13 +2830,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 
-                if (App.state.activeHarvestPlan.id) {
-                    const planInList = App.state.harvestPlans.find(p => p.id === App.state.activeHarvestPlan.id);
-                    if (planInList) {
-                        planInList.sequence = App.state.activeHarvestPlan.sequence;
-                    }
-                }
-                
                 App.ui.renderHarvestSequence();
                 this.cancelEditSequence();
             },
@@ -2844,7 +2840,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!group) return;
 
                 editingGroupId.value = group.id;
+
+                // Garante que o select da fazenda é populado com a fazenda a ser editada incluída
+                App.ui.populateFazendaSelects();
+
                 const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
+
+                // Define o valor do select APÓS ter sido populado
                 fazenda.value = farm ? farm.id : "";
                 fazenda.disabled = true;
                 atr.value = group.atr;
