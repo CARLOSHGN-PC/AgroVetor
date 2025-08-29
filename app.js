@@ -1479,7 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const dataPlano = new Date(plano.dataPrevista + 'T03:00:00Z');
                     if (plano.status === 'Pendente' && dataPlano < hoje) { status = 'Atrasado'; }
                     const fazenda = App.state.fazendas.find(f => f.code === plano.fazendaCodigo);
-                    const fazendaNome = fazenda ? `${fazenda.code} - ${farm.name}` : 'Desconhecida';
+                    const fazendaNome = fazenda ? `${fazenda.code} - ${fazenda.name}` : 'Desconhecida';
                     const card = document.createElement('div'); card.className = 'plano-card';
                     card.innerHTML = `<div class="plano-header"><span class="plano-title"><i class="fas fa-${plano.tipo === 'broca' ? 'bug' : 'dollar-sign'}"></i> ${fazendaNome} - Talhão: ${plano.talhao}</span><span class="plano-status ${status.toLowerCase()}">${status}</span></div><div class="plano-details"><div><i class="fas fa-calendar-day"></i> Data Prevista: ${dataPlano.toLocaleDateString('pt-BR')}</div><div><i class="fas fa-user-check"></i> Responsável: ${plano.usuarioResponsavel}</div>${plano.meta ? `<div><i class="fas fa-bullseye"></i> Meta: ${plano.meta}</div>` : ''}</div>${plano.observacoes ? `<div style="margin-top:8px;font-size:14px;"><i class="fas fa-info-circle"></i> Obs: ${plano.observacoes}</div>` : ''}<div class="plano-actions">${status !== 'Concluído' ? `<button class="btn-excluir" style="background-color: var(--color-success)" data-action="concluir" data-id="${plano.id}"><i class="fas fa-check"></i> Marcar Concluído</button>` : ''}<button class="btn-excluir" data-action="excluir" data-id="${plano.id}"><i class="fas fa-trash"></i> Excluir</button></div>`;
                     lista.appendChild(card);
