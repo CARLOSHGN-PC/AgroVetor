@@ -1,4 +1,24 @@
-const CACHE_NAME = 'agrovetor-cache-v5'; // Incrementei a versão para forçar a atualização do cache
+const CACHE_NAME = 'agrovetor-cache-v5';
+const TILE_CACHE_NAME = 'agrovetor-tile-cache-v1';
+// [NOVO] Limite máximo de tiles a serem armazenados em cache
+const MAX_TILES_IN_CACHE = 2000;
+
+// [NOVO] Função para limitar o tamanho do cache de tiles
+const trimCache = (cacheName, maxItems) => {
+  caches.open(cacheName).then(cache => {
+    cache.keys().then(keys => {
+      if (keys.length > maxItems) {
+        // Deleta os itens mais antigos para manter o cache no tamanho definido
+        const itemsToDelete = keys.slice(0, keys.length - maxItems);
+        Promise.all(itemsToDelete.map(key => cache.delete(key)))
+          .then(() => {
+            console.log(`Cache ${cacheName} enxugado. ${itemsToDelete.length} itens deletados.`);
+          });
+      }
+    });
+  });
+};
+
 const urlsToCache = [
   './', // Caminho relativo para a raiz do projeto
   './index.html',
@@ -12,10 +32,8 @@ const urlsToCache = [
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
-  // [NOVO] Adicionadas bibliotecas do mapa para cache offline
   'https://unpkg.com/shpjs@latest/dist/shp.js',
   'https://unpkg.com/idb@7.1.1/build/index.js',
-  // [NOVO] Adicionadas bibliotecas do Firebase para cache offline
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
@@ -34,9 +52,9 @@ self.addEventListener('install', event => {
   );
 });
 
-// Evento de ativação: limpa caches antigos
+// Evento de ativação: limpa caches antigos e assume o controle
 self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
+  const cacheWhitelist = [CACHE_NAME, TILE_CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
@@ -47,21 +65,46 @@ self.addEventListener('activate', event => {
           }
         })
       );
+    }).then(() => {
+        console.log('Service worker ativado e assumindo controle.');
+        return self.clients.claim();
     })
   );
 });
 
-// Evento de fetch: intercepta as requisições com estratégia Stale-While-Revalidate
+// Evento de fetch: intercepta as requisições
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
     return;
   }
 
-  // Estratégia para a API do Google Maps: apenas rede, pois não pode ser cacheada.
-  if (event.request.url.includes('maps.googleapis.com')) {
-      return;
+  const url = new URL(event.request.url);
+
+  // Estratégia para os TILEs do Google Maps (Cache First com Limpeza)
+  if (url.hostname.endsWith('mt.google.com') || (url.hostname.endsWith('.google.com') && url.pathname.includes('/kh/v='))) {
+    event.respondWith(
+      caches.open(TILE_CACHE_NAME).then(cache => {
+        return cache.match(event.request).then(response => {
+          if (response) {
+            return response;
+          }
+          return fetch(event.request).then(networkResponse => {
+            if (networkResponse && networkResponse.status === 200) {
+              const responseToCache = networkResponse.clone();
+              // [MODIFICADO] Adiciona o tile e depois verifica o tamanho do cache
+              cache.put(event.request, responseToCache).then(() => {
+                trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
+              });
+            }
+            return networkResponse;
+          });
+        });
+      })
+    );
+    return;
   }
 
+  // Estratégia Stale-While-Revalidate para o resto
   event.respondWith(
     caches.open(CACHE_NAME).then(cache => {
       return cache.match(event.request).then(response => {
@@ -71,9 +114,8 @@ self.addEventListener('fetch', event => {
           }
           return networkResponse;
         }).catch(err => {
-            console.log('Fetch falhou; usando cache se disponível.', err);
+          console.warn('Fetch falhou; usando cache se disponível.', event.request.url, err);
         });
-
         return response || fetchPromise;
       });
     })
