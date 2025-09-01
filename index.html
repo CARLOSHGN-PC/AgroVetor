@@ -2025,9 +2025,6 @@
             <div id="map-container">
                 <div id="map"></div>
                 <div class="map-controls">
-                        <button id="btnShowHistoryPanel" class="map-control-btn" title="Mostrar Painel de Histórico" style="display: none; background-color: var(--color-purple); color: white;">
-                            <i class="fas fa-route"></i>
-                        </button>
                     <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
                         <i class="fas fa-location-arrow"></i>
                     </button>
@@ -2035,32 +2032,6 @@
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
-                    <div id="history-controls" class="info-box" style="top: 15px; left: 15px; width: 320px; transform: none; display: none;">
-                        <div class="info-title" style="color: var(--color-purple); justify-content: space-between;">
-                            <div>
-                                <i class="fas fa-route"></i>
-                                <span>Histórico de Trajeto</span>
-                            </div>
-                            <button id="btnCloseHistoryPanel" class="modal-close-btn" style="position: static; transform: none; font-size: 28px;">&times;</button>
-                        </div>
-                        <div style="padding: 15px 20px;">
-                            <label for="historyUserSelect" class="required">Colaborador:</label>
-                            <select id="historyUserSelect"></select>
-                            <div class="form-row" style="gap: 10px; margin-bottom: 0;">
-                                <div class="form-col">
-                                    <label for="historyStartDateInput" class="required" style="font-size: 13px;">Data Início:</label>
-                                    <input type="date" id="historyStartDateInput">
-                                </div>
-                                <div class="form-col">
-                                    <label for="historyEndDateInput" class="required" style="font-size: 13px;">Data Fim:</label>
-                                    <input type="date" id="historyEndDateInput">
-                                </div>
-                            </div>
-                            <button id="btnViewHistory" class="save" style="width: 100%; margin-top: 15px; background: var(--color-purple);">
-                                <i class="fas fa-search-location"></i> Ver Trajeto
-                            </button>
-                        </div>
-                    </div>
                 <div id="talhao-info-box" class="info-box">
                     <button id="close-info-box" class="modal-close-btn">&times;</button>
                     <div id="talhao-info-box-content"></div>
