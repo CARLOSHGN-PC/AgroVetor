@@ -508,7 +508,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
                 historyControls: document.getElementById('history-controls'),
                 historyUserSelect: document.getElementById('historyUserSelect'),
-                historyDateInput: document.getElementById('historyDateInput'),
+                historyStartDateInput: document.getElementById('historyStartDateInput'),
+                historyEndDateInput: document.getElementById('historyEndDateInput'),
                 btnViewHistory: document.getElementById('btnViewHistory'),
             },
             relatorioMonitoramento: {
@@ -4714,9 +4715,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                 }
 
-                const dateInput = App.elements.monitoramentoAereo.historyDateInput;
-                if (dateInput) {
-                    dateInput.value = new Date().toISOString().split('T')[0];
+                const startDateInput = App.elements.monitoramentoAereo.historyStartDateInput;
+                const endDateInput = App.elements.monitoramentoAereo.historyEndDateInput;
+                if (startDateInput && endDateInput) {
+                    const today = new Date().toISOString().split('T')[0];
+                    startDateInput.value = today;
+                    endDateInput.value = today;
                 }
 
                 // Ouve as localizações em tempo real
@@ -4749,25 +4753,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const userId = App.elements.monitoramentoAereo.historyUserSelect.value;
-                const date = App.elements.monitoramentoAereo.historyDateInput.value;
+                const startDate = App.elements.monitoramentoAereo.historyStartDateInput.value;
+                const endDate = App.elements.monitoramentoAereo.historyEndDateInput.value;
 
                 if (!userId) {
                     App.ui.showAlert("Por favor, selecione um colaborador.", "warning");
                     return;
                 }
-                if (!date) {
-                    App.ui.showAlert("Por favor, selecione uma data.", "warning");
+                if (!startDate || !endDate) {
+                    App.ui.showAlert("Por favor, selecione a data de início e fim.", "warning");
+                    return;
+                }
+                if (startDate > endDate) {
+                    App.ui.showAlert("A data de início não pode ser posterior à data de fim.", "error");
                     return;
                 }
 
-                App.ui.setLoading(true, "A procurar histórico...");
+                App.ui.setLoading(true, "A procurar histórico do período...");
 
-                const docId = `${userId}_${date}`;
                 try {
-                    const historyDoc = await App.data.getDocument('user_location_history', docId);
+                    const q = query(collection(db, 'user_location_history'),
+                                  where('userId', '==', userId),
+                                  where('date', '>=', startDate),
+                                  where('date', '<=', endDate));
 
-                    if (historyDoc && historyDoc.path_points && historyDoc.path_points.length > 1) {
-                        const pathCoordinates = historyDoc.path_points.map(p => ({ lat: p.lat, lng: p.lng }));
+                    const querySnapshot = await getDocs(q);
+
+                    let allPathPoints = [];
+                    querySnapshot.forEach(doc => {
+                        const data = doc.data();
+                        if (data.path_points) {
+                            allPathPoints.push(...data.path_points);
+                        }
+                    });
+
+                    if (allPathPoints.length > 1) {
+                        // Sort points chronologically
+                        allPathPoints.sort((a, b) => a.timestamp.toMillis() - b.timestamp.toMillis());
+
+                        const pathCoordinates = allPathPoints.map(p => ({ lat: p.lat, lng: p.lng }));
 
                         const historicalPath = new google.maps.Polyline({
                             path: pathCoordinates,
@@ -4784,10 +4808,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         pathCoordinates.forEach(point => bounds.extend(point));
                         App.state.googleMap.fitBounds(bounds);
 
-                        App.ui.showAlert("Trajeto carregado com sucesso.", "success");
+                        App.ui.showAlert(`${querySnapshot.size} dia(s) de trajeto carregado(s) com sucesso.`, "success");
 
                     } else {
-                        App.ui.showAlert("Nenhum histórico de trajeto encontrado para este colaborador nesta data.", "info");
+                        App.ui.showAlert("Nenhum histórico de trajeto encontrado para este colaborador neste período.", "info");
                     }
                 } catch (error) {
                     console.error("Erro ao procurar histórico de trajeto:", error);
