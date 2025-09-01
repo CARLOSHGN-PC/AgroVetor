@@ -2025,6 +2025,9 @@
             <div id="map-container">
                 <div id="map"></div>
                 <div class="map-controls">
+                        <button id="btnShowHistoryPanel" class="map-control-btn" title="Mostrar Painel de Histórico" style="display: none; background-color: var(--color-purple); color: white;">
+                            <i class="fas fa-route"></i>
+                        </button>
                     <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
                         <i class="fas fa-location-arrow"></i>
                     </button>
@@ -2033,9 +2036,12 @@
                     </button>
                 </div>
                     <div id="history-controls" class="info-box" style="top: 15px; left: 15px; width: 320px; transform: none; display: none;">
-                        <div class="info-title" style="color: var(--color-purple);">
-                            <i class="fas fa-route"></i>
-                            <span>Histórico de Trajeto</span>
+                        <div class="info-title" style="color: var(--color-purple); justify-content: space-between;">
+                            <div>
+                                <i class="fas fa-route"></i>
+                                <span>Histórico de Trajeto</span>
+                            </div>
+                            <button id="btnCloseHistoryPanel" class="modal-close-btn" style="position: static; transform: none; font-size: 28px;">&times;</button>
                         </div>
                         <div style="padding: 15px 20px;">
                             <label for="historyUserSelect" class="required">Colaborador:</label>
