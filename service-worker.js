@@ -1,4 +1,22 @@
-const CACHE_NAME = 'agrovetor-cache-v6'; // Incremented version to force update
+const CACHE_NAME = 'agrovetor-cache-v7'; // Incremented version
+const TILE_CACHE_NAME = 'agrovetor-tile-cache-v1';
+const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
+
+// Helper function to limit the size of the tile cache
+const trimCache = (cacheName, maxItems) => {
+  caches.open(cacheName).then(cache => {
+    cache.keys().then(keys => {
+      if (keys.length > maxItems) {
+        // Delete the oldest items to keep the cache at the defined size
+        const itemsToDelete = keys.slice(0, keys.length - maxItems);
+        Promise.all(itemsToDelete.map(key => cache.delete(key)))
+          .then(() => {
+            console.log(`Cache ${cacheName} trimmed. ${itemsToDelete.length} items deleted.`);
+          });
+      }
+    });
+  });
+};
 
 const urlsToCache = [
   './',
@@ -35,7 +53,7 @@ self.addEventListener('install', event => {
 
 // Activate event: clean up old caches and take control
 self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
+  const cacheWhitelist = [CACHE_NAME, TILE_CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
@@ -59,24 +77,47 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Use a Stale-While-Revalidate strategy for all assets.
-  // This serves content from cache immediately if available, providing a fast experience,
-  // but also fetches an updated version from the network in the background for next time.
+  const url = new URL(event.request.url);
+
+  // Strategy for Google Maps satellite TILEs (Cache First with trimming)
+  // The path '/kh/v=' is specific to satellite imagery (Keyhole).
+  if (url.hostname.endsWith('.google.com') && url.pathname.includes('/kh/v=')) {
+    event.respondWith(
+      caches.open(TILE_CACHE_NAME).then(cache => {
+        return cache.match(event.request).then(response => {
+          // If we have a cached response, return it.
+          if (response) {
+            return response;
+          }
+          // Otherwise, fetch from the network.
+          return fetch(event.request).then(networkResponse => {
+            // For third-party tiles, we can't check the status (opaque response),
+            // so we trust it and put it in the cache. The cache trimming will handle potential issues.
+            const responseToCache = networkResponse.clone();
+            cache.put(event.request, responseToCache).then(() => {
+              trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
+            });
+            return networkResponse;
+          });
+        });
+      })
+    );
+    return; // End execution for this request
+  }
+
+  // Stale-While-Revalidate strategy for all other requests
   event.respondWith(
     caches.open(CACHE_NAME).then(cache => {
       return cache.match(event.request).then(response => {
         const fetchPromise = fetch(event.request).then(networkResponse => {
-          // Check if we received a valid response
           if (networkResponse && networkResponse.status === 200) {
             cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
         }).catch(err => {
           console.warn('Fetch failed; using cache if available.', event.request.url, err);
-          // If fetch fails (e.g., offline), the cached response (if it exists) will be used.
         });
-
-        // Return the cached response immediately if it exists, otherwise wait for the network.
+        // Return cached response immediately if available, otherwise wait for the network.
         return response || fetchPromise;
       });
     })
