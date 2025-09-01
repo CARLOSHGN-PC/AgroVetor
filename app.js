@@ -4126,10 +4126,156 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="label">Área Total</span>
                         <span class="value">${(typeof areaHa === 'number' ? areaHa : 0).toFixed(2).replace('.',',')} ha</span>
                     </div>
+                    <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
+                        <button class="btn-download-map save" style="width: 100%;">
+                            <i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline
+                        </button>
+                    </div>
+                    <div class="download-progress-container" style="display: none; padding: 0 20px 20px 20px;">
+                        <p class="download-progress-text" style="margin-bottom: 5px; font-size: 14px; color: var(--color-text-light);"></p>
+                        <progress class="download-progress-bar" value="0" max="100" style="width: 100%;"></progress>
+                    </div>
                 `;
+
+                // Adiciona o listener para o novo botão
+                contentEl.querySelector('.btn-download-map').addEventListener('click', () => {
+                    App.mapModule.startOfflineMapDownload(feature);
+                });
                 
                 this.hideTrapInfo();
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
+            },
+
+            tileMath: {
+                project(lat, lng) {
+                    let siny = Math.sin(lat * Math.PI / 180);
+                    siny = Math.min(Math.max(siny, -0.9999), 0.9999);
+                    return {
+                        x: 256 * (0.5 + lng / 360),
+                        y: 256 * (0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI))
+                    };
+                },
+                getTileUrlsForGeometry(geometry, minZoom, maxZoom) {
+                    const urls = [];
+                    const bounds = new google.maps.LatLngBounds();
+                    // Assumindo que a geometria é um polígono ou multipolígono do Google Maps
+                    geometry.getArray().forEach(path => {
+                        path.getArray().forEach(latlng => bounds.extend(latlng));
+                    });
+
+                    const sw = bounds.getSouthWest();
+                    const ne = bounds.getNorthEast();
+
+                    for (let z = minZoom; z <= maxZoom; z++) {
+                        const scale = 1 << z;
+                        const nwPoint = this.project(ne.lat(), sw.lng());
+                        const sePoint = this.project(sw.lat(), ne.lng());
+
+                        const startTile = {
+                            x: Math.floor(nwPoint.x * scale / 256),
+                            y: Math.floor(nwPoint.y * scale / 256)
+                        };
+                        const endTile = {
+                            x: Math.floor(sePoint.x * scale / 256),
+                            y: Math.floor(sePoint.y * scale / 256)
+                        };
+
+                        for (let x = startTile.x; x <= endTile.x; x++) {
+                            for (let y = startTile.y; y <= endTile.y; y++) {
+                                const url = `https://kh.google.com/kh/v=979&x=${x}&y=${y}&z=${z}`;
+                                urls.push(url);
+                            }
+                        }
+                    }
+                    return urls;
+                }
+            },
+
+            startOfflineMapDownload(feature) {
+                const infoBox = App.elements.monitoramentoAereo.infoBox;
+                const downloadBtn = infoBox.querySelector('.btn-download-map');
+                const progressContainer = infoBox.querySelector('.download-progress-container');
+
+                downloadBtn.disabled = true;
+                downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> A calcular tiles...';
+                progressContainer.style.display = 'none';
+
+                setTimeout(() => {
+                    try {
+                        const geometry = feature.getGeometry();
+                        const minZoom = 14;
+                        const maxZoom = 18;
+
+                        const urls = this.tileMath.getTileUrlsForGeometry(geometry, minZoom, maxZoom);
+
+                        if (urls.length === 0) throw new Error("Não foi possível calcular os tiles para esta área.");
+                        if (urls.length > 5000) throw new Error(`Área muito grande (${urls.length} tiles). Por favor, selecione uma área menor.`);
+
+                        this.downloadTiles(urls);
+
+                    } catch (error) {
+                        console.error("Erro ao calcular tiles para download:", error);
+                        App.ui.showAlert(error.message, "error", 5000);
+                        downloadBtn.disabled = false;
+                        downloadBtn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline';
+                    }
+                }, 100);
+            },
+
+            async downloadTiles(urls) {
+                const infoBox = App.elements.monitoramentoAereo.infoBox;
+                const downloadBtn = infoBox.querySelector('.btn-download-map');
+                const progressContainer = infoBox.querySelector('.download-progress-container');
+                const progressText = infoBox.querySelector('.download-progress-text');
+                const progressBar = infoBox.querySelector('.download-progress-bar');
+
+                downloadBtn.style.display = 'none';
+                progressContainer.style.display = 'block';
+
+                let downloadedCount = 0;
+                const totalTiles = urls.length;
+                const batchSize = 10;
+                let errors = 0;
+
+                progressBar.max = totalTiles;
+                progressBar.value = 0;
+                progressText.textContent = `Iniciando download de ${totalTiles} tiles...`;
+
+                for (let i = 0; i < totalTiles; i += batchSize) {
+                    const batch = urls.slice(i, i + batchSize);
+
+                    await Promise.all(batch.map(url =>
+                        fetch(url)
+                            .then(response => {
+                                if (!response.ok && response.status !== 0) {
+                                    errors++;
+                                }
+                            })
+                            .catch(() => errors++)
+                            .finally(() => downloadedCount++)
+                    ));
+
+                    progressBar.value = downloadedCount;
+                    progressText.textContent = `Baixando... ${downloadedCount} de ${totalTiles}`;
+
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                }
+
+                progressText.textContent = `Download concluído! ${totalTiles - errors} tiles salvos.`;
+                progressBar.value = downloadedCount;
+
+                if (errors > 0) {
+                    App.ui.showAlert(`${errors} tiles não puderam ser baixados.`, 'warning');
+                } else {
+                    App.ui.showAlert('Mapa da área salvo com sucesso!', 'success');
+                }
+
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    downloadBtn.style.display = 'block';
+                    downloadBtn.disabled = false;
+                    downloadBtn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Baixar Novamente';
+                }, 5000);
             },
 
             hideTalhaoInfo() {
