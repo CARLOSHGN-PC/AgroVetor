@@ -1211,7 +1211,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             populateUserSelects() {
-                const selects = [App.elements.planejamento.responsavel, App.elements.history.userSelect];
+                const selects = [App.elements.planejamento.responsavel, App.elements.historyFilterModal.userSelect];
                 selects.forEach(select => {
                     if (!select) return;
                     const currentValue = select.value;
@@ -2230,7 +2230,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 window.addEventListener('online', () => App.actions.syncOfflineWrites());
-                if (App.elements.history.btnView) App.elements.history.btnView.addEventListener('click', () => App.actions.viewHistory());
 
                 const historyModal = App.elements.historyFilterModal;
                 if (historyModal.overlay) historyModal.overlay.addEventListener('click', e => { if(e.target === historyModal.overlay) this.hideHistoryFilterModal(); });
