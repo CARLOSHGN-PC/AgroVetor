@@ -299,6 +299,64 @@ try {
         }
     });
 
+    app.post('/api/track', async (req, res) => {
+        const { userId, latitude, longitude } = req.body;
+
+        if (!userId || latitude === undefined || longitude === undefined) {
+            return res.status(400).json({ message: 'userId, latitude e longitude são obrigatórios.' });
+        }
+
+        try {
+            await db.collection('locationHistory').add({
+                userId: userId,
+                location: new admin.firestore.GeoPoint(parseFloat(latitude), parseFloat(longitude)),
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
+            });
+            res.status(200).send({ message: 'Localização registrada com sucesso.' });
+        } catch (error) {
+            console.error("Erro ao registrar localização:", error);
+            res.status(500).json({ message: 'Erro no servidor ao registrar localização.' });
+        }
+    });
+
+    app.get('/api/history', async (req, res) => {
+        const { userId, startDate, endDate } = req.query;
+
+        if (!userId || !startDate || !endDate) {
+            return res.status(400).json({ message: 'userId, startDate e endDate são obrigatórios.' });
+        }
+
+        try {
+            const query = db.collection('locationHistory')
+                .where('userId', '==', userId)
+                .where('timestamp', '>=', new Date(startDate + 'T00:00:00Z'))
+                .where('timestamp', '<=', new Date(endDate + 'T23:59:59Z'))
+                .orderBy('timestamp', 'asc');
+
+            const snapshot = await query.get();
+
+            if (snapshot.empty) {
+                return res.status(200).json([]);
+            }
+
+            const history = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                history.push({
+                    id: doc.id,
+                    latitude: data.location.latitude,
+                    longitude: data.location.longitude,
+                    timestamp: data.timestamp.toDate()
+                });
+            });
+
+            res.status(200).json(history);
+        } catch (error) {
+            console.error("Erro ao buscar histórico de localização:", error);
+            res.status(500).json({ message: 'Erro no servidor ao buscar histórico.' });
+        }
+    });
+
     // --- FUNÇÕES AUXILIARES ---
 
     const formatNumber = (num) => {
