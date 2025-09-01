@@ -631,6 +631,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
                 localStorage.removeItem('agrovetor_lastActiveTab');
+
+                // Garante que a UI de admin seja limpa ao sair
+                const historyControls = App.elements.monitoramentoAereo.historyControls;
+                const showHistoryBtn = App.elements.monitoramentoAereo.btnShowHistoryPanel;
+                if (historyControls) historyControls.style.display = 'none';
+                if (showHistoryBtn) showHistoryBtn.style.display = 'none';
+
                 App.ui.showLoginScreen();
             },
             initiateUserCreation() {
@@ -875,6 +882,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(false);
             },
             showAppScreen() {
+                // Garante que a UI de admin seja reiniciada antes de mostrar a tela
+                const historyControls = App.elements.monitoramentoAereo.historyControls;
+                const showHistoryBtn = App.elements.monitoramentoAereo.btnShowHistoryPanel;
+                if (historyControls) historyControls.style.display = 'none';
+                if (showHistoryBtn) showHistoryBtn.style.display = 'none';
+
                 const { currentUser } = App.state;
                 App.ui.setLoading(false);
                 App.elements.loginScreen.style.display = 'none';
@@ -4715,11 +4728,11 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             initializeAdminView() {
-                // Mostra os controlos de histórico e preenche os dados
+                // Configura os controlos de histórico para estarem fechados por padrão
                 const historyControls = App.elements.monitoramentoAereo.historyControls;
-                if (historyControls) {
-                    historyControls.style.display = 'block';
-                }
+                const showHistoryBtn = App.elements.monitoramentoAereo.btnShowHistoryPanel;
+                if (historyControls) historyControls.style.display = 'none';
+                if (showHistoryBtn) showHistoryBtn.style.display = 'flex';
 
                 const userSelect = App.elements.monitoramentoAereo.historyUserSelect;
                 if (userSelect) {
