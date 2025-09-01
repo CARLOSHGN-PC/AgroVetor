@@ -3811,7 +3811,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
-                    mapboxgl.accessToken = 'sk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZjFjeGtpbzJldzEya3B5ZHhwc2ZpdmIifQ.VhLX-V4mwXQnpbMk7LVJqA';
+                    mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
                     const mapContainer = App.elements.monitoramentoAereo.mapContainer;
 
                     App.state.mapboxMap = new mapboxgl.Map({
