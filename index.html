@@ -2040,8 +2040,16 @@
                         <div style="padding: 15px 20px;">
                             <label for="historyUserSelect" class="required">Colaborador:</label>
                             <select id="historyUserSelect"></select>
-                            <label for="historyDateInput" class="required">Data:</label>
-                            <input type="date" id="historyDateInput">
+                            <div class="form-row" style="gap: 10px; margin-bottom: 0;">
+                                <div class="form-col">
+                                    <label for="historyStartDateInput" class="required" style="font-size: 13px;">Data Início:</label>
+                                    <input type="date" id="historyStartDateInput">
+                                </div>
+                                <div class="form-col">
+                                    <label for="historyEndDateInput" class="required" style="font-size: 13px;">Data Fim:</label>
+                                    <input type="date" id="historyEndDateInput">
+                                </div>
+                            </div>
                             <button id="btnViewHistory" class="save" style="width: 100%; margin-top: 15px; background: var(--color-purple);">
                                 <i class="fas fa-search-location"></i> Ver Trajeto
                             </button>
