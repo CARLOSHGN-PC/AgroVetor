@@ -2020,26 +2020,6 @@
 
             </section>
 
-            <section id="rastreioHistorico" class="tab-content card" aria-label="Histórico de Rastreio" tabindex="0" hidden>
-                <h2><i class="fas fa-map-marked-alt"></i> Histórico de Rastreio</h2>
-                <p>Selecione um utilizador e um intervalo de datas para visualizar o percurso no mapa.</p>
-                <div class="form-row">
-                    <div class="form-col">
-                        <label for="historyUserSelect" class="required">Utilizador:</label>
-                        <select id="historyUserSelect" required></select>
-                    </div>
-                    <div class="form-col">
-                        <label for="historyStartDate" class="required">Data Início:</label>
-                        <input type="date" id="historyStartDate" required />
-                    </div>
-                    <div class="form-col">
-                        <label for="historyEndDate" class="required">Data Fim:</label>
-                        <input type="date" id="historyEndDate" required />
-                    </div>
-                </div>
-                <button class="save" id="btnViewHistory" style="max-width: 300px;"><i class="fas fa-eye"></i> Visualizar Percurso</button>
-                <div id="historyMapContainer" style="height: 600px; width: 100%; margin-top: 20px; border-radius: var(--border-radius); border: 1px solid var(--color-border);"></div>
-            </section>
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
@@ -2048,6 +2028,9 @@
                 <div class="map-controls">
                     <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
                         <i class="fas fa-location-arrow"></i>
+                    </button>
+                     <button id="btnHistory" class="map-control-btn" title="Histórico de Rastreio">
+                        <i class="fas fa-history"></i>
                     </button>
                     <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
                         <i class="fas fa-plus"></i>
@@ -2217,6 +2200,34 @@
                 <div class="modal-footer">
                     <button id="editFarmModalCancelBtn" class="btn-secondary">Cancelar</button>
                     <button id="editFarmModalSaveBtn" class="save">Guardar Alterações</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="historyFilterModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2>Filtro de Histórico</h2>
+                    <button id="historyFilterModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div class="form-col">
+                    <label for="historyUserSelectModal" class="required">Utilizador:</label>
+                    <select id="historyUserSelectModal" required></select>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="historyStartDateModal" class="required">Data Início:</label>
+                        <input type="date" id="historyStartDateModal" required />
+                    </div>
+                    <div class="form-col">
+                        <label for="historyEndDateModal" class="required">Data Fim:</label>
+                        <input type="date" id="historyEndDateModal" required />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="btnClearHistoryModal" class="btn-secondary" style="margin-right: auto; background: var(--color-danger);">Limpar Rota</button>
+                    <button id="historyFilterModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="btnViewHistoryModal" class="save">Ver Rota</button>
                 </div>
             </div>
         </div>
