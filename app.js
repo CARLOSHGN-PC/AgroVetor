@@ -225,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
             trapPlacementData: null,
             employeeMarkers: {},
             historicalPathPolyline: null,
+            stopMarkers: [],
         },
         
         elements: {
@@ -511,6 +512,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 historyStartDateInput: document.getElementById('historyStartDateInput'),
                 historyEndDateInput: document.getElementById('historyEndDateInput'),
                 btnViewHistory: document.getElementById('btnViewHistory'),
+                btnCloseHistoryPanel: document.getElementById('btnCloseHistoryPanel'),
+                btnShowHistoryPanel: document.getElementById('btnShowHistoryPanel'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -2220,6 +2223,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (monitoramentoAereoEls.infoBoxCloseBtn) monitoramentoAereoEls.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
                 if (monitoramentoAereoEls.trapInfoBoxCloseBtn) monitoramentoAereoEls.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
                 if (monitoramentoAereoEls.btnViewHistory) monitoramentoAereoEls.btnViewHistory.addEventListener('click', () => App.mapModule.fetchAndDrawHistory());
+                if (monitoramentoAereoEls.btnCloseHistoryPanel) {
+                    monitoramentoAereoEls.btnCloseHistoryPanel.addEventListener('click', () => {
+                        monitoramentoAereoEls.historyControls.style.display = 'none';
+                        if (monitoramentoAereoEls.btnShowHistoryPanel) {
+                            monitoramentoAereoEls.btnShowHistoryPanel.style.display = 'flex';
+                        }
+                    });
+                }
+                if (monitoramentoAereoEls.btnShowHistoryPanel) {
+                    monitoramentoAereoEls.btnShowHistoryPanel.addEventListener('click', () => {
+                        monitoramentoAereoEls.historyControls.style.display = 'block';
+                        monitoramentoAereoEls.btnShowHistoryPanel.style.display = 'none';
+                    });
+                }
                 
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
@@ -4745,11 +4762,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.unsubscribeListeners.push(unsubscribe);
             },
 
+            calculateDistance(lat1, lon1, lat2, lon2) {
+                const R = 6371e3; // metres
+                const φ1 = lat1 * Math.PI/180; // φ, λ in radians
+                const φ2 = lat2 * Math.PI/180;
+                const Δφ = (lat2-lat1) * Math.PI/180;
+                const Δλ = (lon2-lon1) * Math.PI/180;
+
+                const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                          Math.cos(φ1) * Math.cos(φ2) *
+                          Math.sin(Δλ/2) * Math.sin(Δλ/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+                return R * c; // in metres
+            },
+
+            detectAndDrawStops(pathPoints) {
+                if (pathPoints.length < 2) return;
+
+                const stopThresholds = {
+                    distance: 25, // meters
+                    time: 5 * 60 * 1000 // 5 minutes in milliseconds
+                };
+                let potentialStopPoints = [pathPoints[0]];
+
+                for (let i = 1; i < pathPoints.length; i++) {
+                    const lastPointInStop = potentialStopPoints[potentialStopPoints.length - 1];
+                    const currentPoint = pathPoints[i];
+
+                    const distance = this.calculateDistance(lastPointInStop.lat, lastPointInStop.lng, currentPoint.lat, currentPoint.lng);
+
+                    if (distance < stopThresholds.distance) {
+                        potentialStopPoints.push(currentPoint);
+                    } else {
+                        const startTime = potentialStopPoints[0].timestamp.toMillis();
+                        const endTime = potentialStopPoints[potentialStopPoints.length - 1].timestamp.toMillis();
+
+                        if (endTime - startTime >= stopThresholds.time) {
+                            const stopDuration = Math.round((endTime - startTime) / 60000); // in minutes
+                            const avgLat = potentialStopPoints.reduce((sum, p) => sum + p.lat, 0) / potentialStopPoints.length;
+                            const avgLng = potentialStopPoints.reduce((sum, p) => sum + p.lng, 0) / potentialStopPoints.length;
+
+                            const stopMarker = new google.maps.Marker({
+                                position: { lat: avgLat, lng: avgLng },
+                                map: App.state.googleMap,
+                                icon: {
+                                    path: google.maps.SymbolPath.CIRCLE,
+                                    scale: 9,
+                                    fillColor: '#d32f2f',
+                                    fillOpacity: 1,
+                                    strokeColor: "white",
+                                    strokeWeight: 2,
+                                },
+                                title: `Parada de ${stopDuration} min`
+                            });
+
+                            const infoWindow = new google.maps.InfoWindow({
+                                content: `<b>Parada Detectada</b><br>Duração: Aprox. ${stopDuration} minutos.`
+                            });
+
+                            stopMarker.addListener('click', () => infoWindow.open(App.state.googleMap, stopMarker));
+                            App.state.stopMarkers.push(stopMarker);
+                        }
+                        potentialStopPoints = [currentPoint];
+                    }
+                }
+            },
+
             async fetchAndDrawHistory() {
-                // Limpa a polilinha anterior
+                // Limpa a polilinha e os marcadores de parada anteriores
                 if (App.state.historicalPathPolyline) {
                     App.state.historicalPathPolyline.setMap(null);
                     App.state.historicalPathPolyline = null;
+                }
+                if (App.state.stopMarkers.length > 0) {
+                    App.state.stopMarkers.forEach(marker => marker.setMap(null));
+                    App.state.stopMarkers = [];
                 }
 
                 const userId = App.elements.monitoramentoAereo.historyUserSelect.value;
@@ -4788,7 +4876,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     if (allPathPoints.length > 1) {
-                        // Sort points chronologically
                         allPathPoints.sort((a, b) => a.timestamp.toMillis() - b.timestamp.toMillis());
 
                         const pathCoordinates = allPathPoints.map(p => ({ lat: p.lat, lng: p.lng }));
@@ -4796,17 +4883,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         const historicalPath = new google.maps.Polyline({
                             path: pathCoordinates,
                             geodesic: true,
-                            strokeColor: '#8A2BE2', // Roxo
+                            strokeColor: '#8A2BE2',
                             strokeOpacity: 0.8,
                             strokeWeight: 5
                         });
-
                         historicalPath.setMap(App.state.googleMap);
                         App.state.historicalPathPolyline = historicalPath;
 
                         const bounds = new google.maps.LatLngBounds();
                         pathCoordinates.forEach(point => bounds.extend(point));
                         App.state.googleMap.fitBounds(bounds);
+
+                        // Detecta e desenha as paradas
+                        this.detectAndDrawStops(allPathPoints);
 
                         App.ui.showAlert(`${querySnapshot.size} dia(s) de trajeto carregado(s) com sucesso.`, "success");
 
