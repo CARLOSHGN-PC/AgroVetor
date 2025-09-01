@@ -2210,14 +2210,11 @@
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     <script src="https://unpkg.com/idb@7.1.1/build/index.js"></script>
     
-    <script>
-        function initMap() {
-            // Esta função será chamada pela API do Google Maps quando estiver pronta.
-            // O App.js irá redefinir esta função para iniciar o mapa de fato.
-            console.log("Google Maps API loaded.");
-        }
-    </script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkik1KL7JjdyYoaifjK4i1J1tmmaRPL7U&libraries=geometry&callback=initMap" async defer></script>
+    <!-- Mapbox GL JS -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+    <!-- Turf.js for spatial analysis -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
