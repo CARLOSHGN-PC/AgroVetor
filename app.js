@@ -1,6 +1,6 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
@@ -75,6 +75,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     const App = {
+        trackingModule: {
+            watchId: null,
+            isTracking: false,
+
+            start() {
+                if (this.isTracking) {
+                    return;
+                }
+                if (!('geolocation' in navigator)) {
+                    console.error("Geolocalização não é suportada neste navegador.");
+                    return;
+                }
+                this.isTracking = true;
+                this.watchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        this.updateLocationInFirestore(latitude, longitude);
+                    },
+                    (error) => {
+                        console.error(`Erro de Geolocalização: ${error.message}`);
+                        this.stop();
+                    },
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+                );
+            },
+
+            stop() {
+                if (this.watchId) {
+                    navigator.geolocation.clearWatch(this.watchId);
+                    this.watchId = null;
+                    this.isTracking = false;
+                }
+            },
+
+            async updateLocationInFirestore(lat, lng) {
+                const user = App.state.currentUser;
+                if (!user) return;
+
+                const now = new Date();
+                const today = now.toISOString().split('T')[0];
+                const lastLocationRef = doc(db, 'user_last_location', user.uid);
+                const historyDocRef = doc(db, 'user_location_history', `${user.uid}_${today}`);
+                const batch = writeBatch(db);
+
+                batch.set(lastLocationRef, {
+                    lat: lat,
+                    lng: lng,
+                    timestamp: Timestamp.fromDate(now),
+                    username: user.username || user.email
+                });
+
+                const newPathPoint = { lat, lng, timestamp: Timestamp.fromDate(now) };
+                batch.set(historyDocRef, {
+                    userId: user.uid,
+                    date: today,
+                    path_points: arrayUnion(newPathPoint)
+                }, { merge: true });
+
+                try {
+                    await batch.commit();
+                } catch (error) {
+                    console.error("Erro ao atualizar localização no Firestore:", error);
+                }
+            }
+        },
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
@@ -158,6 +223,8 @@ document.addEventListener('DOMContentLoaded', () => {
             notifiedTrapIds: new Set(), // NOVO: Controla pop-ups já exibidos na sessão
             trapPlacementMode: null,
             trapPlacementData: null,
+            employeeMarkers: {},
+            historicalPathPolyline: null,
         },
         
         elements: {
@@ -439,6 +506,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBox: document.getElementById('trap-info-box'),
                 trapInfoBoxContent: document.getElementById('trap-info-box-content'),
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
+                historyControls: document.getElementById('history-controls'),
+                historyUserSelect: document.getElementById('historyUserSelect'),
+                historyDateInput: document.getElementById('historyDateInput'),
+                btnViewHistory: document.getElementById('btnViewHistory'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -824,6 +895,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderMenu();
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
+
+                // Inicia o rastreamento de localização para usuários que não são administradores
+                if (App.state.currentUser && App.state.currentUser.role !== 'admin') {
+                    App.trackingModule.start();
+                }
             },
             renderAllDynamicContent() {
                 const renderWithCatch = (name, fn) => {
@@ -2142,6 +2218,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 if (monitoramentoAereoEls.infoBoxCloseBtn) monitoramentoAereoEls.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
                 if (monitoramentoAereoEls.trapInfoBoxCloseBtn) monitoramentoAereoEls.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
+                if (monitoramentoAereoEls.btnViewHistory) monitoramentoAereoEls.btnViewHistory.addEventListener('click', () => App.mapModule.fetchAndDrawHistory());
                 
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
@@ -3828,6 +3905,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.loadShapesOnMap();
                     this.loadTraps();
 
+                    if (App.state.currentUser && App.state.currentUser.role === 'admin') {
+                        this.initializeAdminView();
+                    }
+
                 } catch (e) {
                     console.error("Erro ao inicializar o Google Maps:", e);
                     App.ui.showAlert("Não foi possível carregar o mapa.", "error");
@@ -4126,156 +4207,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="label">Área Total</span>
                         <span class="value">${(typeof areaHa === 'number' ? areaHa : 0).toFixed(2).replace('.',',')} ha</span>
                     </div>
-                    <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
-                        <button class="btn-download-map save" style="width: 100%;">
-                            <i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline
-                        </button>
-                    </div>
-                    <div class="download-progress-container" style="display: none; padding: 0 20px 20px 20px;">
-                        <p class="download-progress-text" style="margin-bottom: 5px; font-size: 14px; color: var(--color-text-light);"></p>
-                        <progress class="download-progress-bar" value="0" max="100" style="width: 100%;"></progress>
-                    </div>
                 `;
-
-                // Adiciona o listener para o novo botão
-                contentEl.querySelector('.btn-download-map').addEventListener('click', () => {
-                    App.mapModule.startOfflineMapDownload(feature);
-                });
                 
                 this.hideTrapInfo();
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
-            },
-
-            tileMath: {
-                project(lat, lng) {
-                    let siny = Math.sin(lat * Math.PI / 180);
-                    siny = Math.min(Math.max(siny, -0.9999), 0.9999);
-                    return {
-                        x: 256 * (0.5 + lng / 360),
-                        y: 256 * (0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI))
-                    };
-                },
-                getTileUrlsForGeometry(geometry, minZoom, maxZoom) {
-                    const urls = [];
-                    const bounds = new google.maps.LatLngBounds();
-                    // Assumindo que a geometria é um polígono ou multipolígono do Google Maps
-                    geometry.getArray().forEach(path => {
-                        path.getArray().forEach(latlng => bounds.extend(latlng));
-                    });
-
-                    const sw = bounds.getSouthWest();
-                    const ne = bounds.getNorthEast();
-
-                    for (let z = minZoom; z <= maxZoom; z++) {
-                        const scale = 1 << z;
-                        const nwPoint = this.project(ne.lat(), sw.lng());
-                        const sePoint = this.project(sw.lat(), ne.lng());
-
-                        const startTile = {
-                            x: Math.floor(nwPoint.x * scale / 256),
-                            y: Math.floor(nwPoint.y * scale / 256)
-                        };
-                        const endTile = {
-                            x: Math.floor(sePoint.x * scale / 256),
-                            y: Math.floor(sePoint.y * scale / 256)
-                        };
-
-                        for (let x = startTile.x; x <= endTile.x; x++) {
-                            for (let y = startTile.y; y <= endTile.y; y++) {
-                                const url = `https://kh.google.com/kh/v=979&x=${x}&y=${y}&z=${z}`;
-                                urls.push(url);
-                            }
-                        }
-                    }
-                    return urls;
-                }
-            },
-
-            startOfflineMapDownload(feature) {
-                const infoBox = App.elements.monitoramentoAereo.infoBox;
-                const downloadBtn = infoBox.querySelector('.btn-download-map');
-                const progressContainer = infoBox.querySelector('.download-progress-container');
-
-                downloadBtn.disabled = true;
-                downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> A calcular tiles...';
-                progressContainer.style.display = 'none';
-
-                setTimeout(() => {
-                    try {
-                        const geometry = feature.getGeometry();
-                        const minZoom = 14;
-                        const maxZoom = 18;
-
-                        const urls = this.tileMath.getTileUrlsForGeometry(geometry, minZoom, maxZoom);
-
-                        if (urls.length === 0) throw new Error("Não foi possível calcular os tiles para esta área.");
-                        if (urls.length > 5000) throw new Error(`Área muito grande (${urls.length} tiles). Por favor, selecione uma área menor.`);
-
-                        this.downloadTiles(urls);
-
-                    } catch (error) {
-                        console.error("Erro ao calcular tiles para download:", error);
-                        App.ui.showAlert(error.message, "error", 5000);
-                        downloadBtn.disabled = false;
-                        downloadBtn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline';
-                    }
-                }, 100);
-            },
-
-            async downloadTiles(urls) {
-                const infoBox = App.elements.monitoramentoAereo.infoBox;
-                const downloadBtn = infoBox.querySelector('.btn-download-map');
-                const progressContainer = infoBox.querySelector('.download-progress-container');
-                const progressText = infoBox.querySelector('.download-progress-text');
-                const progressBar = infoBox.querySelector('.download-progress-bar');
-
-                downloadBtn.style.display = 'none';
-                progressContainer.style.display = 'block';
-
-                let downloadedCount = 0;
-                const totalTiles = urls.length;
-                const batchSize = 10;
-                let errors = 0;
-
-                progressBar.max = totalTiles;
-                progressBar.value = 0;
-                progressText.textContent = `Iniciando download de ${totalTiles} tiles...`;
-
-                for (let i = 0; i < totalTiles; i += batchSize) {
-                    const batch = urls.slice(i, i + batchSize);
-
-                    await Promise.all(batch.map(url =>
-                        fetch(url)
-                            .then(response => {
-                                if (!response.ok && response.status !== 0) {
-                                    errors++;
-                                }
-                            })
-                            .catch(() => errors++)
-                            .finally(() => downloadedCount++)
-                    ));
-
-                    progressBar.value = downloadedCount;
-                    progressText.textContent = `Baixando... ${downloadedCount} de ${totalTiles}`;
-
-                    await new Promise(resolve => setTimeout(resolve, 20));
-                }
-
-                progressText.textContent = `Download concluído! ${totalTiles - errors} tiles salvos.`;
-                progressBar.value = downloadedCount;
-
-                if (errors > 0) {
-                    App.ui.showAlert(`${errors} tiles não puderam ser baixados.`, 'warning');
-                } else {
-                    App.ui.showAlert('Mapa da área salvo com sucesso!', 'success');
-                }
-
-                setTimeout(() => {
-                    progressContainer.style.display = 'none';
-                    downloadBtn.style.display = 'block';
-                    downloadBtn.disabled = false;
-                    downloadBtn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Baixar Novamente';
-                }, 5000);
             },
 
             hideTalhaoInfo() {
@@ -4758,6 +4693,147 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.googleMap.panTo(position);
                     App.state.googleMap.setZoom(18);
                     this.showTrapInfo(trapId);
+                }
+            },
+
+            initializeAdminView() {
+                // Mostra os controlos de histórico e preenche os dados
+                const historyControls = App.elements.monitoramentoAereo.historyControls;
+                if (historyControls) {
+                    historyControls.style.display = 'block';
+                }
+
+                const userSelect = App.elements.monitoramentoAereo.historyUserSelect;
+                if (userSelect) {
+                    userSelect.innerHTML = '<option value="">Selecione um colaborador...</option>';
+                    App.state.users
+                        .filter(u => u.role !== 'admin' && u.active)
+                        .sort((a, b) => (a.username || '').localeCompare(b.username || ''))
+                        .forEach(user => {
+                            userSelect.innerHTML += `<option value="${user.id}">${user.username || user.email}</option>`;
+                        });
+                }
+
+                const dateInput = App.elements.monitoramentoAereo.historyDateInput;
+                if (dateInput) {
+                    dateInput.value = new Date().toISOString().split('T')[0];
+                }
+
+                // Ouve as localizações em tempo real
+                const q = collection(db, 'user_last_location');
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        const userData = change.doc.data();
+                        const userId = change.doc.id;
+
+                        if (userId === App.state.currentUser.uid) return;
+
+                        if (change.type === "removed") {
+                            if (App.state.employeeMarkers[userId]) {
+                                App.state.employeeMarkers[userId].setMap(null);
+                                delete App.state.employeeMarkers[userId];
+                            }
+                        } else {
+                            this.updateEmployeeMarker(userId, userData);
+                        }
+                    });
+                });
+                App.state.unsubscribeListeners.push(unsubscribe);
+            },
+
+            async fetchAndDrawHistory() {
+                // Limpa a polilinha anterior
+                if (App.state.historicalPathPolyline) {
+                    App.state.historicalPathPolyline.setMap(null);
+                    App.state.historicalPathPolyline = null;
+                }
+
+                const userId = App.elements.monitoramentoAereo.historyUserSelect.value;
+                const date = App.elements.monitoramentoAereo.historyDateInput.value;
+
+                if (!userId) {
+                    App.ui.showAlert("Por favor, selecione um colaborador.", "warning");
+                    return;
+                }
+                if (!date) {
+                    App.ui.showAlert("Por favor, selecione uma data.", "warning");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A procurar histórico...");
+
+                const docId = `${userId}_${date}`;
+                try {
+                    const historyDoc = await App.data.getDocument('user_location_history', docId);
+
+                    if (historyDoc && historyDoc.path_points && historyDoc.path_points.length > 1) {
+                        const pathCoordinates = historyDoc.path_points.map(p => ({ lat: p.lat, lng: p.lng }));
+
+                        const historicalPath = new google.maps.Polyline({
+                            path: pathCoordinates,
+                            geodesic: true,
+                            strokeColor: '#8A2BE2', // Roxo
+                            strokeOpacity: 0.8,
+                            strokeWeight: 5
+                        });
+
+                        historicalPath.setMap(App.state.googleMap);
+                        App.state.historicalPathPolyline = historicalPath;
+
+                        const bounds = new google.maps.LatLngBounds();
+                        pathCoordinates.forEach(point => bounds.extend(point));
+                        App.state.googleMap.fitBounds(bounds);
+
+                        App.ui.showAlert("Trajeto carregado com sucesso.", "success");
+
+                    } else {
+                        App.ui.showAlert("Nenhum histórico de trajeto encontrado para este colaborador nesta data.", "info");
+                    }
+                } catch (error) {
+                    console.error("Erro ao procurar histórico de trajeto:", error);
+                    App.ui.showAlert("Ocorreu um erro ao procurar o histórico.", "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            updateEmployeeMarker(userId, data) {
+                const position = { lat: data.lat, lng: data.lng };
+                const marker = App.state.employeeMarkers[userId];
+
+                const icon = {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    fillColor: '#D32F2F',
+                    fillOpacity: 1,
+                    strokeColor: '#fff',
+                    strokeWeight: 2,
+                    scale: 7,
+                };
+
+                if (marker) {
+                    marker.setPosition(position);
+                    marker.get("infoWindow").setContent(`<b>${data.username}</b><br>Visto por último: ${data.timestamp.toDate().toLocaleTimeString()}`);
+                } else {
+                    const newMarker = new google.maps.Marker({
+                        position,
+                        map: App.state.googleMap,
+                        icon: icon,
+                        title: data.username
+                    });
+
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `<b>${data.username}</b><br>Visto por último: ${data.timestamp.toDate().toLocaleTimeString()}`
+                    });
+
+                    newMarker.set("infoWindow", infoWindow);
+                    newMarker.addListener('click', () => {
+                        Object.values(App.state.employeeMarkers).forEach(m => {
+                            if(m.get("infoWindow")) m.get("infoWindow").close()
+                        });
+                        infoWindow.open(App.state.googleMap, newMarker);
+                    });
+
+                    App.state.employeeMarkers[userId] = newMarker;
                 }
             }
         },

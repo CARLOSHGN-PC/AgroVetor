@@ -1,26 +1,7 @@
-const CACHE_NAME = 'agrovetor-cache-v5';
-const TILE_CACHE_NAME = 'agrovetor-tile-cache-v1';
-// [NOVO] Limite máximo de tiles a serem armazenados em cache
-const MAX_TILES_IN_CACHE = 2000;
-
-// [NOVO] Função para limitar o tamanho do cache de tiles
-const trimCache = (cacheName, maxItems) => {
-  caches.open(cacheName).then(cache => {
-    cache.keys().then(keys => {
-      if (keys.length > maxItems) {
-        // Deleta os itens mais antigos para manter o cache no tamanho definido
-        const itemsToDelete = keys.slice(0, keys.length - maxItems);
-        Promise.all(itemsToDelete.map(key => cache.delete(key)))
-          .then(() => {
-            console.log(`Cache ${cacheName} enxugado. ${itemsToDelete.length} itens deletados.`);
-          });
-      }
-    });
-  });
-};
+const CACHE_NAME = 'agrovetor-cache-v6'; // Incremented version to force update
 
 const urlsToCache = [
-  './', // Caminho relativo para a raiz do projeto
+  './',
   './index.html',
   './app.js',
   './manifest.json',
@@ -40,82 +21,62 @@ const urlsToCache = [
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js'
 ];
 
-// Evento de instalação: força o novo service worker a se tornar ativo
+// Install event: force the new service worker to become active
 self.addEventListener('install', event => {
   self.skipWaiting(); 
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Cache aberto e arquivos principais armazenados');
+        console.log('Cache opened and core assets stored');
         return cache.addAll(urlsToCache);
       })
   );
 });
 
-// Evento de ativação: limpa caches antigos e assume o controle
+// Activate event: clean up old caches and take control
 self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME, TILE_CACHE_NAME];
+  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
-            console.log('Deletando cache antigo:', cacheName);
+            console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     }).then(() => {
-        console.log('Service worker ativado e assumindo controle.');
+        console.log('Service worker activated and taking control.');
         return self.clients.claim();
     })
   );
 });
 
-// Evento de fetch: intercepta as requisições
+// Fetch event: intercept requests
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
     return;
   }
 
-  const url = new URL(event.request.url);
-
-  // Estratégia para os TILEs de satélite do Google Maps (Cache First com Limpeza)
-  // O caminho '/kh/v=' é específico para as imagens de satélite (Keyhole).
-  if (url.hostname.endsWith('.google.com') && url.pathname.includes('/kh/v=')) {
-    event.respondWith(
-      caches.open(TILE_CACHE_NAME).then(cache => {
-        return cache.match(event.request).then(response => {
-          if (response) {
-            return response;
-          }
-          return fetch(event.request).then(networkResponse => {
-            // Para tiles de terceiros, não podemos verificar o status (resposta opaca),
-            // então confiamos e colocamos no cache. A limpeza de cache cuidará de eventuais falhas.
-            const responseToCache = networkResponse.clone();
-            cache.put(event.request, responseToCache).then(() => {
-              trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
-            });
-            return networkResponse;
-          });
-        });
-      })
-    );
-    return;
-  }
-
-  // Estratégia Stale-While-Revalidate para o resto
+  // Use a Stale-While-Revalidate strategy for all assets.
+  // This serves content from cache immediately if available, providing a fast experience,
+  // but also fetches an updated version from the network in the background for next time.
   event.respondWith(
     caches.open(CACHE_NAME).then(cache => {
       return cache.match(event.request).then(response => {
         const fetchPromise = fetch(event.request).then(networkResponse => {
+          // Check if we received a valid response
           if (networkResponse && networkResponse.status === 200) {
             cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
         }).catch(err => {
-          console.warn('Fetch falhou; usando cache se disponível.', event.request.url, err);
+          console.warn('Fetch failed; using cache if available.', event.request.url, err);
+          // If fetch fails (e.g., offline), the cached response (if it exists) will be used.
         });
+
+        // Return the cached response immediately if it exists, otherwise wait for the network.
         return response || fetchPromise;
       });
     })
