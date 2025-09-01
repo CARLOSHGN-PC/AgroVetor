@@ -113,7 +113,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
-                        { label: 'Histórico de Rastreio', icon: 'fas fa-map-marked-alt', target: 'rastreioHistorico', permission: 'rastreioHistorico' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
                         { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
                     ]
@@ -121,9 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ],
             roles: {
                 admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, rastreioHistorico: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, rastreioHistorico: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, rastreioHistorico: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, rastreioHistorico: true },
                 user: { dashboard: true }
             }
         },
@@ -161,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
-            historyMap: null,
         },
         
         elements: {
@@ -241,6 +239,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 nameInput: document.getElementById('editFarmNameInput'),
                 editingFarmId: document.getElementById('editingFarmId'),
                 typeCheckboxes: document.querySelectorAll('#editFarmTypeCheckboxes input[type="checkbox"]'),
+            },
+             historyFilterModal: {
+                overlay: document.getElementById('historyFilterModal'),
+                closeBtn: document.getElementById('historyFilterModalCloseBtn'),
+                cancelBtn: document.getElementById('historyFilterModalCancelBtn'),
+                viewBtn: document.getElementById('btnViewHistoryModal'),
+                clearBtn: document.getElementById('btnClearHistoryModal'),
+                userSelect: document.getElementById('historyUserSelectModal'),
+                startDate: document.getElementById('historyStartDateModal'),
+                endDate: document.getElementById('historyEndDateModal'),
             },
             companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
@@ -437,6 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapContainer: document.getElementById('map'),
                 btnAddTrap: document.getElementById('btnAddTrap'),
                 btnCenterMap: document.getElementById('btnCenterMap'),
+                btnHistory: document.getElementById('btnHistory'),
                 infoBox: document.getElementById('talhao-info-box'),
                 infoBoxContent: document.getElementById('talhao-info-box-content'),
                 infoBoxCloseBtn: document.getElementById('close-info-box'),
@@ -461,13 +470,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
-            history: {
-                userSelect: document.getElementById('historyUserSelect'),
-                startDate: document.getElementById('historyStartDate'),
-                endDate: document.getElementById('historyEndDate'),
-                btnView: document.getElementById('btnViewHistory'),
-                mapContainer: document.getElementById('historyMapContainer')
-            },
         },
 
         debounce(func, delay = 1000) {
@@ -996,11 +998,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'cadastros') this.renderFarmSelect();
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
-                if (id === 'rastreioHistorico') {
-                    this.populateUserSelects();
-                    // Delay to ensure the container is visible in the DOM
-                    setTimeout(() => App.mapModule.initHistoryMap(), 150);
-                }
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
@@ -2234,6 +2231,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 window.addEventListener('online', () => App.actions.syncOfflineWrites());
                 if (App.elements.history.btnView) App.elements.history.btnView.addEventListener('click', () => App.actions.viewHistory());
+
+                const historyModal = App.elements.historyFilterModal;
+                if (historyModal.overlay) historyModal.overlay.addEventListener('click', e => { if(e.target === historyModal.overlay) this.hideHistoryFilterModal(); });
+                if (historyModal.closeBtn) historyModal.closeBtn.addEventListener('click', () => this.hideHistoryFilterModal());
+                if (historyModal.cancelBtn) historyModal.cancelBtn.addEventListener('click', () => this.hideHistoryFilterModal());
+                if (historyModal.viewBtn) historyModal.viewBtn.addEventListener('click', () => App.actions.viewHistory());
+                if (historyModal.clearBtn) historyModal.clearBtn.addEventListener('click', () => App.actions.clearHistory());
+
+                if (App.elements.monitoramentoAereo.btnHistory) {
+                    App.elements.monitoramentoAereo.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
+                }
             }
         },
         
@@ -3685,29 +3693,26 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async viewHistory() {
-                const { userSelect, startDate, endDate } = App.elements.history;
+                const { userSelect, startDate, endDate } = App.elements.historyFilterModal;
                 const userId = userSelect.value;
                 const start = startDate.value;
                 const end = endDate.value;
 
-                if(!userId || !start || !end) {
+                if (!userId || !start || !end) {
                     App.ui.showAlert("Por favor, selecione um utilizador e um intervalo de datas.", "warning");
                     return;
                 }
 
-                const map = App.state.historyMap;
-                if(!map) {
-                    App.ui.showAlert("O mapa de histórico não foi inicializado.", "error");
+                const map = App.state.mapboxMap;
+                if (!map) {
+                    App.ui.showAlert("O mapa principal não foi inicializado.", "error");
                     return;
                 }
 
-                // Clear previous route
-                if (map.getLayer('history-points')) map.removeLayer('history-points');
-                if (map.getLayer('history-route')) map.removeLayer('history-route');
-                if (map.getSource('history-points')) map.removeSource('history-points');
-                if (map.getSource('history-route')) map.removeSource('history-route');
-
+                this.clearHistory(); // Limpa a rota anterior antes de desenhar uma nova
+                App.ui.hideHistoryFilterModal();
                 App.ui.setLoading(true, "A buscar histórico...");
+
                 try {
                     const response = await fetch(`${App.config.backendUrl}/api/history?userId=${userId}&startDate=${start}&endDate=${end}`);
                     if (!response.ok) {
@@ -3735,7 +3740,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
                             properties: {
                                 isStart: i === 0,
-                                isEnd: i === historyData.length - 1
+                                isEnd: i === historyData.length - 1,
+                                timestamp: new Date(p.timestamp).toLocaleString('pt-BR')
                             }
                         }))
                     };
@@ -3747,7 +3753,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         'type': 'line',
                         'source': 'history-route',
                         'layout': { 'line-join': 'round', 'line-cap': 'round' },
-                        'paint': { 'line-color': '#FFD700', 'line-width': 4 }
+                        'paint': { 'line-color': '#FFD700', 'line-width': 5, 'line-opacity': 0.8 }
                     });
 
                     map.addLayer({
@@ -3755,12 +3761,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'circle',
                         source: 'history-points',
                         paint: {
-                            'circle-radius': 6,
+                            'circle-radius': 8,
                             'circle-color': [
                                 'case',
-                                ['boolean', ['get', 'isStart'], false], '#388e3c', // green for start
-                                ['boolean', ['get', 'isEnd'], false], '#d32f2f', // red for end
-                                '#FFFFFF' // white for intermediate
+                                ['boolean', ['get', 'isStart'], false], '#388e3c',
+                                ['boolean', ['get', 'isEnd'], false], '#d32f2f',
+                                '#FFFFFF'
                             ],
                             'circle-stroke-width': 2,
                             'circle-stroke-color': '#000000'
@@ -3769,13 +3775,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const bounds = new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]);
                     for (const coord of coordinates) { bounds.extend(coord); }
-                    map.fitBounds(bounds, { padding: 60 });
+                    map.fitBounds(bounds, { padding: 80, duration: 1000 });
 
                 } catch (error) {
                     App.ui.showAlert(`Erro ao buscar histórico: ${error.message}`, 'error');
                 } finally {
                     App.ui.setLoading(false);
                 }
+            },
+
+            clearHistory() {
+                const map = App.state.mapboxMap;
+                if (!map) return;
+
+                const layers = ['history-points', 'history-route'];
+                const sources = ['history-points', 'history-route'];
+
+                layers.forEach(layerId => {
+                    if (map.getLayer(layerId)) {
+                        map.removeLayer(layerId);
+                    }
+                });
+
+                sources.forEach(sourceId => {
+                    if (map.getSource(sourceId)) {
+                        map.removeSource(sourceId);
+                    }
+                });
+                 App.ui.showAlert("Rota do histórico limpa.", "info");
             },
 
             async getAtrPrediction() {
@@ -4840,24 +4867,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            initHistoryMap() {
-                if (App.state.historyMap) return;
-                if (typeof mapboxgl === 'undefined') return;
+            showHistoryFilterModal() {
+                const modal = App.elements.historyFilterModal;
+                this.populateUserSelects(); // Popula o select do modal
 
-                try {
-                    const mapContainer = App.elements.history.mapContainer;
-                    if(!mapContainer || !mapContainer.offsetParent) return; // Don't init if not visible
+                // Set default dates
+                const today = new Date();
+                const sevenDaysAgo = new Date(today);
+                sevenDaysAgo.setDate(today.getDate() - 7);
 
-                    App.state.historyMap = new mapboxgl.Map({
-                        container: mapContainer,
-                        style: 'mapbox://styles/mapbox/satellite-streets-v12',
-                        center: [-48.45, -21.17],
-                        zoom: 4,
-                        attributionControl: false
-                    });
-                } catch (e) {
-                    console.error("Erro ao inicializar o mapa de histórico:", e);
-                }
+                modal.startDate.value = sevenDaysAgo.toISOString().split('T')[0];
+                modal.endDate.value = today.toISOString().split('T')[0];
+
+                modal.overlay.classList.add('show');
+            },
+            hideHistoryFilterModal() {
+                const modal = App.elements.historyFilterModal;
+                modal.overlay.classList.remove('show');
             },
         },
 
