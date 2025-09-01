@@ -113,13 +113,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
+                        { label: 'Histórico de Rastreio', icon: 'fas fa-map-marked-alt', target: 'rastreioHistorico', permission: 'rastreioHistorico' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
                         { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
                     ]
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, rastreioHistorico: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
@@ -157,6 +158,10 @@ document.addEventListener('DOMContentLoaded', () => {
             notifiedTrapIds: new Set(), // NOVO: Controla pop-ups já exibidos na sessão
             trapPlacementMode: null,
             trapPlacementData: null,
+            locationWatchId: null,
+            locationUpdateIntervalId: null,
+            lastKnownPosition: null,
+            historyMap: null,
         },
         
         elements: {
@@ -456,6 +461,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
+            history: {
+                userSelect: document.getElementById('historyUserSelect'),
+                startDate: document.getElementById('historyStartDate'),
+                endDate: document.getElementById('historyEndDate'),
+                btnView: document.getElementById('btnViewHistory'),
+                mapContainer: document.getElementById('historyMapContainer')
+            },
         },
 
         debounce(func, delay = 1000) {
@@ -551,6 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await signOut(auth);
                 }
                 App.data.cleanupListeners();
+                App.actions.stopRealtimeTracking(); // Parar o rastreamento
                 App.state.currentUser = null;
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
@@ -823,6 +836,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderMenu();
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
+                App.actions.startRealtimeTracking(); // Iniciar o rastreamento
             },
             renderAllDynamicContent() {
                 const renderWithCatch = (name, fn) => {
@@ -982,6 +996,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'cadastros') this.renderFarmSelect();
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
+                if (id === 'rastreioHistorico') {
+                    this.populateUserSelects();
+                    // Delay to ensure the container is visible in the DOM
+                    setTimeout(() => App.mapModule.initHistoryMap(), 150);
+                }
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
@@ -1195,12 +1214,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             populateUserSelects() {
-                const select = App.elements.planejamento.responsavel;
-                select.innerHTML = '<option value="">Selecione...</option>';
-                App.state.users
-                    .filter(u => u.role === 'tecnico' || u.role === 'colaborador' || u.role === 'supervisor' || u.role === 'admin')
-                    .sort((a, b) => (a.username || '').localeCompare(b.username || ''))
-                    .forEach(user => { select.innerHTML += `<option value="${user.username}">${user.username}</option>`; });
+                const selects = [App.elements.planejamento.responsavel, App.elements.history.userSelect];
+                selects.forEach(select => {
+                    if (!select) return;
+                    const currentValue = select.value;
+                    select.innerHTML = '<option value="">Selecione um utilizador...</option>';
+                    App.state.users
+                        .filter(u => u.active)
+                        .sort((a, b) => (a.username || '').localeCompare(b.username || ''))
+                        .forEach(user => {
+                            select.innerHTML += `<option value="${user.id}">${user.username || user.email}</option>`;
+                        });
+                    select.value = currentValue;
+                });
             },
             populateOperatorSelects() {
                 const selects = [App.elements.perda.filtroOperador];
@@ -2207,6 +2233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 window.addEventListener('online', () => App.actions.syncOfflineWrites());
+                if (App.elements.history.btnView) App.elements.history.btnView.addEventListener('click', () => App.actions.viewHistory());
             }
         },
         
@@ -3593,6 +3620,164 @@ document.addEventListener('DOMContentLoaded', () => {
                 return false;
             },
 
+            startRealtimeTracking() {
+                if ('geolocation' in navigator && 'watchPosition' in navigator.geolocation) {
+                    if (App.state.locationWatchId) {
+                        navigator.geolocation.clearWatch(App.state.locationWatchId);
+                    }
+                    if (App.state.locationUpdateIntervalId) {
+                        clearInterval(App.state.locationUpdateIntervalId);
+                    }
+
+                    App.state.locationWatchId = navigator.geolocation.watchPosition(
+                        (position) => {
+                            App.state.lastKnownPosition = {
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude
+                            };
+                            // console.log('Location updated:', App.state.lastKnownPosition);
+                        },
+                        (error) => {
+                            console.warn("Erro no rastreamento de localização:", error.message);
+                        },
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    );
+
+                    App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000); // Envia a cada 60 segundos
+                    console.log("Rastreamento de localização iniciado.");
+                } else {
+                    console.warn("Rastreamento de localização não é suportado neste navegador.");
+                }
+            },
+
+            sendLocationUpdate() {
+                if (App.state.lastKnownPosition && App.state.currentUser) {
+                    const { latitude, longitude } = App.state.lastKnownPosition;
+                    const { uid } = App.state.currentUser;
+
+                    fetch(`${App.config.backendUrl}/api/track`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: uid, latitude, longitude }),
+                    })
+                    .then(response => {
+                        if(response.ok) {
+                            // console.log("Localização enviada com sucesso.");
+                        } else {
+                             console.error("Falha ao enviar localização.");
+                        }
+                    })
+                    .catch(error => console.error('Falha ao enviar atualização de localização:', error));
+                }
+            },
+
+            stopRealtimeTracking() {
+                if (App.state.locationWatchId) {
+                    navigator.geolocation.clearWatch(App.state.locationWatchId);
+                    App.state.locationWatchId = null;
+                }
+                if (App.state.locationUpdateIntervalId) {
+                    clearInterval(App.state.locationUpdateIntervalId);
+                    App.state.locationUpdateIntervalId = null;
+                }
+                App.state.lastKnownPosition = null;
+                console.log("Rastreamento de localização parado.");
+            },
+
+            async viewHistory() {
+                const { userSelect, startDate, endDate } = App.elements.history;
+                const userId = userSelect.value;
+                const start = startDate.value;
+                const end = endDate.value;
+
+                if(!userId || !start || !end) {
+                    App.ui.showAlert("Por favor, selecione um utilizador e um intervalo de datas.", "warning");
+                    return;
+                }
+
+                const map = App.state.historyMap;
+                if(!map) {
+                    App.ui.showAlert("O mapa de histórico não foi inicializado.", "error");
+                    return;
+                }
+
+                // Clear previous route
+                if (map.getLayer('history-points')) map.removeLayer('history-points');
+                if (map.getLayer('history-route')) map.removeLayer('history-route');
+                if (map.getSource('history-points')) map.removeSource('history-points');
+                if (map.getSource('history-route')) map.removeSource('history-route');
+
+                App.ui.setLoading(true, "A buscar histórico...");
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/history?userId=${userId}&startDate=${start}&endDate=${end}`);
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
+                    }
+                    const historyData = await response.json();
+
+                    if (historyData.length === 0) {
+                        App.ui.showAlert("Nenhum dado de localização encontrado para este período.", "info");
+                        return;
+                    }
+
+                    const coordinates = historyData.map(p => [p.longitude, p.latitude]);
+
+                    map.addSource('history-route', {
+                        'type': 'geojson',
+                        'data': { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': coordinates } }
+                    });
+
+                    const pointsGeoJSON = {
+                        type: 'FeatureCollection',
+                        features: historyData.map((p, i) => ({
+                            type: 'Feature',
+                            geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
+                            properties: {
+                                isStart: i === 0,
+                                isEnd: i === historyData.length - 1
+                            }
+                        }))
+                    };
+
+                    map.addSource('history-points', { type: 'geojson', data: pointsGeoJSON });
+
+                    map.addLayer({
+                        'id': 'history-route',
+                        'type': 'line',
+                        'source': 'history-route',
+                        'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                        'paint': { 'line-color': '#FFD700', 'line-width': 4 }
+                    });
+
+                    map.addLayer({
+                        id: 'history-points',
+                        type: 'circle',
+                        source: 'history-points',
+                        paint: {
+                            'circle-radius': 6,
+                            'circle-color': [
+                                'case',
+                                ['boolean', ['get', 'isStart'], false], '#388e3c', // green for start
+                                ['boolean', ['get', 'isEnd'], false], '#d32f2f', // red for end
+                                '#FFFFFF' // white for intermediate
+                            ],
+                            'circle-stroke-width': 2,
+                            'circle-stroke-color': '#000000'
+                        }
+                    });
+
+                    const bounds = new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]);
+                    for (const coord of coordinates) { bounds.extend(coord); }
+                    map.fitBounds(bounds, { padding: 60 });
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao buscar histórico: ${error.message}`, 'error');
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
             async getAtrPrediction() {
                 const { fazenda: fazendaSelect, atr: atrInput } = App.elements.harvest;
                 const atrSpinner = document.getElementById('atr-spinner');
@@ -4653,7 +4838,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.mapboxMap.flyTo({ center: position, zoom: 18 });
                     this.showTrapInfo(trapId);
                 }
-            }
+            },
+
+            initHistoryMap() {
+                if (App.state.historyMap) return;
+                if (typeof mapboxgl === 'undefined') return;
+
+                try {
+                    const mapContainer = App.elements.history.mapContainer;
+                    if(!mapContainer || !mapContainer.offsetParent) return; // Don't init if not visible
+
+                    App.state.historyMap = new mapboxgl.Map({
+                        container: mapContainer,
+                        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                        center: [-48.45, -21.17],
+                        zoom: 4,
+                        attributionControl: false
+                    });
+                } catch (e) {
+                    console.error("Erro ao inicializar o mapa de histórico:", e);
+                }
+            },
         },
 
         charts: {

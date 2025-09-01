@@ -2019,6 +2019,27 @@
                 </div>
 
             </section>
+
+            <section id="rastreioHistorico" class="tab-content card" aria-label="Histórico de Rastreio" tabindex="0" hidden>
+                <h2><i class="fas fa-map-marked-alt"></i> Histórico de Rastreio</h2>
+                <p>Selecione um utilizador e um intervalo de datas para visualizar o percurso no mapa.</p>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="historyUserSelect" class="required">Utilizador:</label>
+                        <select id="historyUserSelect" required></select>
+                    </div>
+                    <div class="form-col">
+                        <label for="historyStartDate" class="required">Data Início:</label>
+                        <input type="date" id="historyStartDate" required />
+                    </div>
+                    <div class="form-col">
+                        <label for="historyEndDate" class="required">Data Fim:</label>
+                        <input type="date" id="historyEndDate" required />
+                    </div>
+                </div>
+                <button class="save" id="btnViewHistory" style="max-width: 300px;"><i class="fas fa-eye"></i> Visualizar Percurso</button>
+                <div id="historyMapContainer" style="height: 600px; width: 100%; margin-top: 20px; border-radius: var(--border-radius); border: 1px solid var(--color-border);"></div>
+            </section>
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
