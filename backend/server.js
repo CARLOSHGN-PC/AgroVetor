@@ -34,7 +34,7 @@ try {
  
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        storageBucket: "agrovetor-v2.appspot.com" // Certifique-se que este é o nome correto do seu bucket
+        storageBucket: "agrovetor-v2.firebasestorage.app" // Corrigido para o bucket correto
     });
 
     const db = admin.firestore();

@@ -113,7 +113,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
-                        { label: 'Histórico de Rastreio', icon: 'fas fa-map-marked-alt', target: 'rastreioHistorico', permission: 'rastreioHistorico' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
                         { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
                     ]
@@ -161,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
-            historyMap: null,
         },
         
         elements: {
@@ -466,7 +464,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 startDate: document.getElementById('historyStartDate'),
                 endDate: document.getElementById('historyEndDate'),
                 btnView: document.getElementById('btnViewHistory'),
-                mapContainer: document.getElementById('historyMapContainer')
+                toggleButton: document.getElementById('history-toggle-button'),
+                panel: document.getElementById('history-panel'),
+                closeButton: document.getElementById('close-history-panel'),
             },
         },
 
@@ -835,6 +835,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.renderMenu();
                 this.renderAllDynamicContent();
+
+                const historyToggle = App.elements.history.toggleButton;
+                if (historyToggle) {
+                    historyToggle.style.display = App.state.currentUser.permissions.rastreioHistorico ? 'flex' : 'none';
+                }
+
                 App.actions.resetInactivityTimer();
                 App.actions.startRealtimeTracking(); // Iniciar o rastreamento
             },
@@ -996,11 +1002,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'cadastros') this.renderFarmSelect();
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
-                if (id === 'rastreioHistorico') {
-                    this.populateUserSelects();
-                    // Delay to ensure the container is visible in the DOM
-                    setTimeout(() => App.mapModule.initHistoryMap(), 150);
-                }
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
@@ -2233,7 +2234,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 window.addEventListener('online', () => App.actions.syncOfflineWrites());
-                if (App.elements.history.btnView) App.elements.history.btnView.addEventListener('click', () => App.actions.viewHistory());
+
+                const historyEls = App.elements.history;
+                if (historyEls.toggleButton) historyEls.toggleButton.addEventListener('click', () => {
+                    historyEls.panel.classList.toggle('visible');
+                });
+                if (historyEls.closeButton) historyEls.closeButton.addEventListener('click', () => {
+                    historyEls.panel.classList.remove('visible');
+                });
+                if (historyEls.btnView) historyEls.btnView.addEventListener('click', () => App.actions.viewHistory());
             }
         },
         
@@ -3685,21 +3694,23 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async viewHistory() {
-                const { userSelect, startDate, endDate } = App.elements.history;
+                const { userSelect, startDate, endDate, panel } = App.elements.history;
                 const userId = userSelect.value;
                 const start = startDate.value;
                 const end = endDate.value;
 
-                if(!userId || !start || !end) {
+                if (!userId || !start || !end) {
                     App.ui.showAlert("Por favor, selecione um utilizador e um intervalo de datas.", "warning");
                     return;
                 }
 
-                const map = App.state.historyMap;
-                if(!map) {
-                    App.ui.showAlert("O mapa de histórico não foi inicializado.", "error");
+                const map = App.state.mapboxMap;
+                if (!map) {
+                    App.ui.showAlert("O mapa principal não foi inicializado.", "error");
                     return;
                 }
+
+                panel.classList.remove('visible');
 
                 // Clear previous route
                 if (map.getLayer('history-points')) map.removeLayer('history-points');
@@ -4840,25 +4851,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            initHistoryMap() {
-                if (App.state.historyMap) return;
-                if (typeof mapboxgl === 'undefined') return;
-
-                try {
-                    const mapContainer = App.elements.history.mapContainer;
-                    if(!mapContainer || !mapContainer.offsetParent) return; // Don't init if not visible
-
-                    App.state.historyMap = new mapboxgl.Map({
-                        container: mapContainer,
-                        style: 'mapbox://styles/mapbox/satellite-streets-v12',
-                        center: [-48.45, -21.17],
-                        zoom: 4,
-                        attributionControl: false
-                    });
-                } catch (e) {
-                    console.error("Erro ao inicializar o mapa de histórico:", e);
-                }
-            },
         },
 
         charts: {
