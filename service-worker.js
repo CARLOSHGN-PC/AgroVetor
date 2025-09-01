@@ -80,8 +80,9 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(event.request.url);
 
-  // Estratégia para os TILEs do Google Maps (Cache First com Limpeza)
-  if (url.hostname.endsWith('mt.google.com') || (url.hostname.endsWith('.google.com') && url.pathname.includes('/kh/v='))) {
+  // Estratégia para os TILEs de satélite do Google Maps (Cache First com Limpeza)
+  // O caminho '/kh/v=' é específico para as imagens de satélite (Keyhole).
+  if (url.hostname.endsWith('.google.com') && url.pathname.includes('/kh/v=')) {
     event.respondWith(
       caches.open(TILE_CACHE_NAME).then(cache => {
         return cache.match(event.request).then(response => {
@@ -89,13 +90,12 @@ self.addEventListener('fetch', event => {
             return response;
           }
           return fetch(event.request).then(networkResponse => {
-            if (networkResponse && networkResponse.status === 200) {
-              const responseToCache = networkResponse.clone();
-              // [MODIFICADO] Adiciona o tile e depois verifica o tamanho do cache
-              cache.put(event.request, responseToCache).then(() => {
-                trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
-              });
-            }
+            // Para tiles de terceiros, não podemos verificar o status (resposta opaca),
+            // então confiamos e colocamos no cache. A limpeza de cache cuidará de eventuais falhas.
+            const responseToCache = networkResponse.clone();
+            cache.put(event.request, responseToCache).then(() => {
+              trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
+            });
             return networkResponse;
           });
         });
