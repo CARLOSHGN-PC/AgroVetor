@@ -480,8 +480,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 kmlUploadArea: document.getElementById('kmlUploadArea'),
                 kmlInput: document.getElementById('flightPlanKmlInput'),
                 btnAnalyze: document.getElementById('btnAnalyzeCoverage'),
+                btnSuggestFlightPath: document.getElementById('btnSuggestFlightPath'),
                 analysisResult: document.getElementById('coverageAnalysisResult'),
                 btnGenerateReport: document.getElementById('btnGenerateFlightReport'),
+                btnViewHistory: document.getElementById('btnViewAnalysisHistory'),
+            },
+            analysisHistoryModal: {
+                overlay: document.getElementById('analysisHistoryModal'),
+                closeBtn: document.getElementById('analysisHistoryModalCloseBtn'),
+                body: document.getElementById('analysisHistoryModalBody'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
         },
@@ -535,6 +542,35 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             App.ui.showLoginScreen();
                         }
+                    }
+                });
+            },
+
+            displaySuggestedPathLayer(geoJson) {
+                const map = App.state.mapboxMap;
+                if (!map || !geoJson) return;
+
+                const sourceId = 'suggested-path-source';
+                const layerId = 'suggested-path-layer';
+
+                if (map.getSource(sourceId)) {
+                    if(map.getLayer(layerId)) map.removeLayer(layerId);
+                    map.removeSource(sourceId);
+                }
+
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: geoJson
+                });
+
+                map.addLayer({
+                    id: layerId,
+                    type: 'line',
+                    source: sourceId,
+                    paint: {
+                        'line-color': '#FFD700', // Yellow
+                        'line-width': 3,
+                        'line-dasharray': [2, 2]
                     }
                 });
             },
@@ -2269,22 +2305,99 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (flightPlanningEls.kmlUploadArea) flightPlanningEls.kmlUploadArea.addEventListener('click', () => flightPlanningEls.kmlInput.click());
                 if (flightPlanningEls.kmlInput) flightPlanningEls.kmlInput.addEventListener('change', (e) => App.flightPlanningModule.handleKmlUpload(e));
                 if (flightPlanningEls.btnAnalyze) flightPlanningEls.btnAnalyze.addEventListener('click', () => App.flightPlanningModule.analyzeCoverage());
+                if (flightPlanningEls.btnSuggestFlightPath) flightPlanningEls.btnSuggestFlightPath.addEventListener('click', () => App.flightPlanningModule.suggestFlightPath());
                 if (flightPlanningEls.btnGenerateReport) flightPlanningEls.btnGenerateReport.addEventListener('click', () => App.flightPlanningModule.generateReport());
+                if (flightPlanningEls.btnViewHistory) flightPlanningEls.btnViewHistory.addEventListener('click', () => App.flightPlanningModule.showAnalysisHistory());
+
+                const historyModal = App.elements.analysisHistoryModal;
+                if (historyModal.overlay) historyModal.overlay.addEventListener('click', e => { if(e.target === historyModal.overlay) historyModal.overlay.classList.remove('show'); });
+                if (historyModal.closeBtn) historyModal.closeBtn.addEventListener('click', () => historyModal.overlay.classList.remove('show'));
             }
         },
 
         flightPlanningModule: {
+            _parseKmlText(kmlText) {
+                try {
+                    const domParser = new DOMParser();
+                    const kmlDoc = domParser.parseFromString(kmlText, 'text/xml');
+
+                    const geoJson = toGeoJSON.kml(kmlDoc);
+
+                    if (!geoJson.features || geoJson.features.length === 0) {
+                        App.ui.showAlert("O arquivo KML não contém nenhuma geometria (feature) válida.", "error");
+                        return;
+                    }
+
+                    App.state.flightPlan.kmlGeoJson = geoJson;
+                    App.mapModule.displayKmlLayer(geoJson);
+                    App.ui.showAlert("Arquivo KML/KMZ carregado e exibido no mapa.", "success");
+
+                } catch (error) {
+                    App.ui.showAlert("Erro ao processar o arquivo KML. Verifique o formato.", "error");
+                    console.error("Erro ao converter KML para GeoJSON:", error);
+                }
+            },
+
+            handleKmlUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+
+                if (file.name.toLowerCase().endsWith('.kml')) {
+                    reader.onload = (event) => this._parseKmlText(event.target.result);
+                    reader.onerror = () => App.ui.showAlert("Erro ao ler o arquivo KML.", "error");
+                    reader.readAsText(file);
+                } else if (file.name.toLowerCase().endsWith('.kmz')) {
+                    reader.onload = (event) => {
+                        JSZip.loadAsync(event.target.result)
+                            .then(zip => {
+                                const kmlFile = Object.values(zip.files).find(f => f.name.toLowerCase().endsWith('.kml'));
+                                if (kmlFile) {
+                                    return kmlFile.async('string');
+                                } else {
+                                    throw new Error("Nenhum arquivo .kml encontrado dentro do .kmz.");
+                                }
+                            })
+                            .then(kmlText => {
+                                this._parseKmlText(kmlText);
+                            })
+                            .catch(error => {
+                                App.ui.showAlert(`Erro ao processar o arquivo KMZ: ${error.message}`, "error");
+                                console.error("Erro ao processar KMZ:", error);
+                            });
+                    };
+                    reader.onerror = () => App.ui.showAlert("Erro ao ler o arquivo KMZ.", "error");
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    App.ui.showAlert("Formato de arquivo não suportado. Por favor, selecione um arquivo .kml ou .kmz.", "warning");
+                }
+            },
+
             generateReport() {
                 const { farmSelect } = App.elements.flightPlanning;
                 const { kmlGeoJson } = App.state.flightPlan;
+                const map = App.state.mapboxMap;
+
+                if (!map) {
+                    App.ui.showAlert("O mapa não está inicializado.", "error");
+                    return;
+                }
+
                 const selectedFarmId = farmSelect.value;
                 const farm = App.state.fazendas.find(farmData => farmData.id === selectedFarmId);
-                const farmFeature = App.state.geoJsonData.features.find(f => f.properties.CD_FAZENDA == farm.code);
-                const kmlFeature = kmlGeoJson.features[0];
-                const failureAreaGeoJson = turf.difference(farmFeature, kmlFeature);
 
-                const farmArea = turf.area(farmFeature);
-                const appliedArea = turf.area(kmlFeature);
+                // Re-unify features to ensure we have the correct data for the report
+                const farmFeatures = App.state.geoJsonData.features.filter(f => f.properties.CD_FAZENDA == farm.code && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
+                let unifiedFarmFeature = farmFeatures.length > 1 ? turf.union(...farmFeatures) : farmFeatures[0];
+
+                const kmlPolygons = kmlGeoJson.features.filter(f => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
+                let unifiedKmlFeature = kmlPolygons.length > 1 ? turf.union(...kmlPolygons) : kmlPolygons[0];
+
+                const failureAreaGeoJson = turf.difference(unifiedFarmFeature, unifiedKmlFeature);
+
+                const farmArea = turf.area(unifiedFarmFeature);
+                const appliedArea = turf.area(unifiedKmlFeature);
                 const failureArea = failureAreaGeoJson ? turf.area(failureAreaGeoJson) : 0;
                 const failurePercentage = farmArea > 0 ? (failureArea / farmArea) * 100 : 0;
 
@@ -2298,10 +2411,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const payload = {
                     farmName: farm.name,
                     metrics: metrics,
-                    generatedBy: App.state.currentUser?.username || 'Usuário Desconhecido'
+                    generatedBy: App.state.currentUser?.username || 'Usuário Desconhecido',
+                    viewport: {
+                        center: map.getCenter(),
+                        zoom: map.getZoom(),
+                        bearing: map.getBearing(),
+                        pitch: map.getPitch()
+                    },
+                    farmGeoJson: unifiedFarmFeature,
+                    kmlGeoJson: unifiedKmlFeature,
+                    failureGeoJson: failureAreaGeoJson
                 };
 
-                App.ui.setLoading(true, "A gerar relatório PDF...");
+                App.ui.setLoading(true, "A gerar relatório PDF com mapa dinâmico...");
                 fetch(`${App.config.backendUrl}/reports/flight-plan/pdf`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2349,29 +2471,83 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const farmFeature = App.state.geoJsonData.features.find(f => {
-                    const farm = App.state.fazendas.find(farmData => farmData.id === selectedFarmId);
-                    return f.properties.CD_FAZENDA == farm.code;
-                });
+                // 1. Get and unify all polygons for the selected farm
+                const farm = App.state.fazendas.find(farmData => farmData.id === selectedFarmId);
+                const farmFeatures = App.state.geoJsonData.features.filter(f => f.properties.CD_FAZENDA == farm.code && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
 
-                if (!farmFeature) {
-                    App.ui.showAlert("Geometria da fazenda não encontrada no Shapefile carregado.", "error");
+                if (farmFeatures.length === 0) {
+                    App.ui.showAlert("Nenhuma geometria de polígono encontrada para a fazenda selecionada no Shapefile.", "error");
                     return;
                 }
 
-                // Assuming the KML also represents a single polygon feature
-                const kmlFeature = kmlGeoJson.features[0];
+                let unifiedFarmFeature = farmFeatures[0];
+                if (farmFeatures.length > 1) {
+                    unifiedFarmFeature = turf.union(...farmFeatures);
+                }
 
-                if (!kmlFeature || !kmlFeature.geometry) {
-                    App.ui.showAlert("Nenhuma geometria válida encontrada no arquivo KML.", "error");
+                // 2. Get and unify all polygons from the KML file
+                const kmlPolygons = kmlGeoJson.features.filter(f => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
+
+                if (kmlPolygons.length === 0) {
+                    App.ui.showAlert("Nenhuma geometria de polígono encontrada no arquivo KML.", "error");
                     return;
                 }
 
+                let unifiedKmlFeature = kmlPolygons[0];
+                if (kmlPolygons.length > 1) {
+                    unifiedKmlFeature = turf.union(...kmlPolygons);
+                }
+
+                // 3. Perform analysis
+                App.ui.setLoading(true, "Analisando cobertura geoespacial...");
                 try {
-                    const failureAreaGeoJson = turf.difference(farmFeature, kmlFeature);
+                    // Use a timeout to allow the UI to update and show the loading spinner
+                    setTimeout(() => {
+                        const failureAreaGeoJson = turf.difference(unifiedFarmFeature, unifiedKmlFeature);
 
-                    const farmArea = turf.area(farmFeature);
-                    const appliedArea = turf.area(kmlFeature);
+                        const farmArea = turf.area(unifiedFarmFeature);
+                        const appliedArea = turf.area(unifiedKmlFeature);
+                        const failureArea = failureAreaGeoJson ? turf.area(failureAreaGeoJson) : 0;
+
+                        const failurePercentage = farmArea > 0 ? (failureArea / farmArea) * 100 : 0;
+
+                        analysisResult.innerHTML = `
+                            <div class="resultado">
+                                <p>Área da Fazenda: <strong>${(farmArea / 10000).toFixed(2)} ha</strong></p>
+                                <p>Área Aplicada: <strong>${(appliedArea / 10000).toFixed(2)} ha</strong></p>
+                                <p style="color: var(--color-danger);">Área com Falha: <strong>${(failureArea / 10000).toFixed(2)} ha (${failurePercentage.toFixed(2)}%)</strong></p>
+                            </div>
+                        `;
+
+                        App.mapModule.displayFailureLayer(failureAreaGeoJson);
+                        btnGenerateReport.disabled = false;
+
+                        // Save the analysis to Firestore
+                        const analysisRecord = {
+                            farmId: selectedFarmId,
+                            farmName: farm.name,
+                            analysisDate: new Date().toISOString(),
+                            metrics: {
+                                farmAreaHa: (farmArea / 10000).toFixed(2),
+                                appliedAreaHa: (appliedArea / 10000).toFixed(2),
+                                failureAreaHa: (failureArea / 10000).toFixed(2),
+                                failurePercentage: failurePercentage.toFixed(2)
+                            },
+                            userId: App.state.currentUser.uid
+                        };
+                        App.data.addDocument('flightAnalyses', analysisRecord);
+
+                        App.ui.setLoading(false);
+                        App.ui.showAlert("Análise de cobertura concluída.", "success");
+                    }, 50); // 50ms delay
+
+                } catch (error) {
+                    App.ui.setLoading(false);
+                    App.ui.showAlert("Ocorreu um erro durante a análise geoespacial.", "error");
+                    console.error("Turf.js analysis error:", error);
+                }
+            },
+                    const appliedArea = turf.area(unifiedKmlFeature);
                     const failureArea = failureAreaGeoJson ? turf.area(failureAreaGeoJson) : 0;
 
                     const failurePercentage = farmArea > 0 ? (failureArea / farmArea) * 100 : 0;
@@ -2394,33 +2570,104 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            handleKmlUpload(e) {
-                const file = e.target.files[0];
-                if (!file) return;
+            suggestFlightPath() {
+                const { farmSelect } = App.elements.flightPlanning;
+                const selectedFarmId = farmSelect.value;
 
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const kmlText = event.target.result;
-                    try {
-                        const domParser = new DOMParser();
-                        const kmlDoc = domParser.parseFromString(kmlText, 'text/xml');
+                if (!selectedFarmId) {
+                    App.ui.showAlert("Por favor, selecione uma fazenda para sugerir a rota.", "warning");
+                    return;
+                }
 
-                        const geoJson = toGeoJSON.kml(kmlDoc);
+                const farm = App.state.fazendas.find(farmData => farmData.id === selectedFarmId);
+                const farmFeatures = App.state.geoJsonData.features.filter(f => f.properties.CD_FAZENDA == farm.code && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
 
-                        App.state.flightPlan.kmlGeoJson = geoJson;
-                        App.mapModule.displayKmlLayer(geoJson);
-                        App.ui.showAlert("Arquivo KML carregado e exibido no mapa.", "success");
+                if (farmFeatures.length === 0) {
+                    App.ui.showAlert("Nenhuma geometria de polígono encontrada para a fazenda selecionada.", "error");
+                    return;
+                }
 
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao processar o arquivo KML. Verifique o formato.", "error");
-                        console.error("Erro ao converter KML para GeoJSON:", error);
+                let unifiedFarmFeature = farmFeatures.length > 1 ? turf.union(...farmFeatures) : farmFeatures[0];
+
+                App.ui.setLoading(true, "IA está a gerar uma rota de voo otimizada...");
+
+                fetch(`${App.config.backendUrl}/api/gemini/suggest-flight-path`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ farmGeoJson: unifiedFarmFeature }),
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw new Error(err.message || 'Erro do servidor') });
                     }
-                };
-                reader.onerror = () => {
-                    App.ui.showAlert("Erro ao ler o arquivo KML.", "error");
-                };
-                reader.readAsText(file);
+                    return response.json();
+                })
+                .then(suggestedPathGeoJson => {
+                    App.mapModule.displaySuggestedPathLayer(suggestedPathGeoJson);
+                    App.ui.showAlert("Rota de voo sugerida pela IA foi carregada no mapa.", "success");
+                })
+                .catch(error => {
+                    App.ui.showAlert(`Não foi possível sugerir a rota: ${error.message}`, "error");
+                    console.error("Erro ao sugerir rota:", error);
+                })
+                .finally(() => {
+                    App.ui.setLoading(false);
+                });
             },
+
+            async showAnalysisHistory() {
+                const { farmSelect } = App.elements.flightPlanning;
+                const { overlay, body } = App.elements.analysisHistoryModal;
+                const selectedFarmId = farmSelect.value;
+
+                if (!selectedFarmId) {
+                    App.ui.showAlert("Por favor, selecione uma fazenda para ver o histórico.", "warning");
+                    return;
+                }
+
+                App.ui.setLoading(true, "Buscando histórico...");
+                try {
+                    const q = query(collection(db, 'flightAnalyses'), where("farmId", "==", selectedFarmId));
+                    const querySnapshot = await getDocs(q);
+
+                    if (querySnapshot.empty) {
+                        body.innerHTML = '<p style="text-align: center; padding: 20px;">Nenhum histórico de análise encontrado para esta fazenda.</p>';
+                    } else {
+                        let tableHTML = `<table id="personnelTable" class="harvestPlanTable">
+                            <thead>
+                                <tr>
+                                    <th>Data da Análise</th>
+                                    <th>Área Fazenda (ha)</th>
+                                    <th>Área Aplicada (ha)</th>
+                                    <th>Área com Falha (ha)</th>
+                                    <th>Falha (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                        querySnapshot.forEach(doc => {
+                            const analysis = doc.data();
+                            tableHTML += `
+                                <tr>
+                                    <td>${new Date(analysis.analysisDate).toLocaleString('pt-BR')}</td>
+                                    <td>${analysis.metrics.farmAreaHa}</td>
+                                    <td>${analysis.metrics.appliedAreaHa}</td>
+                                    <td>${analysis.metrics.failureAreaHa}</td>
+                                    <td>${analysis.metrics.failurePercentage}</td>
+                                </tr>`;
+                        });
+
+                        tableHTML += `</tbody></table>`;
+                        body.innerHTML = tableHTML;
+                    }
+                    overlay.classList.add('show');
+                } catch (error) {
+                    App.ui.showAlert("Erro ao buscar o histórico de análises.", "error");
+                    console.error("Error fetching analysis history:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            }
         },
         
         actions: {
@@ -4597,6 +4844,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         'fill-opacity': 0.4
                     }
                 });
+
+                const bounds = turf.bbox(geoJson);
+                map.fitBounds(bounds, { padding: 40 });
             },
 
             displayFailureLayer(geoJson) {
