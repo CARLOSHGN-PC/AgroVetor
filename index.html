@@ -1809,6 +1809,37 @@
                 <button class="save" type="button" id="btnSalvarPerda"><i class="fas fa-save"></i> Guardar Perda de Cana</button>
             </section>
 
+            <section id="planejamentoAplicacao" class="tab-content card" aria-label="Planejamento de Aplicação" tabindex="0" hidden>
+                <h2><i class="fas fa-plane"></i> Planejamento de Aplicação Aérea</h2>
+                <div class="card" style="border-left-color: var(--color-info);">
+                    <h3><i class="fas fa-file-import"></i> 1. Carregar Arquivos</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="flightPlanFarmSelect" class="required">Selecione a Fazenda:</label>
+                            <select id="flightPlanFarmSelect" required></select>
+                        </div>
+                        <div class="form-col">
+                            <label for="flightPlanKmlInput" class="required">Arquivo KML do Voo:</label>
+                            <div class="upload-area" id="kmlUploadArea">
+                                <i class="fas fa-map-marked-alt fa-2x" style="color: var(--color-info);"></i>
+                                <p>Clique ou arraste um arquivo .kml aqui</p>
+                            </div>
+                            <input type="file" id="flightPlanKmlInput" accept=".kml" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="border-left-color: var(--color-success);">
+                    <h3><i class="fas fa-cogs"></i> 2. Análise de Cobertura</h3>
+                    <button class="save" id="btnAnalyzeCoverage" style="max-width: 300px;"><i class="fas fa-play-circle"></i> Analisar Cobertura</button>
+                    <div id="coverageAnalysisResult" style="margin-top: 20px;"></div>
+                </div>
+                 <div class="card" style="border-left-color: var(--color-danger);">
+                    <h3><i class="fas fa-file-pdf"></i> 3. Gerar Relatório</h3>
+                    <p>Após a análise, um relatório em PDF poderá ser gerado.</p>
+                    <button class="save" id="btnGenerateFlightReport" style="max-width: 300px; background: var(--color-danger);" disabled><i class="fas fa-file-pdf"></i> Gerar Relatório PDF</button>
+                </div>
+            </section>
+
             <section id="relatorioPerda" class="tab-content card" aria-label="Relatório Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-chart-pie"></i> Relatório de Perda de Cana</h2>
                 <div class="form-row">
@@ -2241,6 +2272,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     <script src="https://unpkg.com/idb@7.1.1/build/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/togeojson/0.16.0/togeojson.min.js"></script>
     
     <!-- Mapbox GL JS -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">

@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     submenu: [
                         { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
                         { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
+                        { label: 'Planejamento de Aplicação', icon: 'fas fa-plane', target: 'planejamentoAplicacao', permission: 'planejamentoAplicacao' },
                     ]
                 },
                 {
@@ -119,8 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, planejamentoAplicacao: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, planejamentoAplicacao: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
@@ -160,6 +161,10 @@ document.addEventListener('DOMContentLoaded', () => {
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
+            flightPlan: {
+                kmlGeoJson: null,
+                selectedFarmId: null,
+            },
         },
         
         elements: {
@@ -469,6 +474,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 cancelBtn: document.getElementById('trapPlacementModalCancelBtn'),
                 manualBtn: document.getElementById('trapPlacementModalManualBtn'),
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
+            },
+            flightPlanning: {
+                farmSelect: document.getElementById('flightPlanFarmSelect'),
+                kmlUploadArea: document.getElementById('kmlUploadArea'),
+                kmlInput: document.getElementById('flightPlanKmlInput'),
+                btnAnalyze: document.getElementById('btnAnalyzeCoverage'),
+                analysisResult: document.getElementById('coverageAnalysisResult'),
+                btnGenerateReport: document.getElementById('btnGenerateFlightReport'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
         },
@@ -1179,7 +1192,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cadastros.farmSelect,
                     App.elements.broca.codigo,
                     App.elements.perda.codigo,
-                    App.elements.relatorioMonitoramento.fazendaFiltro
+                    App.elements.relatorioMonitoramento.fazendaFiltro,
+                    App.elements.flightPlanning.farmSelect
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
@@ -2250,7 +2264,163 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.monitoramentoAereo.btnHistory) {
                     // This listener is now attached in showTab
                 }
+
+                const flightPlanningEls = App.elements.flightPlanning;
+                if (flightPlanningEls.kmlUploadArea) flightPlanningEls.kmlUploadArea.addEventListener('click', () => flightPlanningEls.kmlInput.click());
+                if (flightPlanningEls.kmlInput) flightPlanningEls.kmlInput.addEventListener('change', (e) => App.flightPlanningModule.handleKmlUpload(e));
+                if (flightPlanningEls.btnAnalyze) flightPlanningEls.btnAnalyze.addEventListener('click', () => App.flightPlanningModule.analyzeCoverage());
+                if (flightPlanningEls.btnGenerateReport) flightPlanningEls.btnGenerateReport.addEventListener('click', () => App.flightPlanningModule.generateReport());
             }
+        },
+
+        flightPlanningModule: {
+            generateReport() {
+                const { farmSelect } = App.elements.flightPlanning;
+                const { kmlGeoJson } = App.state.flightPlan;
+                const selectedFarmId = farmSelect.value;
+                const farm = App.state.fazendas.find(farmData => farmData.id === selectedFarmId);
+                const farmFeature = App.state.geoJsonData.features.find(f => f.properties.CD_FAZENDA == farm.code);
+                const kmlFeature = kmlGeoJson.features[0];
+                const failureAreaGeoJson = turf.difference(farmFeature, kmlFeature);
+
+                const farmArea = turf.area(farmFeature);
+                const appliedArea = turf.area(kmlFeature);
+                const failureArea = failureAreaGeoJson ? turf.area(failureAreaGeoJson) : 0;
+                const failurePercentage = farmArea > 0 ? (failureArea / farmArea) * 100 : 0;
+
+                const metrics = {
+                    farmAreaHa: (farmArea / 10000).toFixed(2),
+                    appliedAreaHa: (appliedArea / 10000).toFixed(2),
+                    failureAreaHa: (failureArea / 10000).toFixed(2),
+                    failurePercentage: failurePercentage.toFixed(2)
+                };
+
+                const payload = {
+                    farmName: farm.name,
+                    metrics: metrics,
+                    generatedBy: App.state.currentUser?.username || 'Usuário Desconhecido'
+                };
+
+                App.ui.setLoading(true, "A gerar relatório PDF...");
+                fetch(`${App.config.backendUrl}/reports/flight-plan/pdf`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `relatorio_aplicacao_${farm.name.replace(/ /g, '_')}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                    App.ui.showAlert('Relatório gerado com sucesso!');
+                })
+                .catch(error => {
+                    console.error('Erro ao gerar relatório:', error);
+                    App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
+                })
+                .finally(() => {
+                    App.ui.setLoading(false);
+                });
+            },
+
+            analyzeCoverage() {
+                const { farmSelect, analysisResult, btnGenerateReport } = App.elements.flightPlanning;
+                const { kmlGeoJson } = App.state.flightPlan;
+                const selectedFarmId = farmSelect.value;
+
+                if (!selectedFarmId) {
+                    App.ui.showAlert("Por favor, selecione uma fazenda.", "warning");
+                    return;
+                }
+
+                if (!kmlGeoJson) {
+                    App.ui.showAlert("Por favor, carregue um arquivo KML do voo.", "warning");
+                    return;
+                }
+
+                const farmFeature = App.state.geoJsonData.features.find(f => {
+                    const farm = App.state.fazendas.find(farmData => farmData.id === selectedFarmId);
+                    return f.properties.CD_FAZENDA == farm.code;
+                });
+
+                if (!farmFeature) {
+                    App.ui.showAlert("Geometria da fazenda não encontrada no Shapefile carregado.", "error");
+                    return;
+                }
+
+                // Assuming the KML also represents a single polygon feature
+                const kmlFeature = kmlGeoJson.features[0];
+
+                if (!kmlFeature || !kmlFeature.geometry) {
+                    App.ui.showAlert("Nenhuma geometria válida encontrada no arquivo KML.", "error");
+                    return;
+                }
+
+                try {
+                    const failureAreaGeoJson = turf.difference(farmFeature, kmlFeature);
+
+                    const farmArea = turf.area(farmFeature);
+                    const appliedArea = turf.area(kmlFeature);
+                    const failureArea = failureAreaGeoJson ? turf.area(failureAreaGeoJson) : 0;
+
+                    const failurePercentage = farmArea > 0 ? (failureArea / farmArea) * 100 : 0;
+
+                    analysisResult.innerHTML = `
+                        <div class="resultado">
+                            <p>Área da Fazenda: <strong>${(farmArea / 10000).toFixed(2)} ha</strong></p>
+                            <p>Área Aplicada: <strong>${(appliedArea / 10000).toFixed(2)} ha</strong></p>
+                            <p style="color: var(--color-danger);">Área com Falha: <strong>${(failureArea / 10000).toFixed(2)} ha (${failurePercentage.toFixed(2)}%)</strong></p>
+                        </div>
+                    `;
+
+                    App.mapModule.displayFailureLayer(failureAreaGeoJson);
+                    btnGenerateReport.disabled = false;
+                    App.ui.showAlert("Análise de cobertura concluída.", "success");
+
+                } catch (error) {
+                    App.ui.showAlert("Ocorreu um erro durante a análise geoespacial.", "error");
+                    console.error("Turf.js analysis error:", error);
+                }
+            },
+
+            handleKmlUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const kmlText = event.target.result;
+                    try {
+                        const domParser = new DOMParser();
+                        const kmlDoc = domParser.parseFromString(kmlText, 'text/xml');
+
+                        const geoJson = toGeoJSON.kml(kmlDoc);
+
+                        App.state.flightPlan.kmlGeoJson = geoJson;
+                        App.mapModule.displayKmlLayer(geoJson);
+                        App.ui.showAlert("Arquivo KML carregado e exibido no mapa.", "success");
+
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao processar o arquivo KML. Verifique o formato.", "error");
+                        console.error("Erro ao converter KML para GeoJSON:", error);
+                    }
+                };
+                reader.onerror = () => {
+                    App.ui.showAlert("Erro ao ler o arquivo KML.", "error");
+                };
+                reader.readAsText(file);
+            },
         },
         
         actions: {
@@ -4399,6 +4569,62 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.selectedMapFeature = null;
                 }
                 App.elements.monitoramentoAereo.infoBox.classList.remove('visible');
+            },
+
+            displayKmlLayer(geoJson) {
+                const map = App.state.mapboxMap;
+                if (!map || !geoJson) return;
+
+                const sourceId = 'kml-source';
+                const layerId = 'kml-layer';
+
+                if (map.getSource(sourceId)) {
+                    if(map.getLayer(layerId)) map.removeLayer(layerId);
+                    map.removeSource(sourceId);
+                }
+
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: geoJson
+                });
+
+                map.addLayer({
+                    id: layerId,
+                    type: 'fill',
+                    source: sourceId,
+                    paint: {
+                        'fill-color': '#0000FF', // Blue
+                        'fill-opacity': 0.4
+                    }
+                });
+            },
+
+            displayFailureLayer(geoJson) {
+                const map = App.state.mapboxMap;
+                if (!map || !geoJson) return;
+
+                const sourceId = 'failure-source';
+                const layerId = 'failure-layer';
+
+                if (map.getSource(sourceId)) {
+                    if(map.getLayer(layerId)) map.removeLayer(layerId);
+                    map.removeSource(sourceId);
+                }
+
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: geoJson
+                });
+
+                map.addLayer({
+                    id: layerId,
+                    type: 'fill',
+                    source: sourceId,
+                    paint: {
+                        'fill-color': '#FF0000', // Red
+                        'fill-opacity': 0.6
+                    }
+                });
             },
 
             loadTraps() {
