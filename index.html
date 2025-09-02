@@ -1822,21 +1822,27 @@
                             <label for="flightPlanKmlInput" class="required">Arquivo KML do Voo:</label>
                             <div class="upload-area" id="kmlUploadArea">
                                 <i class="fas fa-map-marked-alt fa-2x" style="color: var(--color-info);"></i>
-                                <p>Clique ou arraste um arquivo .kml aqui</p>
+                                <p>Clique ou arraste um arquivo .kml ou .kmz aqui</p>
                             </div>
-                            <input type="file" id="flightPlanKmlInput" accept=".kml" style="display: none;">
+                            <input type="file" id="flightPlanKmlInput" accept=".kml,.kmz" style="display: none;">
                         </div>
                     </div>
                 </div>
                 <div class="card" style="border-left-color: var(--color-success);">
                     <h3><i class="fas fa-cogs"></i> 2. Análise de Cobertura</h3>
-                    <button class="save" id="btnAnalyzeCoverage" style="max-width: 300px;"><i class="fas fa-play-circle"></i> Analisar Cobertura</button>
+                    <div class="button-group" style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button class="save" id="btnAnalyzeCoverage" style="max-width: 300px;"><i class="fas fa-play-circle"></i> Analisar Cobertura de Voo Existente</button>
+                        <button class="btn-ai" id="btnSuggestFlightPath" style="max-width: 300px; margin-top: 0;"><i class="fas fa-magic"></i> Sugerir Rota de Voo (IA)</button>
+                    </div>
                     <div id="coverageAnalysisResult" style="margin-top: 20px;"></div>
                 </div>
                  <div class="card" style="border-left-color: var(--color-danger);">
                     <h3><i class="fas fa-file-pdf"></i> 3. Gerar Relatório</h3>
                     <p>Após a análise, um relatório em PDF poderá ser gerado.</p>
-                    <button class="save" id="btnGenerateFlightReport" style="max-width: 300px; background: var(--color-danger);" disabled><i class="fas fa-file-pdf"></i> Gerar Relatório PDF</button>
+                    <div class="button-group" style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button class="save" id="btnGenerateFlightReport" style="max-width: 300px; background: var(--color-danger);" disabled><i class="fas fa-file-pdf"></i> Gerar Relatório PDF</button>
+                        <button class="btn-secondary" id="btnViewAnalysisHistory" style="max-width: 300px; margin-top: 0;"><i class="fas fa-history"></i> Ver Histórico de Análises</button>
+                    </div>
                 </div>
             </section>
 
@@ -2263,6 +2269,18 @@
             </div>
         </div>
 
+        <div id="analysisHistoryModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h2>Histórico de Análises</h2>
+                    <button id="analysisHistoryModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div id="analysisHistoryModalBody" class="table-responsive">
+                    <!-- History table will be injected here -->
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Bibliotecas Externas -->
@@ -2272,6 +2290,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     <script src="https://unpkg.com/idb@7.1.1/build/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/togeojson/0.16.0/togeojson.min.js"></script>
     
     <!-- Mapbox GL JS -->

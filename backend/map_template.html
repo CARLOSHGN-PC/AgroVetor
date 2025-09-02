@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Map Renderer</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+
+        // This function will be called by Puppeteer
+        window.renderMap = async (mapData) => {
+            const map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                center: mapData.viewport.center,
+                zoom: mapData.viewport.zoom,
+                bearing: mapData.viewport.bearing,
+                pitch: mapData.viewport.pitch,
+                interactive: false // No interaction needed for a static image
+            });
+
+            return new Promise((resolve) => {
+                map.on('load', () => {
+                    // Add Farm Layer
+                    if (mapData.farmGeoJson) {
+                        map.addSource('farm-source', { type: 'geojson', data: mapData.farmGeoJson });
+                        map.addLayer({
+                            id: 'farm-layer',
+                            type: 'fill',
+                            source: 'farm-source',
+                            paint: { 'fill-color': '#2E7D32', 'fill-opacity': 0.3 }
+                        });
+                        map.addLayer({
+                            id: 'farm-border-layer',
+                            type: 'line',
+                            source: 'farm-source',
+                            paint: { 'line-color': '#FFFFFF', 'line-width': 1 }
+                        });
+                    }
+
+                    // Add KML/Applied Layer
+                    if (mapData.kmlGeoJson) {
+                        map.addSource('kml-source', { type: 'geojson', data: mapData.kmlGeoJson });
+                        map.addLayer({
+                            id: 'kml-layer',
+                            type: 'fill',
+                            source: 'kml-source',
+                            paint: { 'fill-color': '#0000FF', 'fill-opacity': 0.4 }
+                        });
+                    }
+
+                    // Add Failure Layer
+                    if (mapData.failureGeoJson) {
+                        map.addSource('failure-source', { type: 'geojson', data: mapData.failureGeoJson });
+                        map.addLayer({
+                            id: 'failure-layer',
+                            type: 'fill',
+                            source: 'failure-source',
+                            paint: { 'fill-color': '#FF0000', 'fill-opacity': 0.6 }
+                        });
+                    }
+
+                    // Wait for the map to be fully rendered and idle before resolving
+                    map.on('idle', () => {
+                        resolve();
+                    });
+                });
+            });
+        };
+    </script>
+</body>
+</html>
