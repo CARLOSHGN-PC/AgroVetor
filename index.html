@@ -1821,18 +1821,14 @@
                     <h3><i class="fas fa-file-import"></i> 1. Carregar Arquivos</h3>
                     <div class="form-row">
                         <div class="form-col">
-                                <label for="farmBoundaryInput" class="required">Arquivo de Limite da Fazenda:</label>
-                                <div class="upload-area" id="farmBoundaryUploadArea">
-                                    <i class="fas fa-draw-polygon fa-2x" style="color: var(--color-success);"></i>
-                                    <p>Clique ou arraste um Shapefile (.zip), KML ou KMZ aqui</p>
-                                </div>
-                                <input type="file" id="farmBoundaryInput" accept=".zip,.kml,.kmz" style="display: none;">
+                            <label for="flightPlanFarmSelect" class="required">Selecione a Fazenda:</label>
+                            <select id="flightPlanFarmSelect" required></select>
                         </div>
                         <div class="form-col">
-                                <label for="flightPlanKmlInput" class="required">Arquivo de Rota do Voo (Aplicação):</label>
+                            <label for="flightPlanKmlInput" class="required">Arquivo KML/KMZ do Voo:</label>
                             <div class="upload-area" id="kmlUploadArea">
-                                    <i class="fas fa-route fa-2x" style="color: var(--color-info);"></i>
-                                    <p>Clique ou arraste um arquivo KML ou KMZ aqui</p>
+                                <i class="fas fa-map-marked-alt fa-2x" style="color: var(--color-info);"></i>
+                                <p>Clique ou arraste um arquivo .kml ou .kmz aqui</p>
                             </div>
                             <input type="file" id="flightPlanKmlInput" accept=".kml,.kmz" style="display: none;">
                         </div>
@@ -1870,6 +1866,7 @@
                      <div class="button-group" style="display: flex; gap: 15px; flex-wrap: wrap;">
                         <button class="save" id="btnGenerateFlightReport" style="max-width: 300px; background: var(--color-danger);"><i class="fas fa-file-pdf"></i> Analisar e Gerar Relatório</button>
                         <button class="btn-ai" id="btnSuggestFlightPath" style="max-width: 300px; margin-top: 0;"><i class="fas fa-magic"></i> Sugerir Rota de Voo (IA)</button>
+                        <button class="btn-secondary" id="btnViewAnalysisHistory" style="max-width: 300px; margin-top: 0;"><i class="fas fa-history"></i> Ver Histórico</button>
                     </div>
                 </div>
             </section>
