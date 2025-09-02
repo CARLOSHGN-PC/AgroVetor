@@ -119,10 +119,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, rastreioHistorico: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, rastreioHistorico: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, rastreioHistorico: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, rastreioHistorico: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
             }
         },
@@ -851,7 +851,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 renderWithCatch('populateFazendaSelects', () => this.populateFazendaSelects());
-                renderWithCatch('populateUserSelects', () => this.populateUserSelects());
+                renderWithCatch('populateUserSelects', () => this.populateUserSelects([App.elements.planejamento.responsavel]));
                 renderWithCatch('populateOperatorSelects', () => this.populateOperatorSelects());
                 renderWithCatch('renderUsersList', () => this.renderUsersList());
                 renderWithCatch('renderPersonnelList', () => this.renderPersonnelList());
@@ -1210,8 +1210,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     select.value = currentValue;
                 });
             },
-            populateUserSelects() {
-                const selects = [App.elements.planejamento.responsavel, App.elements.historyFilterModal.userSelect];
+            populateUserSelects(selects) {
+                if (!selects || selects.length === 0) return;
+
                 selects.forEach(select => {
                     if (!select) return;
                     const currentValue = select.value;
@@ -4868,7 +4869,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showHistoryFilterModal() {
                 const modal = App.elements.historyFilterModal;
-                this.populateUserSelects(); // Popula o select do modal
+                this.populateUserSelects([modal.userSelect]); // Popula apenas o select do modal
 
                 // Set default dates
                 const today = new Date();
