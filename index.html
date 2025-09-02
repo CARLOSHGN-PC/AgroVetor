@@ -1830,11 +1830,34 @@
                 </div>
                 <div class="card" style="border-left-color: var(--color-success);">
                     <h3><i class="fas fa-cogs"></i> 2. Análise e Planejamento</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="swathWidthInput">Largura da Faixa (metros):</label>
+                            <input type="number" id="swathWidthInput" value="20" placeholder="Ex: 20">
+                        </div>
+                        <div class="form-col">
+                            <label for="droneSpeedInput">Velocidade do Drone (km/h):</label>
+                            <input type="number" id="droneSpeedInput" value="40" placeholder="Ex: 40">
+                        </div>
+                    </div>
+                    <div id="flightTimeResult" class="resultado" style="display: none;"></div>
                     <div class="button-group" style="display: flex; gap: 15px; flex-wrap: wrap;">
                         <button class="save" id="btnAnalyzeCoverage" style="max-width: 300px;"><i class="fas fa-play-circle"></i> Analisar Cobertura de Voo</button>
                         <button class="btn-ai" id="btnSuggestFlightPath" style="max-width: 300px; margin-top: 0;"><i class="fas fa-magic"></i> Sugerir Rota de Voo (IA)</button>
                     </div>
                     <div id="coverageAnalysisResult" style="margin-top: 20px;"></div>
+                </div>
+                <div class="card" style="border-left-color: var(--color-purple);">
+                    <h3><i class="fas fa-exchange-alt"></i> Importar & Exportar Análise</h3>
+                    <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Guarde a sua análise atual ou carregue uma análise guardada anteriormente.</p>
+                    <div class="button-group" style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button id="btnExportAnalysis" class="btn-secondary" style="max-width: 300px; margin-top: 0; background-color: var(--color-info);"><i class="fas fa-file-export"></i> Exportar Análise (.flightplan)</button>
+                        <label for="importAnalysisInput" class="btn-secondary" style="cursor: pointer; max-width: 300px; margin-top: 0; background-color: var(--color-success);">
+                            <i class="fas fa-file-import"></i> Importar Análise (.flightplan)
+                            <input type="file" id="importAnalysisInput" accept=".flightplan" style="display: none;">
+                        </label>
+                        <button id="btnExportPlan" class="btn-secondary" style="max-width: 300px; margin-top: 0; background-color: var(--color-ai);"><i class="fas fa-route"></i> Exportar para Software de Voo (.plan)</button>
+                    </div>
                 </div>
                  <div class="card" style="border-left-color: var(--color-danger);">
                     <h3><i class="fas fa-file-pdf"></i> 3. Gerar Relatório</h3>

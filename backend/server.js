@@ -187,18 +187,30 @@ try {
         }
     });
 
-    // --- ROTA DE GERAÇÃO DA IA (GEMINI) ---
-    app.post('/api/gemini/generate', async (req, res) => {
+    // Rota específica para a sugestão de rotas de voo
+    app.post('/api/gemini/suggest-flight-path', async (req, res) => {
         if (!model) {
-            return res.status(503).json({ message: "Esta funcionalidade de IA está temporariamente desativada." });
+            return res.status(503).json({ message: "A funcionalidade de IA está temporariamente desativada." });
         }
-        const { prompt } = req.body;
 
-        if (!prompt) {
-            return res.status(400).json({ message: 'O prompt é obrigatório.' });
+        const { farmGeoJson, swathWidth } = req.body;
+
+        if (!farmGeoJson || !swathWidth) {
+            return res.status(400).json({ message: 'GeoJSON da fazenda e a largura da faixa são obrigatórios.' });
         }
 
         try {
+            const prompt = `
+                Com base no seguinte GeoJSON de um polígono de fazenda, gere uma rota de voo otimizada para um drone agrícola.
+                A rota deve ser uma linha (LineString) contida dentro do polígono.
+                A largura da faixa de aplicação do drone é de ${swathWidth} metros.
+                A rota deve cobrir a maior área possível do polígono, minimizando as sobreposições.
+                O resultado deve ser um GeoJSON contendo uma única feature do tipo "LineString".
+
+                GeoJSON da Fazenda:
+                ${JSON.stringify(farmGeoJson)}
+            `;
+
             const result = await model.generateContent(prompt);
             const response = await result.response;
             let text = response.text();
@@ -208,8 +220,8 @@ try {
             res.status(200).json(jsonResponse);
 
         } catch (error) {
-            console.error("Erro ao chamar a API do Gemini:", error);
-            res.status(500).json({ message: 'Erro ao comunicar com a IA.' });
+            console.error("Erro ao chamar a API do Gemini para sugerir rota de voo:", error);
+            res.status(500).json({ message: 'Erro ao comunicar com a IA para gerar a rota.' });
         }
     });
 
