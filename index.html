@@ -1407,6 +1407,11 @@
                         <h3>Aplicação Aérea</h3>
                         <p>Módulo para gestão e análise de aplicações aéreas.</p>
                     </div>
+                    <div id="card-analise-aerea" class="dashboard-card">
+                        <i class="icon fas fa-search-location"></i>
+                        <h3>Análise de Falhas</h3>
+                        <p>Compare o voo (KML) com o talhão (SHP) para encontrar falhas na aplicação.</p>
+                    </div>
                 </div>
 
                 <div id="dashboard-broca" style="display: none;">
@@ -2020,6 +2025,58 @@
 
             </section>
 
+            <section id="analiseAplicacaoAerea" class="tab-content card" aria-label="Análise de Aplicação Aérea" tabindex="0" hidden>
+                <h2 style="color: var(--color-purple);"><i class="fas fa-search-location"></i> Análise de Falhas na Aplicação Aérea</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">
+                    Faça o upload do Shapefile (.zip) da sua fazenda e do arquivo KML do voo para visualizar e analisar as falhas na aplicação.
+                </p>
+
+                <div class="card" style="border-left-color: var(--color-purple);">
+                    <h3><i class="fas fa-file-upload"></i> 1. Fazer Upload dos Arquivos</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="analiseShapefileInput" class="required">Shapefile da Fazenda (.zip)</label>
+                            <div class="upload-area" id="analiseShapefileUploadArea">
+                                <i class="fas fa-file-archive fa-2x" style="color: var(--color-info);"></i>
+                                <p>Clique ou arraste o .zip do Shapefile aqui</p>
+                            </div>
+                            <input type="file" id="analiseShapefileInput" accept=".zip" style="display: none;">
+                            <div id="shapefileName" class="info-display"></div>
+                        </div>
+                        <div class="form-col">
+                            <label for="analiseKmlInput" class="required">Arquivo de Voo (.kml)</label>
+                            <div class="upload-area" id="analiseKmlUploadArea">
+                                <i class="fas fa-map-marked-alt fa-2x" style="color: var(--color-success);"></i>
+                                <p>Clique ou arraste o .kml do voo aqui</p>
+                            </div>
+                            <input type="file" id="analiseKmlInput" accept=".kml" style="display: none;">
+                            <div id="kmlFileName" class="info-display"></div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="analiseLargura" class="required">Largura da Aplicação (metros)</label>
+                            <input type="number" id="analiseLargura" value="20" placeholder="Ex: 20" required>
+                        </div>
+                    </div>
+                    <div class="button-group" style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button class="save" id="btnIniciarAnalise" style="background: linear-gradient(to right, var(--color-purple), #9c27b0); max-width: 300px; margin-top: 0;"><i class="fas fa-play-circle"></i> Iniciar Análise</button>
+                        <button class="btn-secondary" id="btnLimparAnalise" style="max-width: 300px; margin-top: 0;"><i class="fas fa-undo"></i> Limpar Análise</button>
+                    </div>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px; display: none;" id="analise-results-card">
+                    <h3><i class="fas fa-map"></i> 2. Visualização e Análise</h3>
+                    <div id="analise-map-container" style="position: relative; width: 100%; height: 500px; border-radius: var(--border-radius); overflow: hidden; margin-top: 15px; background-color: var(--color-bg);">
+                        <div id="analise-map" style="width: 100%; height: 100%;"></div>
+                    </div>
+                    <div id="analiseResultados" style="margin-top: 20px; font-size: 16px; font-weight: 500;">
+                        <!-- Os resultados serão injetados aqui -->
+                    </div>
+                    <button class="btn-secondary" id="btnGerarRelatorioAnalise" style="max-width: 300px; margin-top: 15px; display: none;"><i class="fas fa-file-pdf"></i> Gerar Relatório PDF</button>
+                </div>
+            </section>
+
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
@@ -2241,6 +2298,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     <script src="https://unpkg.com/idb@7.1.1/build/index.js"></script>
+    <script src="https://unpkg.com/@tmcw/togeojson@5.1.0/dist/togeojson.umd.js"></script>
     
     <!-- Mapbox GL JS -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">

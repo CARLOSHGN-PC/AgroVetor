@@ -160,6 +160,9 @@ document.addEventListener('DOMContentLoaded', () => {
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
+            analiseMap: null,
+            analiseShapefile: null,
+            analiseKml: null,
         },
         
         elements: {
@@ -277,6 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cardBroca: document.getElementById('card-broca'),
                 cardPerda: document.getElementById('card-perda'),
                 cardAerea: document.getElementById('card-aerea'),
+                cardAnaliseAerea: document.getElementById('card-analise-aerea'),
                 btnBackToSelectorBroca: document.getElementById('btn-back-to-selector-broca'),
                 btnBackToSelectorPerda: document.getElementById('btn-back-to-selector-perda'),
                 btnBackToSelectorAerea: document.getElementById('btn-back-to-selector-aerea'),
@@ -469,6 +473,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 cancelBtn: document.getElementById('trapPlacementModalCancelBtn'),
                 manualBtn: document.getElementById('trapPlacementModalManualBtn'),
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
+            },
+            analiseAerea: {
+                shapefileUploadArea: document.getElementById('analiseShapefileUploadArea'),
+                shapefileInput: document.getElementById('analiseShapefileInput'),
+                shapefileName: document.getElementById('shapefileName'),
+                kmlUploadArea: document.getElementById('analiseKmlUploadArea'),
+                kmlInput: document.getElementById('analiseKmlInput'),
+                kmlFileName: document.getElementById('kmlFileName'),
+                largura: document.getElementById('analiseLargura'),
+                btnIniciar: document.getElementById('btnIniciarAnalise'),
+                btnLimpar: document.getElementById('btnLimparAnalise'),
+                resultsCard: document.getElementById('analise-results-card'),
+                mapContainer: document.getElementById('analise-map'),
+                resultados: document.getElementById('analiseResultados'),
+                btnGerarRelatorio: document.getElementById('btnGerarRelatorioAnalise'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
         },
@@ -1003,6 +1022,10 @@ document.addEventListener('DOMContentLoaded', () => {
                    this.showDashboardView('broca'); 
                 } else {
                     App.charts.destroyAll(); 
+                }
+
+                if (id === 'analiseAplicacaoAerea') {
+                    App.mapModule.initAnaliseMap();
                 }
                 
                 if (id === 'excluirDados') this.renderExclusao();
@@ -1934,6 +1957,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dashEls.cardBroca) dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
                 if (dashEls.cardPerda) dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
                 if (dashEls.cardAerea) dashEls.cardAerea.addEventListener('click', () => this.showDashboardView('aerea'));
+                if (dashEls.cardAnaliseAerea) dashEls.cardAnaliseAerea.addEventListener('click', () => this.showTab('analiseAplicacaoAerea'));
                 if (dashEls.btnBackToSelectorBroca) dashEls.btnBackToSelectorBroca.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorPerda) dashEls.btnBackToSelectorPerda.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorAerea) dashEls.btnBackToSelectorAerea.addEventListener('click', () => this.showDashboardView('selector'));
@@ -2250,6 +2274,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.monitoramentoAereo.btnHistory) {
                     // This listener is now attached in showTab
                 }
+
+                const analiseEls = App.elements.analiseAerea;
+                if (analiseEls.shapefileUploadArea) analiseEls.shapefileUploadArea.addEventListener('click', () => analiseEls.shapefileInput.click());
+                if (analiseEls.shapefileInput) analiseEls.shapefileInput.addEventListener('change', (e) => App.actions.handleAnaliseFileSelect(e.target.files[0], 'shapefile'));
+                if (analiseEls.kmlUploadArea) analiseEls.kmlUploadArea.addEventListener('click', () => analiseEls.kmlInput.click());
+                if (analiseEls.kmlInput) analiseEls.kmlInput.addEventListener('change', (e) => App.actions.handleAnaliseFileSelect(e.target.files[0], 'kml'));
+                if (analiseEls.btnIniciar) analiseEls.btnIniciar.addEventListener('click', () => App.actions.iniciarAnaliseAerea());
+                if (analiseEls.btnLimpar) analiseEls.btnLimpar.addEventListener('click', () => App.actions.resetAnaliseAerea());
             }
         },
         
@@ -3813,6 +3845,185 @@ document.addEventListener('DOMContentLoaded', () => {
                  App.ui.showAlert("Rota do histórico limpa.", "info");
             },
 
+            handleAnaliseFileSelect(file, type) {
+                if (!file) return;
+                if (type === 'shapefile') {
+                    App.state.analiseShapefile = file;
+                    App.elements.analiseAerea.shapefileName.textContent = file.name;
+                } else if (type === 'kml') {
+                    App.state.analiseKml = file;
+                    App.elements.analiseAerea.kmlFileName.textContent = file.name;
+                }
+            },
+
+            resetAnaliseAerea() {
+                // Reset state
+                App.state.analiseShapefile = null;
+                App.state.analiseKml = null;
+
+                // Reset UI
+                const els = App.elements.analiseAerea;
+                els.shapefileInput.value = '';
+                els.kmlInput.value = '';
+                els.shapefileName.textContent = '';
+                els.kmlFileName.textContent = '';
+                els.resultados.innerHTML = '';
+                els.resultsCard.style.display = 'none';
+                els.btnGerarRelatorio.style.display = 'none';
+
+                // Clear map
+                const map = App.state.analiseMap;
+                if (map) {
+                    const layers = ['falhas-layer', 'buffer-layer', 'farm-layer', 'flight-path-layer'];
+                    const sources = ['falhas-source', 'buffer-source', 'farm-source', 'flight-path-source'];
+                    layers.forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+                    sources.forEach(id => { if (map.getSource(id)) map.removeSource(id); });
+                }
+
+                App.ui.showAlert("Análise reiniciada.", "info");
+            },
+
+            async iniciarAnaliseAerea() {
+                const { analiseShapefile, analiseKml } = App.state;
+                const { largura, resultsCard, btnGerarRelatorio } = App.elements.analiseAerea;
+
+                if (!analiseShapefile || !analiseKml) {
+                    App.ui.showAlert("Por favor, selecione o arquivo Shapefile e o arquivo KML.", "error");
+                    return;
+                }
+
+                const larguraAplicacao = parseFloat(largura.value);
+                if (isNaN(larguraAplicacao) || larguraAplicacao <= 0) {
+                    App.ui.showAlert("Por favor, insira uma largura de aplicação válida em metros.", "error");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A processar arquivos e analisar dados...");
+
+                try {
+                    // 1. Ler e processar os arquivos
+                    const shapefilePromise = new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(shp.parseZip(e.target.result));
+                        reader.onerror = reject;
+                        reader.readAsArrayBuffer(analiseShapefile);
+                    });
+
+                    const kmlPromise = new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            try {
+                                const kmlDOM = new DOMParser().parseFromString(e.target.result, 'text/xml');
+                                if (kmlDOM.getElementsByTagName('parsererror').length > 0) {
+                                    throw new Error('Erro de parsing no KML.');
+                                }
+                                resolve(togeojson.kml(kmlDOM));
+                            } catch (err) {
+                                reject(err);
+                            }
+                        };
+                        reader.onerror = reject;
+                        reader.readAsText(analiseKml);
+                    });
+
+                    const [farmGeoJSON, flightGeoJSON] = await Promise.all([shapefilePromise, kmlPromise]);
+
+                    // 2. Análise com Turf.js
+                    const farmPolygon = turf.union(...farmGeoJSON.features);
+                    const flightPath = flightGeoJSON.features.find(f => f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString');
+                    if (!flightPath) {
+                        throw new Error("Nenhum trajeto de voo (LineString) encontrado no arquivo KML.");
+                    }
+
+                    const larguraEmKm = larguraAplicacao / 1000;
+                    const flightBuffer = turf.buffer(flightPath, larguraEmKm, { units: 'kilometers' });
+
+                    const falhasGeoJSON = turf.difference(farmPolygon, flightBuffer);
+
+                    // 3. Renderizar no mapa
+                    const map = App.state.analiseMap;
+
+                    // Limpar camadas anteriores
+                    const layers = ['falhas-layer', 'buffer-layer', 'farm-layer', 'flight-path-layer'];
+                    const sources = ['falhas-source', 'buffer-source', 'farm-source', 'flight-path-source'];
+                    layers.forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+                    sources.forEach(id => { if (map.getSource(id)) map.removeSource(id); });
+
+                    map.addSource('farm-source', { type: 'geojson', data: farmPolygon });
+                    map.addLayer({
+                        id: 'farm-layer',
+                        type: 'fill',
+                        source: 'farm-source',
+                        paint: { 'fill-color': '#2E8B57', 'fill-opacity': 0.5 }
+                    });
+
+                    map.addSource('buffer-source', { type: 'geojson', data: flightBuffer });
+                    map.addLayer({
+                        id: 'buffer-layer',
+                        type: 'fill',
+                        source: 'buffer-source',
+                        paint: { 'fill-color': '#4169E1', 'fill-opacity': 0.4 }
+                    });
+
+                    map.addSource('flight-path-source', { type: 'geojson', data: flightPath });
+                    map.addLayer({
+                        id: 'flight-path-layer',
+                        type: 'line',
+                        source: 'flight-path-source',
+                        paint: { 'line-color': '#0000FF', 'line-width': 2 }
+                    });
+
+                    if (falhasGeoJSON) {
+                        map.addSource('falhas-source', { type: 'geojson', data: falhasGeoJSON });
+                        map.addLayer({
+                            id: 'falhas-layer',
+                            type: 'fill',
+                            source: 'falhas-source',
+                            paint: { 'fill-color': '#DC143C', 'fill-opacity': 0.7 }
+                        });
+                    }
+
+                    const bounds = turf.bbox(farmPolygon);
+                    map.fitBounds(bounds, { padding: 20 });
+
+                    // 4. Calcular e exibir resultados
+                    const areaFazenda = turf.area(farmPolygon);
+                    const areaCoberta = turf.area(flightBuffer);
+                    const areaFalha = falhasGeoJSON ? turf.area(falhasGeoJSON) : 0;
+
+                    const areaFazendaHa = (areaFazenda / 10000).toFixed(2);
+                    const areaCobertaHa = (areaCoberta / 10000).toFixed(2);
+                    const areaFalhaHa = (areaFalha / 10000).toFixed(2);
+                    const percentualCobertura = areaFazendaHa > 0 ? (areaCobertaHa / areaFazendaHa * 100).toFixed(2) : "0.00";
+
+                    const resultadosEl = App.elements.analiseAerea.resultados;
+                    resultadosEl.innerHTML = `
+                        <div class="harvest-summary" style="border-top-color: var(--color-purple);">
+                            <p>Área Total da Fazenda: <span>${areaFazendaHa} ha</span></p>
+                            <p>Área Aplicada (Voo): <span style="color: #4169E1;">${areaCobertaHa} ha</span></p>
+                            <p>Área com Falha: <span style="color: #DC143C;">${areaFalhaHa} ha</span></p>
+                            <p>Percentual de Cobertura: <span>${percentualCobertura}%</span></p>
+                        </div>
+                    `;
+
+                    resultsCard.style.display = 'block';
+                    btnGerarRelatorio.style.display = 'inline-flex';
+                    btnGerarRelatorio.onclick = () => App.reports.generateAnaliseAereaPDF({
+                        areaFazendaHa,
+                        areaCobertaHa,
+                        areaFalhaHa,
+                        percentualCobertura,
+                        larguraAplicacao
+                    });
+
+                } catch (error) {
+                    console.error("Erro durante a análise:", error);
+                    App.ui.showAlert(`Ocorreu um erro ao processar os arquivos: ${error.message}`, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
             async getAtrPrediction() {
                 const { fazenda: fazendaSelect, atr: atrInput } = App.elements.harvest;
                 const atrSpinner = document.getElementById('atr-spinner');
@@ -4052,6 +4263,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (e) {
                     console.error("Erro ao inicializar o Mapbox:", e);
                     App.ui.showAlert("Não foi possível carregar o mapa.", "error");
+                }
+            },
+
+            initAnaliseMap() {
+                if (App.state.analiseMap) {
+                    // Force resize if the container was hidden
+                    setTimeout(() => App.state.analiseMap.resize(), 0);
+                    return;
+                }
+                if (typeof mapboxgl === 'undefined') {
+                    console.error("Mapbox GL JS não está carregado.");
+                    return;
+                }
+
+                try {
+                    mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+                    const mapContainer = App.elements.analiseAerea.mapContainer;
+
+                    App.state.analiseMap = new mapboxgl.Map({
+                        container: mapContainer,
+                        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                        center: [-48.45, -21.17],
+                        zoom: 12,
+                        attributionControl: false
+                    });
+
+                    App.state.analiseMap.on('load', () => {
+                        console.log("Analysis map loaded.");
+                    });
+
+                } catch (e) {
+                    console.error("Erro ao inicializar o mapa de análise:", e);
+                    App.ui.showAlert("Não foi possível carregar o mapa de análise.", "error");
                 }
             },
 
@@ -5601,6 +5845,65 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaCodigo: farm ? farm.code : ''
                 };
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
+            },
+
+            generateAnaliseAereaPDF(stats) {
+                const map = App.state.analiseMap;
+                if (!map || !stats) {
+                    App.ui.showAlert("Dados da análise ou mapa não encontrados para gerar o relatório.", "error");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A gerar PDF...");
+
+                const mapImageData = map.getCanvas().toDataURL('image/png');
+
+                const { jsPDF, autoTable } = window.jspdf;
+                const doc = new jsPDF({
+                    orientation: 'p',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const title = "Relatório de Análise de Falhas na Aplicação";
+                const generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
+
+                // Header
+                doc.setFontSize(18).setFont(undefined, 'bold');
+                doc.text(title, doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+
+                // Map Image
+                doc.addImage(mapImageData, 'PNG', 15, 30, 180, 100);
+
+                // Stats Table
+                const tableData = [
+                    ['Área Total da Fazenda', `${stats.areaFazendaHa} ha`],
+                    ['Largura da Aplicação', `${stats.larguraAplicacao} m`],
+                    ['Área Aplicada (Voo)', `${stats.areaCobertaHa} ha`],
+                    ['Área com Falha', `${stats.areaFalhaHa} ha`],
+                    ['Percentual de Cobertura', `${stats.percentualCobertura}%`]
+                ];
+
+                doc.autoTable({
+                    startY: 140,
+                    head: [['Parâmetro', 'Valor']],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: { fillColor: [46, 125, 50] }, // --color-primary
+                    styles: { font: 'Poppins' }
+                });
+
+                // Footer
+                const pageCount = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.setFontSize(8).setFont(undefined, 'normal');
+                    doc.text(`Gerado por: ${generatedBy} em: ${new Date().toLocaleString('pt-BR')}`, 15, doc.internal.pageSize.getHeight() - 10);
+                    doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.getWidth() - 35, doc.internal.pageSize.getHeight() - 10);
+                }
+
+                doc.save('relatorio_analise_falhas.pdf');
+                App.ui.setLoading(false);
             }
         },
 
