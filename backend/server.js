@@ -1559,6 +1559,66 @@ try {
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
 }
 
+    app.post('/reports/flight-plan/pdf', async (req, res) => {
+        const { farmName, metrics, generatedBy } = req.body;
+
+        if (!farmName || !metrics) {
+            return res.status(400).send({ message: 'Dados insuficientes para gerar o relatório.' });
+        }
+
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=relatorio_aplicacao_${farmName.replace(/ /g, '_')}.pdf`);
+        doc.pipe(res);
+
+        try {
+            const title = `Relatório de Aplicação Aérea - ${farmName}`;
+            await generatePdfHeader(doc, title);
+
+            doc.fontSize(12).font('Helvetica-Bold').text('Resumo da Análise de Cobertura', { underline: true });
+            doc.moveDown();
+
+            const textY = doc.y;
+            const textX = doc.page.margins.left;
+
+            doc.font('Helvetica').fontSize(11);
+            doc.text(`Área Total da Fazenda:`, textX, textY);
+            doc.text(`${metrics.farmAreaHa} ha`, textX + 300, textY, { align: 'right' });
+
+            doc.moveDown(0.5);
+            const textY2 = doc.y;
+            doc.text(`Área Aplicada (Voo):`, textX, textY2);
+            doc.text(`${metrics.appliedAreaHa} ha`, textX + 300, textY2, { align: 'right' });
+
+            doc.moveDown(0.5);
+            const textY3 = doc.y;
+            doc.fillColor('red');
+            doc.text(`Área com Falha:`, textX, textY3);
+            doc.text(`${metrics.failureAreaHa} ha (${metrics.failurePercentage}%)`, textX + 300, textY3, { align: 'right' });
+            doc.fillColor('black');
+
+            doc.moveDown(2);
+
+            doc.fontSize(12).font('Helvetica-Bold').text('Mapa de Cobertura', { underline: true });
+            doc.moveDown();
+            doc.fontSize(10).font('Helvetica').text('(Placeholder para a imagem do mapa - a ser implementado)', { align: 'center' });
+            doc.rect(doc.page.margins.left, doc.y, doc.page.width - doc.page.margins.left - doc.page.margins.right, 300).stroke();
+
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Plano de Voo:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
 app.listen(port, () => {
     console.log(`Servidor de relatórios rodando na porta ${port}`);
 });
