@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedMapFeature: null, // NOVO: Armazena a feature do talhão selecionado no mapa
             trapNotifications: [],
             unreadNotificationCount: 0,
-            notifiedTrapIds: new Set(), // NOVO: Controla pop-ups já exibidos na sessão
+            notifiedTrapIds: new Set(JSON.parse(sessionStorage.getItem('notifiedTrapIds')) || []),
             trapPlacementMode: null,
             trapPlacementData: null,
             locationWatchId: null,
@@ -175,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
             offlineUserSelection: document.getElementById('offlineUserSelection'),
             offlineUserList: document.getElementById('offlineUserList'),
             headerTitle: document.querySelector('header h1'),
+            headerLogo: document.getElementById('headerLogo'),
             currentDateTime: document.getElementById('currentDateTime'),
             logoutBtn: document.getElementById('logoutBtn'),
             btnToggleMenu: document.getElementById('btnToggleMenu'),
@@ -967,6 +968,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
                     App.mapModule.initMap();
+
+                    // Attach map-specific listeners only when the map is shown
+                    const monitoramentoAereoEls = App.elements.monitoramentoAereo;
+                    if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => {
+                        if (App.state.trapPlacementMode === 'manual_select') {
+                            App.state.trapPlacementMode = null;
+                            App.ui.showAlert("Seleção manual cancelada.", "info");
+                        } else {
+                            App.mapModule.promptInstallTrap();
+                        }
+                    });
+                    if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
+                    if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
+
                 } else {
                     mapContainer.classList.remove('active');
                 }
@@ -1859,6 +1874,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.menu.classList.toggle('open');
                     App.elements.btnToggleMenu.classList.toggle('open');
                 });
+
+                if (App.elements.headerLogo) App.elements.headerLogo.addEventListener('click', () => App.ui.showTab('dashboard'));
                 
                 document.addEventListener('click', (e) => {
                     if (App.elements.menu && !App.elements.menu.contains(e.target) && App.elements.btnToggleMenu && !App.elements.btnToggleMenu.contains(e.target)) {
@@ -2151,15 +2168,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 const monitoramentoAereoEls = App.elements.monitoramentoAereo;
-                if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => {
-                    if (App.state.trapPlacementMode === 'manual_select') {
-                        App.state.trapPlacementMode = null;
-                        App.ui.showAlert("Seleção manual cancelada.", "info");
-                    } else {
-                        App.mapModule.promptInstallTrap();
-                    }
-                });
-                if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 if (monitoramentoAereoEls.infoBoxCloseBtn) monitoramentoAereoEls.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
                 if (monitoramentoAereoEls.trapInfoBoxCloseBtn) monitoramentoAereoEls.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
                 
@@ -2240,7 +2248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (historyModal.clearBtn) historyModal.clearBtn.addEventListener('click', () => App.actions.clearHistory());
 
                 if (App.elements.monitoramentoAereo.btnHistory) {
-                    App.elements.monitoramentoAereo.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
+                    // This listener is now attached in showTab
                 }
             }
         },
@@ -4797,6 +4805,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!App.state.notifiedTrapIds.has(trap.id)) {
                             this.showTrapNotification(notification);
                             App.state.notifiedTrapIds.add(trap.id);
+                            sessionStorage.setItem('notifiedTrapIds', JSON.stringify(Array.from(App.state.notifiedTrapIds)));
                         }
                     }
                 });
@@ -5001,34 +5010,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            _renderChartAsync(renderFn) {
-                return new Promise(resolve => {
-                    setTimeout(() => {
-                        renderFn();
-                        resolve();
-                    }, 1); 
-                });
-            },
             
             async renderBrocaDashboardCharts() {
                 const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
                 App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
                 const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
 
-                await this._renderChartAsync(() => this.renderTop10FazendasBroca(data));
-                await this._renderChartAsync(() => this.renderBrocaMensal(data));
-                await this._renderChartAsync(() => this.renderBrocaPosicao(data));
-                await this._renderChartAsync(() => this.renderBrocaPorVariedade(data));
+                setTimeout(() => {
+                    this.renderTop10FazendasBroca(data);
+                    this.renderBrocaMensal(data);
+                    this.renderBrocaPosicao(data);
+                    this.renderBrocaPorVariedade(data);
+                }, 0);
             },
             async renderPerdaDashboardCharts() {
                 const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
                 App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
                 const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
-                await this._renderChartAsync(() => this.renderPerdaPorFrenteTurno(data));
-                await this._renderChartAsync(() => this.renderComposicaoPerdaPorFrente(data));
-                await this._renderChartAsync(() => this.renderTop10FazendasPerda(data));
-                await this._renderChartAsync(() => this.renderPerdaPorFrente(data));
+                setTimeout(() => {
+                    this.renderPerdaPorFrenteTurno(data);
+                    this.renderComposicaoPerdaPorFrente(data);
+                    this.renderTop10FazendasPerda(data);
+                    this.renderPerdaPorFrente(data);
+                }, 0);
             },
             renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
