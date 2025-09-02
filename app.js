@@ -2206,9 +2206,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (flightPlanningEls.importAnalysisInput) flightPlanningEls.importAnalysisInput.addEventListener('change', (e) => App.flightPlanningModule.handleAnalysisImport(e));
                 if (flightPlanningEls.btnExportPlan) flightPlanningEls.btnExportPlan.addEventListener('click', () => App.flightPlanningModule.exportToPlanFile());
 
-                const historyModal = App.elements.analysisHistoryModal;
-                if (historyModal.overlay) historyModal.overlay.addEventListener('click', e => { if(e.target === historyModal.overlay) historyModal.overlay.classList.remove('show'); });
-                if (historyModal.closeBtn) historyModal.closeBtn.addEventListener('click', () => historyModal.overlay.classList.remove('show'));
+                const analysisHistoryModal = App.elements.analysisHistoryModal;
+                if (analysisHistoryModal.overlay) analysisHistoryModal.overlay.addEventListener('click', e => { if(e.target === analysisHistoryModal.overlay) analysisHistoryModal.overlay.classList.remove('show'); });
+                if (analysisHistoryModal.closeBtn) analysisHistoryModal.closeBtn.addEventListener('click', () => analysisHistoryModal.overlay.classList.remove('show'));
                 
                 const monitoramentoAereoEls = App.elements.monitoramentoAereo;
                 if (monitoramentoAereoEls.infoBoxCloseBtn) monitoramentoAereoEls.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
@@ -2283,12 +2283,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 window.addEventListener('online', () => App.actions.syncOfflineWrites());
 
-                const historyModal = App.elements.historyFilterModal;
-                if (historyModal.overlay) historyModal.overlay.addEventListener('click', e => { if(e.target === historyModal.overlay) this.hideHistoryFilterModal(); });
-                if (historyModal.closeBtn) historyModal.closeBtn.addEventListener('click', () => this.hideHistoryFilterModal());
-                if (historyModal.cancelBtn) historyModal.cancelBtn.addEventListener('click', () => this.hideHistoryFilterModal());
-                if (historyModal.viewBtn) historyModal.viewBtn.addEventListener('click', () => App.actions.viewHistory());
-                if (historyModal.clearBtn) historyModal.clearBtn.addEventListener('click', () => App.actions.clearHistory());
+                const filterHistoryModal = App.elements.historyFilterModal;
+                if (filterHistoryModal.overlay) filterHistoryModal.overlay.addEventListener('click', e => { if(e.target === filterHistoryModal.overlay) this.hideHistoryFilterModal(); });
+                if (filterHistoryModal.closeBtn) filterHistoryModal.closeBtn.addEventListener('click', () => this.hideHistoryFilterModal());
+                if (filterHistoryModal.cancelBtn) filterHistoryModal.cancelBtn.addEventListener('click', () => this.hideHistoryFilterModal());
+                if (filterHistoryModal.viewBtn) filterHistoryModal.viewBtn.addEventListener('click', () => App.actions.viewHistory());
+                if (filterHistoryModal.clearBtn) filterHistoryModal.clearBtn.addEventListener('click', () => App.actions.clearHistory());
 
                 if (App.elements.monitoramentoAereo.btnHistory) {
                     // This listener is now attached in showTab
