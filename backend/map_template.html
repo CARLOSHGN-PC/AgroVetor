@@ -69,6 +69,10 @@
 
                     // Wait for the map to be fully rendered and idle before resolving
                     map.on('idle', () => {
+                        // This signals to Puppeteer that the map is ready
+                        const elem = document.createElement('div');
+                        elem.id = 'map-render-complete';
+                        document.body.appendChild(elem);
                         resolve();
                     });
                 });
