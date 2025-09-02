@@ -1566,6 +1566,64 @@ try {
         }
     });
 
+    app.post('/reports/flight-plan/pdf', async (req, res) => {
+        const { farmName, metrics, generatedBy, viewport, farmGeoJson, kmlGeoJson, failureGeoJson } = req.body;
+        const puppeteer = require('puppeteer');
+
+        const doc = new PDFDocument({ margin: 30, size: 'A4', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=relatorio_aplicacao_${farmName.replace(/ /g, '_')}.pdf`);
+        doc.pipe(res);
+
+        try {
+            const title = `Relatório de Aplicação Aérea - ${farmName}`;
+            let currentY = await generatePdfHeader(doc, title);
+
+            doc.fontSize(12).font('Helvetica-Bold').text('Resumo da Análise', { underline: true });
+            doc.moveDown(0.5);
+            doc.fontSize(10).font('Helvetica')
+               .text(`Área da Fazenda: ${metrics.farmAreaHa} ha`)
+               .text(`Área Aplicada: ${metrics.appliedAreaHa} ha`)
+               .text(`Área com Falha na Aplicação: ${metrics.failureAreaHa} ha (${metrics.failurePercentage}%)`)
+               .moveDown(1.5);
+
+            doc.fontSize(12).font('Helvetica-Bold').text('Mapa da Aplicação', { underline: true });
+            doc.moveDown(0.5);
+
+            const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+            const page = await browser.newPage();
+            await page.setViewport({ width: 800, height: 600, deviceScaleFactor: 2 });
+
+            const mapTemplatePath = path.join(__dirname, 'map_template.html');
+            await page.goto(`file://${mapTemplatePath}`);
+
+            await page.evaluate((data) => {
+                window.renderMap(data);
+            }, { viewport, farmGeoJson, kmlGeoJson, failureGeoJson });
+
+            await page.waitForSelector('#map-render-complete', { timeout: 30000 });
+
+            const mapImageBuffer = await page.screenshot();
+            await browser.close();
+
+            doc.image(mapImageBuffer, {
+                fit: [doc.page.width - doc.page.margins.left - doc.page.margins.right, 400],
+                align: 'center'
+            });
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF do plano de voo:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));

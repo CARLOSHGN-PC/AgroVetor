@@ -723,8 +723,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
                 App.state.unsubscribeListeners = [];
             },
-            listenToAllData() {
+            async listenToAllData() {
                 this.cleanupListeners();
+
+                const loadedFromCache = await App.mapModule.loadOfflineShapes();
                 
                 const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas' ];
                 
@@ -758,13 +760,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 App.state.unsubscribeListeners.push(unsubscribeConfig);
 
-                const shapefileDocRef = doc(db, 'config', 'shapefile');
-                const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
-                    if (doc.exists() && doc.data().shapefileURL) {
-                        App.mapModule.loadAndCacheShapes(doc.data().shapefileURL);
-                    }
-                });
-                App.state.unsubscribeListeners.push(unsubscribeShapefile);
+                if (!loadedFromCache) {
+                    const shapefileDocRef = doc(db, 'config', 'shapefile');
+                    const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
+                        if (doc.exists() && doc.data().shapefileURL) {
+                            App.mapModule.loadAndCacheShapes(doc.data().shapefileURL);
+                        }
+                    });
+                    App.state.unsubscribeListeners.push(unsubscribeShapefile);
+                }
             },
             async getDocument(collectionName, docId, options) {
                 return await getDoc(doc(db, collectionName, docId)).then(docSnap => {
@@ -2037,7 +2041,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.closedInput) companyConfigEls.closedInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'closed'));
                 if (companyConfigEls.btnDownloadClosedTemplate) companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
                 if (companyConfigEls.shapefileUploadArea) companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
-                if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
+                if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleLocalShapefileUpload(e));
 
                 // Event listeners for historical report upload
                 if (companyConfigEls.btnDownloadHistoricalTemplate) {
@@ -4531,7 +4535,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async handleShapefileUpload(e) {
+            async processShapefileBuffer(buffer) {
+                try {
+                    await OfflineDB.set('shapefile-cache', 'shapefile-zip', buffer);
+                    const geojson = await shp(buffer);
+                    App.state.geoJsonData = geojson;
+                    if (App.state.mapboxMap) {
+                        this.loadShapesOnMap();
+                    }
+                    App.ui.showAlert("Contornos do mapa carregados e guardados localmente com sucesso.", "success");
+                } catch (err) {
+                    console.error("Erro ao processar o buffer do shapefile:", err);
+                    App.ui.showAlert(`Erro ao processar o ficheiro Shapefile: ${err.message}`, "error");
+                }
+            },
+
+            async handleLocalShapefileUpload(e) {
                 const file = e.target.files[0];
                 if (!file) return;
 
@@ -4541,43 +4560,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                App.ui.setLoading(true, "A processar arquivo...");
-
+                App.ui.setLoading(true, "A processar ficheiro Shapefile local...");
                 const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = async () => {
-                    const base64String = reader.result.split(',')[1];
-
-                    try {
-                        App.ui.setLoading(true, "Enviando para o servidor...");
-                        const response = await fetch(`${App.config.backendUrl}/upload-shapefile`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({ fileBase64: base64String }),
-                        });
-
-                        const result = await response.json();
-
-                        if (!response.ok) {
-                            throw new Error(result.message || 'Erro no servidor');
-                        }
-
-                        App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado.", "success");
-                    } catch (err) {
-                        console.error("Erro ao enviar o shapefile:", err);
-                        App.ui.showAlert(`Erro ao enviar o arquivo: ${err.message}`, "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                        e.target.value = '';
-                    }
+                reader.onload = async (event) => {
+                    await this.processShapefileBuffer(event.target.result);
+                    App.ui.setLoading(false);
                 };
                 reader.onerror = () => {
                     App.ui.setLoading(false);
-                    App.ui.showAlert("Erro ao ler o arquivo localmente.", "error");
-                    e.target.value = '';
+                    App.ui.showAlert("Erro ao ler o ficheiro localmente.", "error");
                 };
+                reader.readAsArrayBuffer(file);
+                e.target.value = '';
             },
 
             async loadAndCacheShapes(url) {
@@ -4609,17 +4603,11 @@ document.addEventListener('DOMContentLoaded', () => {
             async loadOfflineShapes() {
                 const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
                 if (buffer) {
-                    App.ui.showAlert("A carregar mapa do cache offline.", "info");
-                    try {
-                        const geojson = await shp(buffer);
-                        App.state.geoJsonData = geojson;
-                        if (App.state.mapboxMap) {
-                            this.loadShapesOnMap();
-                        }
-                    } catch (e) {
-                        console.error("Erro ao processar shapefile do cache:", e);
-                    }
+                    App.ui.showAlert("A carregar contornos do mapa a partir da memória local (cache).", "info");
+                    await this.processShapefileBuffer(buffer);
+                    return true;
                 }
+                return false;
             },
 
             loadShapesOnMap() {
