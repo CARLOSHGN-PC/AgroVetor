@@ -14,7 +14,6 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const csv = require('csv-parser');
 const { Readable } = require('stream');
 const xlsx = require('xlsx');
-const puppeteer = require('puppeteer');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -211,49 +210,6 @@ try {
         } catch (error) {
             console.error("Erro ao chamar a API do Gemini:", error);
             res.status(500).json({ message: 'Erro ao comunicar com a IA.' });
-        }
-    });
-
-    app.post('/api/gemini/suggest-flight-path', async (req, res) => {
-        if (!model) {
-            return res.status(503).json({ message: "Esta funcionalidade de IA está temporariamente desativada." });
-        }
-        const { farmGeoJson } = req.body;
-        const swathWidthMeters = 20; // Largura da faixa de aplicação, pode ser um parâmetro no futuro
-
-        if (!farmGeoJson) {
-            return res.status(400).json({ message: 'A geometria da fazenda (farmGeoJson) é obrigatória.' });
-        }
-
-        const prompt = `
-            Aja como um especialista em planejamento de voo de drones para agricultura.
-            Dada a seguinte geometria de um talhão agrícola em formato GeoJSON, sua tarefa é gerar uma rota de voo otimizada para cobertura total.
-
-            Geometria do Talhão:
-            ${JSON.stringify(farmGeoJson)}
-
-            Requisitos da Rota de Voo:
-            1.  O padrão de voo deve ser de linhas paralelas (um padrão de varredura ou "raster scan").
-            2.  As linhas devem ser orientadas ao longo do eixo mais longo do polígono para minimizar o número de voltas.
-            3.  A distância entre as linhas paralelas (espaçamento) deve ser de exatamente ${swathWidthMeters} metros.
-            4.  A rota deve cobrir toda a área do polígono.
-            5.  O resultado final deve ser um único objeto GeoJSON contendo uma única feature do tipo "LineString".
-
-            Responda APENAS com o objeto GeoJSON da rota de voo. Não inclua nenhuma outra explicação ou formatação como \`\`\`json.
-        `;
-
-        try {
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            let text = response.text();
-
-            text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-            const jsonResponse = JSON.parse(text);
-            res.status(200).json(jsonResponse);
-
-        } catch (error) {
-            console.error("Erro ao chamar a API do Gemini para sugerir rota:", error);
-            res.status(500).json({ message: 'Erro ao comunicar com a IA para gerar a rota.' });
         }
     });
 
@@ -1602,101 +1558,6 @@ try {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
 }
-
-    const generateMapImage = async (mapData) => {
-        let browser;
-        try {
-            browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-            const page = await browser.newPage();
-
-            const mapTemplatePath = `file://${path.join(__dirname, 'map_template.html')}`;
-            await page.goto(mapTemplatePath);
-
-            await page.setViewport({ width: 800, height: 600 });
-
-            // Call the renderMap function inside the page context
-            await page.evaluate(async (data) => {
-                await window.renderMap(data);
-            }, mapData);
-
-            const mapElement = await page.$('#map');
-            const imageBuffer = await mapElement.screenshot({ type: 'png' });
-
-            return imageBuffer;
-        } catch (error) {
-            console.error("Puppeteer error:", error);
-            throw new Error("Falha ao gerar a imagem do mapa.");
-        } finally {
-            if (browser) {
-                await browser.close();
-            }
-        }
-    };
-
-    app.post('/reports/flight-plan/pdf', async (req, res) => {
-        const { farmName, metrics, generatedBy, viewport, farmGeoJson, kmlGeoJson, failureGeoJson } = req.body;
-
-        if (!farmName || !metrics || !viewport || !farmGeoJson || !kmlGeoJson) {
-            return res.status(400).send({ message: 'Dados insuficientes para gerar o relatório.' });
-        }
-
-        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=relatorio_aplicacao_${farmName.replace(/ /g, '_')}.pdf`);
-        doc.pipe(res);
-
-        try {
-            const title = `Relatório de Aplicação Aérea - ${farmName}`;
-            await generatePdfHeader(doc, title);
-
-            doc.fontSize(12).font('Helvetica-Bold').text('Resumo da Análise de Cobertura', { underline: true });
-            doc.moveDown();
-
-            const textY = doc.y;
-            const textX = doc.page.margins.left;
-
-            doc.font('Helvetica').fontSize(11);
-            doc.text(`Área Total da Fazenda:`, textX, textY);
-            doc.text(`${metrics.farmAreaHa} ha`, textX + 450, textY, { align: 'right' });
-
-            doc.moveDown(0.5);
-            const textY2 = doc.y;
-            doc.text(`Área Aplicada (Voo):`, textX, textY2);
-            doc.text(`${metrics.appliedAreaHa} ha`, textX + 450, textY2, { align: 'right' });
-
-            doc.moveDown(0.5);
-            const textY3 = doc.y;
-            doc.fillColor('red');
-            doc.text(`Área com Falha:`, textX, textY3);
-            doc.text(`${metrics.failureAreaHa} ha (${metrics.failurePercentage}%)`, textX + 450, textY3, { align: 'right' });
-            doc.fillColor('black');
-
-            doc.moveDown(2);
-
-            doc.fontSize(12).font('Helvetica-Bold').text('Mapa de Cobertura', { underline: true });
-            doc.moveDown();
-
-            const mapImageBuffer = await generateMapImage({ viewport, farmGeoJson, kmlGeoJson, failureGeoJson });
-
-            doc.image(mapImageBuffer, doc.page.margins.left, doc.y, {
-                fit: [doc.page.width - doc.page.margins.left - doc.page.margins.right, 400],
-                align: 'center',
-                valign: 'center'
-            });
-
-            generatePdfFooter(doc, generatedBy);
-            doc.end();
-
-        } catch (error) {
-            console.error("Erro ao gerar PDF de Plano de Voo:", error);
-            if (!res.headersSent) {
-                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
-            } else {
-                doc.end();
-            }
-        }
-    });
 
 app.listen(port, () => {
     console.log(`Servidor de relatórios rodando na porta ${port}`);
