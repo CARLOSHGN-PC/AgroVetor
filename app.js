@@ -2308,7 +2308,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     App.state.flightPlan.kmlGeoJson = geoJson;
                     App.mapModule.displayKmlLayer(geoJson);
-                    App.ui.showAlert("Arquivo KML/KMZ carregado e exibido no mapa.", "success");
+                    App.ui.showAlert("Ficheiro do voo (.kml/.kmz) carregado. A rota do voo está agora visível no mapa. Selecione 'Analisar Cobertura' para continuar.", "info", 5000);
                 } catch (error) {
                     App.ui.showAlert("Erro ao processar o arquivo KML. Verifique o formato.", "error");
                     console.error("Erro ao converter KML para GeoJSON:", error);
@@ -2347,6 +2347,12 @@ document.addEventListener('DOMContentLoaded', () => {
             analyzeCoverage() {
                 const { farmSelect, analysisResult, btnGenerateReport } = App.elements.flightPlanning;
                 const { kmlGeoJson } = App.state.flightPlan;
+
+                if (!App.state.geoJsonData) {
+                    App.ui.showAlert("Os dados do mapa (Shapefile) ainda estão a ser carregados. Por favor, aguarde um momento e tente novamente.", "warning");
+                    return;
+                }
+
                 const selectedFarmId = farmSelect.value;
                 if (!selectedFarmId) { App.ui.showAlert("Por favor, selecione uma fazenda.", "warning"); return; }
                 if (!kmlGeoJson) { App.ui.showAlert("Por favor, carregue um arquivo KML do voo.", "warning"); return; }
@@ -2448,6 +2454,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             suggestFlightPath() {
                 const { farmSelect, swathWidthInput } = App.elements.flightPlanning;
+
+                if (!App.state.geoJsonData) {
+                    App.ui.showAlert("Os dados do mapa (Shapefile) ainda estão a ser carregados. Por favor, aguarde um momento e tente novamente.", "warning");
+                    return;
+                }
+
                 const selectedFarmId = farmSelect.value;
                 if (!selectedFarmId) { App.ui.showAlert("Por favor, selecione uma fazenda para sugerir a rota.", "warning"); return; }
 
