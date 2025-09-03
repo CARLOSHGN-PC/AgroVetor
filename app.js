@@ -1867,7 +1867,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             setupEventListeners() {
-                if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => App.auth.login());
+                if (App.elements.btnLogin) {
+                    App.elements.btnLogin.addEventListener('click', (e) => {
+                        // Ripple effect
+                        const button = e.currentTarget;
+                        const circle = document.createElement("span");
+                        const diameter = Math.max(button.clientWidth, button.clientHeight);
+                        const radius = diameter / 2;
+                        circle.style.width = circle.style.height = `${diameter}px`;
+                        circle.style.left = `${e.clientX - button.getBoundingClientRect().left - radius}px`;
+                        circle.style.top = `${e.clientY - button.getBoundingClientRect().top - radius}px`;
+                        circle.classList.add("ripple");
+
+                        const ripple = button.getElementsByClassName("ripple")[0];
+                        if (ripple) {
+                            ripple.remove();
+                        }
+
+                        button.appendChild(circle);
+
+                        // Login logic
+                        App.auth.login();
+                    });
+                }
+
+                if (App.elements.loginScreen) {
+                    const loginBox = document.getElementById('loginBox');
+                    App.elements.loginScreen.addEventListener('mousemove', (e) => {
+                        if (!loginBox) return;
+                        const { clientX, clientY } = e;
+                        const { width, height, left, top } = App.elements.loginScreen.getBoundingClientRect();
+                        const x = (clientX - left) / width;
+                        const y = (clientY - top) / height;
+                        const rotateX = 15 * (y - 0.5);
+                        const rotateY = -15 * (x - 0.5);
+                        loginBox.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                    });
+                    App.elements.loginScreen.addEventListener('mouseleave', () => {
+                        if (loginBox) {
+                            loginBox.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg)';
+                        }
+                    });
+                }
+
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
                     document.body.classList.toggle('mobile-menu-open');
