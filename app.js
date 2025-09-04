@@ -95,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Colheita', icon: 'fas fa-tractor',
                     submenu: [
                         { label: 'Planejamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
+                        { label: 'Ordens de Corte', icon: 'fas fa-file-signature', target: 'ordensDeCorte', permission: 'ordensDeCorte' },
                     ]
                 },
                 {
@@ -127,8 +128,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoPlantio: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, relatorioCensoVarietal: true, relatorioFaltaColher: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoPlantio: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, relatorioCensoVarietal: true, relatorioFaltaColher: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoPlantio: true, planejamentoColheita: true, ordensDeCorte: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, relatorioCensoVarietal: true, relatorioFaltaColher: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoPlantio: true, planejamentoColheita: true, ordensDeCorte: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, relatorioCensoVarietal: true, relatorioFaltaColher: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
@@ -143,11 +144,13 @@ document.addEventListener('DOMContentLoaded', () => {
             planos: [],
             fazendas: [],
             personnel: [],
+            varietyCompanies: [],
             companyLogo: null,
             activeSubmenu: null,
             charts: {},
             harvestPlans: [],
             plantingPlans: [],
+            cuttingOrders: [],
             activeHarvestPlan: null,
             activeCuttingOrder: null,
             inactivityTimer: null,
@@ -268,6 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 cancelBtn: document.getElementById('cuttingOrderModalCancelBtn'),
                 confirmBtn: document.getElementById('cuttingOrderModalConfirmBtn'),
             },
+            cuttingOrders: {
+                listContainer: document.getElementById('cuttingOrdersListContainer'),
+            },
             companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
                 logoInput: document.getElementById('logoInput'),
@@ -359,6 +365,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 csvUploadArea: document.getElementById('csvUploadArea'),
                 csvFileInput: document.getElementById('csvFileInput'),
                 btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
+                varietyCompanyId: document.getElementById('varietyCompanyId'),
+                varietyCompanyName: document.getElementById('varietyCompanyName'),
+                varietyCompanyVarieties: document.getElementById('varietyCompanyVarieties'),
+                btnSaveVarietyCompany: document.getElementById('btnSaveVarietyCompany'),
+                varietyCompanyList: document.getElementById('varietyCompanyList'),
             },
             planejamento: {
                 tipo: document.getElementById('planoTipo'),
@@ -496,6 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             relatorioCensoVarietal: {
                 farmTypeFilter: document.querySelectorAll('#censoVarietalFarmTypeFilter input[type="checkbox"]'),
+                companyFilter: document.getElementById('censoVarietalCompanyFilter'),
                 btnPDF: document.getElementById('btnPDFCensoVarietal'),
                 btnExcel: document.getElementById('btnExcelCensoVarietal'),
             },
@@ -751,7 +763,7 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'plantingPlans', 'armadilhas' ];
+                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'plantingPlans', 'armadilhas', 'varietyCompanies', 'cuttingOrders' ];
                 
                 collectionsToListen.forEach(collectionName => {
                     const q = collection(db, collectionName);
@@ -908,10 +920,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('populateOperatorSelects', () => this.populateOperatorSelects());
                 renderWithCatch('renderUsersList', () => this.renderUsersList());
                 renderWithCatch('renderPersonnelList', () => this.renderPersonnelList());
+                renderWithCatch('renderVarietyCompanyList', () => this.renderVarietyCompanyList());
+                renderWithCatch('populateCompanyFilter', () => this.populateCompanyFilter());
                 renderWithCatch('renderLogoPreview', () => this.renderLogoPreview());
                 renderWithCatch('renderPlanejamento', () => this.renderPlanejamento());
                 renderWithCatch('showHarvestPlanList', () => this.showHarvestPlanList());
                 renderWithCatch('renderPlantingPlansList', () => this.renderPlantingPlansList());
+                renderWithCatch('renderCuttingOrdersList', () => this.renderCuttingOrdersList());
                 renderWithCatch('populateHarvestPlanSelect', () => this.populateHarvestPlanSelect());
 
                 renderWithCatch('dashboard-view', () => {
@@ -1075,6 +1090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
+                if (id === 'ordensDeCorte') this.renderCuttingOrdersList();
                 if (id === 'planejamentoPlantio') this.showPlantingPlanList();
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCensoVarietal'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom' || id === 'relatorioFaltaColher') this.populateHarvestPlanSelect();
@@ -1544,6 +1560,87 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                 });
                 list.appendChild(table);
+            },
+
+            renderVarietyCompanyList() {
+                const { varietyCompanyList } = App.elements.cadastros;
+                varietyCompanyList.innerHTML = '';
+                if (App.state.varietyCompanies.length === 0) {
+                    varietyCompanyList.innerHTML = '<p>Nenhuma empresa de variedade cadastrada.</p>';
+                    return;
+                }
+                const table = document.createElement('table');
+                table.className = 'harvestPlanTable'; // Reuse existing style
+                table.innerHTML = `<thead><tr><th>Empresa</th><th>Variedades</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+                App.state.varietyCompanies.sort((a, b) => a.name.localeCompare(b.name)).forEach(company => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td data-label="Empresa">${company.name}</td>
+                        <td data-label="Variedades">${company.varieties.join(', ')}</td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-variety-company" data-id="${company.id}"><i class="fas fa-edit"></i></button>
+                                <button class="btn-excluir" data-action="delete-variety-company" data-id="${company.id}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                });
+                varietyCompanyList.appendChild(table);
+            },
+
+            populateCompanyFilter() {
+                const { companyFilter } = App.elements.relatorioCensoVarietal;
+                if (!companyFilter) return;
+
+                const savedValue = companyFilter.value;
+                companyFilter.innerHTML = '<option value="">Todas</option>';
+                App.state.varietyCompanies.sort((a, b) => a.name.localeCompare(b.name)).forEach(company => {
+                    companyFilter.innerHTML += `<option value="${company.id}">${company.name}</option>`;
+                });
+                companyFilter.value = savedValue;
+            },
+
+            renderCuttingOrdersList() {
+                const { listContainer } = App.elements.cuttingOrders;
+                if (!listContainer) return;
+                listContainer.innerHTML = '';
+
+                if (!App.state.cuttingOrders || App.state.cuttingOrders.length === 0) {
+                    listContainer.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma ordem de corte encontrada.</p>';
+                    return;
+                }
+
+                App.state.cuttingOrders.sort((a, b) => new Date(b.createdAt?.toDate() || 0) - new Date(a.createdAt?.toDate() || 0)).forEach(order => {
+                    const card = document.createElement('div');
+                    card.className = 'plano-card';
+                    card.style.borderLeftColor = order.status === 'Pendente' ? 'var(--color-warning)' : 'var(--color-success)';
+
+                    const talhoesHTML = order.plots.map(p => `<li>${p.talhaoName}</li>`).join('');
+
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-file-signature"></i> OC: ${order.id.substring(0, 8)}...</span>
+                            <span class="plano-status ${order.status.toLowerCase()}">${order.status}</span>
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-tractor"></i> <strong>Frente:</strong> ${order.frontName}</div>
+                            <div><i class="fas fa-map-marker-alt"></i> <strong>Fazenda:</strong> ${order.fazendaCodigo} - ${order.fazendaName}</div>
+                            <div><i class="fas fa-calendar-alt"></i> <strong>Período:</strong> ${new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')} a ${new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
+                            <div><i class="fas fa-ruler-combined"></i> <strong>Área:</strong> ${order.totalArea.toFixed(2)} ha</div>
+                            <div><i class="fas fa-weight-hanging"></i> <strong>Produção:</strong> ${order.totalProducao.toFixed(2)} ton</div>
+                            <div><i class="fas fa-vial"></i> <strong>ATR:</strong> ${order.atr}</div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <strong>Talhões:</strong>
+                            <ul style="list-style-position: inside; padding-left: 10px; font-size: 14px;">${talhoesHTML}</ul>
+                        </div>
+                        <div class="plano-actions">
+                            <button class="btn-excluir" style="background-color: var(--color-info);" data-action="view-cutting-order-pdf" data-id="${order.id}"><i class="fas fa-file-pdf"></i> Visualizar PDF</button>
+                        </div>
+                    `;
+                    listContainer.appendChild(card);
+                });
             },
             renderLogoPreview() {
                 const { logoPreview, removeLogoBtn } = App.elements.companyConfig;
@@ -2225,9 +2322,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(action === 'delete-talhao') App.actions.deleteTalhao(id);
                     if(action === 'edit-farm') this.openEditFarmModal(id);
                     if(action === 'delete-farm') App.actions.deleteFarm(id);
+            if (action === 'edit-variety-company') App.actions.editVarietyCompany(id);
+            if (action === 'delete-variety-company') App.actions.deleteVarietyCompany(id);
                 });
 
                 if (App.elements.cadastros.btnSaveTalhao) App.elements.cadastros.btnSaveTalhao.addEventListener('click', () => App.actions.saveTalhao());
+        if (App.elements.cadastros.btnSaveVarietyCompany) App.elements.cadastros.btnSaveVarietyCompany.addEventListener('click', () => App.actions.saveVarietyCompany());
+
+                if (App.elements.cuttingOrders.listContainer) {
+                    App.elements.cuttingOrders.listContainer.addEventListener('click', (e) => {
+                        const button = e.target.closest('button[data-action="view-cutting-order-pdf"]');
+                        if (button) {
+                            // Logic to generate/fetch and view PDF for order with id button.dataset.id
+                            console.log("Visualizar PDF da Ordem de Corte:", button.dataset.id);
+                            App.ui.showAlert("Funcionalidade de visualização de PDF da Ordem de Corte ainda não implementada.", "info");
+                        }
+                    });
+                }
                 if (App.elements.cadastros.csvUploadArea) App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
                 if (App.elements.cadastros.csvFileInput) App.elements.cadastros.csvFileInput.addEventListener('change', (e) => App.actions.importFarmsFromCSV(e.target.files[0]));
                 if (App.elements.cadastros.btnDownloadCsvTemplate) App.elements.cadastros.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadCsvTemplate());
@@ -4227,6 +4338,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(atrSpinner) atrSpinner.style.display = 'none';
                 }
             },
+
+            async saveVarietyCompany() {
+                const { varietyCompanyId, varietyCompanyName, varietyCompanyVarieties } = App.elements.cadastros;
+                const name = varietyCompanyName.value.trim();
+                const varieties = varietyCompanyVarieties.value.split(',').map(v => v.trim()).filter(v => v);
+
+                if (!name || varieties.length === 0) {
+                    App.ui.showAlert("Nome da empresa e pelo menos uma variedade são obrigatórios.", "error");
+                    return;
+                }
+
+                const companyData = { name, varieties };
+                const companyId = varietyCompanyId.value;
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar a empresa ${name}?`, async () => {
+                    try {
+                        if (companyId) {
+                            await App.data.updateDocument('varietyCompanies', companyId, companyData);
+                        } else {
+                            await App.data.addDocument('varietyCompanies', companyData);
+                        }
+                        App.ui.showAlert("Empresa de variedade guardada com sucesso!");
+                        varietyCompanyId.value = '';
+                        varietyCompanyName.value = '';
+                        varietyCompanyVarieties.value = '';
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao guardar empresa de variedade.", "error");
+                    }
+                });
+            },
+
+            editVarietyCompany(companyId) {
+                const company = App.state.varietyCompanies.find(c => c.id === companyId);
+                if (company) {
+                    const { varietyCompanyId, varietyCompanyName, varietyCompanyVarieties } = App.elements.cadastros;
+                    varietyCompanyId.value = company.id;
+                    varietyCompanyName.value = company.name;
+                    varietyCompanyVarieties.value = company.varieties.join(', ');
+                    varietyCompanyName.focus();
+                }
+            },
+
+            deleteVarietyCompany(companyId) {
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir esta empresa de variedade?", async () => {
+                    await App.data.deleteDocument('varietyCompanies', companyId);
+                    App.ui.showAlert('Empresa de variedade excluída com sucesso.', 'info');
+                });
+            },
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
@@ -5962,10 +6121,11 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generateCensoVarietalReport(format) {
-                const { farmTypeFilter } = App.elements.relatorioCensoVarietal;
+                const { farmTypeFilter, companyFilter } = App.elements.relatorioCensoVarietal;
                 const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
                 const filters = {
-                    tipos: selectedTypes.join(',')
+                    tipos: selectedTypes.join(','),
+                    companyId: companyFilter.value
                 };
                 this._fetchAndDownloadReport(`censo-varietal/${format}`, filters, `censo_varietal.${format}`);
             },
@@ -5994,7 +6154,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     talhao: talhaoFiltro.value.trim()
                 };
                 this._fetchAndDownloadReport(`falta-colher/${format}`, filters, `relatorio_falta_colher_${plan.frontName}.${format}`);
-            }
+            },
         },
 
         pwa: {
