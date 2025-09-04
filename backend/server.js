@@ -436,7 +436,7 @@ try {
             console.error("Não foi possível carregar o logotipo Base64:", error.message);
         }
         
-        doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
+        doc.fontSize(14).font('Helvetica-Bold').text(title, { align: 'center' });
         doc.moveDown(2);
         return doc.y;
     };
@@ -798,7 +798,7 @@ try {
 
     app.get('/reports/falta-colher/:format', async (req, res) => {
         const { format } = req.params;
-        const { planId, generatedBy } = req.query;
+        const { planId, fazendaCodigo, talhao, generatedBy } = req.query;
 
         if (!planId) {
             return res.status(400).send('ID do plano de colheita é obrigatório.');
@@ -811,63 +811,97 @@ try {
             }
             const harvestPlan = harvestPlanDoc.data();
 
-            const reportData = [];
+            let finalReportData = [];
             let totalAreaFaltante = 0;
             let totalProducaoFaltante = 0;
+            const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
+
+            const allFarmCodes = [...new Set(harvestPlan.sequence.map(g => g.fazendaCodigo))];
+            const farmsSnapshot = await db.collection('fazendas').where('code', 'in', allFarmCodes).get();
+            const farmsData = {};
+            farmsSnapshot.forEach(doc => {
+                farmsData[doc.data().code] = doc.data();
+            });
 
             for (const group of harvestPlan.sequence) {
-                const areaColhida = group.areaColhida || 0;
-                const producaoColhida = group.producaoColhida || 0;
+                if (fazendaCodigo && group.fazendaCodigo !== fazendaCodigo) {
+                    continue;
+                }
 
-                const areaFaltante = group.totalArea - areaColhida;
-                const producaoFaltante = group.totalProducao - producaoColhida;
+                for (const plot of group.plots) {
+                    if (closedTalhaoIds.has(plot.talhaoId)) {
+                        continue;
+                    }
+                    if (talhao && !plot.talhaoName.toLowerCase().includes(talhao.toLowerCase())) {
+                        continue;
+                    }
 
-                if (areaFaltante > 0.01) { // Use a small epsilon to handle floating point inaccuracies
-                    reportData.push({
-                        fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
-                        talhoes: group.plots.map(p => p.talhaoName).join(', '),
-                        area_total: group.totalArea,
-                        area_colhida: areaColhida,
-                        area_faltante: areaFaltante,
-                        producao_total: group.totalProducao,
-                        producao_colhida: producaoColhida,
-                        producao_faltante: producaoFaltante
-                    });
-                    totalAreaFaltante += areaFaltante;
-                    totalProducaoFaltante += producaoFaltante;
+                    const farm = farmsData[group.fazendaCodigo];
+                    const talhaoData = farm?.talhoes.find(t => t.id === plot.talhaoId);
+
+                    if (talhaoData) {
+                        finalReportData.push({
+                            fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
+                            talhao: plot.talhaoName,
+                            area: talhaoData.area,
+                            producao: talhaoData.producao
+                        });
+                        totalAreaFaltante += talhaoData.area;
+                        totalProducaoFaltante += talhaoData.producao;
+                    }
                 }
             }
 
             if (format === 'pdf') {
-                const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+                const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
                 res.setHeader('Content-Type', 'application/pdf');
                 res.setHeader('Content-Disposition', `attachment; filename=relatorio_falta_colher_${harvestPlan.frontName}.pdf`);
                 doc.pipe(res);
 
-                await generatePdfHeader(doc, `Relatório de Saldo a Colher - ${harvestPlan.frontName}`);
+                let currentY = await generatePdfHeader(doc, `Relatório de Saldo a Colher - ${harvestPlan.frontName}`);
 
-                const table = {
-                    headers: ['Fazenda', 'Talhões', 'Área Total (ha)', 'Área Colhida (ha)', 'Saldo Área (ha)', 'Prod. Total (ton)', 'Prod. Colhida (ton)', 'Saldo Prod. (ton)'],
-                    rows: reportData.map(d => [
-                        d.fazenda,
-                        d.talhoes,
-                        d.area_total.toFixed(2),
-                        d.area_colhida.toFixed(2),
-                        d.area_faltante.toFixed(2),
-                        d.producao_total.toFixed(2),
-                        d.producao_colhida.toFixed(2),
-                        d.producao_faltante.toFixed(2)
-                    ])
-                };
+                const groupedByFarm = finalReportData.reduce((acc, item) => {
+                    if (!acc[item.fazenda]) {
+                        acc[item.fazenda] = [];
+                    }
+                    acc[item.fazenda].push(item);
+                    return acc;
+                }, {});
 
-                table.rows.push([
-                    'TOTAL', '', '', '', totalAreaFaltante.toFixed(2), '', '', totalProducaoFaltante.toFixed(2)
-                ]);
+                const headers = ['Talhão', 'Área (ha)', 'Produção (ton)'];
+                const columnWidths = [200, 150, 150];
 
-                await doc.table(table, {
-                    prepareHeader: () => doc.font('Helvetica-Bold'),
-                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
-                });
+                for (const fazenda of Object.keys(groupedByFarm).sort()) {
+                    currentY = await checkPageBreak(doc, currentY, `Saldo a Colher - ${harvestPlan.frontName}`, 50);
+                    doc.y = currentY;
+                    doc.fontSize(12).font('Helvetica-Bold').text(fazenda, { underline: true });
+                    currentY = doc.y + 5;
+
+                    const table = {
+                        headers: headers,
+                        rows: groupedByFarm[fazenda].map(d => [
+                            d.talhao,
+                            d.area.toFixed(2),
+                            d.producao.toFixed(2)
+                        ])
+                    };
+
+                    await doc.table(table, {
+                        y: currentY,
+                        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
+                        prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
+                        width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+                        columnWidths: columnWidths
+                    });
+
+                    currentY = doc.y + 15;
+                }
+
+                doc.y = currentY + 10;
+                doc.fontSize(12).font('Helvetica-Bold').text('Total Geral a Colher');
+                doc.fontSize(10).font('Helvetica').text(`Área: ${totalAreaFaltante.toFixed(2)} ha`);
+                doc.fontSize(10).font('Helvetica').text(`Produção: ${totalProducaoFaltante.toFixed(2)} ton`);
+
 
                 generatePdfFooter(doc, generatedBy);
                 doc.end();
@@ -878,25 +912,12 @@ try {
                     path: filePath,
                     header: [
                         { id: 'fazenda', title: 'Fazenda' },
-                        { id: 'talhoes', title: 'Talhões' },
-                        { id: 'area_total', title: 'Área Total (ha)' },
-                        { id: 'area_colhida', title: 'Área Colhida (ha)' },
-                        { id: 'area_faltante', title: 'Saldo Área (ha)' },
-                        { id: 'producao_total', title: 'Produção Total (ton)' },
-                        { id: 'producao_colhida', title: 'Produção Colhida (ton)' },
-                        { id: 'producao_faltante', title: 'Saldo Produção (ton)' }
+                        { id: 'talhao', title: 'Talhão' },
+                        { id: 'area', title: 'Área (ha)' },
+                        { id: 'producao', title: 'Produção (ton)' }
                     ]
                 });
-                const records = reportData.map(d => ({
-                    ...d,
-                    area_total: d.area_total.toFixed(2),
-                    area_colhida: d.area_colhida.toFixed(2),
-                    area_faltante: d.area_faltante.toFixed(2),
-                    producao_total: d.producao_total.toFixed(2),
-                    producao_colhida: d.producao_colhida.toFixed(2),
-                    producao_faltante: d.producao_faltante.toFixed(2)
-                }));
-                await csvWriter.writeRecords(records);
+                await csvWriter.writeRecords(finalReportData);
                 res.download(filePath);
 
             } else {

@@ -1623,6 +1623,36 @@
                             <div class="form-col"><label for="plantingPlanDate" class="required">Data Prevista do Plantio:</label><input type="date" id="plantingPlanDate" required></div>
                             <div class="form-col"><label for="plantingPlanTCH" class="required">TCH Esperado (ton/ha):</label><input type="number" id="plantingPlanTCH" placeholder="0.00" required></div>
                         </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="plantingPlanTipoPlantio" class="required">Tipo de Plantio:</label>
+                                <select id="plantingPlanTipoPlantio" required>
+                                    <option value="mecanizado">Mecanizado</option>
+                                    <option value="manual">Manual</option>
+                                </select>
+                            </div>
+                            <div class="form-col">
+                                <label for="plantingPlanPrestador" class="required">Prestador de Serviço:</label>
+                                <input type="text" id="plantingPlanPrestador" placeholder="Nome do prestador" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="plantingPlanTipoArea" class="required">Tipo de Área:</label>
+                                <select id="plantingPlanTipoArea" required>
+                                    <option value="reforma">Reforma</option>
+                                    <option value="expansao">Expansão</option>
+                                </select>
+                            </div>
+                            <div class="form-col">
+                                <label for="plantingPlanPreReforma" class="required">Manejo Pré-Reforma:</label>
+                                <select id="plantingPlanPreReforma" required>
+                                    <option value="pousio">Pousio</option>
+                                    <option value="outro">Outra Cultura</option>
+                                </select>
+                                <input type="text" id="plantingPlanPreReformaOutro" placeholder="Qual cultura?" style="display: none; margin-top: 5px;">
+                            </div>
+                        </div>
                         <label for="plantingPlanObs">Observações:</label>
                         <textarea id="plantingPlanObs" placeholder="Detalhes sobre o preparo do solo, insumos, etc..."></textarea>
 
@@ -1836,6 +1866,14 @@
                     <div class="form-col">
                         <label for="faltaColherPlanoSelect" class="required">Selecione um Plano de Colheita:</label>
                         <select id="faltaColherPlanoSelect" required></select>
+                    </div>
+                    <div class="form-col">
+                        <label for="faltaColherFazendaFiltro">Filtrar por Fazenda:</label>
+                        <select id="faltaColherFazendaFiltro"><option value="">Todas</option></select>
+                    </div>
+                    <div class="form-col">
+                        <label for="faltaColherTalhaoFiltro">Filtrar por Talhão:</label>
+                        <input type="text" id="faltaColherTalhaoFiltro" placeholder="Digite o nome do talhão">
                     </div>
                 </div>
 
