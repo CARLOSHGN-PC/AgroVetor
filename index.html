@@ -1797,7 +1797,6 @@
                             <select id="tipoRelatorioColheita">
                                 <option value="detalhado">Detalhado por Fazenda</option>
                                 <option value="mensal">Previsão Mensal</option>
-                                <option value="saldo">Saldo de Colheita</option>
                             </select>
                         </div>
                     </div>
@@ -1873,7 +1872,14 @@
                     </div>
                 </div>
                 <div class="checkbox-group-container">
-                    <label>Filtrar por Tipo de Fazenda (deixar em branco para todas):</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label>Filtrar por Tipo de Fazenda:</label>
+                        <label class="report-option-item" style="flex-direction: row; padding: 5px 10px; height: auto;">
+                            <input type="checkbox" id="censoVarietalSelectAll">
+                            <span class="checkbox-visual" style="position: static; width: 18px; height: 18px;"></span>
+                            <span class="option-content" style="font-size: 14px;">Selecionar Todos</span>
+                        </label>
+                    </div>
                     <div class="checkbox-group-grid" id="censoVarietalFarmTypeFilter">
                         <label class="report-option-item"><input type="checkbox" name="censoFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
                         <label class="report-option-item"><input type="checkbox" name="censoFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
@@ -2452,6 +2458,21 @@
                     <div class="modal-footer">
                         <button id="cuttingOrderModalCancelBtn" class="btn-secondary">Cancelar</button>
                         <button id="cuttingOrderModalConfirmBtn" class="save"><i class="fas fa-file-alt"></i> Confirmar e Gerar Ordem</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="viewCuttingOrderModal" class="modal-overlay">
+                <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-header">
+                        <h2 id="viewCuttingOrderModalTitle">Detalhes da Ordem de Corte</h2>
+                        <button id="viewCuttingOrderModalCloseBtn" class="modal-close-btn">&times;</button>
+                    </div>
+                    <div id="viewCuttingOrderModalBody">
+                        <!-- Content will be injected by JS -->
+                    </div>
+                    <div class="modal-footer">
+                        <button id="viewCuttingOrderModalOkBtn" class="save">OK</button>
                     </div>
                 </div>
             </div>

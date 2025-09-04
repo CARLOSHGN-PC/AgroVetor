@@ -906,6 +906,40 @@ try {
 
                     doc.y = currentY + 10;
                     doc.fontSize(12).font('Helvetica-Bold').text(`Total Geral: ${grandTotalArea.toFixed(2)} ha`);
+
+                    // [NOVO] Adicionar seção de participação total
+                    currentY = doc.y + 20;
+                    currentY = await checkPageBreak(doc, currentY, 'Censo Varietal', 60);
+                    doc.y = currentY;
+                    doc.fontSize(12).font('Helvetica-Bold').text('Participação por Variedade (Total)', { underline: true });
+                    currentY = doc.y + 5;
+
+                    const allVarieties = {};
+                    Object.values(companyData).forEach(comp => {
+                        Object.entries(comp.varieties).forEach(([varietyName, area]) => {
+                            if (!allVarieties[varietyName]) {
+                                allVarieties[varietyName] = 0;
+                            }
+                            allVarieties[varietyName] += area;
+                        });
+                    });
+
+                    const participationData = Object.entries(allVarieties)
+                        .map(([name, area]) => ({ name, area, percentage: (area / grandTotalArea) * 100 }))
+                        .sort((a, b) => b.area - a.area);
+
+                    const participationTable = {
+                        headers: ['Variedade', 'Área Total (ha)', 'Participação (%)'],
+                        rows: participationData.map(v => [v.name, v.area.toFixed(2), v.percentage.toFixed(2) + '%'])
+                    };
+
+                    await doc.table(participationTable, {
+                        y: currentY,
+                        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
+                        prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
+                    });
+
+
                     generatePdfFooter(doc, generatedBy);
                     doc.end();
 
@@ -938,6 +972,31 @@ try {
                         ]
                     });
                     await csvWriter.writeRecords(records);
+
+                    // [NOVO] Adicionar seção de participação total ao CSV
+                    const allVarieties = {};
+                    Object.values(companyData).forEach(comp => {
+                        Object.entries(comp.varieties).forEach(([varietyName, area]) => {
+                            if (!allVarieties[varietyName]) allVarieties[varietyName] = 0;
+                            allVarieties[varietyName] += area;
+                        });
+                    });
+
+                    const participationData = Object.entries(allVarieties)
+                        .map(([name, area]) => ({ name, area, percentage: (area / grandTotalArea) * 100 }))
+                        .sort((a, b) => b.area - a.area);
+
+                    const fs = require('fs').promises;
+                    let csvContent = await fs.readFile(filePath, 'utf8');
+                    csvContent += '\n'; // Linha em branco
+                    csvContent += 'Participação por Variedade (Total)\n';
+                    csvContent += 'Variedade;Área Total (ha);Participação (%)\n';
+                    participationData.forEach(v => {
+                        csvContent += `${v.name};${v.area.toFixed(2)};${v.percentage.toFixed(2)}\n`;
+                    });
+
+                    await fs.writeFile(filePath, csvContent);
+
                     res.download(filePath);
                 } else {
                     res.status(400).send('Formato de relatório inválido.');
@@ -1070,39 +1129,62 @@ try {
             const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
             let reportData = [];
 
+            const reportDataByFarm = {};
+
             for (const group of harvestPlan.sequence) {
                 const activePlots = group.plots.filter(p => !closedTalhaoIds.has(p.talhaoId));
                 if (activePlots.length === 0) continue;
 
                 if (fazendaCodigo && group.fazendaCodigo !== fazendaCodigo) continue;
-                if (talhao && !activePlots.some(p => p.talhaoName.toLowerCase().includes(talhao.toLowerCase()))) continue;
 
-                const areaColhida = group.areaColhida || 0;
-                const producaoColhida = group.producaoColhida || 0;
-
-                let activeAreaTotal = 0;
-                let activeProducaoTotal = 0;
-                const farm = farmsData[group.fazendaCodigo];
-                if (farm) {
-                    activePlots.forEach(p => {
-                        const talhaoData = farm.talhoes.find(t => t.id === p.talhaoId);
-                        if (talhaoData) {
-                            activeAreaTotal += talhaoData.area || 0;
-                            activeProducaoTotal += talhaoData.producao || 0;
-                        }
-                    });
+                const farmKey = `${group.fazendaCodigo} - ${group.fazendaName}`;
+                if (!reportDataByFarm[farmKey]) {
+                    reportDataByFarm[farmKey] = { plots: [], subtotal: { areaTotal: 0, areaColhida: 0, saldoArea: 0, prodTotal: 0, prodColhida: 0, saldoProd: 0 } };
                 }
 
-                reportData.push({
-                    fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
-                    talhoes: activePlots.map(p => p.talhaoName).join('\n'),
-                    areaTotal: activeAreaTotal,
-                    areaColhida: areaColhida,
-                    saldoArea: activeAreaTotal - areaColhida,
-                    prodTotal: activeProducaoTotal,
-                    prodColhida: producaoColhida,
-                    saldoProd: activeProducaoTotal - producaoColhida,
-                });
+                const farm = farmsData[group.fazendaCodigo];
+                if (!farm) continue;
+
+                const groupAreaColhida = group.areaColhida || 0;
+                const groupProdColhida = group.producaoColhida || 0;
+                const groupActiveArea = group.plots.reduce((sum, p) => {
+                    const talhaoData = farm.talhoes.find(t => t.id === p.talhaoId);
+                    return sum + (talhaoData ? talhaoData.area : 0);
+                }, 0);
+
+                for (const plot of activePlots) {
+                    const talhaoData = farm.talhoes.find(t => t.id === plot.talhaoId);
+                    if (!talhaoData) continue;
+
+                    if (talhao && !talhaoData.name.toLowerCase().includes(talhao.toLowerCase())) continue;
+
+                    const plotArea = talhaoData.area || 0;
+                    const plotProd = talhaoData.producao || 0;
+
+                    const proratedAreaColhida = groupActiveArea > 0 ? (plotArea / groupActiveArea) * groupAreaColhida : 0;
+                    const proratedProdColhida = groupActiveArea > 0 ? (plotArea / groupActiveArea) * groupProdColhida : 0; // Prorate by area as a proxy
+
+                    const saldoArea = plotArea - proratedAreaColhida;
+                    const saldoProd = plotProd - proratedProdColhida;
+
+                    reportDataByFarm[farmKey].plots.push({
+                        talhao: talhaoData.name,
+                        areaTotal: plotArea,
+                        areaColhida: proratedAreaColhida,
+                        saldoArea: saldoArea,
+                        prodTotal: plotProd,
+                        prodColhida: proratedProdColhida,
+                        saldoProd: saldoProd,
+                    });
+
+                    // Update subtotals
+                    reportDataByFarm[farmKey].subtotal.areaTotal += plotArea;
+                    reportDataByFarm[farmKey].subtotal.areaColhida += proratedAreaColhida;
+                    reportDataByFarm[farmKey].subtotal.saldoArea += saldoArea;
+                    reportDataByFarm[farmKey].subtotal.prodTotal += plotProd;
+                    reportDataByFarm[farmKey].subtotal.prodColhida += proratedProdColhida;
+                    reportDataByFarm[farmKey].subtotal.saldoProd += saldoProd;
+                }
             }
 
             if (format === 'pdf') {
@@ -1113,35 +1195,88 @@ try {
 
                 await generatePdfHeader(doc, `Relatório de Saldo a Colher - ${harvestPlan.frontName}`);
 
-                const table = {
-                    headers: ['Fazenda', 'Talhões', 'Área Total', 'Área Colhida', 'Saldo Área', 'Prod. Total', 'Prod. Colhida', 'Saldo Prod.'],
-                    rows: reportData.map(d => [
-                        d.fazenda,
-                        d.talhoes,
+                const headers = ['Fazenda', 'Talhão', 'Área Total', 'Área Colhida', 'Saldo Área', 'Prod. Total', 'Prod. Colhida', 'Saldo Prod.'];
+
+                const grandTotal = { areaTotal: 0, areaColhida: 0, saldoArea: 0, prodTotal: 0, prodColhida: 0, saldoProd: 0 };
+
+                for (const farmKey in reportDataByFarm) {
+                    const farmData = reportDataByFarm[farmKey];
+                    const rows = farmData.plots.map(d => [
+                        farmKey,
+                        d.talhao,
                         d.areaTotal.toFixed(2),
                         d.areaColhida.toFixed(2),
                         d.saldoArea.toFixed(2),
                         d.prodTotal.toFixed(2),
                         d.prodColhida.toFixed(2),
                         d.saldoProd.toFixed(2)
-                    ])
-                };
+                    ]);
 
-                await doc.table(table, {
-                    prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
-                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(8),
-                });
+                    const subtotalRow = [
+                        { text: 'Subtotal', bold: true, colSpan: 2, align: 'right' }, '',
+                        { text: farmData.subtotal.areaTotal.toFixed(2), bold: true },
+                        { text: farmData.subtotal.areaColhida.toFixed(2), bold: true },
+                        { text: farmData.subtotal.saldoArea.toFixed(2), bold: true },
+                        { text: farmData.subtotal.prodTotal.toFixed(2), bold: true },
+                        { text: farmData.subtotal.prodColhida.toFixed(2), bold: true },
+                        { text: farmData.subtotal.saldoProd.toFixed(2), bold: true },
+                    ];
+                    rows.push(subtotalRow);
+
+                    Object.keys(grandTotal).forEach(key => {
+                        grandTotal[key] += farmData.subtotal[key];
+                    });
+
+                    await doc.table({ headers, rows }, {
+                        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+                        prepareRow: (row, i, isLast, isFirst) => {
+                            doc.font('Helvetica').fontSize(8);
+                            if (i === rows.length - 1) { // is subtotal row
+                                doc.font('Helvetica-Bold');
+                            }
+                        },
+                    });
+                }
+
+                const grandTotalRow = [
+                    { text: 'Total Geral', bold: true, colSpan: 2, align: 'right' }, '',
+                    { text: grandTotal.areaTotal.toFixed(2), bold: true },
+                    { text: grandTotal.areaColhida.toFixed(2), bold: true },
+                    { text: grandTotal.saldoArea.toFixed(2), bold: true },
+                    { text: grandTotal.prodTotal.toFixed(2), bold: true },
+                    { text: grandTotal.prodColhida.toFixed(2), bold: true },
+                    { text: grandTotal.saldoProd.toFixed(2), bold: true },
+                ];
+
+                await doc.table({ headers: [], rows: [grandTotalRow] });
 
                 generatePdfFooter(doc, generatedBy);
                 doc.end();
 
             } else if (format === 'csv') {
+                const records = [];
+                for (const farmKey in reportDataByFarm) {
+                    const farmData = reportDataByFarm[farmKey];
+                    farmData.plots.forEach(plot => {
+                        records.push({
+                            fazenda: farmKey,
+                            talhao: plot.talhao,
+                            areaTotal: plot.areaTotal.toFixed(2),
+                            areaColhida: plot.areaColhida.toFixed(2),
+                            saldoArea: plot.saldoArea.toFixed(2),
+                            prodTotal: plot.prodTotal.toFixed(2),
+                            prodColhida: plot.prodColhida.toFixed(2),
+                            saldoProd: plot.saldoProd.toFixed(2),
+                        });
+                    });
+                }
+
                 const filePath = path.join(os.tmpdir(), `falta_colher_${Date.now()}.csv`);
                 const csvWriter = createObjectCsvWriter({
                     path: filePath,
                     header: [
                         { id: 'fazenda', title: 'Fazenda' },
-                        { id: 'talhoes', title: 'Talhoes' },
+                        { id: 'talhao', title: 'Talhão' },
                         { id: 'areaTotal', title: 'Area Total (ha)' },
                         { id: 'areaColhida', title: 'Area Colhida (ha)' },
                         { id: 'saldoArea', title: 'Saldo Area (ha)' },
@@ -1150,7 +1285,6 @@ try {
                         { id: 'saldoProd', title: 'Saldo Prod. (ton)' }
                     ]
                 });
-                const records = reportData.map(d => ({ ...d, talhoes: d.talhoes.replace(/\n/g, ', ') }));
                 await csvWriter.writeRecords(records);
                 res.download(filePath);
 
@@ -1595,6 +1729,70 @@ try {
         } catch (error) {
             console.error("Erro ao gerar CSV de Previsão Mensal:", error);
             res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/colheita/mensal/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=relatorio_previsao_mensal.pdf`);
+        doc.pipe(res);
+
+        try {
+            const { planId, generatedBy } = req.query;
+            if (!planId) throw new Error('Nenhum plano de colheita selecionado.');
+
+            const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
+            if (!harvestPlanDoc.exists) throw new Error('Plano de colheita não encontrado.');
+
+            const harvestPlan = harvestPlanDoc.data();
+            const monthlyTotals = {};
+            let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
+            const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+            const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
+
+            harvestPlan.sequence.forEach(group => {
+                if (group.plots.every(p => closedTalhaoIds.has(p.talhaoId))) return;
+
+                let producaoRestante = group.totalProducao;
+                while (producaoRestante > 0) {
+                    const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                    if (!monthlyTotals[monthKey]) {
+                        monthlyTotals[monthKey] = 0;
+                    }
+                    monthlyTotals[monthKey] += Math.min(producaoRestante, dailyTon);
+                    producaoRestante -= dailyTon;
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+            });
+
+            await generatePdfHeader(doc, `Relatório de Previsão Mensal - ${harvestPlan.frontName}`);
+
+            const rows = Object.keys(monthlyTotals).sort().map(monthKey => {
+                const [year, month] = monthKey.split('-');
+                const monthName = new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'long' });
+                return [
+                    `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${year}`,
+                    monthlyTotals[monthKey].toFixed(2)
+                ];
+            });
+
+            const table = {
+                headers: ['Mês/Ano', 'Produção Total (ton)'],
+                rows: rows
+            };
+
+            await doc.table(table, {
+                prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
+                prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
+            });
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Previsão Mensal:", error);
+            if (!res.headersSent) res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            else doc.end();
         }
     });
 
