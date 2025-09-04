@@ -1627,6 +1627,12 @@
                         <button id="btnAddNewCuttingOrder" class="save"><i class="fas fa-plus"></i> Nova Ordem Manual</button>
                     </div>
                 </div>
+                <div class="form-row" style="margin-top: 20px;">
+                    <div class="form-col">
+                        <label for="cuttingOrderFilter">Filtrar por Nº da Ordem:</label>
+                        <input type="number" id="cuttingOrderFilter" placeholder="Digite o número da OC...">
+                    </div>
+                </div>
                 <div id="cuttingOrdersListContainer" style="margin-top: 20px;"></div>
             </section>
 
@@ -1640,13 +1646,7 @@
                 </div>
 
                 <div id="planting-plans-list-container">
-                    <div class="card-header-actions">
-                        <h3 style="margin-top: 30px; margin-bottom: 0;"><i class="fas fa-tasks"></i> Planos de Plantio Salvos</h3>
-                        <div class="button-group">
-                            <button id="btnPDFPlantingPlan" class="btn-secondary" style="background: var(--color-info);"><i class="fas fa-file-pdf"></i> Relatório PDF</button>
-                            <button id="btnExcelPlantingPlan" class="btn-secondary" style="background: var(--color-success);"><i class="fas fa-file-excel"></i> Relatório Excel</button>
-                        </div>
-                    </div>
+                    <h3 style="margin-top: 30px;"><i class="fas fa-tasks"></i> Planos de Plantio Salvos</h3>
                     <div id="planting-plans-list"></div>
                 </div>
 
@@ -1901,10 +1901,6 @@
                             <option value="cut">Por Corte</option>
                         </select>
                     </div>
-        <div class="form-col">
-            <label for="censoVarietalCuttingOrder">Filtrar por Ordem de Corte (Nº):</label>
-            <input type="number" id="censoVarietalCuttingOrder" placeholder="Digite o nº da OC">
-        </div>
                 </div>
                 <div class="checkbox-group-container">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -2007,6 +2003,15 @@
                 <div class="botoes-relatorio" style="margin-top: 20px;">
                     <button id="btnPDFFaltaColher" type="button" style="background: var(--color-success);"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
                     <button id="btnExcelFaltaColher" type="button" style="background: var(--color-success);"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+            </section>
+
+            <section id="relatorioPlantio" class="tab-content card" aria-label="Relatório de Plantio" tabindex="0" hidden>
+                <h2 style="color: var(--color-primary);"><i class="fas fa-leaf"></i> Relatório de Planejamento de Plantio</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Exporte a lista completa de todos os planos de plantio para PDF ou Excel.</p>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFPlantingPlanReport" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelPlantingPlanReport" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
 
@@ -2155,6 +2160,31 @@
                     <h4 style="margin-top: 20px;">Empresas Cadastradas</h4>
                     <div id="varietyCompanyList" class="table-responsive"></div>
                 </div>
+            </section>
+
+            <section id="gerirMaturacao" class="tab-content card" aria-label="Gerir Maturação de Variedades" tabindex="0" hidden>
+                <h2><i class="fas fa-hourglass-half"></i> Gerir Maturação de Variedades</h2>
+                 <div class="card" style="border-left-color: var(--color-info);">
+                    <h3><i class="fas fa-plus-circle"></i> Adicionar/Editar Classificação</h3>
+                    <input type="hidden" id="maturationId">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="maturationVarietyName" class="required">Nome da Variedade:</label>
+                            <input type="text" id="maturationVarietyName" placeholder="Ex: CTC9001">
+                        </div>
+                        <div class="form-col">
+                            <label for="maturationCycle" class="required">Ciclo de Maturação:</label>
+                            <select id="maturationCycle">
+                                <option value="Precoce">Precoce</option>
+                                <option value="Média">Média</option>
+                                <option value="Tardia">Tardia</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="btnSaveMaturation" class="save" style="max-width: 300px;"><i class="fas fa-save"></i> Guardar Classificação</button>
+                </div>
+                <h3 style="margin-top:30px;"><i class="fas fa-tasks"></i> Classificações Salvas</h3>
+                <div id="maturationList" class="table-responsive"></div>
             </section>
 
             <section id="gerenciarUsuarios" class="tab-content card" aria-label="Gerir Utilizadores" tabindex="0" hidden>

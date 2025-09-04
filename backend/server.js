@@ -381,9 +381,9 @@ try {
 
     const formatNumber = (num) => {
         if (typeof num !== 'number' || isNaN(num)) {
-            return num;
+            return '0,00';
         }
-        return parseFloat(num.toFixed(2)).toLocaleString('pt-BR', {
+        return num.toLocaleString('pt-BR', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
         });
@@ -622,66 +622,27 @@ try {
 
     app.get('/reports/censo-varietal/:format', async (req, res) => {
         const { format } = req.params;
-        const { tipos, companyId, model, generatedBy, cuttingOrderNumber } = req.query;
+        const { tipos, companyId, model, generatedBy } = req.query;
 
         try {
             let farmsQuery = db.collection('fazendas');
-            let cuttingOrderTalhoes = null;
-            let cuttingOrderFarmCode = null;
-
-            // Se um número de Ordem de Corte for fornecido, a lógica de filtro principal muda.
-            if (cuttingOrderNumber && cuttingOrderNumber.trim() !== '') {
-                const orderQuery = await db.collection('cuttingOrders')
-                    .where('sequentialId', '==', parseInt(cuttingOrderNumber))
-                    .limit(1)
-                    .get();
-
-                if (!orderQuery.empty) {
-                    const orderData = orderQuery.docs[0].data();
-                    cuttingOrderFarmCode = orderData.fazendaCodigo;
-                    // Cria um Set com os nomes dos talhões para uma busca eficiente
-                    cuttingOrderTalhoes = new Set(orderData.plots.map(p => p.talhaoName.toUpperCase()));
-                    // Se uma OC é especificada, ignoramos outros filtros de fazenda e buscamos apenas a fazenda da OC.
-                    farmsQuery = farmsQuery.where('code', '==', cuttingOrderFarmCode);
-                } else {
-                    return res.status(404).send('Ordem de Corte não encontrada.');
-                }
-            } else {
-                // Lógica de filtro original se nenhuma OC for especificada
-                const selectedTypes = tipos ? tipos.split(',').filter(t => t) : [];
-                if (selectedTypes.length > 0) {
-                    farmsQuery = farmsQuery.where('types', 'array-contains-any', selectedTypes);
-                }
+            const selectedTypes = tipos ? tipos.split(',').filter(t => t) : [];
+            if (selectedTypes.length > 0) {
+                farmsQuery = farmsQuery.where('types', 'array-contains-any', selectedTypes);
             }
-
             const snapshot = await farmsQuery.get();
             if (snapshot.empty) {
                 return res.status(404).send('Nenhuma fazenda encontrada para os filtros selecionados.');
             }
 
-            // Filtra os talhões DENTRO do loop, após buscar a(s) fazenda(s).
-            const originalSnapshotDocs = [...snapshot.docs];
-            snapshot.docs = originalSnapshotDocs.map(doc => {
-                if (cuttingOrderTalhoes) {
-                    const farmData = doc.data();
-                    const filteredTalhoes = farmData.talhoes.filter(t => cuttingOrderTalhoes.has(t.name.toUpperCase()));
-                    return {
-                        ...doc,
-                        data: () => ({ ...farmData, talhoes: filteredTalhoes })
-                    };
-                }
-                return doc;
-            });
-
-
             if (model === 'cut') {
                 // --- LÓGICA PARA O MODELO "POR CORTE" (PIVOT TABLE) ---
-                const varietyMaturation = {
-                    // Este objeto pode ser expandido com mais variedades
-                    'CTC9001': 'Precoce', 'CTC4': 'Precoce', 'RB966928': 'Precoce', 'SP832847': 'Precoce',
-                    'CTC9002': 'Média', 'RB855156': 'Média', 'RB855453': 'Média', 'SP813250': 'Média',
-                    'RB867515': 'Tardia', 'CTC9003': 'Tardia', 'RB92579': 'Tardia', 'SP911049': 'Tardia'
-                };
+                const maturationsSnapshot = await db.collection('varietyMaturations').get();
+                const varietyMaturation = {};
+                maturationsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    varietyMaturation[data.varietyName.toUpperCase()] = data.cycle;
+                });
 
                 const varietyToCompany = {};
                 const companiesSnapshot = await db.collection('varietyCompanies').get();
@@ -713,7 +674,7 @@ try {
                             const variety = (talhao.variedade || 'N/A').trim().toUpperCase();
                             const companyOfVariety = varietyToCompany[variety];
 
-                            if (companyNameFilter && companyOfVariety !== companyNameFilter) {
+                            if (companyNameFilter && companyOfVariety?.toLowerCase() !== companyNameFilter?.toLowerCase()) {
                                 return;
                             }
 
@@ -782,13 +743,13 @@ try {
 
                         sortedCuts.forEach(cut => {
                             const area = pivotData[variety][cut] || 0;
-                            rowData.push(area.toFixed(2));
+                            rowData.push(formatNumber(area));
                             varietyTotal += area;
                         });
 
                         const participation = grandTotalArea > 0 ? (varietyTotal / grandTotalArea) * 100 : 0;
-                        rowData.push(varietyTotal.toFixed(2));
-                        rowData.push(participation.toFixed(2) + '%');
+                        rowData.push(formatNumber(varietyTotal));
+                        rowData.push(formatNumber(participation) + '%');
                         return rowData;
                     });
 
@@ -798,9 +759,9 @@ try {
                         sortedVarieties.forEach(variety => {
                             cutTotal += pivotData[variety][cut] || 0;
                         });
-                        footer.push(cutTotal.toFixed(2));
+                        footer.push(formatNumber(cutTotal));
                     });
-                    footer.push(grandTotalArea.toFixed(2));
+                    footer.push(formatNumber(grandTotalArea));
                     footer.push('100.00%');
                     rows.push(footer);
 
@@ -892,7 +853,7 @@ try {
                             const variety = talhao.variedade ? talhao.variedade.trim().toUpperCase() : 'NÃO IDENTIFICADA';
                             const company = varietyToCompany[variety] || 'Outras';
                             const area = parseFloat(talhao.area) || 0;
-                            if (companyId && varietyToCompany[variety] !== companyNameFilter) return;
+                            if (companyId && varietyToCompany[variety]?.toLowerCase() !== companyNameFilter?.toLowerCase()) return;
                             if (area > 0) {
                                 if (!companyData[company]) companyData[company] = { totalArea: 0, varieties: {} };
                                 if (!companyData[company].varieties[variety]) companyData[company].varieties[variety] = 0;
@@ -931,9 +892,9 @@ try {
 
                         const table = {
                             headers: ['Variedade', 'Área (ha)', `Participação (${company})`],
-                            rows: sortedVarieties.map(v => [v.name, v.area.toFixed(2), v.percentage.toFixed(2) + '%'])
+                            rows: sortedVarieties.map(v => [v.name, formatNumber(v.area), formatNumber(v.percentage) + '%'])
                         };
-                        table.rows.push(['Subtotal', companyData[company].totalArea.toFixed(2), '100.00%']);
+                        table.rows.push(['Subtotal', formatNumber(companyData[company].totalArea), '100,00%']);
 
                         await doc.table(table, {
                             prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
@@ -943,10 +904,13 @@ try {
                     }
 
                     doc.moveDown();
-                    doc.fontSize(12).font('Helvetica-Bold').text(`Total Geral: ${grandTotalArea.toFixed(2)} ha`);
+                    doc.fontSize(12).font('Helvetica-Bold').text(`Total Geral: ${formatNumber(grandTotalArea)} ha`);
                     doc.moveDown(2);
 
                     // Adiciona seção de participação total, quebrando a página se necessário
+                    if (doc.y + 80 > doc.page.height - doc.page.margins.bottom) {
+                        doc.addPage();
+                    }
                     doc.fontSize(12).font('Helvetica-Bold').text('Participação por Variedade (Total)', { underline: true });
                     doc.moveDown(0.5);
 
@@ -966,11 +930,10 @@ try {
 
                     const participationTable = {
                         headers: ['Variedade', 'Área Total (ha)', 'Participação (%)'],
-                        rows: participationData.map(v => [v.name, v.area.toFixed(2), v.percentage.toFixed(2) + '%'])
+                        rows: participationData.map(v => [v.name, formatNumber(v.area), formatNumber(v.percentage) + '%'])
                     };
 
                     await doc.table(participationTable, {
-                        y: currentY,
                         prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
                         prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
                     });
@@ -1238,19 +1201,20 @@ try {
 
                     for (const farmKey in reportDataByFarm) {
                         const farmData = reportDataByFarm[farmKey];
-                        const rows = farmData.plots.map(d => [ farmKey, d.talhao, d.areaTotal.toFixed(2), d.areaColhida.toFixed(2), d.saldoArea.toFixed(2), d.prodTotal.toFixed(2), d.prodColhida.toFixed(2), d.saldoProd.toFixed(2) ]);
-                        const subtotalRow = [ 'Subtotal', '', farmData.subtotal.areaTotal.toFixed(2), farmData.subtotal.areaColhida.toFixed(2), farmData.subtotal.saldoArea.toFixed(2), farmData.subtotal.prodTotal.toFixed(2), farmData.subtotal.prodColhida.toFixed(2), farmData.subtotal.saldoProd.toFixed(2) ];
+                        const rows = farmData.plots.map(d => [ farmKey, d.talhao, formatNumber(d.areaTotal), formatNumber(d.areaColhida), formatNumber(d.saldoArea), formatNumber(d.prodTotal), formatNumber(d.prodColhida), formatNumber(d.saldoProd) ]);
+                        const subtotalRow = [ 'Subtotal', '', formatNumber(farmData.subtotal.areaTotal), formatNumber(farmData.subtotal.areaColhida), formatNumber(farmData.subtotal.saldoArea), formatNumber(farmData.subtotal.prodTotal), formatNumber(farmData.subtotal.prodColhida), formatNumber(farmData.subtotal.saldoProd) ];
                         rows.push(subtotalRow);
                         Object.keys(grandTotal).forEach(key => { grandTotal[key] += farmData.subtotal[key]; });
 
                         await doc.table({ headers, rows }, {
                             prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
-                            prepareRow: (row, i) => doc.font(i === rows.length - 1 ? 'Helvetica-Bold' : 'Helvetica').fontSize(8),
+                            prepareRow: (row, i) => doc.font(row[0] === 'Subtotal' ? 'Helvetica-Bold' : 'Helvetica').fontSize(8),
                             columnsSize: columnsSize
                         });
                         doc.moveDown();
                     }
-                    const grandTotalRow = [ 'Total Geral', '', grandTotal.areaTotal.toFixed(2), grandTotal.areaColhida.toFixed(2), grandTotal.saldoArea.toFixed(2), grandTotal.prodTotal.toFixed(2), grandTotal.prodColhida.toFixed(2), grandTotal.saldoProd.toFixed(2) ];
+                    if (doc.y + 30 > doc.page.height - doc.page.margins.bottom) doc.addPage();
+                    const grandTotalRow = [ 'Total Geral', '', formatNumber(grandTotal.areaTotal), formatNumber(grandTotal.areaColhida), formatNumber(grandTotal.saldoArea), formatNumber(grandTotal.prodTotal), formatNumber(grandTotal.prodColhida), formatNumber(grandTotal.saldoProd) ];
                     await doc.table({ headers, rows: [grandTotalRow] }, { hideHeader: true, prepareRow: (row, i) => doc.font('Helvetica-Bold').fontSize(9), columnsSize: columnsSize });
                 } else {
                     // Summary View
@@ -1260,14 +1224,14 @@ try {
                     const grandTotal = { areaTotal: 0, areaColhida: 0, saldoArea: 0, prodTotal: 0, prodColhida: 0, saldoProd: 0 };
                     for (const farmKey in reportDataByFarm) {
                         const subtotal = reportDataByFarm[farmKey].subtotal;
-                        rows.push([ farmKey, subtotal.areaTotal.toFixed(2), subtotal.areaColhida.toFixed(2), subtotal.saldoArea.toFixed(2), subtotal.prodTotal.toFixed(2), subtotal.prodColhida.toFixed(2), subtotal.saldoProd.toFixed(2) ]);
+                        rows.push([ farmKey, formatNumber(subtotal.areaTotal), formatNumber(subtotal.areaColhida), formatNumber(subtotal.saldoArea), formatNumber(subtotal.prodTotal), formatNumber(subtotal.prodColhida), formatNumber(subtotal.saldoProd) ]);
                         Object.keys(grandTotal).forEach(key => { grandTotal[key] += subtotal[key]; });
                     }
-                    const grandTotalRow = [ 'Total Geral', grandTotal.areaTotal.toFixed(2), grandTotal.areaColhida.toFixed(2), grandTotal.saldoArea.toFixed(2), grandTotal.prodTotal.toFixed(2), grandTotal.prodColhida.toFixed(2), grandTotal.saldoProd.toFixed(2) ];
+                    const grandTotalRow = [ 'Total Geral', formatNumber(grandTotal.areaTotal), formatNumber(grandTotal.areaColhida), formatNumber(grandTotal.saldoArea), formatNumber(grandTotal.prodTotal), formatNumber(grandTotal.prodColhida), formatNumber(grandTotal.saldoProd) ];
                     rows.push(grandTotalRow);
                     await doc.table({ headers, rows }, {
                         prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
-                        prepareRow: (row, i) => doc.font(i === rows.length - 1 ? 'Helvetica-Bold' : 'Helvetica').fontSize(8),
+                        prepareRow: (row, i) => doc.font(row[0] === 'Total Geral' ? 'Helvetica-Bold' : 'Helvetica').fontSize(8),
                         columnsSize: columnsSize
                     });
                 }
@@ -1520,7 +1484,7 @@ try {
                     }
                 });
                 const idadeMediaMeses = plotsWithDate > 0 ? ((totalAgeInDays / plotsWithDate) / (1000 * 60 * 60 * 24 * 30)).toFixed(1) : 'N/A';
-                const avgDistancia = plotsWithDistancia > 0 ? (totalDistancia / plotsWithDistancia).toFixed(2) : 'N/A';
+                const avgDistancia = plotsWithDistancia > 0 ? formatNumber(totalDistancia / plotsWithDistancia) : 'N/A';
                 let diasAplicacao = 'N/A';
                 if (group.maturadorDate) {
                     try {
@@ -2042,6 +2006,7 @@ try {
             }
             const order = orderDoc.data();
             const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${orderDoc.id.substring(0, 8).toUpperCase()}`;
+            const frontName = order.frontName || `Frente para ${orderNumber}`;
 
             // Header
             await generatePdfHeader(doc, 'Ordem de Corte');
@@ -2055,10 +2020,10 @@ try {
             const detailsTable = {
                 headers: [], // No headers for this layout
                 rows: [
-                    ['Frente de Colheita:', order.frontName, 'Status:', { text: order.status, font: 'Helvetica-Bold' }],
+                    ['Frente de Colheita:', frontName, 'Status:', { text: order.status, font: 'Helvetica-Bold' }],
                     ['Fazenda:', `${order.fazendaCodigo} - ${order.fazendaName}`, 'Período de Corte:', `${new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')} a ${new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}`],
-                    ['ATR Previsto:', order.atr, 'Produção Estimada:', `${(order.totalProducao || 0).toFixed(2)} ton`],
-                    ['Área Total:', `${(order.totalArea || 0).toFixed(2)} ha`, '', '']
+                    ['ATR Previsto:', order.atr, 'Produção Estimada:', `${formatNumber(order.totalProducao || 0)} ton`],
+                    ['Área Total:', `${formatNumber(order.totalArea || 0)} ha`, '', '']
                 ]
             };
             await doc.table(detailsTable, { hideHeader: true });
