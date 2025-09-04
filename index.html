@@ -1929,6 +1929,35 @@
             <section id="relatorioMonitoramento" class="tab-content card" aria-label="Relatório de Monitoramento" tabindex="0" hidden>
                 <h2><i class="fas fa-bug"></i> Relatório de Armadilhas</h2>
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere relatórios em PDF ou Excel das armadilhas, com filtros por período e fazenda.</p>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="monitoramentoTipoRelatorio">Tipo de Relatório:</label>
+                        <select id="monitoramentoTipoRelatorio">
+                            <option value="coletadas">Armadilhas Coletadas</option>
+                            <option value="ativas">Armadilhas Instaladas (Ativas)</option>
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label for="monitoramentoFazendaFiltro">Filtrar por Fazenda:</label>
+                        <select id="monitoramentoFazendaFiltro">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="monitoramentoInicio" class="required">Data Início:</label>
+                        <input type="date" id="monitoramentoInicio" />
+                    </div>
+                    <div class="form-col">
+                        <label for="monitoramentoFim" class="required">Data Fim:</label>
+                        <input type="date" id="monitoramentoFim" />
+                    </div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFMonitoramento" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelMonitoramento" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
             </section>
 
             <section id="relatorioOrdemDeCorte" class="tab-content card" aria-label="Relatório de Ordem de Corte" tabindex="0" hidden>
@@ -1962,6 +1991,13 @@
                         <label for="faltaColherTalhaoFiltro">Filtrar por Talhão:</label>
                         <input type="text" id="faltaColherTalhaoFiltro" placeholder="Digite o nome do talhão">
                     </div>
+                </div>
+                <div class="checkbox-group-container">
+                    <label class="report-option-item" style="flex-direction: row; padding: 8px 12px; height: auto; max-width: 250px;">
+                        <input type="checkbox" id="faltaColherShowPlots" checked>
+                        <span class="checkbox-visual" style="position: static; width: 18px; height: 18px;"></span>
+                        <span class="option-content" style="font-size: 14px;">Mostrar detalhes por talhão</span>
+                    </label>
                 </div>
 
                 <div class="botoes-relatorio" style="margin-top: 20px;">
