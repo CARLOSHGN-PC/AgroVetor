@@ -522,6 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
             relatorioCensoVarietal: {
                 farmTypeFilter: document.querySelectorAll('#censoVarietalFarmTypeFilter input[type="checkbox"]'),
                 companyFilter: document.getElementById('censoVarietalCompanyFilter'),
+                model: document.getElementById('censoVarietalModel'),
                 btnPDF: document.getElementById('btnPDFCensoVarietal'),
                 btnExcel: document.getElementById('btnExcelCensoVarietal'),
             },
@@ -2595,8 +2596,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Modo de seleção manual ativado. Clique no talhão desejado no mapa.", "info", 4000);
                 });
                 if (trapModal.confirmBtn) trapModal.confirmBtn.addEventListener('click', () => {
-                    const { trapPlacementMode, trapPlacementData, googleUserMarker } = App.state;
-                    if (!googleUserMarker) return;
+                    const { trapPlacementMode, trapPlacementData, mapboxUserMarker } = App.state;
+                    if (!mapboxUserMarker) {
+                        App.ui.showAlert("Sua localização não está disponível. Não é possível confirmar a instalação.", "error");
+                        return;
+                    }
 
                     let selectedFeature = null;
 
@@ -2614,8 +2618,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (selectedFeature) {
-                        const position = googleUserMarker.getPosition();
-                        App.mapModule.installTrap(position.lat(), position.lng(), selectedFeature);
+                        const position = mapboxUserMarker.getLngLat(); // Use Mapbox method
+                        App.mapModule.installTrap(position.lat, position.lng, selectedFeature); // Use .lat and .lng properties
                         App.mapModule.hideTrapPlacementModal();
                     }
                 });
@@ -5019,10 +5023,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            // ALTERAÇÃO PONTO 5: Melhoria na busca de propriedades do Shapefile
             showTalhaoInfo(feature) { // feature is now a GeoJSON feature
                 const props = {};
-                // Normalize properties to uppercase for consistent access
                 for (const key in feature.properties) {
                     props[key.toUpperCase()] = feature.properties[key];
                 }
@@ -5087,15 +5089,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
 
-            // The offline map download feature is complex and relies on a specific Google Maps tile URL structure.
-            // Replicating this for Mapbox is non-trivial. Commenting out for now to focus on the core migration.
-            // A proper implementation would use Mapbox's own offline capabilities if needed.
-            /*
-            tileMath: { ... },
-            startOfflineMapDownload(feature) { ... },
-            async downloadTiles(urls) { ... },
-            */
-
             hideTalhaoInfo() {
                 if (App.state.selectedMapFeature) {
                     App.state.mapboxMap.setFeatureState({ source: 'talhoes-source', id: App.state.selectedMapFeature.id }, { selected: false });
@@ -5156,46 +5149,31 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             promptInstallTrap() {
-                if (!App.state.googleUserMarker) {
+                if (!App.state.mapboxUserMarker) {
                     App.ui.showAlert("Localização do usuário não disponível para instalar a armadilha.", "error");
                     return;
                 }
                 this.showTrapPlacementModal('loading');
-                const position = App.state.googleUserMarker.getPosition();
+                const position = App.state.mapboxUserMarker.getLngLat();
                 this.findTalhaoFromLocation(position);
             },
 
-            findTalhaoFromLocation(position) {
+            findTalhaoFromLocation(position) { // position is a Mapbox LngLat object
                 const containingTalhoes = [];
-                const dataLayer = App.state.mapPolygons[0]; // Assumindo que só há um dataLayer
-                if (!dataLayer) {
+                const point = turf.point([position.lng, position.lat]);
+
+                if (!App.state.geoJsonData || !App.state.geoJsonData.features) {
                     this.showTrapPlacementModal('failure');
                     return;
                 }
 
-                dataLayer.forEach(feature => {
-                    const geometry = feature.getGeometry();
-                    if (!geometry) return;
-
-                    const type = geometry.getType();
-                    let polygon;
-
-                    if (type === 'Polygon') {
-                        try {
-                            polygon = new google.maps.Polygon({ paths: geometry.getArray()[0].getArray() });
-                             if (google.maps.geometry.poly.containsLocation(position, polygon)) {
-                                containingTalhoes.push(feature);
-                            }
-                        } catch(e) { console.error("Erro ao processar geometria de Polígono:", e); }
-                    } else if (type === 'MultiPolygon') {
-                        geometry.getArray().forEach(p => {
-                            try {
-                                polygon = new google.maps.Polygon({ paths: p.getArray()[0].getArray() });
-                                if (google.maps.geometry.poly.containsLocation(position, polygon)) {
-                                    containingTalhoes.push(feature);
-                                }
-                            } catch(e) { console.error("Erro ao processar geometria de MultiPolígono:", e); }
-                        });
+                App.state.geoJsonData.features.forEach(feature => {
+                    try {
+                        if (turf.booleanPointInPolygon(point, feature.geometry)) {
+                            containingTalhoes.push(feature);
+                        }
+                    } catch (e) {
+                        console.error("Erro ao verificar ponto em polígono com Turf.js:", e, feature.geometry);
                     }
                 });
 
@@ -5209,11 +5187,22 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             showTrapPlacementModal(state, data = null) {
-                const { overlay, body, confirmBtn, manualBtn, title } = App.elements.trapPlacementModal;
+                const { overlay, body, confirmBtn, manualBtn } = App.elements.trapPlacementModal;
                 let content = '';
                 
                 confirmBtn.style.display = 'none';
                 manualBtn.style.display = 'inline-flex';
+
+                const findProp = (props, keys) => {
+                    if (!props) return 'Não identificado';
+                    for (const key of keys) {
+                        const upperKey = key.toUpperCase();
+                        if (props[upperKey] !== undefined && props[upperKey] !== null) {
+                            return props[upperKey];
+                        }
+                    }
+                    return 'Não identificado';
+                };
 
                 switch(state) {
                     case 'loading':
@@ -5223,18 +5212,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'success':
                         const feature = data[0];
                         const props = {};
-                        feature.forEachProperty((value, property) => {
-                            props[property.toUpperCase()] = value;
-                        });
-                        const findProp = (keys) => {
-                            for (const key of keys) {
-                                if (props[key.toUpperCase()] !== undefined) return props[key.toUpperCase()];
-                            }
-                            return 'Não identificado';
-                        };
-                        const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
-                        const talhaoName = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-                        const fundoAgricola = findProp(['FUNDO_AGR']);
+                        for (const key in feature.properties) {
+                             props[key.toUpperCase()] = feature.properties[key];
+                        }
+
+                        const fazendaNome = findProp(props, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
+                        const talhaoName = findProp(props, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                        const fundoAgricola = findProp(props, ['FUNDO_AGR']);
 
                         content = `<p style="font-weight: 500;">Confirme o local de instalação:</p>
                                    <div class="location-confirmation-box">
@@ -5249,7 +5233,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'conflict':
                         content = `<p>Vários talhões detetados na sua localização. Por favor, selecione o correto:</p><div id="talhao-conflict-list" style="margin-top:15px; text-align:left;">`;
                         data.forEach((f, index) => {
-                            const name = f.getProperty('CD_TALHAO') || f.getProperty('TALHAO') || `Opção ${index + 1}`;
+                            const props = {};
+                            for (const key in f.properties) {
+                                props[key.toUpperCase()] = f.properties[key];
+                            }
+                            const name = findProp(props, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || `Opção ${index + 1}`;
                             content += `<label class="report-option-item" style="margin-bottom:10px;"><input type="radio" name="talhaoConflict" value="${index}"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">${name}</span></label>`;
                         });
                         content += `</div>`;
@@ -5258,10 +5246,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'failure':
                         content = `<p>Não foi possível detetar o talhão automaticamente. Por favor, selecione manualmente no mapa ou tente novamente.</p>`;
-                        break;
-                    case 'manual_select':
-                        content = `<p style="font-weight: 500; text-align: center;">Clique no talhão desejado no mapa para o selecionar.</p>`;
-                        manualBtn.style.display = 'none';
                         break;
                 }
                 
@@ -5278,8 +5262,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async installTrap(lat, lng, feature = null) {
                 const findProp = (keys) => {
+                    if (!feature || !feature.properties) return null;
+                    const props = {};
+                    for (const key in feature.properties) {
+                        props[key.toUpperCase()] = feature.properties[key];
+                    }
                     for (const key of keys) {
-                        if (feature.getProperty(key.toUpperCase()) !== undefined) return feature.getProperty(key.toUpperCase());
+                        if (props[key.toUpperCase()] !== undefined) return props[key.toUpperCase()];
                     }
                     return null;
                 };
@@ -5290,13 +5279,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     dataInstalacao: Timestamp.fromDate(new Date()),
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
-                    fazendaNome: feature ? findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : null,
-                    talhaoNome: feature ? findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) : null,
+                    fazendaNome: findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']),
+                    talhaoNome: findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']),
                 };
 
                 try {
                     const docRef = await App.data.addDocument('armadilhas', newTrap);
-                    // Adiciona o marcador imediatamente ao mapa para feedback visual instantâneo
                     this.addOrUpdateTrapMarker({ id: docRef.id, ...newTrap });
                     App.ui.showAlert(`Armadilha ${docRef.id.substring(0, 5)}... instalada em ${newTrap.talhaoNome || 'local desconhecido'}.`, "success");
                 } catch (error) {
@@ -5470,7 +5458,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.trapInfoBox.classList.remove('visible');
             },
             
-            // Verifica o status das armadilhas para gerar notificações de coleta
             checkTrapStatusAndNotify() {
                 const activeTraps = App.state.armadilhas.filter(t => t.status === 'Ativa');
                 let newNotificationsForBell = [];
@@ -5501,10 +5488,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (notification) {
-                        // Adiciona para a lista do sino
                         newNotificationsForBell.push(notification);
 
-                        // Mostra o pop-up apenas se não foi mostrado nesta sessão
                         if (!App.state.notifiedTrapIds.has(trap.id)) {
                             this.showTrapNotification(notification);
                             App.state.notifiedTrapIds.add(trap.id);
@@ -5513,7 +5498,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                // Atualiza o estado geral de notificações
                 const unreadNotifications = newNotificationsForBell.filter(n => !App.state.trapNotifications.some(oldN => oldN.trapId === n.trapId && oldN.message === n.message));
                 if (unreadNotifications.length > 0) {
                     App.state.unreadNotificationCount += unreadNotifications.length;
@@ -5548,10 +5532,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 };
 
-                // Click no X para fechar
                 notificationEl.querySelector('.close-btn').addEventListener('click', dismiss);
 
-                // Deslizar para fechar
                 let touchStartX = 0;
                 let touchEndX = 0;
 
@@ -5561,12 +5543,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 notificationEl.addEventListener('touchend', (event) => {
                     touchEndX = event.changedTouches[0].screenX;
-                    if (touchEndX < touchStartX - 50) { // Deslize para a esquerda de 50px
+                    if (touchEndX < touchStartX - 50) {
                         dismiss();
                     }
                 }, { passive: true });
 
-                // Remover automaticamente após um tempo
                 setTimeout(dismiss, 10000);
             },
 
@@ -5581,9 +5562,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showHistoryFilterModal() {
                 const modal = App.elements.historyFilterModal;
-                this.populateUserSelects([modal.userSelect]); // Popula apenas o select do modal
+                this.populateUserSelects([modal.userSelect]);
 
-                // Set default dates
                 const today = new Date();
                 const sevenDaysAgo = new Date(today);
                 sevenDaysAgo.setDate(today.getDate() - 7);
@@ -6307,11 +6287,12 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generateCensoVarietalReport(format) {
-                const { farmTypeFilter, companyFilter } = App.elements.relatorioCensoVarietal;
+                const { farmTypeFilter, companyFilter, model } = App.elements.relatorioCensoVarietal;
                 const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
                 const filters = {
                     tipos: selectedTypes.join(','),
-                    companyId: companyFilter.value
+                    companyId: companyFilter.value,
+                    model: model.value
                 };
                 this._fetchAndDownloadReport(`censo-varietal/${format}`, filters, `censo_varietal.${format}`);
             },

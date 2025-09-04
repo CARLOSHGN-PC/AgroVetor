@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v7'; // Incremented version
+const CACHE_NAME = 'agrovetor-cache-v8'; // Incremented version
 const TILE_CACHE_NAME = 'agrovetor-tile-cache-v1';
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
@@ -79,9 +79,8 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(event.request.url);
 
-  // Strategy for Google Maps satellite TILEs (Cache First with trimming)
-  // The path '/kh/v=' is specific to satellite imagery (Keyhole).
-  if (url.hostname.endsWith('.google.com') && url.pathname.includes('/kh/v=')) {
+  // Strategy for Mapbox tiles (Cache First with trimming)
+  if (url.hostname.endsWith('api.mapbox.com')) {
     event.respondWith(
       caches.open(TILE_CACHE_NAME).then(cache => {
         return cache.match(event.request).then(response => {
