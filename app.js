@@ -113,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Censo Varietal', icon: 'fas fa-chart-pie', target: 'relatorioCensoVarietal', permission: 'relatorioCensoVarietal' },
                         { label: 'Rel. O que Falta Colher', icon: 'fas fa-clipboard-check', target: 'relatorioFaltaColher', permission: 'relatorioFaltaColher' },
+                        { label: 'Rel. Ordem de Corte', icon: 'fas fa-file-pdf', target: 'relatorioOrdemDeCorte', permission: 'ordensDeCorte' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
                 },
@@ -293,6 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     atr: document.getElementById('manualCuttingOrderAtr'),
                     talhaoList: document.getElementById('manualCuttingOrderTalhaoList'),
                     orderId: document.getElementById('manualCuttingOrderId'),
+                    sequentialId: document.getElementById('manualCuttingOrderSequentialId'),
                     title: document.getElementById('manualCuttingOrderModalTitle')
                 }
             },
@@ -549,6 +551,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 fim: document.getElementById('monitoramentoFim'),
                 btnPDF: document.getElementById('btnPDFMonitoramento'),
                 btnExcel: document.getElementById('btnExcelMonitoramento'),
+            },
+            relatorioOrdemDeCorte: {
+                select: document.getElementById('ordemDeCorteRelatorioSelect'),
+                btnPDF: document.getElementById('btnPDFOrdemDeCorte'),
             },
             trapPlacementModal: {
                 overlay: document.getElementById('trapPlacementModal'),
@@ -952,6 +958,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('renderPlantingPlansList', () => this.renderPlantingPlansList());
                 renderWithCatch('renderCuttingOrdersList', () => this.renderCuttingOrdersList());
                 renderWithCatch('populateHarvestPlanSelect', () => this.populateHarvestPlanSelect());
+                renderWithCatch('populateCuttingOrderSelect', () => this.populateCuttingOrderSelect());
 
                 renderWithCatch('dashboard-view', () => {
                     if (document.getElementById('dashboard').classList.contains('active')) {
@@ -1118,6 +1125,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'planejamentoPlantio') this.showPlantingPlanList();
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCensoVarietal'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom' || id === 'relatorioFaltaColher') this.populateHarvestPlanSelect();
+                if (id === 'relatorioOrdemDeCorte') this.populateCuttingOrderSelect();
                 if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
@@ -1709,24 +1717,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const table = document.createElement('table');
                 table.className = 'harvestPlanTable'; // Reutilizar estilo existente
-                table.innerHTML = `<thead><tr><th>Ordem de Corte</th><th>Frente</th><th>Data Criação</th><th>Status</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                table.innerHTML = `<thead><tr><th>Nº da Ordem</th><th>Frente</th><th>Data Criação</th><th>Status</th><th>Ações</th></tr></thead><tbody></tbody>`;
                 const tbody = table.querySelector('tbody');
 
-                App.state.cuttingOrders.sort((a, b) => new Date(b.createdAt?.toDate() || 0) - new Date(a.createdAt?.toDate() || 0)).forEach(order => {
+                App.state.cuttingOrders.sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0)).forEach(order => {
                     const row = tbody.insertRow();
                     const statusClass = order.status ? order.status.toLowerCase() : 'pendente';
                     const createdAt = order.createdAt?.toDate() ? order.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
+                    const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
+
+                    let actionsHTML = `
+                        <button class="btn-excluir" style="background-color: var(--color-purple);" data-action="view-cutting-order" data-id="${order.id}"><i class="fas fa-eye"></i> Ver</button>
+                    `;
+
+                    if (order.status !== 'Encerrada') {
+                        actionsHTML += `
+                            <button class="btn-excluir" style="background-color: var(--color-info);" data-action="edit-cutting-order" data-id="${order.id}"><i class="fas fa-edit"></i> Editar</button>
+                            <button class="btn-excluir" style="background-color: var(--color-success);" data-action="close-cutting-order" data-id="${order.id}"><i class="fas fa-check-circle"></i> Encerrar</button>
+                            <button class="btn-excluir" data-action="delete-cutting-order" data-id="${order.id}"><i class="fas fa-trash"></i> Excluir</button>
+                        `;
+                    }
+
 
                     row.innerHTML = `
-                        <td data-label="Ordem de Corte">OC-${order.id.substring(0, 8).toUpperCase()}</td>
+                        <td data-label="Nº da Ordem">${orderNumber}</td>
                         <td data-label="Frente">${order.frontName}</td>
                         <td data-label="Data Criação">${createdAt}</td>
                         <td data-label="Status"><span class="plano-status ${statusClass}">${order.status || 'Pendente'}</span></td>
                         <td data-label="Ações">
                             <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                <button class="btn-excluir" style="background-color: var(--color-purple);" data-action="view-cutting-order" data-id="${order.id}"><i class="fas fa-eye"></i> Ver</button>
-                                <button class="btn-excluir" style="background-color: var(--color-info);" data-action="edit-cutting-order" data-id="${order.id}"><i class="fas fa-edit"></i> Editar</button>
-                                <button class="btn-excluir" data-action="delete-cutting-order" data-id="${order.id}"><i class="fas fa-trash"></i> Excluir</button>
+                                ${actionsHTML}
                             </div>
                         </td>
                     `;
@@ -2443,6 +2463,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.actions.deleteCuttingOrder(id);
                 } else if (action === 'view-cutting-order') {
                     App.actions.showCuttingOrderDetails(id);
+                } else if (action === 'close-cutting-order') {
+                    App.actions.closeCuttingOrder(id);
                 }
             });
         }
@@ -2648,6 +2670,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (relatorioMonitoramentoEls.btnPDF) relatorioMonitoramentoEls.btnPDF.addEventListener('click', () => App.reports.generateArmadilhaPDF());
                 if (relatorioMonitoramentoEls.btnExcel) relatorioMonitoramentoEls.btnExcel.addEventListener('click', () => App.reports.generateArmadilhaCSV());
                 
+                const relatorioOCEls = App.elements.relatorioOrdemDeCorte;
+                if (relatorioOCEls.btnPDF) relatorioOCEls.btnPDF.addEventListener('click', () => App.reports.generateOrdemDeCorteReport());
+
                 if (App.elements.notificationContainer) App.elements.notificationContainer.addEventListener('click', (e) => {
                     const notification = e.target.closest('.trap-notification');
                     if (notification && notification.dataset.trapId) {
@@ -4546,6 +4571,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async saveManualCuttingOrder() {
                 const { modal } = App.elements.cuttingOrders;
                 const orderId = modal.orderId.value;
+                const sequentialId = modal.sequentialId.value;
                 const farm = App.state.fazendas.find(f => f.id === modal.fazenda.value);
 
                 if (!farm) {
@@ -4586,6 +4612,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     updatedAt: serverTimestamp()
                 };
 
+                if (!orderId && sequentialId) {
+                    orderData.sequentialId = parseInt(sequentialId, 10);
+                }
+
                 const confirmationMessage = orderId ? 'Tem a certeza que deseja atualizar esta ordem de corte?' : 'Tem a certeza que deseja guardar esta nova ordem de corte?';
 
                 App.ui.showConfirmationModal(confirmationMessage, async () => {
@@ -4603,6 +4633,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     } catch (error) {
                         App.ui.showAlert("Erro ao guardar a ordem de corte.", "error");
                         console.error("Erro ao guardar Ordem de Corte:", error);
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
+            closeCuttingOrder(orderId) {
+                if (!orderId) return;
+                App.ui.showConfirmationModal("Tem a certeza que deseja encerrar esta ordem de corte? Após encerrada, não poderá ser reaberta ou editada.", async () => {
+                    App.ui.setLoading(true, "A encerrar ordem...");
+                    try {
+                        await App.data.updateDocument('cuttingOrders', orderId, { status: 'Encerrada' });
+                        App.ui.showAlert("Ordem de corte encerrada com sucesso.");
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao encerrar a ordem de corte.", "error");
                     } finally {
                         App.ui.setLoading(false);
                     }
@@ -4655,7 +4700,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 overlay.classList.add('show');
             },
 
-            openManualCuttingOrderModal(orderId = null) {
+            async openManualCuttingOrderModal(orderId = null) {
                 const { modal } = App.elements.cuttingOrders;
 
                 App.ui.populateFazendaSelects([modal.fazenda]);
@@ -4671,6 +4716,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     modal.title.textContent = "Editar Ordem de Corte";
                     modal.orderId.value = order.id;
+                    modal.sequentialId.value = order.sequentialId || '';
                     modal.frontName.value = order.frontName;
                     modal.fazenda.value = farm ? farm.id : '';
                     modal.startDate.value = order.startDate;
@@ -4679,14 +4725,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.ui.renderTalhaoSelectionForManualCuttingOrder(farm ? farm.id : null);
 
-                    // A pequena espera garante que os checkboxes foram renderizados antes de tentarmos marcá-los
                     setTimeout(() => {
                         if (order.plots && Array.isArray(order.plots)) {
                             order.plots.forEach(plot => {
                                 const checkbox = document.getElementById(`manual-talhao-select-${plot.talhaoId}`);
-                                if (checkbox) {
-                                    checkbox.checked = true;
-                                }
+                                if (checkbox) checkbox.checked = true;
                             });
                         }
                     }, 200);
@@ -4694,12 +4737,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     modal.title.textContent = "Nova Ordem de Corte Manual";
                     modal.orderId.value = '';
-                    modal.frontName.value = '';
+                    modal.sequentialId.value = '';
+                    modal.frontName.value = 'Aguardando ID...';
+                    modal.frontName.disabled = true;
                     modal.fazenda.value = '';
                     modal.startDate.value = new Date().toISOString().split('T')[0];
                     modal.endDate.value = '';
                     modal.atr.value = '';
-                    modal.talhaoList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
+                    modal.talhaoList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda.</p>';
+
+                    try {
+                        const response = await fetch(`${App.config.backendUrl}/api/cutting-order-next-id`);
+                        if (!response.ok) throw new Error('Falha ao buscar ID');
+                        const data = await response.json();
+                        modal.sequentialId.value = data.nextId;
+                        modal.frontName.value = `Ordem de Corte #${data.nextId}`;
+                    } catch (error) {
+                        console.error("Erro ao buscar próximo ID:", error);
+                        App.ui.showAlert("Não foi possível gerar um ID para a ordem de corte.", "error");
+                        modal.frontName.value = 'Erro ao gerar ID';
+                    } finally {
+                        modal.frontName.disabled = false;
+                    }
                 }
 
                 modal.overlay.classList.add('show');
@@ -6435,6 +6494,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     model: model.value
                 };
                 this._fetchAndDownloadReport(`censo-varietal/${format}`, filters, `censo_varietal.${format}`);
+            },
+
+            populateCuttingOrderSelect() {
+                const { select } = App.elements.relatorioOrdemDeCorte;
+                if (!select) return;
+
+                const savedValue = select.value;
+                select.innerHTML = '<option value="">Selecione uma Ordem de Corte...</option>';
+                if (App.state.cuttingOrders.length === 0) {
+                    select.innerHTML += '<option value="" disabled>Nenhuma ordem de corte encontrada</option>';
+                } else {
+                    App.state.cuttingOrders
+                        .sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0))
+                        .forEach(order => {
+                            const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
+                            select.innerHTML += `<option value="${order.id}">${orderNumber} - ${order.frontName}</option>`;
+                        });
+                }
+                select.value = savedValue;
+            },
+
+            generateOrdemDeCorteReport() {
+                const { select } = App.elements.relatorioOrdemDeCorte;
+                const orderId = select.value;
+                if (!orderId) {
+                    App.ui.showAlert("Por favor, selecione uma ordem de corte.", "warning");
+                    return;
+                }
+                this._fetchAndDownloadReport(`ordem-de-corte/${orderId}/pdf`, {}, `ordem_de_corte_${orderId.substring(0,6)}.pdf`);
             },
 
             generateFaltaColherReport(format) {

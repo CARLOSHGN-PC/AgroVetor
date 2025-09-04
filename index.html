@@ -1230,6 +1230,37 @@
       }
 
       @media (max-width: 768px) {
+          #harvestPlanTable, #personnelTable {
+              thead {
+                  display: none;
+              }
+              tr {
+                  display: block;
+                  margin-bottom: 15px;
+                  border-radius: var(--border-radius);
+                  box-shadow: var(--shadow-sm);
+                  border-left: 3px solid var(--color-primary);
+              }
+              td {
+                  display: block;
+                  text-align: right;
+                  padding-left: 50%;
+                  position: relative;
+                  border-bottom: 1px solid var(--color-border);
+              }
+              td:last-child {
+                  border-bottom: none;
+              }
+              td::before {
+                  content: attr(data-label);
+                  position: absolute;
+                  left: 15px;
+                  width: calc(50% - 30px);
+                  text-align: left;
+                  font-weight: 600;
+                  color: var(--color-primary);
+              }
+          }
           .header-title-container {
               max-width: calc(100% - 140px); /* Espaço para botão de menu e ações */
           }
@@ -1900,6 +1931,20 @@
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere relatórios em PDF ou Excel das armadilhas, com filtros por período e fazenda.</p>
             </section>
 
+            <section id="relatorioOrdemDeCorte" class="tab-content card" aria-label="Relatório de Ordem de Corte" tabindex="0" hidden>
+                <h2 style="color: var(--color-purple);"><i class="fas fa-file-pdf"></i> Relatório de Ordem de Corte</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Selecione uma ordem de corte para visualizar e imprimir seu relatório detalhado.</p>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="ordemDeCorteRelatorioSelect" class="required">Selecione uma Ordem de Corte:</label>
+                        <select id="ordemDeCorteRelatorioSelect" required></select>
+                    </div>
+                </div>
+                <div class="botoes-relatorio" style="margin-top: 20px;">
+                    <button id="btnPDFOrdemDeCorte" type="button" style="background: var(--color-purple);"><i class="fas fa-print"></i> Imprimir Ordem de Corte (PDF)</button>
+                </div>
+            </section>
+
             <section id="relatorioFaltaColher" class="tab-content card" aria-label="Relatório O que Falta Colher" tabindex="0" hidden>
                 <h2 style="color: var(--color-success);"><i class="fas fa-clipboard-check"></i> Relatório - O que Falta Colher</h2>
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Visualize o saldo de área e produção que ainda não foi colhida, com base em um plano de colheita.</p>
@@ -2406,6 +2451,7 @@
                         <button id="manualCuttingOrderModalCloseBtn" class="modal-close-btn">&times;</button>
                     </div>
                     <input type="hidden" id="manualCuttingOrderId">
+                    <input type="hidden" id="manualCuttingOrderSequentialId">
                     <div class="form-row">
                         <div class="form-col">
                             <label for="manualCuttingOrderFrontName" class="required">Frente de Colheita:</label>
