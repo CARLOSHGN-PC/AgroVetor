@@ -6527,6 +6527,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generateFaltaColherReport(format) {
                 const { select, fazendaFiltro, talhaoFiltro } = App.elements.relatorioFaltaColher;
+                const showPlotsCheckbox = document.getElementById('faltaColherShowPlots');
                 const planId = select.value;
 
                 if (!planId) {
@@ -6546,7 +6547,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const filters = {
                     planId,
                     fazendaCodigo: farm ? farm.code : '',
-                    talhao: talhaoFiltro.value.trim()
+                    talhao: talhaoFiltro.value.trim(),
+                    showPlots: showPlotsCheckbox ? showPlotsCheckbox.checked : 'true'
                 };
                 this._fetchAndDownloadReport(`falta-colher/${format}`, filters, `relatorio_falta_colher_${plan.frontName}.${format}`);
             },
