@@ -271,6 +271,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 cancelBtn: document.getElementById('cuttingOrderModalCancelBtn'),
                 confirmBtn: document.getElementById('cuttingOrderModalConfirmBtn'),
             },
+            viewCuttingOrderModal: {
+                overlay: document.getElementById('viewCuttingOrderModal'),
+                title: document.getElementById('viewCuttingOrderModalTitle'),
+                body: document.getElementById('viewCuttingOrderModalBody'),
+                closeBtn: document.getElementById('viewCuttingOrderModalCloseBtn'),
+                okBtn: document.getElementById('viewCuttingOrderModalOkBtn'),
+            },
             cuttingOrders: {
                 listContainer: document.getElementById('cuttingOrdersListContainer'),
                 btnAddNew: document.getElementById('btnAddNewCuttingOrder'),
@@ -1700,37 +1707,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                const table = document.createElement('table');
+                table.className = 'harvestPlanTable'; // Reutilizar estilo existente
+                table.innerHTML = `<thead><tr><th>Ordem de Corte</th><th>Frente</th><th>Data Criação</th><th>Status</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+
                 App.state.cuttingOrders.sort((a, b) => new Date(b.createdAt?.toDate() || 0) - new Date(a.createdAt?.toDate() || 0)).forEach(order => {
-                    const card = document.createElement('div');
-                    card.className = 'plano-card';
-                    card.style.borderLeftColor = order.status === 'Pendente' ? 'var(--color-warning)' : 'var(--color-success)';
+                    const row = tbody.insertRow();
+                    const statusClass = order.status ? order.status.toLowerCase() : 'pendente';
+                    const createdAt = order.createdAt?.toDate() ? order.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
 
-                    const talhoesHTML = order.plots.map(p => `<li>${p.talhaoName}</li>`).join('');
-
-                    card.innerHTML = `
-                        <div class="plano-header">
-                            <span class="plano-title"><i class="fas fa-file-signature"></i> OC: ${order.id.substring(0, 8)}...</span>
-                            <span class="plano-status ${order.status.toLowerCase()}">${order.status}</span>
-                        </div>
-                        <div class="plano-details">
-                            <div><i class="fas fa-tractor"></i> <strong>Frente:</strong> ${order.frontName}</div>
-                            <div><i class="fas fa-map-marker-alt"></i> <strong>Fazenda:</strong> ${order.fazendaCodigo} - ${order.fazendaName}</div>
-                            <div><i class="fas fa-calendar-alt"></i> <strong>Período:</strong> ${new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')} a ${new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
-                            <div><i class="fas fa-ruler-combined"></i> <strong>Área:</strong> ${order.totalArea.toFixed(2)} ha</div>
-                            <div><i class="fas fa-weight-hanging"></i> <strong>Produção:</strong> ${order.totalProducao.toFixed(2)} ton</div>
-                            <div><i class="fas fa-vial"></i> <strong>ATR:</strong> ${order.atr}</div>
-                        </div>
-                        <div style="margin-top: 10px;">
-                            <strong>Talhões:</strong>
-                            <ul style="list-style-position: inside; padding-left: 10px; font-size: 14px;">${talhoesHTML}</ul>
-                        </div>
-                        <div class="plano-actions">
-                            <button class="btn-excluir" style="background-color: var(--color-info);" data-action="edit-cutting-order" data-id="${order.id}"><i class="fas fa-edit"></i> Editar</button>
-                            <button class="btn-excluir" data-action="delete-cutting-order" data-id="${order.id}"><i class="fas fa-trash"></i> Excluir</button>
-                        </div>
+                    row.innerHTML = `
+                        <td data-label="Ordem de Corte">OC-${order.id.substring(0, 8).toUpperCase()}</td>
+                        <td data-label="Frente">${order.frontName}</td>
+                        <td data-label="Data Criação">${createdAt}</td>
+                        <td data-label="Status"><span class="plano-status ${statusClass}">${order.status || 'Pendente'}</span></td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background-color: var(--color-purple);" data-action="view-cutting-order" data-id="${order.id}"><i class="fas fa-eye"></i> Ver</button>
+                                <button class="btn-excluir" style="background-color: var(--color-info);" data-action="edit-cutting-order" data-id="${order.id}"><i class="fas fa-edit"></i> Editar</button>
+                                <button class="btn-excluir" data-action="delete-cutting-order" data-id="${order.id}"><i class="fas fa-trash"></i> Excluir</button>
+                            </div>
+                        </td>
                     `;
-                    listContainer.appendChild(card);
                 });
+                listContainer.appendChild(table);
             },
             renderLogoPreview() {
                 const { logoPreview, removeLogoBtn } = App.elements.companyConfig;
@@ -2440,9 +2441,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.actions.openManualCuttingOrderModal(id);
                 } else if (action === 'delete-cutting-order') {
                     App.actions.deleteCuttingOrder(id);
-                } else if (action === 'view-cutting-order-pdf') {
-                    console.log("Visualizar PDF da Ordem de Corte:", id);
-                    App.ui.showAlert("Funcionalidade de visualização de PDF da Ordem de Corte ainda não implementada.", "info");
+                } else if (action === 'view-cutting-order') {
+                    App.actions.showCuttingOrderDetails(id);
                 }
             });
         }
@@ -2589,6 +2589,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (censoVarietalEls.btnPDF) censoVarietalEls.btnPDF.addEventListener('click', () => App.reports.generateCensoVarietalReport('pdf'));
                 if (censoVarietalEls.btnExcel) censoVarietalEls.btnExcel.addEventListener('click', () => App.reports.generateCensoVarietalReport('csv'));
 
+                const censoSelectAll = document.getElementById('censoVarietalSelectAll');
+                if (censoSelectAll) {
+                    censoSelectAll.addEventListener('change', (e) => {
+                        const isChecked = e.target.checked;
+                        document.querySelectorAll('#censoVarietalFarmTypeFilter input[type="checkbox"]').forEach(cb => {
+                            cb.checked = isChecked;
+                        });
+                    });
+                }
+
                 const faltaColherEls = App.elements.relatorioFaltaColher;
                 if (faltaColherEls.btnPDF) faltaColherEls.btnPDF.addEventListener('click', () => App.reports.generateFaltaColherReport('pdf'));
                 if (faltaColherEls.btnExcel) faltaColherEls.btnExcel.addEventListener('click', () => App.reports.generateFaltaColherReport('csv'));
@@ -2675,6 +2685,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (historyModal.cancelBtn) historyModal.cancelBtn.addEventListener('click', () => this.hideHistoryFilterModal());
                 if (historyModal.viewBtn) historyModal.viewBtn.addEventListener('click', () => App.actions.viewHistory());
                 if (historyModal.clearBtn) historyModal.clearBtn.addEventListener('click', () => App.actions.clearHistory());
+
+                const viewCuttingOrderModal = App.elements.viewCuttingOrderModal;
+                if(viewCuttingOrderModal.closeBtn) viewCuttingOrderModal.closeBtn.addEventListener('click', () => viewCuttingOrderModal.overlay.classList.remove('show'));
+                if(viewCuttingOrderModal.okBtn) viewCuttingOrderModal.okBtn.addEventListener('click', () => viewCuttingOrderModal.overlay.classList.remove('show'));
+
 
                 if (App.elements.monitoramentoAereo.btnHistory) {
                     // This listener is now attached in showTab
@@ -4528,12 +4543,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            generatePlantingPlanReport(format) {
-                // For now, we don't have filters for this report, but we can add them later if needed.
-                const filters = {};
-                this._fetchAndDownloadReport(`plantio/${format}`, filters, `relatorio_plantio.${format}`);
-            },
-
             async saveManualCuttingOrder() {
                 const { modal } = App.elements.cuttingOrders;
                 const orderId = modal.orderId.value;
@@ -4615,10 +4624,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            showCuttingOrderDetails(orderId) {
+                const order = App.state.cuttingOrders.find(o => o.id === orderId);
+                if (!order) {
+                    App.ui.showAlert("Ordem de corte não encontrada.", "error");
+                    return;
+                }
+
+                const { overlay, title, body } = App.elements.viewCuttingOrderModal;
+                title.textContent = `Detalhes da Ordem de Corte OC-${order.id.substring(0, 8).toUpperCase()}`;
+
+                const talhoesHTML = (order.plots || []).map(p => `<li>${p.talhaoName}</li>`).join('');
+
+                body.innerHTML = `
+                    <div class="plano-details" style="grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div><i class="fas fa-tractor"></i> <strong>Frente:</strong> ${order.frontName}</div>
+                        <div><i class="fas fa-map-marker-alt"></i> <strong>Fazenda:</strong> ${order.fazendaCodigo} - ${order.fazendaName}</div>
+                        <div><i class="fas fa-calendar-alt"></i> <strong>Período:</strong> ${new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')} a ${new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
+                        <div><i class="fas fa-ruler-combined"></i> <strong>Área:</strong> ${order.totalArea.toFixed(2)} ha</div>
+                        <div><i class="fas fa-weight-hanging"></i> <strong>Produção:</strong> ${order.totalProducao.toFixed(2)} ton</div>
+                        <div><i class="fas fa-vial"></i> <strong>ATR:</strong> ${order.atr}</div>
+                        <div><i class="fas fa-check-circle"></i> <strong>Status:</strong> ${order.status}</div>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <h4><i class="fas fa-th-list"></i> Talhões Incluídos:</h4>
+                        <ul style="list-style-position: inside; padding-left: 20px; margin-top: 10px;">${talhoesHTML}</ul>
+                    </div>
+                `;
+
+                overlay.classList.add('show');
+            },
+
             openManualCuttingOrderModal(orderId = null) {
                 const { modal } = App.elements.cuttingOrders;
 
-                this.populateFazendaSelects([modal.fazenda]);
+                App.ui.populateFazendaSelects([modal.fazenda]);
 
                 if (orderId) {
                     const order = App.state.cuttingOrders.find(o => o.id === orderId);
@@ -6172,6 +6212,11 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         reports: {
+            generatePlantingPlanReport(format) {
+                // For now, we don't have filters for this report, but we can add them later if needed.
+                const filters = {};
+                this._fetchAndDownloadReport(`plantio/${format}`, filters, `relatorio_plantio.${format}`);
+            },
             _fetchAndDownloadReport(endpoint, filters, filename) {
                 const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                 cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
@@ -6295,11 +6340,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     filters.selectedColumns = JSON.stringify(selectedColumns);
                     this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_detalhado.${format}`);
                 } else if (reportType === 'mensal') {
-                    if (format === 'pdf') {
-                        App.ui.showAlert("O relatório de previsão mensal está disponível apenas em formato Excel/CSV.", "info");
-                    }
                     const filters = { planId };
-                    this._fetchAndDownloadReport(`colheita/mensal/csv`, filters, `relatorio_colheita_previsao_mensal.csv`);
+                    this._fetchAndDownloadReport(`colheita/mensal/${format}`, filters, `relatorio_colheita_previsao_mensal.${format}`);
                 } else if (reportType === 'saldo') {
                     // Reutiliza a lógica do relatório "Falta Colher"
                     const plan = App.state.harvestPlans.find(p => p.id === planId);
