@@ -1590,8 +1590,13 @@
             </section>
 
             <section id="ordensDeCorte" class="tab-content card" aria-label="Ordens de Corte" tabindex="0" hidden>
-                <h2 style="color: var(--color-success);"><i class="fas fa-file-signature"></i> Histórico de Ordens de Corte</h2>
-                <div id="cuttingOrdersListContainer"></div>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-success); margin: 0;"><i class="fas fa-file-signature"></i> Ordens de Corte</h2>
+                    <div class="button-group">
+                        <button id="btnAddNewCuttingOrder" class="save"><i class="fas fa-plus"></i> Nova Ordem Manual</button>
+                    </div>
+                </div>
+                <div id="cuttingOrdersListContainer" style="margin-top: 20px;"></div>
             </section>
 
                 <div id="harvest-plans-list-container">
@@ -1685,7 +1690,13 @@
                 </div>
 
                 <div id="planting-plans-list-container">
-                    <h3 style="margin-top: 30px;"><i class="fas fa-tasks"></i> Planos de Plantio Salvos</h3>
+                    <div class="card-header-actions">
+                        <h3 style="margin-top: 30px; margin-bottom: 0;"><i class="fas fa-tasks"></i> Planos de Plantio Salvos</h3>
+                        <div class="button-group">
+                            <button id="btnPDFPlantingPlan" class="btn-secondary" style="background: var(--color-info);"><i class="fas fa-file-pdf"></i> Relatório PDF</button>
+                            <button id="btnExcelPlantingPlan" class="btn-secondary" style="background: var(--color-success);"><i class="fas fa-file-excel"></i> Relatório Excel</button>
+                        </div>
+                    </div>
                     <div id="planting-plans-list"></div>
                 </div>
 
@@ -1699,7 +1710,12 @@
                         </div>
                         <div class="form-row">
                             <div class="form-col"><label for="plantingPlanFazenda" class="required">Fazenda:</label><select id="plantingPlanFazenda" required></select></div>
-                            <div class="form-col"><label for="plantingPlanTalhao" class="required">Talhão:</label><input type="text" id="plantingPlanTalhao" placeholder="Ex: T-50 (Novo)" required></div>
+                        </div>
+                        <div id="plantingTalhaoSelectionContainer">
+                            <label>Talhões: <input type="checkbox" id="selectAllPlantingTalhoes" style="width: auto; margin-left: 10px;"> <span style="font-size: 14px; color: var(--color-text-light);">Selecionar Todos</span></label>
+                            <div id="plantingTalhaoSelectionList" class="talhao-selection-list" style="max-height: 200px;">
+                                <p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>
+                            </div>
                         </div>
                         <div class="form-row">
                             <div class="form-col"><label for="plantingPlanVariedade" class="required">Variedade:</label><input type="text" id="plantingPlanVariedade" placeholder="Ex: CTC9001" required></div>
@@ -1974,24 +1990,6 @@
                 <div class="botoes-relatorio" style="margin-top: 20px;">
                     <button id="btnPDFFaltaColher" type="button" style="background: var(--color-success);"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
                     <button id="btnExcelFaltaColher" type="button" style="background: var(--color-success);"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
-                </div>
-                <div class="form-row">
-                    <div class="form-col">
-                        <label for="monitoramentoTipoRelatorio" class="required">Tipo de Relatório:</label>
-                        <select id="monitoramentoTipoRelatorio">
-                            <option value="coletadas" selected>Armadilhas Coletadas</option>
-                            <option value="instaladas">Armadilhas Instaladas</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col"><label for="monitoramentoFazendaFiltro">Filtrar por Fazenda:</label><select id="monitoramentoFazendaFiltro"><option value="">Todas</option></select></div>
-                    <div class="form-col"><label for="monitoramentoInicio" class="required">Data Início:</label><input type="date" id="monitoramentoInicio" /></div>
-                    <div class="form-col"><label for="monitoramentoFim" class="required">Data Fim:</label><input type="date" id="monitoramentoFim" /></div>
-                </div>
-                <div class="botoes-relatorio">
-                    <button id="btnPDFMonitoramento" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
-                    <button id="btnExcelMonitoramento" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
 
@@ -2469,6 +2467,51 @@
         </div>
 
             <!-- [NOVO] MODAL DE ORDEM DE CORTE -->
+            <div id="manualCuttingOrderModal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Nova Ordem de Corte Manual</h2>
+                        <button id="manualCuttingOrderModalCloseBtn" class="modal-close-btn">&times;</button>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="manualCuttingOrderFrontName" class="required">Frente de Colheita:</label>
+                            <input type="text" id="manualCuttingOrderFrontName" placeholder="Ex: Frente 01">
+                        </div>
+                        <div class="form-col">
+                            <label for="manualCuttingOrderFazenda" class="required">Fazenda:</label>
+                            <select id="manualCuttingOrderFazenda"></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="manualCuttingOrderStartDate" class="required">Data de Início:</label>
+                            <input type="date" id="manualCuttingOrderStartDate">
+                        </div>
+                        <div class="form-col">
+                            <label for="manualCuttingOrderEndDate" class="required">Data de Fim:</label>
+                            <input type="date" id="manualCuttingOrderEndDate">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="manualCuttingOrderAtr" class="required">ATR Previsto:</label>
+                            <input type="number" id="manualCuttingOrderAtr" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div>
+                        <label>Talhões:</label>
+                        <div id="manualCuttingOrderTalhaoList" class="talhao-selection-list" style="max-height: 200px;">
+                            <p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="manualCuttingOrderModalCancelBtn" class="btn-secondary">Cancelar</button>
+                        <button id="manualCuttingOrderModalSaveBtn" class="save"><i class="fas fa-save"></i> Guardar Ordem</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="cuttingOrderModal" class="modal-overlay">
                 <div class="modal-content" style="max-width: 800px;">
                     <div class="modal-header">

@@ -273,6 +273,19 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             cuttingOrders: {
                 listContainer: document.getElementById('cuttingOrdersListContainer'),
+                btnAddNew: document.getElementById('btnAddNewCuttingOrder'),
+                modal: {
+                    overlay: document.getElementById('manualCuttingOrderModal'),
+                    closeBtn: document.getElementById('manualCuttingOrderModalCloseBtn'),
+                    cancelBtn: document.getElementById('manualCuttingOrderModalCancelBtn'),
+                    saveBtn: document.getElementById('manualCuttingOrderModalSaveBtn'),
+                    frontName: document.getElementById('manualCuttingOrderFrontName'),
+                    fazenda: document.getElementById('manualCuttingOrderFazenda'),
+                    startDate: document.getElementById('manualCuttingOrderStartDate'),
+                    endDate: document.getElementById('manualCuttingOrderEndDate'),
+                    atr: document.getElementById('manualCuttingOrderAtr'),
+                    talhaoList: document.getElementById('manualCuttingOrderTalhaoList'),
+                }
             },
             companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
@@ -418,7 +431,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 planName: document.getElementById('plantingPlanName'),
                 safra: document.getElementById('plantingPlanSafra'),
                 fazenda: document.getElementById('plantingPlanFazenda'),
-                talhao: document.getElementById('plantingPlanTalhao'),
+                talhaoSelectionList: document.getElementById('plantingTalhaoSelectionList'),
+                selectAllTalhoes: document.getElementById('selectAllPlantingTalhoes'),
                 variedade: document.getElementById('plantingPlanVariedade'),
                 area: document.getElementById('plantingPlanArea'),
                 date: document.getElementById('plantingPlanDate'),
@@ -1442,6 +1456,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                const manualCuttingOrderModal = App.elements.cuttingOrders.modal;
+                if (manualCuttingOrderModal) {
+                    if (App.elements.cuttingOrders.btnAddNew) App.elements.cuttingOrders.btnAddNew.addEventListener('click', () => App.actions.openManualCuttingOrderModal());
+                    if (manualCuttingOrderModal.closeBtn) manualCuttingOrderModal.closeBtn.addEventListener('click', () => manualCuttingOrderModal.overlay.classList.remove('show'));
+                    if (manualCuttingOrderModal.cancelBtn) manualCuttingOrderModal.cancelBtn.addEventListener('click', () => manualCuttingOrderModal.overlay.classList.remove('show'));
+                    if (manualCuttingOrderModal.saveBtn) manualCuttingOrderModal.saveBtn.addEventListener('click', () => App.actions.saveManualCuttingOrder());
+                    if (manualCuttingOrderModal.fazenda) manualCuttingOrderModal.fazenda.addEventListener('change', (e) => App.ui.renderTalhaoSelectionForManualCuttingOrder(e.target.value));
+                }
         
                 if (talhoesToShow.length === 0) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
@@ -1599,6 +1622,69 @@ document.addEventListener('DOMContentLoaded', () => {
                     companyFilter.innerHTML += `<option value="${company.id}">${company.name}</option>`;
                 });
                 companyFilter.value = savedValue;
+            },
+
+            renderTalhaoSelectionForManualCuttingOrder(farmId) {
+                const { talhaoList } = App.elements.cuttingOrders.modal;
+                talhaoList.innerHTML = '';
+
+                if (!farmId) {
+                    talhaoList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm || !farm.talhoes || farm.talhoes.length === 0) {
+                    talhaoList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Nenhum talhão cadastrado nesta fazenda.</p>';
+                    return;
+                }
+
+                farm.talhoes.sort((a, b) => a.name.localeCompare(b.name)).forEach(talhao => {
+                    const label = document.createElement('label');
+                    label.className = 'talhao-selection-item';
+                    label.htmlFor = `manual-talhao-select-${talhao.id}`;
+
+                    label.innerHTML = `
+                        <input type="checkbox" id="manual-talhao-select-${talhao.id}" data-talhao-id="${talhao.id}" data-talhao-name="${talhao.name}" data-area="${talhao.area}" data-producao="${talhao.producao}">
+                        <div class="talhao-name">${talhao.name}</div>
+                        <div class="talhao-details">
+                            <span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area ? talhao.area.toFixed(2) : 0} ha</span>
+                            <span><i class="fas fa-weight-hanging"></i>Produção: ${talhao.producao ? talhao.producao.toFixed(2) : 0} ton</span>
+                        </div>
+                    `;
+                    talhaoList.appendChild(label);
+                });
+            },
+
+            renderTalhaoSelectionForPlanting(farmId) {
+                const { talhaoSelectionList } = App.elements.planting;
+                talhaoSelectionList.innerHTML = '';
+
+                if (!farmId) {
+                    talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm || !farm.talhoes || farm.talhoes.length === 0) {
+                    talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Nenhum talhão cadastrado nesta fazenda.</p>';
+                    return;
+                }
+
+                farm.talhoes.sort((a, b) => a.name.localeCompare(b.name)).forEach(talhao => {
+                    const label = document.createElement('label');
+                    label.className = 'talhao-selection-item';
+                    label.htmlFor = `planting-talhao-select-${talhao.id}`;
+
+                    label.innerHTML = `
+                        <input type="checkbox" id="planting-talhao-select-${talhao.id}" data-talhao-id="${talhao.id}" data-talhao-name="${talhao.name}">
+                        <div class="talhao-name">${talhao.name}</div>
+                        <div class="talhao-details">
+                            <span><i class="fas fa-ruler-combined"></i>Área Total: ${talhao.area ? talhao.area.toFixed(2) : 0} ha</span>
+                        </div>
+                    `;
+                    talhaoList.appendChild(label);
+                });
             },
 
             renderCuttingOrdersList() {
@@ -2328,18 +2414,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (App.elements.cadastros.btnSaveTalhao) App.elements.cadastros.btnSaveTalhao.addEventListener('click', () => App.actions.saveTalhao());
         if (App.elements.cadastros.btnSaveVarietyCompany) App.elements.cadastros.btnSaveVarietyCompany.addEventListener('click', () => App.actions.saveVarietyCompany());
+        if (App.elements.cadastros.csvUploadArea) App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
 
-                if (App.elements.cuttingOrders.listContainer) {
-                    App.elements.cuttingOrders.listContainer.addEventListener('click', (e) => {
-                        const button = e.target.closest('button[data-action="view-cutting-order-pdf"]');
-                        if (button) {
-                            // Logic to generate/fetch and view PDF for order with id button.dataset.id
-                            console.log("Visualizar PDF da Ordem de Corte:", button.dataset.id);
-                            App.ui.showAlert("Funcionalidade de visualização de PDF da Ordem de Corte ainda não implementada.", "info");
-                        }
-                    });
+        const manualCuttingOrderModal = App.elements.cuttingOrders.modal;
+        if (manualCuttingOrderModal) {
+            if (App.elements.cuttingOrders.btnAddNew) App.elements.cuttingOrders.btnAddNew.addEventListener('click', () => App.actions.openManualCuttingOrderModal());
+            if (manualCuttingOrderModal.closeBtn) manualCuttingOrderModal.closeBtn.addEventListener('click', () => manualCuttingOrderModal.overlay.classList.remove('show'));
+            if (manualCuttingOrderModal.cancelBtn) manualCuttingOrderModal.cancelBtn.addEventListener('click', () => manualCuttingOrderModal.overlay.classList.remove('show'));
+            if (manualCuttingOrderModal.saveBtn) manualCuttingOrderModal.saveBtn.addEventListener('click', () => App.actions.saveManualCuttingOrder());
+            if (manualCuttingOrderModal.fazenda) manualCuttingOrderModal.fazenda.addEventListener('change', (e) => App.ui.renderTalhaoSelectionForManualCuttingOrder(e.target.value));
+        }
+
+        if (App.elements.cuttingOrders.listContainer) {
+            App.elements.cuttingOrders.listContainer.addEventListener('click', (e) => {
+                const button = e.target.closest('button[data-action="view-cutting-order-pdf"]');
+                if (button) {
+                    // Logic to generate/fetch and view PDF for order with id button.dataset.id
+                    console.log("Visualizar PDF da Ordem de Corte:", button.dataset.id);
+                    App.ui.showAlert("Funcionalidade de visualização de PDF da Ordem de Corte ainda não implementada.", "info");
                 }
-                if (App.elements.cadastros.csvUploadArea) App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
+            });
+        }
                 if (App.elements.cadastros.csvFileInput) App.elements.cadastros.csvFileInput.addEventListener('change', (e) => App.actions.importFarmsFromCSV(e.target.files[0]));
                 if (App.elements.cadastros.btnDownloadCsvTemplate) App.elements.cadastros.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadCsvTemplate());
                 if (App.elements.cadastros.talhaoArea) App.elements.cadastros.talhaoArea.addEventListener('input', App.actions.calculateTalhaoProducao);
@@ -2425,11 +2520,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (action === 'delete-planting') App.actions.deletePlantingPlan(id);
                 });
 
+                if (plantingEls.fazenda) plantingEls.fazenda.addEventListener('change', (e) => App.ui.renderTalhaoSelectionForPlanting(e.target.value));
+
+                if (plantingEls.selectAllTalhoes) plantingEls.selectAllTalhoes.addEventListener('change', (e) => {
+                    const isChecked = e.target.checked;
+                    plantingEls.talhaoSelectionList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = isChecked);
+                });
+
                 if (plantingEls.preReforma) {
                     plantingEls.preReforma.addEventListener('change', (e) => {
                         plantingEls.preReformaOutro.style.display = e.target.value === 'outro' ? 'block' : 'none';
                     });
                 }
+
+                const plantingReportBtnPDF = document.getElementById('btnPDFPlantingPlan');
+                if (plantingReportBtnPDF) plantingReportBtnPDF.addEventListener('click', () => App.reports.generatePlantingPlanReport('pdf'));
+
+                const plantingReportBtnExcel = document.getElementById('btnExcelPlantingPlan');
+                if (plantingReportBtnExcel) plantingReportBtnExcel.addEventListener('click', () => App.reports.generatePlantingPlanReport('csv'));
                 
                 if (App.elements.broca.codigo) App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
                 if (App.elements.broca.talhao) App.elements.broca.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('broca'));
@@ -3199,7 +3307,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         els.planName.value = plan.planName;
                         els.safra.value = plan.safra;
                         els.fazenda.value = plan.fazendaId;
-                        els.talhao.value = plan.talhao;
+
+                        this.renderTalhaoSelectionForPlanting(plan.fazendaId);
+
+                        setTimeout(() => {
+                            plan.plots.forEach(plot => {
+                                const checkbox = document.getElementById(`planting-talhao-select-${plot.id}`);
+                                if (checkbox) {
+                                    checkbox.checked = true;
+                                }
+                            });
+                        }, 200);
+
                         els.variedade.value = plan.variedade;
                         els.area.value = plan.area;
                         els.date.value = plan.date;
@@ -3219,8 +3338,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     // Clear form for new entry
-                    const formElements = [els.planId, els.planName, els.safra, els.fazenda, els.talhao, els.variedade, els.area, els.tch, els.obs, els.prestador, els.preReformaOutro];
+                    const formElements = [els.planId, els.planName, els.safra, els.fazenda, els.variedade, els.area, els.tch, els.obs, els.prestador, els.preReformaOutro];
                     formElements.forEach(el => el.value = '');
+                    els.talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
                     els.date.value = new Date().toISOString().split('T')[0];
                     els.tipoPlantio.value = 'mecanizado';
                     els.tipoArea.value = 'reforma';
@@ -3232,11 +3352,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const els = App.elements.planting;
                 const planId = els.planId.value;
 
+                const selectedTalhoes = Array.from(els.talhaoSelectionList.querySelectorAll('input:checked')).map(cb => {
+                    return {
+                        id: cb.dataset.talhaoId,
+                        name: cb.dataset.talhaoName
+                    }
+                });
+
                 const planData = {
                     planName: els.planName.value.trim(),
                     safra: els.safra.value.trim(),
                     fazendaId: els.fazenda.value,
-                    talhao: els.talhao.value.trim(),
+                    plots: selectedTalhoes,
                     variedade: els.variedade.value.trim(),
                     area: parseFloat(els.area.value) || 0,
                     date: els.date.value,
@@ -3250,8 +3377,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     updatedAt: serverTimestamp()
                 };
 
-                if (!planData.planName || !planData.safra || !planData.fazendaId || !planData.talhao || !planData.variedade || !planData.area || !planData.date || !planData.tch || !planData.prestador) {
-                    App.ui.showAlert("Preencha todos os campos obrigatórios.", "error");
+                if (!planData.planName || !planData.safra || !planData.fazendaId || planData.plots.length === 0 || !planData.variedade || !planData.area || !planData.date || !planData.tch || !planData.prestador) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios, incluindo a seleção de talhões.", "error");
                     return;
                 }
 
@@ -4385,6 +4512,65 @@ document.addEventListener('DOMContentLoaded', () => {
                     await App.data.deleteDocument('varietyCompanies', companyId);
                     App.ui.showAlert('Empresa de variedade excluída com sucesso.', 'info');
                 });
+            },
+
+            generatePlantingPlanReport(format) {
+                // For now, we don't have filters for this report, but we can add them later if needed.
+                const filters = {};
+                this._fetchAndDownloadReport(`plantio/${format}`, filters, `relatorio_plantio.${format}`);
+            },
+
+            async saveManualCuttingOrder() {
+                const { modal } = App.elements.cuttingOrders;
+                const farm = App.state.fazendas.find(f => f.id === modal.fazenda.value);
+                const selectedTalhoes = Array.from(modal.talhaoList.querySelectorAll('input:checked')).map(cb => ({
+                    talhaoId: cb.dataset.talhaoId,
+                    talhaoName: cb.dataset.talhaoName,
+                }));
+
+                if (!modal.frontName.value || !modal.fazenda.value || !modal.startDate.value || !modal.endDate.value || !modal.atr.value || selectedTalhoes.length === 0) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios.", "error");
+                    return;
+                }
+
+                const totalArea = selectedTalhoes.reduce((sum, talhao) => sum + parseFloat(document.getElementById(`manual-talhao-select-${talhao.talhaoId}`).dataset.area), 0);
+                const totalProducao = selectedTalhoes.reduce((sum, talhao) => sum + parseFloat(document.getElementById(`manual-talhao-select-${talhao.talhaoId}`).dataset.producao), 0);
+
+                const orderData = {
+                    frontName: modal.frontName.value,
+                    fazendaName: farm.name,
+                    fazendaCodigo: farm.code,
+                    plots: selectedTalhoes,
+                    totalArea: totalArea,
+                    totalProducao: totalProducao,
+                    atr: modal.atr.value,
+                    startDate: modal.startDate.value,
+                    endDate: modal.endDate.value,
+                    status: 'Pendente',
+                    createdAt: serverTimestamp()
+                };
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar esta ordem de corte manual?`, async () => {
+                    try {
+                        await App.data.addDocument('cuttingOrders', orderData);
+                        App.ui.showAlert("Ordem de corte manual guardada com sucesso!");
+                        modal.overlay.classList.remove('show');
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao guardar a ordem de corte.", "error");
+                        console.error("Erro ao guardar Ordem de Corte:", error);
+                    }
+                });
+            },
+
+            openManualCuttingOrderModal() {
+                const { modal } = App.elements.cuttingOrders;
+                modal.overlay.classList.add('show');
+                this.populateFazendaSelects([modal.fazenda]);
+                modal.frontName.value = '';
+                modal.startDate.value = new Date().toISOString().split('T')[0];
+                modal.endDate.value = '';
+                modal.atr.value = '';
+                modal.talhaoList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
             },
         },
         gemini: {
