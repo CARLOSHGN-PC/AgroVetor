@@ -5944,51 +5944,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.charts[id] = newChart;
                 }
             },
-               destroyAll() {
+            destroyAll() {
                 Object.keys(App.state.charts).forEach(id => {
                     if (App.state.charts[id]) {
                         App.state.charts[id].destroy();
                         delete App.state.charts[id];
                     }
                 });
-                if (App.state.expandedChart) {
-                    App.state.expandedChart.destroy();
-                    App.state.expandedChart = null;
-                }
-            },
-            openChartModal(chartId) {
-                const originalChart = App.state.charts[chartId];
-                if (!originalChart) return;
+                if (App.state.expandedChart) {
+                    App.state.expandedChart.destroy();
+                    App.state.expandedChart = null;
+                }
+            },
+            openChartModal(chartId) {
+                const originalChart = App.state.charts[chartId];
+                if (!originalChart) return;
 
-                const modal = App.elements.chartModal;
-                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).closest('.chart-card').querySelector('.chart-title').textContent;
-                
-                modal.title.textContent = originalTitle;
-                modal.overlay.classList.add('show');
-                
-                const config = JSON.parse(JSON.stringify(originalChart.config._config));
-                config.options.maintainAspectRatio = false;
-                
-                if (originalChart.config.options.plugins.datalabels.formatter) {
-                    config.options.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
-                }
+                const modal = App.elements.chartModal;
+                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).closest('.chart-card').querySelector('.chart-title').textContent;
 
-                this._createOrUpdateChart(chartId, config, true);
-            },
-            closeChartModal() {
-                const modal = App.elements.chartModal;
-                modal.overlay.classList.remove('show');
-                if (App.state.expandedChart) {
-                    App.state.expandedChart.destroy();
-                    App.state.expandedChart = null;
-                }
-            },
+                modal.title.textContent = originalTitle;
+                modal.overlay.classList.add('show');
+
+                const config = JSON.parse(JSON.stringify(originalChart.config._config));
+                config.options.maintainAspectRatio = false;
+
+                if (originalChart.config.options.plugins.datalabels.formatter) {
+                    config.options.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
+                }
+
+                this._createOrUpdateChart(chartId, config, true);
+            },
+            closeChartModal() {
+                const modal = App.elements.chartModal;
+                modal.overlay.classList.remove('show');
+                if (App.state.expandedChart) {
+                    App.state.expandedChart.destroy();
+                    App.state.expandedChart = null;
+                }
+            },
 
             
-            async renderBrocaDashboardCharts() {
-                const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
-                App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
-                const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
+            async renderBrocaDashboardCharts() {
+                const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
+                const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
 
                 setTimeout(() => {
                     this.renderTop10FazendasBroca(data);
@@ -5996,11 +5996,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderBrocaPosicao(data);
                     this.renderBrocaPorVariedade(data);
                 }, 0);
-            },
-            async renderPerdaDashboardCharts() {
-                const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
-                App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
-                const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
+            },
+            async renderPerdaDashboardCharts() {
+                const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
+                const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
                 setTimeout(() => {
                     this.renderPerdaPorFrenteTurno(data);
@@ -6336,354 +6336,354 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.forEach(item => {
                     const frente = item.frenteServico || 'N/A';
                     if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
-                    frentes[frente].total += item.total;
-                    frentes[frente].count++;
-                });
-                const sortedFrentes = Object.entries(frentes)
-                    .map(([nome, data]) => ({ nome: `Frente ${nome}`, media: data.count > 0 ? data.total / data.count : 0 }))
-                    .sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
+                frentes[frente].total += item.total;
+                frentes[frente].count++;
+            });
+            const sortedFrentes = Object.entries(frentes)
+                .map(([nome, data]) => ({ nome: `Frente ${nome}`, media: data.count > 0 ? data.total / data.count : 0 }))
+                .sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
 
-                const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+            const commonOptions = this._getCommonChartOptions();
+            const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoPerdaPorFrente', {
-                    type: 'bar',
-                    data: {
-                        labels: sortedFrentes.map(f => f.nome),
-                        datasets: [{
-                            label: 'Perda Média (kg)',
-                            data: sortedFrentes.map(f => f.media),
-                            backgroundColor: this._getVibrantColors(sortedFrentes.length)
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor, 
-                                anchor: 'end', 
-                                align: 'end',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)} kg`
-                            }
-                        }
-                    }
-                });
-            }
-        },
-
-        reports: {
-            generatePlantingPlanReport(format) {
-                // For now, we don't have filters for this report, but we can add them later if needed.
-                const filters = {};
-                this._fetchAndDownloadReport(`plantio/${format}`, filters, `relatorio_plantio.${format}`);
-            },
-            _fetchAndDownloadReport(endpoint, filters, filename) {
-                const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
-                cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
-
-                const params = new URLSearchParams(cleanFilters);
-                const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
-                
-                App.ui.setLoading(true, "A gerar relatório no servidor...");
-        
-                fetch(apiUrl)
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
-                        }
-                        return response.blob();
-                    })
-                    .then(blob => {
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.style.display = 'none';
-                        a.href = url;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                        a.remove();
-                        App.ui.showAlert('Relatório gerado com sucesso!');
-                    })
-                    .catch(error => {
-                        console.error('Erro ao gerar relatório via API:', error);
-                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
-                    })
-                    .finally(() => {
-                        App.ui.setLoading(false);
-                    });
-            },
-            
-            generateBrocamentoPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value,
-                    tipos: selectedTypes.join(',')
-                };
-                this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
-            },
-        
-            generateBrocamentoCSV() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value,
-                    tipos: selectedTypes.join(',')
-                };
-                this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
-            },
-        
-            generatePerdaPDF() {
-                const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    talhao: filtroTalhao.value,
-                    matricula: filtroOperador.value,
-                    frenteServico: filtroFrente.value,
-                    tipoRelatorio: tipoRelatorio.value,
-                    tipos: selectedTypes.join(',')
-                };
-                this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
-            },
-        
-            generatePerdaCSV() {
-                const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.perda;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                const filters = {
-                    inicio: filtroInicio.value,
-                    fim: filtroFim.value,
-                    fazendaCodigo: farm ? farm.code : '',
-                    tipoRelatorio: tipoRelatorio.value,
-                    tipos: selectedTypes.join(',')
-                };
-                this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
-            },
-        
-            generateCustomHarvestReport(format) {
-                const { select, optionsContainer, tipoRelatorioSelect } = App.elements.relatorioColheita;
-                const planId = select.value;
-                const reportType = tipoRelatorioSelect.value;
-                
-                if (!planId) {
-                    App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
-                    return;
-                }
-                
-                if (reportType === 'detalhado') {
-                    const filters = { planId };
-                    const selectedColumns = {};
-                    optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                        selectedColumns[cb.dataset.column] = cb.checked;
-                    });
-                    filters.selectedColumns = JSON.stringify(selectedColumns);
-                    this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_detalhado.${format}`);
-                } else if (reportType === 'mensal') {
-                    const filters = { planId };
-                    this._fetchAndDownloadReport(`colheita/mensal/${format}`, filters, `relatorio_colheita_previsao_mensal.${format}`);
-                } else if (reportType === 'saldo') {
-                    // Reutiliza a lógica do relatório "Falta Colher"
-                    const plan = App.state.harvestPlans.find(p => p.id === planId);
-                    if (!plan) {
-                        App.ui.showAlert("Plano de colheita não encontrado.", "error");
-                        return;
-                    }
-                    const filters = { planId }; // Apenas o ID do plano é necessário para este relatório
-                    this._fetchAndDownloadReport(`falta-colher/${format}`, filters, `relatorio_saldo_colheita_${plan.frontName}.${format}`);
-                }
-            },
-
-            generateArmadilhaPDF() {
-                const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const reportType = tipoRelatorio.value;
-
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                
-                if (reportType === 'coletadas') {
-                    this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas_coletadas.pdf');
-                } else {
-                    this._fetchAndDownloadReport('armadilhas-ativas/pdf', filters, 'relatorio_armadilhas_instaladas.pdf');
+            this._createOrUpdateChart('graficoPerdaPorFrente', {
+                type: 'bar',
+                data: {
+                    labels: sortedFrentes.map(f => f.nome),
+                    datasets: [{
+                        label: 'Perda Média (kg)',
+                        data: sortedFrentes.map(f => f.media),
+                        backgroundColor: this._getVibrantColors(sortedFrentes.length)
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        ...commonOptions.plugins,
+                        legend: { display: false },
+                        datalabels: {
+                            color: datalabelColor,
+                            anchor: 'end',
+                            align: 'end',
+                            font: { weight: 'bold', size: 14 },
+                            formatter: (value) => `${value.toFixed(2)} kg`
+                        }
+                    }
                 }
-            },
+            });
+        }
+    },
 
-            generateArmadilhaCSV() {
-                const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+    reports: {
+        generatePlantingPlanReport(format) {
+            // For now, we don't have filters for this report, but we can add them later if needed.
+            const filters = {};
+            this._fetchAndDownloadReport(`plantio/${format}`, filters, `relatorio_plantio.${format}`);
+        },
+        _fetchAndDownloadReport(endpoint, filters, filename) {
+            const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
+            cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
 
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const reportType = tipoRelatorio.value;
+            const params = new URLSearchParams(cleanFilters);
+            const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
 
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                
-                if (reportType === 'coletadas') {
-                    this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas_coletadas.csv');
-                } else {
-                    this._fetchAndDownloadReport('armadilhas-ativas/csv', filters, 'relatorio_armadilhas_instaladas.csv');
-                }
-            },
+            App.ui.setLoading(true, "A gerar relatório no servidor...");
 
-            generateMonitoramentoPDF() { // Now generates Trap Report
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                    App.ui.showAlert('Relatório gerado com sucesso!');
+                })
+                .catch(error => {
+                    console.error('Erro ao gerar relatório via API:', error);
+                    App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
+                })
+                .finally(() => {
+                    App.ui.setLoading(false);
+                });
+        },
 
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas.pdf');
-            },
+        generateBrocamentoPDF() {
+            const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
+            if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+            const farmId = filtroFazenda.value;
+            const farm = App.state.fazendas.find(f => f.id === farmId);
+            const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+            const filters = {
+                inicio: filtroInicio.value,
+                fim: filtroFim.value,
+                fazendaCodigo: farm ? farm.code : '',
+                tipoRelatorio: tipoRelatorio.value,
+                tipos: selectedTypes.join(',')
+            };
+            this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
+        },
 
-            generateMonitoramentoCSV() { // Now generates Trap Report
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+        generateBrocamentoCSV() {
+            const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
+            if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+            const farmId = filtroFazenda.value;
+            const farm = App.state.fazendas.find(f => f.id === farmId);
+            const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+            const filters = {
+                inicio: filtroInicio.value,
+                fim: filtroFim.value,
+                fazendaCodigo: farm ? farm.code : '',
+                tipoRelatorio: tipoRelatorio.value,
+                tipos: selectedTypes.join(',')
+            };
+            this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
+        },
 
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
+        generatePerdaPDF() {
+            const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
+            if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+            const farmId = filtroFazenda.value;
+            const farm = App.state.fazendas.find(f => f.id === farmId);
+            const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+            const filters = {
+                inicio: filtroInicio.value,
+                fim: filtroFim.value,
+                fazendaCodigo: farm ? farm.code : '',
+                talhao: filtroTalhao.value,
+                matricula: filtroOperador.value,
+                frenteServico: filtroFrente.value,
+                tipoRelatorio: tipoRelatorio.value,
+                tipos: selectedTypes.join(',')
+            };
+            this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
+        },
 
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
-            },
+        generatePerdaCSV() {
+            const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.perda;
+            if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+            const farmId = filtroFazenda.value;
+            const farm = App.state.fazendas.find(f => f.id === farmId);
+            const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+            const filters = {
+                inicio: filtroInicio.value,
+                fim: filtroFim.value,
+                fazendaCodigo: farm ? farm.code : '',
+                tipoRelatorio: tipoRelatorio.value,
+                tipos: selectedTypes.join(',')
+            };
+            this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
+        },
 
-            generateCensoVarietalReport(format) {
-                const { farmTypeFilter, companyFilter, model } = App.elements.relatorioCensoVarietal;
-                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                const filters = {
-                    tipos: selectedTypes.join(','),
-                    companyId: companyFilter.value,
-                    model: model.value
-                };
-                this._fetchAndDownloadReport(`censo-varietal/${format}`, filters, `censo_varietal.${format}`);
-            },
+        generateCustomHarvestReport(format) {
+            const { select, optionsContainer, tipoRelatorioSelect } = App.elements.relatorioColheita;
+            const planId = select.value;
+            const reportType = tipoRelatorioSelect.value;
 
-            populateCuttingOrderSelect() {
-                const { select } = App.elements.relatorioOrdemDeCorte;
-                if (!select) return;
+            if (!planId) {
+                App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
+                return;
+            }
 
-                const savedValue = select.value;
-                select.innerHTML = '<option value="">Selecione uma Ordem de Corte...</option>';
-                if (App.state.cuttingOrders.length === 0) {
-                    select.innerHTML += '<option value="" disabled>Nenhuma ordem de corte encontrada</option>';
-                } else {
-                    App.state.cuttingOrders
-                        .sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0))
-                        .forEach(order => {
-                            const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
-                            select.innerHTML += `<option value="${order.id}">${orderNumber} - ${order.frontName}</option>`;
-                        });
-                }
-                select.value = savedValue;
-            },
-
-            generateOrdemDeCorteReport() {
-                const { select } = App.elements.relatorioOrdemDeCorte;
-                const orderId = select.value;
-                if (!orderId) {
-                    App.ui.showAlert("Por favor, selecione uma ordem de corte.", "warning");
-                    return;
-                }
-                this._fetchAndDownloadReport(`ordem-de-corte/${orderId}/pdf`, {}, `ordem_de_corte_${orderId.substring(0,6)}.pdf`);
-            },
-
-            generateFaltaColherReport(format) {
-                const { select, fazendaFiltro, talhaoFiltro } = App.elements.relatorioFaltaColher;
-                const showPlotsCheckbox = document.getElementById('faltaColherShowPlots');
-                const planId = select.value;
-
-                if (!planId) {
-                    App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
-                    return;
-                }
-
+            if (reportType === 'detalhado') {
+                const filters = { planId };
+                const selectedColumns = {};
+                optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    selectedColumns[cb.dataset.column] = cb.checked;
+                });
+                filters.selectedColumns = JSON.stringify(selectedColumns);
+                this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_detalhado.${format}`);
+            } else if (reportType === 'mensal') {
+                const filters = { planId };
+                this._fetchAndDownloadReport(`colheita/mensal/${format}`, filters, `relatorio_colheita_previsao_mensal.${format}`);
+            } else if (reportType === 'saldo') {
+                // Reutiliza a lógica do relatório "Falta Colher"
                 const plan = App.state.harvestPlans.find(p => p.id === planId);
                 if (!plan) {
                     App.ui.showAlert("Plano de colheita não encontrado.", "error");
                     return;
                 }
+                const filters = { planId }; // Apenas o ID do plano é necessário para este relatório
+                this._fetchAndDownloadReport(`falta-colher/${format}`, filters, `relatorio_saldo_colheita_${plan.frontName}.${format}`);
+            }
+        },
 
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
+        generateArmadilhaPDF() {
+            const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+            if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
 
-                const filters = {
-                    planId,
-                    fazendaCodigo: farm ? farm.code : '',
-                    talhao: talhaoFiltro.value.trim(),
-                    showPlots: showPlotsCheckbox ? showPlotsCheckbox.checked : 'true'
-                };
-                this._fetchAndDownloadReport(`falta-colher/${format}`, filters, `relatorio_falta_colher_${plan.frontName}.${format}`);
-            },
-        },
+            const farmId = fazendaFiltro.value;
+            const farm = App.state.fazendas.find(f => f.id === farmId);
+            const reportType = tipoRelatorio.value;
 
-        pwa: {
-            registerServiceWorker() {
-                if ('serviceWorker' in navigator) {
-                    window.addEventListener('load', () => {
-                        navigator.serviceWorker.register('./service-worker.js')
-                            .then(registration => {
-                                console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                            })
-                            .catch(error => {
-                                console.log('ServiceWorker registration failed: ', error);
-                            });
-                    });
+            const filters = {
+                inicio: inicio.value,
+                fim: fim.value,
+                fazendaCodigo: farm ? farm.code : ''
+            };
 
-                    window.addEventListener('beforeinstallprompt', (e) => {
-                        e.preventDefault();
-                        App.state.deferredInstallPrompt = e;
-                        App.elements.installAppBtn.style.display = 'flex';
-                        console.log(`'beforeinstallprompt' event was fired.`);
-                    });
-                }
-            }
-        }
-    };
+            if (reportType === 'coletadas') {
+                this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas_coletadas.pdf');
+            } else {
+                this._fetchAndDownloadReport('armadilhas-ativas/pdf', filters, 'relatorio_armadilhas_instaladas.pdf');
+            }
+        },
 
-    // Inicia a aplicação
-    App.init();
+        generateArmadilhaCSV() {
+            const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+            if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+
+            const farmId = fazendaFiltro.value;
+            const farm = App.state.fazendas.find(f => f.id === farmId);
+            const reportType = tipoRelatorio.value;
+
+            const filters = {
+                inicio: inicio.value,
+                fim: fim.value,
+                fazendaCodigo: farm ? farm.code : ''
+            };
+
+            if (reportType === 'coletadas') {
+                this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas_coletadas.csv');
+            } else {
+                this._fetchAndDownloadReport('armadilhas-ativas/csv', filters, 'relatorio_armadilhas_instaladas.csv');
+            }
+        },
+
+        generateMonitoramentoPDF() { // Now generates Trap Report
+            const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+            if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+
+            const farmId = fazendaFiltro.value;
+            const farm = App.state.fazendas.find(f => f.id === farmId);
+
+            const filters = {
+                inicio: inicio.value,
+                fim: fim.value,
+                fazendaCodigo: farm ? farm.code : ''
+            };
+            this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas.pdf');
+        },
+
+        generateMonitoramentoCSV() { // Now generates Trap Report
+            const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
+            if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+
+            const farmId = fazendaFiltro.value;
+            const farm = App.state.fazendas.find(f => f.id === farmId);
+
+            const filters = {
+                inicio: inicio.value,
+                fim: fim.value,
+                fazendaCodigo: farm ? farm.code : ''
+            };
+            this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
+        },
+
+        generateCensoVarietalReport(format) {
+            const { farmTypeFilter, companyFilter, model } = App.elements.relatorioCensoVarietal;
+            const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+            const filters = {
+                tipos: selectedTypes.join(','),
+                companyId: companyFilter.value,
+                model: model.value
+            };
+            this._fetchAndDownloadReport(`censo-varietal/${format}`, filters, `censo_varietal.${format}`);
+        },
+
+        populateCuttingOrderSelect() {
+            const { select } = App.elements.relatorioOrdemDeCorte;
+            if (!select) return;
+
+            const savedValue = select.value;
+            select.innerHTML = '<option value="">Selecione uma Ordem de Corte...</option>';
+            if (App.state.cuttingOrders.length === 0) {
+                select.innerHTML += '<option value="" disabled>Nenhuma ordem de corte encontrada</option>';
+            } else {
+                App.state.cuttingOrders
+                    .sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0))
+                    .forEach(order => {
+                        const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
+                        select.innerHTML += `<option value="${order.id}">${orderNumber} - ${order.frontName}</option>`;
+                    });
+            }
+            select.value = savedValue;
+        },
+
+        generateOrdemDeCorteReport() {
+            const { select } = App.elements.relatorioOrdemDeCorte;
+            const orderId = select.value;
+            if (!orderId) {
+                App.ui.showAlert("Por favor, selecione uma ordem de corte.", "warning");
+                return;
+            }
+            this._fetchAndDownloadReport(`ordem-de-corte/${orderId}/pdf`, {}, `ordem_de_corte_${orderId.substring(0,6)}.pdf`);
+        },
+
+        generateFaltaColherReport(format) {
+            const { select, fazendaFiltro, talhaoFiltro } = App.elements.relatorioFaltaColher;
+            const showPlotsCheckbox = document.getElementById('faltaColherShowPlots');
+            const planId = select.value;
+
+            if (!planId) {
+                App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
+                return;
+            }
+
+            const plan = App.state.harvestPlans.find(p => p.id === planId);
+            if (!plan) {
+                App.ui.showAlert("Plano de colheita não encontrado.", "error");
+                return;
+            }
+
+            const farmId = fazendaFiltro.value;
+            const farm = App.state.fazendas.find(f => f.id === farmId);
+
+            const filters = {
+                planId,
+                fazendaCodigo: farm ? farm.code : '',
+                talhao: talhaoFiltro.value.trim(),
+                showPlots: showPlotsCheckbox ? showPlotsCheckbox.checked : 'true'
+            };
+            this._fetchAndDownloadReport(`falta-colher/${format}`, filters, `relatorio_falta_colher_${plan.frontName}.${format}`);
+        },
+    },
+
+    pwa: {
+        registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('./service-worker.js')
+                        .then(registration => {
+                            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                        })
+                        .catch(error => {
+                            console.log('ServiceWorker registration failed: ', error);
+                        });
+                });
+
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    App.state.deferredInstallPrompt = e;
+                    App.elements.installAppBtn.style.display = 'flex';
+                    console.log(`'beforeinstallprompt' event was fired.`);
+                });
+            }
+        }
+    }
+    };
+
+    // Inicia a aplicação
+    App.init();
 });
 
 
