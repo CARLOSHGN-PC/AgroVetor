@@ -3337,7 +3337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         els.safra.value = plan.safra;
                         els.fazenda.value = plan.fazendaId;
 
-                        this.renderTalhaoSelectionForPlanting(plan.fazendaId);
+                        App.ui.renderTalhaoSelectionForPlanting(plan.fazendaId);
 
                         setTimeout(() => {
                             plan.plots.forEach(plot => {
