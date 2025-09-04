@@ -1599,87 +1599,6 @@
                 <div id="cuttingOrdersListContainer" style="margin-top: 20px;"></div>
             </section>
 
-                <div id="harvest-plans-list-container">
-                    <h3 style="margin-top: 30px;"><i class="fas fa-tasks"></i> Planos Guardados</h3>
-                    <div id="harvest-plans-list"></div>
-                </div>
-
-                <div id="harvest-plan-editor" style="display: none;">
-                    <div class="card" style="border-left-color: var(--color-success); margin-top:20px;">
-                        <h3><i class="fas fa-cogs"></i> Configurações da Frente de Colheita</h3>
-                        <div class="form-row">
-                            <div class="form-col"><label for="harvestFrontName" class="required">Nome da Frente:</label><input type="text" id="harvestFrontName" placeholder="Ex: Frente 01" required></div>
-                            <div class="form-col"><label for="harvestStartDate" class="required">Data de Início:</label><input type="date" id="harvestStartDate" required></div>
-                            <div class="form-col"><label for="harvestDailyRate" class="required">Média Toneladas/Dia:</label><input type="number" id="harvestDailyRate" value="750" required></div>
-                        </div>
-                    </div>
-
-                    <div class="card" style="border-left-color: var(--color-success);">
-                        <h3 id="addOrEditSequenceTitle"><i class="fas fa-plus-circle"></i> Adicionar Fazenda à Sequência</h3>
-                        <input type="hidden" id="editingGroupId">
-                        <div class="form-row">
-                            <div class="form-col" style="flex-grow: 2;"><label for="harvestFazenda" class="required">Fazenda:</label><select id="harvestFazenda" required></select></div>
-                            <div class="form-col">
-                                <label for="harvestAtr" class="required">ATR Previsto:</label>
-                                <div style="display: flex; align-items: center;">
-                                    <input type="number" id="harvestAtr" placeholder="ATR Previsto">
-                                    <i id="atr-spinner" class="fas fa-spinner fa-spin" style="display: none; margin-left: 10px; color: var(--color-primary);"></i>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label for="harvestMaturador">Maturador Aplicado:</label>
-                                <input type="text" id="harvestMaturador" placeholder="Nome do produto">
-                            </div>
-                            <div class="form-col">
-                                <label for="harvestMaturadorDate">Data de Aplicação:</label>
-                                <input type="date" id="harvestMaturadorDate">
-                            </div>
-                        </div>
-
-                        <div id="harvestTalhaoSelectionContainer">
-                            <label>Talhões Disponíveis: <input type="checkbox" id="selectAllTalhoes" style="width: auto; margin-left: 10px;"> <span style="font-size: 14px; color: var(--color-text-light);">Selecionar Todos</span></label>
-                            <div id="harvestTalhaoSelectionList" class="talhao-selection-list"></div>
-                        </div>
-                        <div class="form-row" style="align-items: flex-end;">
-                            <div class="form-col"><button class="save" id="btnAddOrUpdateHarvestSequence"><i class="fas fa-plus"></i> Adicionar à Sequência</button></div>
-                            <div class="form-col"><button id="btnOptimizeHarvest" class="btn-ai"><i class="fas fa-magic"></i> Otimizar Sequência</button></div>
-                            <div class="form-col"><button id="btnCancelEditSequence" class="btn-secondary" style="display: none;"><i class="fas fa-times"></i> Cancelar Edição</button></div>
-                        </div>
-                    </div>
-
-                    <h3><i class="fas fa-list-ol"></i> Sequência de Colheita</h3>
-                    <div class="table-responsive">
-                        <table id="harvestPlanTable">
-                            <thead>
-                                <tr>
-                                    <th>Seq.</th>
-                                    <th>Fazenda</th>
-                                    <th>Talhões</th>
-                                    <th>Área (ha)</th>
-                                    <th>Prod. (ton)</th>
-                                    <th>ATR</th>
-                                    <th>Idade (m)</th>
-                                    <th>Maturador</th>
-                                    <th>Dias Aplic.</th>
-                                    <th>Ação</th>
-                                    <th>Entrada</th>
-                                    <th>Saída</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                    <div id="harvestSummary" class="harvest-summary"></div>
-                    <div style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
-                        <button id="btnSaveHarvestPlan" class="save"><i class="fas fa-save"></i> Guardar Plano</button>
-                        <button id="btnCancelHarvestPlan" class="btn-secondary"><i class="fas fa-times"></i> Voltar para a Lista</button>
-                    </div>
-                </div>
-            </section>
-
             <!-- NOVO MÓDULO DE PLANEJAMENTO DE PLANTIO -->
             <section id="planejamentoPlantio" class="tab-content card" aria-label="Planejamento de Plantio" tabindex="0" hidden>
                 <div class="card-header-actions">
@@ -2477,9 +2396,10 @@
             <div id="manualCuttingOrderModal" class="modal-overlay">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h2>Nova Ordem de Corte Manual</h2>
+                        <h2 id="manualCuttingOrderModalTitle">Nova Ordem de Corte Manual</h2>
                         <button id="manualCuttingOrderModalCloseBtn" class="modal-close-btn">&times;</button>
                     </div>
+                    <input type="hidden" id="manualCuttingOrderId">
                     <div class="form-row">
                         <div class="form-col">
                             <label for="manualCuttingOrderFrontName" class="required">Frente de Colheita:</label>

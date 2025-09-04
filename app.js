@@ -285,6 +285,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     endDate: document.getElementById('manualCuttingOrderEndDate'),
                     atr: document.getElementById('manualCuttingOrderAtr'),
                     talhaoList: document.getElementById('manualCuttingOrderTalhaoList'),
+                    orderId: document.getElementById('manualCuttingOrderId'),
+                    title: document.getElementById('manualCuttingOrderModalTitle')
                 }
             },
             companyConfig: {
@@ -1723,7 +1725,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <ul style="list-style-position: inside; padding-left: 10px; font-size: 14px;">${talhoesHTML}</ul>
                         </div>
                         <div class="plano-actions">
-                            <button class="btn-excluir" style="background-color: var(--color-info);" data-action="view-cutting-order-pdf" data-id="${order.id}"><i class="fas fa-file-pdf"></i> Visualizar PDF</button>
+                            <button class="btn-excluir" style="background-color: var(--color-info);" data-action="edit-cutting-order" data-id="${order.id}"><i class="fas fa-edit"></i> Editar</button>
+                            <button class="btn-excluir" data-action="delete-cutting-order" data-id="${order.id}"><i class="fas fa-trash"></i> Excluir</button>
                         </div>
                     `;
                     listContainer.appendChild(card);
@@ -2428,10 +2431,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (App.elements.cuttingOrders.listContainer) {
             App.elements.cuttingOrders.listContainer.addEventListener('click', (e) => {
-                const button = e.target.closest('button[data-action="view-cutting-order-pdf"]');
-                if (button) {
-                    // Logic to generate/fetch and view PDF for order with id button.dataset.id
-                    console.log("Visualizar PDF da Ordem de Corte:", button.dataset.id);
+                const button = e.target.closest('button[data-action]');
+                if (!button) return;
+
+                const { action, id } = button.dataset;
+
+                if (action === 'edit-cutting-order') {
+                    App.actions.openManualCuttingOrderModal(id);
+                } else if (action === 'delete-cutting-order') {
+                    App.actions.deleteCuttingOrder(id);
+                } else if (action === 'view-cutting-order-pdf') {
+                    console.log("Visualizar PDF da Ordem de Corte:", id);
                     App.ui.showAlert("Funcionalidade de visualização de PDF da Ordem de Corte ainda não implementada.", "info");
                 }
             });
@@ -4526,7 +4536,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async saveManualCuttingOrder() {
                 const { modal } = App.elements.cuttingOrders;
+                const orderId = modal.orderId.value;
                 const farm = App.state.fazendas.find(f => f.id === modal.fazenda.value);
+
+                if (!farm) {
+                    App.ui.showAlert("Fazenda selecionada é inválida.", "error");
+                    return;
+                }
+
                 const selectedTalhoes = Array.from(modal.talhaoList.querySelectorAll('input:checked')).map(cb => ({
                     talhaoId: cb.dataset.talhaoId,
                     talhaoName: cb.dataset.talhaoName,
@@ -4537,8 +4554,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const totalArea = selectedTalhoes.reduce((sum, talhao) => sum + parseFloat(document.getElementById(`manual-talhao-select-${talhao.talhaoId}`).dataset.area), 0);
-                const totalProducao = selectedTalhoes.reduce((sum, talhao) => sum + parseFloat(document.getElementById(`manual-talhao-select-${talhao.talhaoId}`).dataset.producao), 0);
+                const totalArea = selectedTalhoes.reduce((sum, talhao) => {
+                    const el = document.getElementById(`manual-talhao-select-${talhao.talhaoId}`);
+                    return sum + (el ? parseFloat(el.dataset.area) : 0);
+                }, 0);
+                const totalProducao = selectedTalhoes.reduce((sum, talhao) => {
+                    const el = document.getElementById(`manual-talhao-select-${talhao.talhaoId}`);
+                    return sum + (el ? parseFloat(el.dataset.producao) : 0);
+                }, 0);
 
                 const orderData = {
                     frontName: modal.frontName.value,
@@ -4551,30 +4574,95 @@ document.addEventListener('DOMContentLoaded', () => {
                     startDate: modal.startDate.value,
                     endDate: modal.endDate.value,
                     status: 'Pendente',
-                    createdAt: serverTimestamp()
+                    updatedAt: serverTimestamp()
                 };
 
-                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar esta ordem de corte manual?`, async () => {
+                const confirmationMessage = orderId ? 'Tem a certeza que deseja atualizar esta ordem de corte?' : 'Tem a certeza que deseja guardar esta nova ordem de corte?';
+
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A guardar...");
                     try {
-                        await App.data.addDocument('cuttingOrders', orderData);
-                        App.ui.showAlert("Ordem de corte manual guardada com sucesso!");
+                        if (orderId) {
+                            await App.data.updateDocument('cuttingOrders', orderId, orderData);
+                            App.ui.showAlert("Ordem de corte atualizada com sucesso!");
+                        } else {
+                            orderData.createdAt = serverTimestamp();
+                            await App.data.addDocument('cuttingOrders', orderData);
+                            App.ui.showAlert("Ordem de corte manual guardada com sucesso!");
+                        }
                         modal.overlay.classList.remove('show');
                     } catch (error) {
                         App.ui.showAlert("Erro ao guardar a ordem de corte.", "error");
                         console.error("Erro ao guardar Ordem de Corte:", error);
+                    } finally {
+                        App.ui.setLoading(false);
                     }
                 });
             },
 
-            openManualCuttingOrderModal() {
+            deleteCuttingOrder(orderId) {
+                if (!orderId) return;
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir esta ordem de corte? Esta ação é irreversível.", async () => {
+                    App.ui.setLoading(true, "A excluir...");
+                    try {
+                        await App.data.deleteDocument('cuttingOrders', orderId);
+                        App.ui.showAlert("Ordem de corte excluída com sucesso.");
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao excluir a ordem de corte.", "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
+            openManualCuttingOrderModal(orderId = null) {
                 const { modal } = App.elements.cuttingOrders;
-                modal.overlay.classList.add('show');
+
                 this.populateFazendaSelects([modal.fazenda]);
-                modal.frontName.value = '';
-                modal.startDate.value = new Date().toISOString().split('T')[0];
-                modal.endDate.value = '';
-                modal.atr.value = '';
-                modal.talhaoList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
+
+                if (orderId) {
+                    const order = App.state.cuttingOrders.find(o => o.id === orderId);
+                    if (!order) {
+                        App.ui.showAlert("Ordem de corte não encontrada.", "error");
+                        return;
+                    }
+
+                    const farm = App.state.fazendas.find(f => f.code === order.fazendaCodigo);
+
+                    modal.title.textContent = "Editar Ordem de Corte";
+                    modal.orderId.value = order.id;
+                    modal.frontName.value = order.frontName;
+                    modal.fazenda.value = farm ? farm.id : '';
+                    modal.startDate.value = order.startDate;
+                    modal.endDate.value = order.endDate;
+                    modal.atr.value = order.atr;
+
+                    App.ui.renderTalhaoSelectionForManualCuttingOrder(farm ? farm.id : null);
+
+                    // A pequena espera garante que os checkboxes foram renderizados antes de tentarmos marcá-los
+                    setTimeout(() => {
+                        if (order.plots && Array.isArray(order.plots)) {
+                            order.plots.forEach(plot => {
+                                const checkbox = document.getElementById(`manual-talhao-select-${plot.talhaoId}`);
+                                if (checkbox) {
+                                    checkbox.checked = true;
+                                }
+                            });
+                        }
+                    }, 200);
+
+                } else {
+                    modal.title.textContent = "Nova Ordem de Corte Manual";
+                    modal.orderId.value = '';
+                    modal.frontName.value = '';
+                    modal.fazenda.value = '';
+                    modal.startDate.value = new Date().toISOString().split('T')[0];
+                    modal.endDate.value = '';
+                    modal.atr.value = '';
+                    modal.talhaoList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
+                }
+
+                modal.overlay.classList.add('show');
             },
         },
         gemini: {
@@ -6198,20 +6286,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 
-                let endpoint = `colheita/${format}`;
-                const filters = { planId };
-                
                 if (reportType === 'detalhado') {
+                    const filters = { planId };
                     const selectedColumns = {};
                     optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                         selectedColumns[cb.dataset.column] = cb.checked;
                     });
                     filters.selectedColumns = JSON.stringify(selectedColumns);
-                } else {
-                    endpoint = `colheita/mensal/${format}`;
+                    this._fetchAndDownloadReport(`colheita/${format}`, filters, `relatorio_colheita_detalhado.${format}`);
+                } else if (reportType === 'mensal') {
+                    if (format === 'pdf') {
+                        App.ui.showAlert("O relatório de previsão mensal está disponível apenas em formato Excel/CSV.", "info");
+                    }
+                    const filters = { planId };
+                    this._fetchAndDownloadReport(`colheita/mensal/csv`, filters, `relatorio_colheita_previsao_mensal.csv`);
+                } else if (reportType === 'saldo') {
+                    // Reutiliza a lógica do relatório "Falta Colher"
+                    const plan = App.state.harvestPlans.find(p => p.id === planId);
+                    if (!plan) {
+                        App.ui.showAlert("Plano de colheita não encontrado.", "error");
+                        return;
+                    }
+                    const filters = { planId }; // Apenas o ID do plano é necessário para este relatório
+                    this._fetchAndDownloadReport(`falta-colher/${format}`, filters, `relatorio_saldo_colheita_${plan.frontName}.${format}`);
                 }
-                
-                this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
             },
 
             generateArmadilhaPDF() {

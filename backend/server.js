@@ -709,19 +709,28 @@ try {
             }
 
             if (model === 'cut') {
-                // --- LÓGICA PARA O MODELO "POR CORTE" ---
-                const cutData = {};
+                // --- NOVA LÓGICA PARA O MODELO "POR CORTE" (PIVOT TABLE) ---
+                const pivotData = {};
+                const allCuts = new Set();
                 let grandTotalArea = 0;
 
                 snapshot.forEach(doc => {
                     const farm = doc.data();
                     if (farm.talhoes && Array.isArray(farm.talhoes)) {
                         farm.talhoes.forEach(talhao => {
-                            const cut = talhao.corte ? `Corte ${talhao.corte}` : 'Corte N/A';
+                            const variety = (talhao.variedade || 'N/A').trim().toUpperCase();
+                            const cut = talhao.corte ? parseInt(talhao.corte) : 0; // 0 for N/A
                             const area = parseFloat(talhao.area) || 0;
+
                             if (area > 0) {
-                                if (!cutData[cut]) cutData[cut] = 0;
-                                cutData[cut] += area;
+                                if (!pivotData[variety]) {
+                                    pivotData[variety] = {};
+                                }
+                                if (!pivotData[variety][cut]) {
+                                    pivotData[variety][cut] = 0;
+                                }
+                                pivotData[variety][cut] += area;
+                                if (cut > 0) allCuts.add(cut);
                                 grandTotalArea += area;
                             }
                         });
@@ -729,52 +738,91 @@ try {
                 });
 
                 if (grandTotalArea === 0) {
-                    return res.status(404).send('Nenhum talhão com área ou número de corte encontrado.');
+                    return res.status(404).send('Nenhum talhão com área ou variedade encontrada.');
                 }
 
-                const sortedCuts = Object.entries(cutData)
-                    .map(([name, area]) => ({ name, area, percentage: (area / grandTotalArea) * 100 }))
-                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+                const sortedVarieties = Object.keys(pivotData).sort();
+                const sortedCuts = Array.from(allCuts).sort((a, b) => a - b);
+
+                const headers = ['Variedade', ...sortedCuts.map(c => `Corte ${c}`), 'Total'];
+
+                const rows = sortedVarieties.map(variety => {
+                    const rowData = [variety];
+                    let varietyTotal = 0;
+                    sortedCuts.forEach(cut => {
+                        const area = pivotData[variety][cut] || 0;
+                        rowData.push(area.toFixed(2));
+                        varietyTotal += area;
+                    });
+                    rowData.push(varietyTotal.toFixed(2));
+                    return rowData;
+                });
+
+                const footer = ['Total Geral'];
+                let totalRowArea = 0;
+                sortedCuts.forEach(cut => {
+                    let cutTotal = 0;
+                    sortedVarieties.forEach(variety => {
+                        cutTotal += pivotData[variety][cut] || 0;
+                    });
+                    footer.push(cutTotal.toFixed(2));
+                    totalRowArea += cutTotal;
+                });
+                footer.push(grandTotalArea.toFixed(2));
 
                 if (format === 'pdf') {
-                    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
+                    const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
                     res.setHeader('Content-Type', 'application/pdf');
                     res.setHeader('Content-Disposition', 'attachment; filename=relatorio_censo_por_corte.pdf');
                     doc.pipe(res);
 
-                    let currentY = await generatePdfHeader(doc, `Relatório de Censo por Corte`);
+                    await generatePdfHeader(doc, `Relatório de Censo por Corte`);
 
-                    const table = {
-                        headers: ['Idade do Corte', 'Área (ha)', 'Participação (%)'],
-                        rows: sortedCuts.map(c => [c.name, c.area.toFixed(2), c.percentage.toFixed(2) + '%'])
-                    };
-                    table.rows.push(['Total Geral', grandTotalArea.toFixed(2), '100.00%']);
+                    const table = { headers, rows };
+                    table.rows.push(footer);
 
                     await doc.table(table, {
-                        y: currentY,
-                        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
-                        prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
-                        width: doc.page.width - doc.page.margins.left - doc.page.margins.right
+                        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(9),
+                        prepareRow: (row, i) => doc.font('Helvetica').fontSize(8),
                     });
 
                     generatePdfFooter(doc, generatedBy);
                     doc.end();
 
                 } else if (format === 'csv') {
-                    const records = sortedCuts.map(c => ({
-                        corte: c.name,
-                        area: c.area.toFixed(2),
-                        percentage: c.percentage.toFixed(2)
-                    }));
-                    const filePath = path.join(os.tmpdir(), `censo_por_corte_${Date.now()}.csv`);
-                    const csvWriter = createObjectCsvWriter({
-                        path: filePath,
-                        header: [
-                            { id: 'corte', title: 'Idade do Corte' },
-                            { id: 'area', title: 'Área (ha)' },
-                            { id: 'percentage', title: 'Participação (%)' }
-                        ]
+                    const csvHeader = [{ id: 'variety', title: 'Variedade' }];
+                    sortedCuts.forEach(cut => {
+                        csvHeader.push({ id: `corte_${cut}`, title: `Corte ${cut}` });
                     });
+                    csvHeader.push({ id: 'total', title: 'Total' });
+
+                    const records = sortedVarieties.map(variety => {
+                        const record = { variety };
+                        let varietyTotal = 0;
+                        sortedCuts.forEach(cut => {
+                            const area = pivotData[variety][cut] || 0;
+                            record[`corte_${cut}`] = area.toFixed(2);
+                            varietyTotal += area;
+                        });
+                        record.total = varietyTotal.toFixed(2);
+                        return record;
+                    });
+
+                    const totalRecord = { variety: 'Total Geral' };
+                    let grandTotal = 0;
+                    sortedCuts.forEach(cut => {
+                        let cutTotal = 0;
+                        sortedVarieties.forEach(variety => {
+                            cutTotal += pivotData[variety][cut] || 0;
+                        });
+                        totalRecord[`corte_${cut}`] = cutTotal.toFixed(2);
+                        grandTotal += cutTotal;
+                    });
+                    totalRecord.total = grandTotal.toFixed(2);
+                    records.push(totalRecord);
+
+                    const filePath = path.join(os.tmpdir(), `censo_por_corte_${Date.now()}.csv`);
+                    const csvWriter = createObjectCsvWriter({ path: filePath, header: csvHeader });
                     await csvWriter.writeRecords(records);
                     res.download(filePath);
                 }
@@ -907,18 +955,34 @@ try {
         const { generatedBy } = req.query;
 
         try {
-            const snapshot = await db.collection('plantingPlans').orderBy('date', 'desc').get();
-            if (snapshot.empty) {
+            const plansSnapshot = await db.collection('plantingPlans').orderBy('date', 'desc').get();
+            if (plansSnapshot.empty) {
                 return res.status(404).send('Nenhum plano de plantio encontrado.');
             }
 
+            const farmsSnapshot = await db.collection('fazendas').get();
+            const farmsMap = new Map();
+            farmsSnapshot.forEach(doc => {
+                farmsMap.set(doc.id, doc.data());
+            });
+
             const reportData = [];
-            snapshot.forEach(doc => {
-                reportData.push({ id: doc.id, ...doc.data() });
+            plansSnapshot.forEach(doc => {
+                const plan = doc.data();
+                const farm = farmsMap.get(plan.fazendaId);
+                const manejoPreReforma = plan.preReforma === 'outro' ? plan.preReformaOutro : plan.preReforma;
+
+                reportData.push({
+                    id: doc.id,
+                    ...plan,
+                    fazendaName: farm ? `${farm.code} - ${farm.name}` : 'Fazenda não encontrada',
+                    talhoes: (plan.plots || []).map(p => p.name).join(', '),
+                    manejo: manejoPreReforma
+                });
             });
 
             if (format === 'pdf') {
-                const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+                const doc = new PDFDocument({ margin: 25, size: 'A4', layout: 'landscape', bufferPages: true });
                 res.setHeader('Content-Type', 'application/pdf');
                 res.setHeader('Content-Disposition', 'attachment; filename=relatorio_planejamento_plantio.pdf');
                 doc.pipe(res);
@@ -926,22 +990,25 @@ try {
                 await generatePdfHeader(doc, 'Relatório de Planejamento de Plantio');
 
                 const table = {
-                    headers: ['Plano', 'Safra', 'Data', 'Tipo', 'Prestador', 'Área (ha)', 'Variedade', 'TCH'],
+                    headers: ['Plano', 'Safra', 'Fazenda', 'Talhões', 'Área (ha)', 'Variedade', 'Data', 'Tipo Plantio', 'Prestador', 'Tipo Área', 'Manejo'],
                     rows: reportData.map(p => [
                         p.planName,
                         p.safra,
+                        p.fazendaName,
+                        p.talhoes,
+                        (p.area || 0).toFixed(2),
+                        p.variedade,
                         p.date,
                         p.tipoPlantio,
                         p.prestador,
-                        p.area.toFixed(2),
-                        p.variedade,
-                        p.tch.toFixed(2)
+                        p.tipoArea,
+                        p.manejo
                     ])
                 };
 
                 await doc.table(table, {
-                    prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
-                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
+                    prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(8),
                 });
 
                 generatePdfFooter(doc, generatedBy);
@@ -953,12 +1020,17 @@ try {
                     header: [
                         { id: 'planName', title: 'Plano' },
                         { id: 'safra', title: 'Safra' },
-                        { id: 'date', title: 'Data' },
-                        { id: 'tipoPlantio', title: 'Tipo' },
-                        { id: 'prestador', title: 'Prestador' },
+                        { id: 'fazendaName', title: 'Fazenda' },
+                        { id: 'talhoes', title: 'Talhões' },
                         { id: 'area', title: 'Área (ha)' },
                         { id: 'variedade', title: 'Variedade' },
-                        { id: 'tch', title: 'TCH' }
+                        { id: 'date', title: 'Data' },
+                        { id: 'tch', title: 'TCH Esperado' },
+                        { id: 'tipoPlantio', title: 'Tipo Plantio' },
+                        { id: 'prestador', title: 'Prestador' },
+                        { id: 'tipoArea', title: 'Tipo Área' },
+                        { id: 'manejo', title: 'Manejo Pré-Reforma' },
+                        { id: 'obs', title: 'Observações' }
                     ]
                 });
                 await csvWriter.writeRecords(reportData);
@@ -988,11 +1060,6 @@ try {
             }
             const harvestPlan = harvestPlanDoc.data();
 
-            let finalReportData = [];
-            let totalAreaFaltante = 0;
-            let totalProducaoFaltante = 0;
-            const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
-
             const allFarmCodes = [...new Set(harvestPlan.sequence.map(g => g.fazendaCodigo))];
             const farmsSnapshot = await db.collection('fazendas').where('code', 'in', allFarmCodes).get();
             const farmsData = {};
@@ -1000,85 +1067,70 @@ try {
                 farmsData[doc.data().code] = doc.data();
             });
 
+            const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
+            let reportData = [];
+
             for (const group of harvestPlan.sequence) {
-                if (fazendaCodigo && group.fazendaCodigo !== fazendaCodigo) {
-                    continue;
+                const activePlots = group.plots.filter(p => !closedTalhaoIds.has(p.talhaoId));
+                if (activePlots.length === 0) continue;
+
+                if (fazendaCodigo && group.fazendaCodigo !== fazendaCodigo) continue;
+                if (talhao && !activePlots.some(p => p.talhaoName.toLowerCase().includes(talhao.toLowerCase()))) continue;
+
+                const areaColhida = group.areaColhida || 0;
+                const producaoColhida = group.producaoColhida || 0;
+
+                let activeAreaTotal = 0;
+                let activeProducaoTotal = 0;
+                const farm = farmsData[group.fazendaCodigo];
+                if (farm) {
+                    activePlots.forEach(p => {
+                        const talhaoData = farm.talhoes.find(t => t.id === p.talhaoId);
+                        if (talhaoData) {
+                            activeAreaTotal += talhaoData.area || 0;
+                            activeProducaoTotal += talhaoData.producao || 0;
+                        }
+                    });
                 }
 
-                for (const plot of group.plots) {
-                    if (closedTalhaoIds.has(plot.talhaoId)) {
-                        continue;
-                    }
-                    if (talhao && !plot.talhaoName.toLowerCase().includes(talhao.toLowerCase())) {
-                        continue;
-                    }
-
-                    const farm = farmsData[group.fazendaCodigo];
-                    const talhaoData = farm?.talhoes.find(t => t.id === plot.talhaoId);
-
-                    if (talhaoData) {
-                        finalReportData.push({
-                            fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
-                            talhao: plot.talhaoName,
-                            area: talhaoData.area,
-                            producao: talhaoData.producao
-                        });
-                        totalAreaFaltante += talhaoData.area;
-                        totalProducaoFaltante += talhaoData.producao;
-                    }
-                }
+                reportData.push({
+                    fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
+                    talhoes: activePlots.map(p => p.talhaoName).join('\n'),
+                    areaTotal: activeAreaTotal,
+                    areaColhida: areaColhida,
+                    saldoArea: activeAreaTotal - areaColhida,
+                    prodTotal: activeProducaoTotal,
+                    prodColhida: producaoColhida,
+                    saldoProd: activeProducaoTotal - producaoColhida,
+                });
             }
 
             if (format === 'pdf') {
-                const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
+                const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
                 res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', `attachment; filename=relatorio_falta_colher_${harvestPlan.frontName}.pdf`);
+                res.setHeader('Content-Disposition', `attachment; filename=relatorio_falta_colher.pdf`);
                 doc.pipe(res);
 
-                let currentY = await generatePdfHeader(doc, `Relatório de Saldo a Colher - ${harvestPlan.frontName}`);
+                await generatePdfHeader(doc, `Relatório de Saldo a Colher - ${harvestPlan.frontName}`);
 
-                const groupedByFarm = finalReportData.reduce((acc, item) => {
-                    if (!acc[item.fazenda]) {
-                        acc[item.fazenda] = [];
-                    }
-                    acc[item.fazenda].push(item);
-                    return acc;
-                }, {});
+                const table = {
+                    headers: ['Fazenda', 'Talhões', 'Área Total', 'Área Colhida', 'Saldo Área', 'Prod. Total', 'Prod. Colhida', 'Saldo Prod.'],
+                    rows: reportData.map(d => [
+                        d.fazenda,
+                        d.talhoes,
+                        d.areaTotal.toFixed(2),
+                        d.areaColhida.toFixed(2),
+                        d.saldoArea.toFixed(2),
+                        d.prodTotal.toFixed(2),
+                        d.prodColhida.toFixed(2),
+                        d.saldoProd.toFixed(2)
+                    ])
+                };
 
-                const headers = ['Talhão', 'Área (ha)', 'Produção (ton)'];
-                const columnWidths = [200, 150, 150];
-
-                for (const fazenda of Object.keys(groupedByFarm).sort()) {
-                    currentY = await checkPageBreak(doc, currentY, `Saldo a Colher - ${harvestPlan.frontName}`, 50);
-                    doc.y = currentY;
-                    doc.fontSize(12).font('Helvetica-Bold').text(fazenda, { underline: true });
-                    currentY = doc.y + 5;
-
-                    const table = {
-                        headers: headers,
-                        rows: groupedByFarm[fazenda].map(d => [
-                            d.talhao,
-                            d.area.toFixed(2),
-                            d.producao.toFixed(2)
-                        ])
-                    };
-
-                    await doc.table(table, {
-                        y: currentY,
-                        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
-                        prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
-                        width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
-                        columnWidths: columnWidths
-                    });
-
-                    currentY = doc.y + 15;
-                }
-
-                doc.y = currentY + 10;
-                doc.fontSize(12).font('Helvetica-Bold').text('Total Geral a Colher');
-                doc.fontSize(10).font('Helvetica').text(`Área: ${totalAreaFaltante.toFixed(2)} ha`);
-                doc.fontSize(10).font('Helvetica').text(`Produção: ${totalProducaoFaltante.toFixed(2)} ton`);
-
+                await doc.table(table, {
+                    prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(8),
+                });
 
                 generatePdfFooter(doc, generatedBy);
                 doc.end();
@@ -1089,12 +1141,17 @@ try {
                     path: filePath,
                     header: [
                         { id: 'fazenda', title: 'Fazenda' },
-                        { id: 'talhao', title: 'Talhão' },
-                        { id: 'area', title: 'Área (ha)' },
-                        { id: 'producao', title: 'Produção (ton)' }
+                        { id: 'talhoes', title: 'Talhoes' },
+                        { id: 'areaTotal', title: 'Area Total (ha)' },
+                        { id: 'areaColhida', title: 'Area Colhida (ha)' },
+                        { id: 'saldoArea', title: 'Saldo Area (ha)' },
+                        { id: 'prodTotal', title: 'Prod. Total (ton)' },
+                        { id: 'prodColhida', title: 'Prod. Colhida (ton)' },
+                        { id: 'saldoProd', title: 'Saldo Prod. (ton)' }
                     ]
                 });
-                await csvWriter.writeRecords(finalReportData);
+                const records = reportData.map(d => ({ ...d, talhoes: d.talhoes.replace(/\n/g, ', ') }));
+                await csvWriter.writeRecords(records);
                 res.download(filePath);
 
             } else {
