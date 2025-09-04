@@ -1589,6 +1589,51 @@
                 </div>
             </section>
 
+            <!-- NOVO MÓDULO DE PLANEJAMENTO DE PLANTIO -->
+            <section id="planejamentoPlantio" class="tab-content card" aria-label="Planejamento de Plantio" tabindex="0" hidden>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-primary); margin: 0;"><i class="fas fa-seedling"></i> Planejamento de Plantio</h2>
+                    <div class="button-group">
+                        <button id="btnAddNewPlantingPlan" class="save"><i class="fas fa-plus"></i> Novo Plano de Plantio</button>
+                    </div>
+                </div>
+
+                <div id="planting-plans-list-container">
+                    <h3 style="margin-top: 30px;"><i class="fas fa-tasks"></i> Planos de Plantio Salvos</h3>
+                    <div id="planting-plans-list"></div>
+                </div>
+
+                <div id="planting-plan-editor" style="display: none;">
+                    <div class="card" style="border-left-color: var(--color-primary); margin-top:20px;">
+                        <h3><i class="fas fa-edit"></i> Detalhes do Plano de Plantio</h3>
+                        <input type="hidden" id="plantingPlanId">
+                        <div class="form-row">
+                            <div class="form-col"><label for="plantingPlanName" class="required">Nome do Plano:</label><input type="text" id="plantingPlanName" placeholder="Ex: Plantio Safra 2025/2026" required></div>
+                            <div class="form-col"><label for="plantingPlanSafra" class="required">Safra:</label><input type="text" id="plantingPlanSafra" placeholder="Ex: 2025/2026" required></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col"><label for="plantingPlanFazenda" class="required">Fazenda:</label><select id="plantingPlanFazenda" required></select></div>
+                            <div class="form-col"><label for="plantingPlanTalhao" class="required">Talhão:</label><input type="text" id="plantingPlanTalhao" placeholder="Ex: T-50 (Novo)" required></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col"><label for="plantingPlanVariedade" class="required">Variedade:</label><input type="text" id="plantingPlanVariedade" placeholder="Ex: CTC9001" required></div>
+                            <div class="form-col"><label for="plantingPlanArea" class="required">Área (ha):</label><input type="number" id="plantingPlanArea" placeholder="0.00" required></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col"><label for="plantingPlanDate" class="required">Data Prevista do Plantio:</label><input type="date" id="plantingPlanDate" required></div>
+                            <div class="form-col"><label for="plantingPlanTCH" class="required">TCH Esperado (ton/ha):</label><input type="number" id="plantingPlanTCH" placeholder="0.00" required></div>
+                        </div>
+                        <label for="plantingPlanObs">Observações:</label>
+                        <textarea id="plantingPlanObs" placeholder="Detalhes sobre o preparo do solo, insumos, etc..."></textarea>
+
+                        <div style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
+                            <button id="btnSavePlantingPlan" class="save"><i class="fas fa-save"></i> Guardar Plano de Plantio</button>
+                            <button id="btnCancelPlantingPlan" class="btn-secondary"><i class="fas fa-times"></i> Voltar para a Lista</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
                 <h2><i class="fas fa-calendar-alt"></i> Planejamento de Inspeções</h2>
                 <div class="card" style="border-left-color: var(--color-info);">
@@ -1701,6 +1746,7 @@
                             <select id="tipoRelatorioColheita">
                                 <option value="detalhado">Detalhado por Fazenda</option>
                                 <option value="mensal">Previsão Mensal</option>
+                                <option value="saldo">Saldo de Colheita</option>
                             </select>
                         </div>
                     </div>
@@ -1756,9 +1802,47 @@
                 </div>
             </section>
 
+            <section id="relatorioCensoVarietal" class="tab-content card" aria-label="Relatório de Censo Varietal" tabindex="0" hidden>
+                <h2 style="color: var(--color-info);"><i class="fas fa-chart-pie"></i> Relatório de Censo Varietal</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Analise a distribuição de área por variedade de cana.</p>
+
+                <div class="checkbox-group-container">
+                    <label>Filtrar por Tipo de Fazenda (deixar em branco para todas):</label>
+                    <div class="checkbox-group-grid" id="censoVarietalFarmTypeFilter">
+                        <label class="report-option-item"><input type="checkbox" name="censoFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="censoFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="censoFarmType" value="Fornecedor"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Fornecedor</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="censoFarmType" value="Acionista"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Acionista</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="censoFarmType" value="Arrendatário"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Arrendatário</span></label>
+                    </div>
+                </div>
+
+                <div class="botoes-relatorio" style="margin-top: 20px;">
+                    <button id="btnPDFCensoVarietal" type="button" style="background: var(--color-info);"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelCensoVarietal" type="button" style="background: var(--color-info);"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+            </section>
+
             <section id="relatorioMonitoramento" class="tab-content card" aria-label="Relatório de Monitoramento" tabindex="0" hidden>
                 <h2><i class="fas fa-bug"></i> Relatório de Armadilhas</h2>
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere relatórios em PDF ou Excel das armadilhas, com filtros por período e fazenda.</p>
+            </section>
+
+            <section id="relatorioFaltaColher" class="tab-content card" aria-label="Relatório O que Falta Colher" tabindex="0" hidden>
+                <h2 style="color: var(--color-success);"><i class="fas fa-clipboard-check"></i> Relatório - O que Falta Colher</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Visualize o saldo de área e produção que ainda não foi colhida, com base em um plano de colheita.</p>
+
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="faltaColherPlanoSelect" class="required">Selecione um Plano de Colheita:</label>
+                        <select id="faltaColherPlanoSelect" required></select>
+                    </div>
+                </div>
+
+                <div class="botoes-relatorio" style="margin-top: 20px;">
+                    <button id="btnPDFFaltaColher" type="button" style="background: var(--color-success);"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelFaltaColher" type="button" style="background: var(--color-success);"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
                 <div class="form-row">
                     <div class="form-col">
                         <label for="monitoramentoTipoRelatorio" class="required">Tipo de Relatório:</label>
@@ -2231,6 +2315,24 @@
                 </div>
             </div>
         </div>
+
+            <!-- [NOVO] MODAL DE ORDEM DE CORTE -->
+            <div id="cuttingOrderModal" class="modal-overlay">
+                <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-header">
+                        <h2>Ordem de Corte</h2>
+                        <button id="cuttingOrderModalCloseBtn" class="modal-close-btn">&times;</button>
+                    </div>
+                    <div id="cuttingOrderModalBody">
+                        <!-- Content will be injected by JS -->
+                        <p>A carregar detalhes da ordem de corte...</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="cuttingOrderModalCancelBtn" class="btn-secondary">Cancelar</button>
+                        <button id="cuttingOrderModalConfirmBtn" class="save"><i class="fas fa-file-alt"></i> Confirmar e Gerar Ordem</button>
+                    </div>
+                </div>
+            </div>
 
     </div>
 

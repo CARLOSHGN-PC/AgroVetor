@@ -86,6 +86,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
+                    label: 'Plantio', icon: 'fas fa-seedling',
+                    submenu: [
+                        { label: 'Planejamento de Plantio', icon: 'fas fa-leaf', target: 'planejamentoPlantio', permission: 'planejamentoPlantio' },
+                    ]
+                },
+                {
                     label: 'Colheita', icon: 'fas fa-tractor',
                     submenu: [
                         { label: 'Planejamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
@@ -104,6 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
+                        { label: 'Rel. Censo Varietal', icon: 'fas fa-chart-pie', target: 'relatorioCensoVarietal', permission: 'relatorioCensoVarietal' },
+                        { label: 'Rel. O que Falta Colher', icon: 'fas fa-clipboard-check', target: 'relatorioFaltaColher', permission: 'relatorioFaltaColher' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
                 },
@@ -119,8 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoPlantio: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, relatorioCensoVarietal: true, relatorioFaltaColher: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoPlantio: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, relatorioCensoVarietal: true, relatorioFaltaColher: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
@@ -139,7 +147,9 @@ document.addEventListener('DOMContentLoaded', () => {
             activeSubmenu: null,
             charts: {},
             harvestPlans: [],
+            plantingPlans: [],
             activeHarvestPlan: null,
+            activeCuttingOrder: null,
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -250,6 +260,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 userSelect: document.getElementById('historyUserSelectModal'),
                 startDate: document.getElementById('historyStartDateModal'),
                 endDate: document.getElementById('historyEndDateModal'),
+            },
+            cuttingOrderModal: {
+                overlay: document.getElementById('cuttingOrderModal'),
+                body: document.getElementById('cuttingOrderModalBody'),
+                closeBtn: document.getElementById('cuttingOrderModalCloseBtn'),
+                cancelBtn: document.getElementById('cuttingOrderModalCancelBtn'),
+                confirmBtn: document.getElementById('cuttingOrderModalConfirmBtn'),
             },
             companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
@@ -379,6 +396,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 tableBody: document.querySelector('#harvestPlanTable tbody'),
                 summary: document.getElementById('harvestSummary'),
             },
+            planting: {
+                plansListContainer: document.getElementById('planting-plans-list-container'),
+                plansList: document.getElementById('planting-plans-list'),
+                planEditor: document.getElementById('planting-plan-editor'),
+                btnAddNew: document.getElementById('btnAddNewPlantingPlan'),
+                btnSavePlan: document.getElementById('btnSavePlantingPlan'),
+                btnCancelPlan: document.getElementById('btnCancelPlantingPlan'),
+                planId: document.getElementById('plantingPlanId'),
+                planName: document.getElementById('plantingPlanName'),
+                safra: document.getElementById('plantingPlanSafra'),
+                fazenda: document.getElementById('plantingPlanFazenda'),
+                talhao: document.getElementById('plantingPlanTalhao'),
+                variedade: document.getElementById('plantingPlanVariedade'),
+                area: document.getElementById('plantingPlanArea'),
+                date: document.getElementById('plantingPlanDate'),
+                tch: document.getElementById('plantingPlanTCH'),
+                obs: document.getElementById('plantingPlanObs'),
+            },
             broca: {
                 form: document.getElementById('lancamentoBroca'),
                 codigo: document.getElementById('codigo'),
@@ -453,6 +488,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBox: document.getElementById('trap-info-box'),
                 trapInfoBoxContent: document.getElementById('trap-info-box-content'),
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
+            },
+            relatorioCensoVarietal: {
+                farmTypeFilter: document.querySelectorAll('#censoVarietalFarmTypeFilter input[type="checkbox"]'),
+                btnPDF: document.getElementById('btnPDFCensoVarietal'),
+                btnExcel: document.getElementById('btnExcelCensoVarietal'),
+            },
+            relatorioFaltaColher: {
+                select: document.getElementById('faltaColherPlanoSelect'),
+                btnPDF: document.getElementById('btnPDFFaltaColher'),
+                btnExcel: document.getElementById('btnExcelFaltaColher'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -699,7 +744,7 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas' ];
+                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'plantingPlans', 'armadilhas' ];
                 
                 collectionsToListen.forEach(collectionName => {
                     const q = collection(db, collectionName);
@@ -859,6 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('renderLogoPreview', () => this.renderLogoPreview());
                 renderWithCatch('renderPlanejamento', () => this.renderPlanejamento());
                 renderWithCatch('showHarvestPlanList', () => this.showHarvestPlanList());
+                renderWithCatch('renderPlantingPlansList', () => this.renderPlantingPlansList());
                 renderWithCatch('populateHarvestPlanSelect', () => this.populateHarvestPlanSelect());
 
                 renderWithCatch('dashboard-view', () => {
@@ -951,17 +997,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(activeSubmenu) activeSubmenu.classList.remove('active');
             },
             populateHarvestPlanSelect() {
-                const { select } = App.elements.relatorioColheita;
-                const savedValue = select.value;
-                select.innerHTML = '<option value="">Selecione um plano de colheita...</option>';
-                if (App.state.harvestPlans.length === 0) {
-                    select.innerHTML += '<option value="" disabled>Nenhum plano salvo encontrado</option>';
-                } else {
-                    App.state.harvestPlans.forEach(plan => {
-                        select.innerHTML += `<option value="${plan.id}">${plan.frontName}</option>`;
-                    });
-                }
-                select.value = savedValue;
+                const selects = [
+                    App.elements.relatorioColheita.select,
+                    App.elements.relatorioFaltaColher?.select
+                ].filter(Boolean);
+
+                if (selects.length === 0) return;
+
+                selects.forEach(select => {
+                    const savedValue = select.value;
+                    select.innerHTML = '<option value="">Selecione um plano de colheita...</option>';
+                    if (App.state.harvestPlans.length === 0) {
+                        select.innerHTML += '<option value="" disabled>Nenhum plano salvo encontrado</option>';
+                    } else {
+                        App.state.harvestPlans.sort((a, b) => a.frontName.localeCompare(b.frontName)).forEach(plan => {
+                            select.innerHTML += `<option value="${plan.id}">${plan.frontName}</option>`;
+                        });
+                    }
+                    select.value = savedValue;
+                });
             },
             showTab(id) {
                 const mapContainer = App.elements.monitoramentoAereo.container;
@@ -1014,8 +1068,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
-                if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento'].includes(id)) this.setDefaultDatesForReportForms();
-                if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
+                if (id === 'planejamentoPlantio') this.showPlantingPlanList();
+                if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCensoVarietal'].includes(id)) this.setDefaultDatesForReportForms();
+                if (id === 'relatorioColheitaCustom' || id === 'relatorioFaltaColher') this.populateHarvestPlanSelect();
                 if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
@@ -1568,6 +1623,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     plansList.appendChild(card);
                 });
             },
+
+            // --- [NOVO] Funções do Módulo de Plantio ---
+            showPlantingPlanList() {
+                const plantingEls = App.elements.planting;
+                plantingEls.plansListContainer.style.display = 'block';
+                plantingEls.planEditor.style.display = 'none';
+                this.populateFazendaSelects([plantingEls.fazenda]);
+                this.renderPlantingPlansList();
+            },
+            showPlantingPlanEditor() {
+                const plantingEls = App.elements.planting;
+                plantingEls.plansListContainer.style.display = 'none';
+                plantingEls.planEditor.style.display = 'block';
+            },
+            renderPlantingPlansList() {
+                const { plansList } = App.elements.planting;
+                plansList.innerHTML = '';
+                if (!App.state.plantingPlans || App.state.plantingPlans.length === 0) {
+                    plansList.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum planejamento de plantio encontrado.</p>';
+                    return;
+                }
+                App.state.plantingPlans.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).forEach(plan => {
+                    const farm = App.state.fazendas.find(f => f.id === plan.fazendaId);
+                    const farmName = farm ? `${farm.code} - ${farm.name}` : 'Fazenda desconhecida';
+                    const card = document.createElement('div');
+                    card.className = 'plano-card';
+                    card.style.borderLeftColor = 'var(--color-primary)';
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-leaf"></i> ${plan.planName}</span>
+                            <span class="plano-status pendente">${plan.safra}</span>
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-map-marker-alt"></i> Fazenda: ${farmName}</div>
+                            <div><i class="fas fa-th-large"></i> Talhão: ${plan.talhao}</div>
+                            <div><i class="fas fa-seedling"></i> Variedade: ${plan.variedade}</div>
+                            <div><i class="fas fa-ruler-combined"></i> Área: ${(plan.area || 0).toFixed(2)} ha</div>
+                            <div><i class="fas fa-calendar-day"></i> Data Prevista: ${new Date((plan.date || '1970-01-01') + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
+                        </div>
+                        <div class="plano-actions">
+                            <button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="edit-planting" data-id="${plan.id}"><i class="fas fa-edit"></i> Editar</button>
+                            <button class="btn-excluir" data-action="delete-planting" data-id="${plan.id}"><i class="fas fa-trash"></i> Excluir</button>
+                        </div>
+                    `;
+                    plansList.appendChild(card);
+                });
+            },
+
             renderHarvestSequence() {
                 if (!App.state.activeHarvestPlan) return;
                 const { tableBody, summary } = App.elements.harvest;
@@ -1623,6 +1726,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Dias Aplic.">${diasAplicacao}</td>
                         <td data-label="Ação">
                             <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background-color: var(--color-success);" title="Gerar Ordem de Corte" data-action="generate-cutting-order" data-id="${group.id}"><i class="fas fa-file-alt"></i></button>
                                 <button class="btn-excluir" style="background-color: var(--color-info);" title="Editar Grupo no Plano" data-action="edit-harvest-group" data-id="${group.id}"><i class="fas fa-edit"></i></button>
                                 <button class="btn-excluir" title="Remover Grupo do Plano" data-action="remove-harvest" data-id="${group.id}"><i class="fas fa-times"></i></button>
                             </div>
@@ -1801,6 +1905,61 @@ document.addEventListener('DOMContentLoaded', () => {
             closeEditFarmModal() {
                 App.elements.editFarmModal.overlay.classList.remove('show');
             },
+
+            // --- [NOVO] Funções do Modal de Ordem de Corte ---
+            showCuttingOrderModal() {
+                const { overlay, body, confirmBtn, cancelBtn, closeBtn } = App.elements.cuttingOrderModal;
+                const order = App.state.activeCuttingOrder;
+                if (!order) return;
+
+                const talhoesHTML = order.plots.map(p => `<li>${p.talhaoName}</li>`).join('');
+
+                body.innerHTML = `
+                    <div class="card" style="border-left-color: var(--color-success);">
+                        <h3><i class="fas fa-file-invoice"></i> Detalhes da Ordem de Corte</h3>
+                        <div class="plano-details">
+                            <div><i class="fas fa-tractor"></i> <strong>Frente:</strong> ${order.frontName}</div>
+                            <div><i class="fas fa-map-marker-alt"></i> <strong>Fazenda:</strong> ${order.fazendaCodigo} - ${order.fazendaName}</div>
+                            <div><i class="fas fa-calendar-alt"></i> <strong>Período de Corte:</strong> ${new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')} a ${new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
+                        </div>
+                    </div>
+                    <div class="card" style="border-left-color: var(--color-success);">
+                        <h3><i class="fas fa-th-large"></i> Talhões Incluídos</h3>
+                        <ul style="list-style-position: inside; padding-left: 10px;">${talhoesHTML}</ul>
+                    </div>
+                     <div class="card" style="border-left-color: var(--color-success);">
+                        <h3><i class="fas fa-chart-pie"></i> Totais</h3>
+                        <div class="plano-details">
+                            <div><i class="fas fa-ruler-combined"></i> <strong>Área Total:</strong> ${order.totalArea.toFixed(2)} ha</div>
+                            <div><i class="fas fa-weight-hanging"></i> <strong>Produção Total:</strong> ${order.totalProducao.toFixed(2)} ton</div>
+                             <div><i class="fas fa-vial"></i> <strong>ATR Previsto:</strong> ${order.atr}</div>
+                        </div>
+                    </div>
+                `;
+
+                const confirmHandler = () => {
+                    App.actions.saveCuttingOrder();
+                    closeHandler();
+                };
+
+                const closeHandler = () => {
+                    overlay.classList.remove('show');
+                    confirmBtn.removeEventListener('click', confirmHandler);
+                    cancelBtn.removeEventListener('click', closeHandler);
+                    closeBtn.removeEventListener('click', closeHandler);
+                };
+
+                confirmBtn.addEventListener('click', confirmHandler);
+                cancelBtn.addEventListener('click', closeHandler);
+                closeBtn.addEventListener('click', closeHandler);
+
+                overlay.classList.add('show');
+            },
+            closeCuttingOrderModal() {
+                App.elements.cuttingOrderModal.overlay.classList.remove('show');
+                App.state.activeCuttingOrder = null;
+            },
+
             applyTheme(theme) {
                 document.body.className = theme;
                 App.elements.userMenu.themeButtons.forEach(btn => {
@@ -2117,6 +2276,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (removeBtn) App.actions.removeHarvestSequence(removeBtn.dataset.id);
                         const editBtn = e.target.closest('button[data-action="edit-harvest-group"]');
                         if(editBtn) App.actions.editHarvestSequenceGroup(editBtn.dataset.id);
+                        const orderBtn = e.target.closest('button[data-action="generate-cutting-order"]');
+                        if(orderBtn) App.actions.generateCuttingOrder(orderBtn.dataset.id);
                         const atrSpan = e.target.closest('.editable-atr');
                         if (atrSpan) {
                             // A função de edição foi removida a pedido.
@@ -2131,6 +2292,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     harvestEls.tableBody.addEventListener('dragover', e => { e.preventDefault(); return false; });
                     harvestEls.tableBody.addEventListener('drop', e => { e.stopPropagation(); if (dragSrcEl !== e.target) { const targetRow = e.target.closest('tr'); if(targetRow) App.actions.reorderHarvestSequence(dragSrcEl.dataset.id, targetRow.dataset.id); } return false; });
                 }
+
+                const plantingEls = App.elements.planting;
+                if (plantingEls.btnAddNew) plantingEls.btnAddNew.addEventListener('click', () => App.actions.editPlantingPlan());
+                if (plantingEls.btnCancelPlan) plantingEls.btnCancelPlan.addEventListener('click', () => this.showPlantingPlanList());
+                if (plantingEls.btnSavePlan) plantingEls.btnSavePlan.addEventListener('click', () => App.actions.savePlantingPlan());
+                if (plantingEls.plansList) plantingEls.plansList.addEventListener('click', (e) => {
+                    const button = e.target.closest('button[data-action]');
+                    if (!button) return;
+                    const { action, id } = button.dataset;
+                    if (action === 'edit-planting') App.actions.editPlantingPlan(id);
+                    if (action === 'delete-planting') App.actions.deletePlantingPlan(id);
+                });
                 
                 if (App.elements.broca.codigo) App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
                 if (App.elements.broca.talhao) App.elements.broca.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('broca'));
@@ -2166,6 +2339,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isDetalhado = e.target.value === 'detalhado';
                     if (customReportEls.colunasDetalhadoContainer) customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
+
+                const censoVarietalEls = App.elements.relatorioCensoVarietal;
+                if (censoVarietalEls.btnPDF) censoVarietalEls.btnPDF.addEventListener('click', () => App.reports.generateCensoVarietalReport('pdf'));
+                if (censoVarietalEls.btnExcel) censoVarietalEls.btnExcel.addEventListener('click', () => App.reports.generateCensoVarietalReport('csv'));
+
+                const faltaColherEls = App.elements.relatorioFaltaColher;
+                if (faltaColherEls.btnPDF) faltaColherEls.btnPDF.addEventListener('click', () => App.reports.generateFaltaColherReport('pdf'));
+                if (faltaColherEls.btnExcel) faltaColherEls.btnExcel.addEventListener('click', () => App.reports.generateFaltaColherReport('csv'));
                 
                 const monitoramentoAereoEls = App.elements.monitoramentoAereo;
                 if (monitoramentoAereoEls.infoBoxCloseBtn) monitoramentoAereoEls.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
@@ -2818,6 +2999,148 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Plano de colheita excluído.', 'info');
                 });
             },
+
+            // --- [NOVO] Ações da Ordem de Corte ---
+            generateCuttingOrder(groupId) {
+                if (!App.state.activeHarvestPlan) return;
+                const group = App.state.activeHarvestPlan.sequence.find(g => g.id == groupId);
+                if (!group) return;
+
+                // Calcular as datas de entrada e saída para este grupo específico
+                let currentDate = new Date(App.state.activeHarvestPlan.startDate + 'T03:00:00Z');
+                for (const seqGroup of App.state.activeHarvestPlan.sequence) {
+                    const producaoConsiderada = seqGroup.totalProducao - (seqGroup.producaoColhida || 0);
+                    const diasNecessarios = Math.ceil(producaoConsiderada / (App.state.activeHarvestPlan.dailyRate || 1));
+
+                    if (seqGroup.id == groupId) {
+                        const dataEntrada = new Date(currentDate.getTime());
+                        let dataSaida = new Date(dataEntrada.getTime());
+                        if (diasNecessarios > 0) {
+                            dataSaida.setDate(dataSaida.getDate() + diasNecessarios - 1);
+                        }
+
+                        App.state.activeCuttingOrder = {
+                            planId: App.state.activeHarvestPlan.id,
+                            groupId: group.id,
+                            frontName: App.state.activeHarvestPlan.frontName,
+                            fazendaName: group.fazendaName,
+                            fazendaCodigo: group.fazendaCodigo,
+                            plots: group.plots,
+                            totalArea: group.totalArea,
+                            totalProducao: group.totalProducao,
+                            atr: group.atr,
+                            startDate: dataEntrada.toISOString().split('T')[0],
+                            endDate: dataSaida.toISOString().split('T')[0],
+                            status: 'Pendente'
+                        };
+                        break;
+                    }
+
+                    currentDate.setDate(currentDate.getDate() + diasNecessarios);
+                }
+
+                App.ui.showCuttingOrderModal();
+            },
+
+            async saveCuttingOrder() {
+                if (!App.state.activeCuttingOrder) return;
+
+                App.ui.setLoading(true, "A gerar e guardar Ordem de Corte...");
+                try {
+                    await App.data.addDocument('cuttingOrders', App.state.activeCuttingOrder);
+                    App.ui.showAlert("Ordem de Corte guardada com sucesso!");
+                    App.ui.closeCuttingOrderModal();
+                    // Futuramente, chamar a geração de PDF aqui.
+                } catch (error) {
+                    App.ui.showAlert("Erro ao guardar a Ordem de Corte.", "error");
+                    console.error("Erro ao guardar Ordem de Corte:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+
+            // --- [NOVO] Ações do Módulo de Plantio ---
+            editPlantingPlan(planId = null) {
+                const els = App.elements.planting;
+                App.ui.showPlantingPlanEditor();
+                App.ui.populateFazendaSelects([els.fazenda]);
+
+                if (planId) {
+                    const plan = App.state.plantingPlans.find(p => p.id === planId);
+                    if (plan) {
+                        els.planId.value = plan.id;
+                        els.planName.value = plan.planName;
+                        els.safra.value = plan.safra;
+                        els.fazenda.value = plan.fazendaId;
+                        els.talhao.value = plan.talhao;
+                        els.variedade.value = plan.variedade;
+                        els.area.value = plan.area;
+                        els.date.value = plan.date;
+                        els.tch.value = plan.tch;
+                        els.obs.value = plan.obs;
+                    }
+                } else {
+                    // Clear form for new entry
+                    const formElements = [els.planId, els.planName, els.safra, els.fazenda, els.talhao, els.variedade, els.area, els.tch, els.obs];
+                    formElements.forEach(el => el.value = '');
+                    els.date.value = new Date().toISOString().split('T')[0];
+                }
+            },
+            async savePlantingPlan() {
+                const els = App.elements.planting;
+                const planId = els.planId.value;
+
+                const planData = {
+                    planName: els.planName.value.trim(),
+                    safra: els.safra.value.trim(),
+                    fazendaId: els.fazenda.value,
+                    talhao: els.talhao.value.trim(),
+                    variedade: els.variedade.value.trim(),
+                    area: parseFloat(els.area.value) || 0,
+                    date: els.date.value,
+                    tch: parseFloat(els.tch.value) || 0,
+                    obs: els.obs.value.trim(),
+                    updatedAt: serverTimestamp()
+                };
+
+                if (!planData.planName || !planData.safra || !planData.fazendaId || !planData.talhao || !planData.variedade || !planData.area || !planData.date || !planData.tch) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios.", "error");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A guardar plano de plantio...");
+                try {
+                    if (planId) {
+                        await App.data.updateDocument('plantingPlans', planId, planData);
+                        App.ui.showAlert("Plano de plantio atualizado com sucesso!");
+                    } else {
+                        planData.createdAt = serverTimestamp();
+                        await App.data.addDocument('plantingPlans', planData);
+                        App.ui.showAlert("Plano de plantio guardado com sucesso!");
+                    }
+                    App.ui.showPlantingPlanList();
+                } catch (error) {
+                    App.ui.showAlert("Erro ao guardar o plano de plantio.", "error");
+                    console.error("Erro ao guardar plano de plantio:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+            async deletePlantingPlan(planId) {
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este plano de plantio?", async () => {
+                    App.ui.setLoading(true, "A excluir...");
+                    try {
+                        await App.data.deleteDocument('plantingPlans', planId);
+                        App.ui.showAlert("Plano de plantio excluído com sucesso.");
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao excluir o plano de plantio.", "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
             addOrUpdateHarvestSequence() {
                 if (!App.state.activeHarvestPlan) { App.ui.showAlert("Primeiro crie ou edite um plano.", "warning"); return; }
                 const { fazenda: fazendaSelect, atr: atrInput, editingGroupId, maturador, maturadorDate } = App.elements.harvest;
@@ -5601,6 +5924,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaCodigo: farm ? farm.code : ''
                 };
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
+            },
+
+            generateCensoVarietalReport(format) {
+                const { farmTypeFilter } = App.elements.relatorioCensoVarietal;
+                const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
+                const filters = {
+                    tipos: selectedTypes.join(',')
+                };
+                this._fetchAndDownloadReport(`censo-varietal/${format}`, filters, `censo_varietal.${format}`);
+            },
+
+            generateFaltaColherReport(format) {
+                const { select } = App.elements.relatorioFaltaColher;
+                const planId = select.value;
+
+                if (!planId) {
+                    App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
+                    return;
+                }
+
+                const plan = App.state.harvestPlans.find(p => p.id === planId);
+                if (!plan) {
+                    App.ui.showAlert("Plano de colheita não encontrado.", "error");
+                    return;
+                }
+
+                const filters = { planId };
+                this._fetchAndDownloadReport(`falta-colher/${format}`, filters, `relatorio_falta_colher_${plan.frontName}.${format}`);
             }
         },
 

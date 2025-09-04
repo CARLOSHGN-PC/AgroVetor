@@ -3,7 +3,7 @@
 const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
-const PDFDocument = require('pdfkit');
+const PDFDocument = require('pdfkit-table');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
@@ -691,6 +691,222 @@ try {
             await csvWriter.writeRecords(records);
             res.download(filePath);
         } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
+    });
+
+    app.get('/reports/censo-varietal/:format', async (req, res) => {
+        const { format } = req.params;
+        const { tipos, generatedBy } = req.query;
+
+        try {
+            let farmsQuery = db.collection('fazendas');
+            const selectedTypes = tipos ? tipos.split(',').filter(t => t) : [];
+
+            if (selectedTypes.length > 0) {
+                farmsQuery = farmsQuery.where('types', 'array-contains-any', selectedTypes);
+            }
+
+            const snapshot = await farmsQuery.get();
+            if (snapshot.empty) {
+                return res.status(404).send('Nenhuma fazenda encontrada para os filtros selecionados.');
+            }
+
+            const varietyData = {};
+            let totalArea = 0;
+
+            snapshot.forEach(doc => {
+                const farm = doc.data();
+                if (farm.talhoes && Array.isArray(farm.talhoes)) {
+                    farm.talhoes.forEach(talhao => {
+                        const variety = talhao.variedade ? talhao.variedade.trim().toUpperCase() : 'NÃO IDENTIFICADA';
+                        const area = parseFloat(talhao.area) || 0;
+                        if (area > 0) {
+                            if (!varietyData[variety]) {
+                                varietyData[variety] = 0;
+                            }
+                            varietyData[variety] += area;
+                            totalArea += area;
+                        }
+                    });
+                }
+            });
+
+            if (totalArea === 0) {
+                return res.status(404).send('Nenhum talhão com área ou variedade encontrada.');
+            }
+
+            const sortedVarieties = Object.entries(varietyData)
+                .map(([name, area]) => ({
+                    name,
+                    area,
+                    percentage: (area / totalArea) * 100
+                }))
+                .sort((a, b) => b.area - a.area);
+
+            if (format === 'pdf') {
+                const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', 'attachment; filename=relatorio_censo_varietal.pdf');
+                doc.pipe(res);
+
+                await generatePdfHeader(doc, 'Relatório de Censo Varietal');
+
+                const table = {
+                    headers: ['Variedade', 'Área (ha)', 'Participação (%)'],
+                    rows: sortedVarieties.map(v => [
+                        v.name,
+                        v.area.toFixed(2),
+                        v.percentage.toFixed(2) + '%'
+                    ])
+                };
+
+                table.rows.push(['TOTAL', totalArea.toFixed(2), '100.00%']);
+
+                await doc.table(table, {
+                    prepareHeader: () => doc.font('Helvetica-Bold'),
+                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(10),
+                });
+
+                generatePdfFooter(doc, generatedBy);
+                doc.end();
+
+            } else if (format === 'csv') {
+                const filePath = path.join(os.tmpdir(), `censo_varietal_${Date.now()}.csv`);
+                const csvWriter = createObjectCsvWriter({
+                    path: filePath,
+                    header: [
+                        { id: 'name', title: 'Variedade' },
+                        { id: 'area', title: 'Área (ha)' },
+                        { id: 'percentage', title: 'Participação (%)' }
+                    ]
+                });
+                const records = sortedVarieties.map(v => ({
+                    name: v.name,
+                    area: v.area.toFixed(2),
+                    percentage: v.percentage.toFixed(2)
+                }));
+                await csvWriter.writeRecords(records);
+                res.download(filePath);
+            } else {
+                res.status(400).send('Formato de relatório inválido.');
+            }
+
+        } catch (error) {
+            console.error("Erro ao gerar relatório de censo varietal:", error);
+            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+        }
+    });
+
+    app.get('/reports/falta-colher/:format', async (req, res) => {
+        const { format } = req.params;
+        const { planId, generatedBy } = req.query;
+
+        if (!planId) {
+            return res.status(400).send('ID do plano de colheita é obrigatório.');
+        }
+
+        try {
+            const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
+            if (!harvestPlanDoc.exists) {
+                return res.status(404).send('Plano de colheita não encontrado.');
+            }
+            const harvestPlan = harvestPlanDoc.data();
+
+            const reportData = [];
+            let totalAreaFaltante = 0;
+            let totalProducaoFaltante = 0;
+
+            for (const group of harvestPlan.sequence) {
+                const areaColhida = group.areaColhida || 0;
+                const producaoColhida = group.producaoColhida || 0;
+
+                const areaFaltante = group.totalArea - areaColhida;
+                const producaoFaltante = group.totalProducao - producaoColhida;
+
+                if (areaFaltante > 0.01) { // Use a small epsilon to handle floating point inaccuracies
+                    reportData.push({
+                        fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
+                        talhoes: group.plots.map(p => p.talhaoName).join(', '),
+                        area_total: group.totalArea,
+                        area_colhida: areaColhida,
+                        area_faltante: areaFaltante,
+                        producao_total: group.totalProducao,
+                        producao_colhida: producaoColhida,
+                        producao_faltante: producaoFaltante
+                    });
+                    totalAreaFaltante += areaFaltante;
+                    totalProducaoFaltante += producaoFaltante;
+                }
+            }
+
+            if (format === 'pdf') {
+                const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `attachment; filename=relatorio_falta_colher_${harvestPlan.frontName}.pdf`);
+                doc.pipe(res);
+
+                await generatePdfHeader(doc, `Relatório de Saldo a Colher - ${harvestPlan.frontName}`);
+
+                const table = {
+                    headers: ['Fazenda', 'Talhões', 'Área Total (ha)', 'Área Colhida (ha)', 'Saldo Área (ha)', 'Prod. Total (ton)', 'Prod. Colhida (ton)', 'Saldo Prod. (ton)'],
+                    rows: reportData.map(d => [
+                        d.fazenda,
+                        d.talhoes,
+                        d.area_total.toFixed(2),
+                        d.area_colhida.toFixed(2),
+                        d.area_faltante.toFixed(2),
+                        d.producao_total.toFixed(2),
+                        d.producao_colhida.toFixed(2),
+                        d.producao_faltante.toFixed(2)
+                    ])
+                };
+
+                table.rows.push([
+                    'TOTAL', '', '', '', totalAreaFaltante.toFixed(2), '', '', totalProducaoFaltante.toFixed(2)
+                ]);
+
+                await doc.table(table, {
+                    prepareHeader: () => doc.font('Helvetica-Bold'),
+                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
+                });
+
+                generatePdfFooter(doc, generatedBy);
+                doc.end();
+
+            } else if (format === 'csv') {
+                const filePath = path.join(os.tmpdir(), `falta_colher_${Date.now()}.csv`);
+                const csvWriter = createObjectCsvWriter({
+                    path: filePath,
+                    header: [
+                        { id: 'fazenda', title: 'Fazenda' },
+                        { id: 'talhoes', title: 'Talhões' },
+                        { id: 'area_total', title: 'Área Total (ha)' },
+                        { id: 'area_colhida', title: 'Área Colhida (ha)' },
+                        { id: 'area_faltante', title: 'Saldo Área (ha)' },
+                        { id: 'producao_total', title: 'Produção Total (ton)' },
+                        { id: 'producao_colhida', title: 'Produção Colhida (ton)' },
+                        { id: 'producao_faltante', title: 'Saldo Produção (ton)' }
+                    ]
+                });
+                const records = reportData.map(d => ({
+                    ...d,
+                    area_total: d.area_total.toFixed(2),
+                    area_colhida: d.area_colhida.toFixed(2),
+                    area_faltante: d.area_faltante.toFixed(2),
+                    producao_total: d.producao_total.toFixed(2),
+                    producao_colhida: d.producao_colhida.toFixed(2),
+                    producao_faltante: d.producao_faltante.toFixed(2)
+                }));
+                await csvWriter.writeRecords(records);
+                res.download(filePath);
+
+            } else {
+                res.status(400).send('Formato de relatório inválido.');
+            }
+
+        } catch (error) {
+            console.error("Erro ao gerar relatório de o que falta colher:", error);
+            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+        }
     });
 
     app.get('/reports/perda/pdf', async (req, res) => {
