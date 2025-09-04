@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Relatórios', icon: 'fas fa-chart-line',
                     submenu: [
+                        { label: 'Relatório Plantio', icon: 'fas fa-leaf', target: 'relatorioPlantio', permission: 'planejamentoPlantio' },
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
@@ -121,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
+                        { label: 'Gerir Maturação', icon: 'fas fa-hourglass-half', target: 'gerirMaturacao', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
@@ -146,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fazendas: [],
             personnel: [],
             varietyCompanies: [],
+            varietyMaturations: [],
             companyLogo: null,
             activeSubmenu: null,
             charts: {},
@@ -281,6 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             cuttingOrders: {
                 listContainer: document.getElementById('cuttingOrdersListContainer'),
+                filterInput: document.getElementById('cuttingOrderFilter'),
                 btnAddNew: document.getElementById('btnAddNewCuttingOrder'),
                 modal: {
                     overlay: document.getElementById('manualCuttingOrderModal'),
@@ -297,6 +301,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     sequentialId: document.getElementById('manualCuttingOrderSequentialId'),
                     title: document.getElementById('manualCuttingOrderModalTitle')
                 }
+            },
+            maturation: {
+                id: document.getElementById('maturationId'),
+                varietyName: document.getElementById('maturationVarietyName'),
+                cycle: document.getElementById('maturationCycle'),
+                btnSave: document.getElementById('btnSaveMaturation'),
+                list: document.getElementById('maturationList'),
             },
             companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
@@ -534,7 +545,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 farmTypeFilter: document.querySelectorAll('#censoVarietalFarmTypeFilter input[type="checkbox"]'),
                 companyFilter: document.getElementById('censoVarietalCompanyFilter'),
                 model: document.getElementById('censoVarietalModel'),
-                cuttingOrderInput: document.getElementById('censoVarietalCuttingOrder'),
                 btnPDF: document.getElementById('btnPDFCensoVarietal'),
                 btnExcel: document.getElementById('btnExcelCensoVarietal'),
             },
@@ -794,7 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'plantingPlans', 'armadilhas', 'varietyCompanies', 'cuttingOrders' ];
+                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'plantingPlans', 'armadilhas', 'varietyCompanies', 'cuttingOrders', 'varietyMaturations' ];
                 
                 collectionsToListen.forEach(collectionName => {
                     const q = collection(db, collectionName);
@@ -1119,6 +1129,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderPermissionItems(App.elements.users.permissionsContainer);
                 }
                 if (id === 'cadastros') this.renderFarmSelect();
+                if (id === 'gerirMaturacao') this.renderMaturationList();
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
@@ -1706,17 +1717,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            renderCuttingOrdersList() {
+            renderCuttingOrdersList(ordersToRender = null) {
                 const { listContainer } = App.elements.cuttingOrders;
                 if (!listContainer) return;
                 listContainer.innerHTML = '';
 
-                if (!App.state.cuttingOrders || App.state.cuttingOrders.length === 0) {
-                    listContainer.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma ordem de corte encontrada.</p>';
+                const orders = ordersToRender || App.state.cuttingOrders;
+
+                if (!orders || orders.length === 0) {
+                    listContainer.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma ordem de corte encontrada para os filtros aplicados.</p>';
                     return;
                 }
 
-                const sortedOrders = App.state.cuttingOrders.sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0));
+                const sortedOrders = orders.sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0));
 
                 sortedOrders.forEach(order => {
                     const card = document.createElement('div');
@@ -2440,9 +2453,47 @@ document.addEventListener('DOMContentLoaded', () => {
             if (action === 'delete-variety-company') App.actions.deleteVarietyCompany(id);
                 });
 
+            renderMaturationList() {
+                const { list } = App.elements.maturation;
+                list.innerHTML = '';
+                if (App.state.varietyMaturations.length === 0) {
+                    list.innerHTML = '<p>Nenhuma classificação de maturação cadastrada.</p>';
+                    return;
+                }
+                const table = document.createElement('table');
+                table.className = 'harvestPlanTable';
+                table.innerHTML = `<thead><tr><th>Variedade</th><th>Ciclo de Maturação</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+                App.state.varietyMaturations.sort((a, b) => a.varietyName.localeCompare(b.varietyName)).forEach(m => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td data-label="Variedade">${m.varietyName}</td>
+                        <td data-label="Ciclo">${m.cycle}</td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-maturation" data-id="${m.id}"><i class="fas fa-edit"></i></button>
+                                <button class="btn-excluir" data-action="delete-maturation" data-id="${m.id}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                });
+                list.appendChild(table);
+            },
+
                 if (App.elements.cadastros.btnSaveTalhao) App.elements.cadastros.btnSaveTalhao.addEventListener('click', () => App.actions.saveTalhao());
         if (App.elements.cadastros.btnSaveVarietyCompany) App.elements.cadastros.btnSaveVarietyCompany.addEventListener('click', () => App.actions.saveVarietyCompany());
         if (App.elements.cadastros.csvUploadArea) App.elements.cadastros.csvUploadArea.addEventListener('click', () => App.elements.cadastros.csvFileInput.click());
+
+        // Listeners for Maturation Management
+        const maturationEls = App.elements.maturation;
+        if (maturationEls.btnSave) maturationEls.btnSave.addEventListener('click', () => App.actions.saveMaturation());
+        if (maturationEls.list) maturationEls.list.addEventListener('click', e => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const { action, id } = btn.dataset;
+            if (action === 'edit-maturation') App.actions.editMaturation(id);
+            if (action === 'delete-maturation') App.actions.deleteMaturation(id);
+        });
 
         const manualCuttingOrderModal = App.elements.cuttingOrders.modal;
         if (manualCuttingOrderModal) {
@@ -2452,6 +2503,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (manualCuttingOrderModal.saveBtn) manualCuttingOrderModal.saveBtn.addEventListener('click', () => App.actions.saveManualCuttingOrder());
             if (manualCuttingOrderModal.fazenda) manualCuttingOrderModal.fazenda.addEventListener('change', (e) => App.ui.renderTalhaoSelectionForManualCuttingOrder(e.target.value));
         }
+
+                if (App.elements.cuttingOrders.filterInput) {
+                    App.elements.cuttingOrders.filterInput.addEventListener('input', App.debounce((e) => {
+                        const searchTerm = e.target.value.toLowerCase();
+                        if (!searchTerm) {
+                            App.ui.renderCuttingOrdersList(App.state.cuttingOrders);
+                            return;
+                        }
+                        const filteredOrders = App.state.cuttingOrders.filter(order => {
+                            const orderNumber = order.sequentialId ? `oc-${order.sequentialId}` : '';
+                            return orderNumber.includes(searchTerm);
+                        });
+                        App.ui.renderCuttingOrdersList(filteredOrders);
+                    }, 300));
+                }
 
         if (App.elements.cuttingOrders.listContainer) {
             App.elements.cuttingOrders.listContainer.addEventListener('click', (e) => {
@@ -2569,10 +2635,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                const plantingReportBtnPDF = document.getElementById('btnPDFPlantingPlan');
+                const plantingReportBtnPDF = document.getElementById('btnPDFPlantingPlanReport');
                 if (plantingReportBtnPDF) plantingReportBtnPDF.addEventListener('click', () => App.reports.generatePlantingPlanReport('pdf'));
 
-                const plantingReportBtnExcel = document.getElementById('btnExcelPlantingPlan');
+                const plantingReportBtnExcel = document.getElementById('btnExcelPlantingPlanReport');
                 if (plantingReportBtnExcel) plantingReportBtnExcel.addEventListener('click', () => App.reports.generatePlantingPlanReport('csv'));
                 
                 if (App.elements.broca.codigo) App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
@@ -3355,6 +3421,10 @@ document.addEventListener('DOMContentLoaded', () => {
             editPlantingPlan(planId = null) {
                 const els = App.elements.planting;
                 App.ui.showPlantingPlanEditor();
+
+                // Ensure the event listener is always attached
+                els.fazenda.onchange = (e) => App.ui.renderTalhaoSelectionForPlanting(e.target.value);
+
                 App.ui.populateFazendaSelects([els.fazenda]);
 
                 if (planId) {
@@ -4571,6 +4641,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            async saveMaturation() {
+                const { id, varietyName, cycle } = App.elements.maturation;
+                const name = varietyName.value.trim().toUpperCase();
+                const cycleValue = cycle.value;
+
+                if (!name || !cycleValue) {
+                    App.ui.showAlert("Nome da variedade e ciclo são obrigatórios.", "error");
+                    return;
+                }
+
+                const data = { varietyName: name, cycle: cycleValue };
+                const existingId = id.value;
+
+                const confirmationMessage = existingId ? `Atualizar a maturação para a variedade ${name}?` : `Adicionar a maturação para a variedade ${name}?`;
+
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    try {
+                        if (existingId) {
+                            await App.data.updateDocument('varietyMaturations', existingId, data);
+                        } else {
+                            const existingVariety = App.state.varietyMaturations.find(m => m.varietyName.toUpperCase() === name);
+                            if (existingVariety) {
+                                App.ui.showAlert("Esta variedade já possui uma classificação. Edite a entrada existente.", "warning");
+                                return;
+                            }
+                            await App.data.addDocument('varietyMaturations', data);
+                        }
+                        App.ui.showAlert("Classificação de maturação guardada com sucesso!");
+                        id.value = '';
+                        varietyName.value = '';
+                        varietyName.disabled = false;
+                    } catch (e) {
+                        App.ui.showAlert("Erro ao guardar classificação.", "error");
+                    }
+                });
+            },
+
+            editMaturation(maturationId) {
+                const maturation = App.state.varietyMaturations.find(m => m.id === maturationId);
+                if (maturation) {
+                    const { id, varietyName, cycle } = App.elements.maturation;
+                    id.value = maturation.id;
+                    varietyName.value = maturation.varietyName;
+                    varietyName.disabled = true; // Prevent changing the name, as it's the key
+                    cycle.value = maturation.cycle;
+                    varietyName.focus();
+                }
+            },
+
+            deleteMaturation(maturationId) {
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir esta classificação?", async () => {
+                    await App.data.deleteDocument('varietyMaturations', maturationId);
+                    App.ui.showAlert('Classificação excluída com sucesso.', 'info');
+                });
+            },
+
             async saveManualCuttingOrder() {
                 const { modal } = App.elements.cuttingOrders;
                 const orderId = modal.orderId.value;
@@ -4647,7 +4773,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal("Tem a certeza que deseja encerrar esta ordem de corte? Após encerrada, não poderá ser reaberta ou editada.", async () => {
                     App.ui.setLoading(true, "A encerrar ordem...");
                     try {
-                        await App.data.updateDocument('cuttingOrders', orderId, { status: 'Encerrada' });
+                        await App.data.updateDocument('cuttingOrders', orderId, {
+                            status: 'Encerrada',
+                            closedAt: serverTimestamp()
+                        });
                         App.ui.showAlert("Ordem de corte encerrada com sucesso.");
                     } catch (error) {
                         App.ui.showAlert("Erro ao encerrar a ordem de corte.", "error");
@@ -4705,6 +4834,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async openManualCuttingOrderModal(orderId = null) {
                 const { modal } = App.elements.cuttingOrders;
+
+                // Ensure the event listener is always attached
+                modal.fazenda.onchange = (e) => App.ui.renderTalhaoSelectionForManualCuttingOrder(e.target.value);
 
                 App.ui.populateFazendaSelects([modal.fazenda]);
 
@@ -6489,13 +6621,12 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generateCensoVarietalReport(format) {
-                const { farmTypeFilter, companyFilter, model, cuttingOrderInput } = App.elements.relatorioCensoVarietal;
+                const { farmTypeFilter, companyFilter, model } = App.elements.relatorioCensoVarietal;
                 const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
                 const filters = {
                     tipos: selectedTypes.join(','),
                     companyId: companyFilter.value,
-                    model: model.value,
-                    cuttingOrderNumber: cuttingOrderInput.value || '',
+                    model: model.value
                 };
                 this._fetchAndDownloadReport(`censo-varietal/${format}`, filters, `censo_varietal.${format}`);
             },
