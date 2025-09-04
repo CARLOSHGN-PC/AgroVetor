@@ -108,7 +108,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Relatórios', icon: 'fas fa-chart-line',
                     submenu: [
-                        { label: 'Relatório Plantio', icon: 'fas fa-leaf', target: 'relatorioPlantio', permission: 'planejamentoPlantio' },
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
@@ -284,7 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             cuttingOrders: {
                 listContainer: document.getElementById('cuttingOrdersListContainer'),
-                filterInput: document.getElementById('cuttingOrderFilter'),
                 btnAddNew: document.getElementById('btnAddNewCuttingOrder'),
                 modal: {
                     overlay: document.getElementById('manualCuttingOrderModal'),
@@ -1717,30 +1715,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            renderCuttingOrdersList(ordersToRender = null) {
+            renderCuttingOrdersList() {
                 const { listContainer } = App.elements.cuttingOrders;
                 if (!listContainer) return;
                 listContainer.innerHTML = '';
 
-                const orders = ordersToRender || App.state.cuttingOrders;
-
-                if (!orders || orders.length === 0) {
-                    listContainer.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma ordem de corte encontrada para os filtros aplicados.</p>';
+                if (!App.state.cuttingOrders || App.state.cuttingOrders.length === 0) {
+                    listContainer.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma ordem de corte encontrada.</p>';
                     return;
                 }
 
-                const sortedOrders = orders.sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0));
+                const table = document.createElement('table');
+                table.className = 'harvestPlanTable'; // Reutilizar estilo existente
+                table.innerHTML = `<thead><tr><th>Nº da Ordem</th><th>Frente</th><th>Data Criação</th><th>Status</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
 
-                sortedOrders.forEach(order => {
-                    const card = document.createElement('div');
-                    card.className = 'plano-card';
-                    card.style.borderLeftColor = 'var(--color-success)';
-
-                    const statusClass = (order.status || 'Pendente').toLowerCase().replace(/\s+/g, '-');
+                App.state.cuttingOrders.sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0)).forEach(order => {
+                    const row = tbody.insertRow();
+                    const statusClass = order.status ? order.status.toLowerCase() : 'pendente';
+                    const createdAt = order.createdAt?.toDate() ? order.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
                     const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
-                    const talhoesSummary = `${(order.plots || []).length} talhão(ões)`;
 
-                    let actionsHTML = `<button class="btn-excluir" style="background-color: var(--color-purple);" data-action="view-cutting-order" data-id="${order.id}"><i class="fas fa-eye"></i> Ver Detalhes</button>`;
+                    let actionsHTML = `
+                        <button class="btn-excluir" style="background-color: var(--color-purple);" data-action="view-cutting-order" data-id="${order.id}"><i class="fas fa-eye"></i> Ver</button>
+                    `;
+
                     if (order.status !== 'Encerrada') {
                         actionsHTML += `
                             <button class="btn-excluir" style="background-color: var(--color-info);" data-action="edit-cutting-order" data-id="${order.id}"><i class="fas fa-edit"></i> Editar</button>
@@ -1749,25 +1748,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                     }
 
-                    card.innerHTML = `
-                        <div class="plano-header">
-                            <span class="plano-title"><i class="fas fa-file-signature"></i> ${orderNumber}</span>
-                            <span class="plano-status ${statusClass}">${order.status || 'Pendente'}</span>
-                        </div>
-                        <div class="plano-details" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
-                            <div><i class="fas fa-tractor"></i> <strong>Frente:</strong> ${order.frontName}</div>
-                            <div><i class="fas fa-map-marker-alt"></i> <strong>Fazenda:</strong> ${order.fazendaName}</div>
-                            <div><i class="fas fa-calendar-alt"></i> <strong>Período:</strong> ${new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')} a ${new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
-                            <div><i class="fas fa-th-large"></i> <strong>Talhões:</strong> ${talhoesSummary}</div>
-                            <div><i class="fas fa-ruler-combined"></i> <strong>Área:</strong> ${(order.totalArea || 0).toFixed(2)} ha</div>
-                            <div><i class="fas fa-weight-hanging"></i> <strong>Produção:</strong> ${(order.totalProducao || 0).toFixed(2)} ton</div>
-                        </div>
-                        <div class="plano-actions">
-                            ${actionsHTML}
-                        </div>
+
+                    row.innerHTML = `
+                        <td data-label="Nº da Ordem">${orderNumber}</td>
+                        <td data-label="Frente">${order.frontName}</td>
+                        <td data-label="Data Criação">${createdAt}</td>
+                        <td data-label="Status"><span class="plano-status ${statusClass}">${order.status || 'Pendente'}</span></td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                ${actionsHTML}
+                            </div>
+                        </td>
                     `;
-                    listContainer.appendChild(card);
                 });
+                listContainer.appendChild(table);
             },
             renderLogoPreview() {
                 const { logoPreview, removeLogoBtn } = App.elements.companyConfig;
@@ -2456,7 +2450,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderMaturationList() {
                 const { list } = App.elements.maturation;
                 list.innerHTML = '';
-                if (App.state.varietyMaturations.length === 0) {
+                if (!App.state.varietyMaturations || App.state.varietyMaturations.length === 0) {
                     list.innerHTML = '<p>Nenhuma classificação de maturação cadastrada.</p>';
                     return;
                 }
@@ -2503,21 +2497,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (manualCuttingOrderModal.saveBtn) manualCuttingOrderModal.saveBtn.addEventListener('click', () => App.actions.saveManualCuttingOrder());
             if (manualCuttingOrderModal.fazenda) manualCuttingOrderModal.fazenda.addEventListener('change', (e) => App.ui.renderTalhaoSelectionForManualCuttingOrder(e.target.value));
         }
-
-                if (App.elements.cuttingOrders.filterInput) {
-                    App.elements.cuttingOrders.filterInput.addEventListener('input', App.debounce((e) => {
-                        const searchTerm = e.target.value.toLowerCase();
-                        if (!searchTerm) {
-                            App.ui.renderCuttingOrdersList(App.state.cuttingOrders);
-                            return;
-                        }
-                        const filteredOrders = App.state.cuttingOrders.filter(order => {
-                            const orderNumber = order.sequentialId ? `oc-${order.sequentialId}` : '';
-                            return orderNumber.includes(searchTerm);
-                        });
-                        App.ui.renderCuttingOrdersList(filteredOrders);
-                    }, 300));
-                }
 
         if (App.elements.cuttingOrders.listContainer) {
             App.elements.cuttingOrders.listContainer.addEventListener('click', (e) => {
@@ -2635,10 +2614,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                const plantingReportBtnPDF = document.getElementById('btnPDFPlantingPlanReport');
+                const plantingReportBtnPDF = document.getElementById('btnPDFPlantingPlan');
                 if (plantingReportBtnPDF) plantingReportBtnPDF.addEventListener('click', () => App.reports.generatePlantingPlanReport('pdf'));
 
-                const plantingReportBtnExcel = document.getElementById('btnExcelPlantingPlanReport');
+                const plantingReportBtnExcel = document.getElementById('btnExcelPlantingPlan');
                 if (plantingReportBtnExcel) plantingReportBtnExcel.addEventListener('click', () => App.reports.generatePlantingPlanReport('csv'));
                 
                 if (App.elements.broca.codigo) App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
@@ -3421,10 +3400,6 @@ document.addEventListener('DOMContentLoaded', () => {
             editPlantingPlan(planId = null) {
                 const els = App.elements.planting;
                 App.ui.showPlantingPlanEditor();
-
-                // Ensure the event listener is always attached
-                els.fazenda.onchange = (e) => App.ui.renderTalhaoSelectionForPlanting(e.target.value);
-
                 App.ui.populateFazendaSelects([els.fazenda]);
 
                 if (planId) {
@@ -4773,10 +4748,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal("Tem a certeza que deseja encerrar esta ordem de corte? Após encerrada, não poderá ser reaberta ou editada.", async () => {
                     App.ui.setLoading(true, "A encerrar ordem...");
                     try {
-                        await App.data.updateDocument('cuttingOrders', orderId, {
-                            status: 'Encerrada',
-                            closedAt: serverTimestamp()
-                        });
+                        await App.data.updateDocument('cuttingOrders', orderId, { status: 'Encerrada' });
                         App.ui.showAlert("Ordem de corte encerrada com sucesso.");
                     } catch (error) {
                         App.ui.showAlert("Erro ao encerrar a ordem de corte.", "error");
@@ -4834,9 +4806,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async openManualCuttingOrderModal(orderId = null) {
                 const { modal } = App.elements.cuttingOrders;
-
-                // Ensure the event listener is always attached
-                modal.fazenda.onchange = (e) => App.ui.renderTalhaoSelectionForManualCuttingOrder(e.target.value);
 
                 App.ui.populateFazendaSelects([modal.fazenda]);
 
