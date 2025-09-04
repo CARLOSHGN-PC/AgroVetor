@@ -695,95 +695,145 @@ try {
 
     app.get('/reports/censo-varietal/:format', async (req, res) => {
         const { format } = req.params;
-        const { tipos, generatedBy } = req.query;
+        const { tipos, companyId, generatedBy } = req.query;
 
         try {
+            // 1. Fetch Variety-Company Mappings
+            const varietyToCompany = {};
+            let companyNameFilter = 'Todas';
+            const companiesSnapshot = await db.collection('varietyCompanies').get();
+            companiesSnapshot.forEach(doc => {
+                const company = doc.data();
+                if (company.varieties && Array.isArray(company.varieties)) {
+                    company.varieties.forEach(v => {
+                        varietyToCompany[v.trim().toUpperCase()] = company.name;
+                    });
+                }
+            });
+
+            if (companyId) {
+                const companyDoc = await db.collection('varietyCompanies').doc(companyId).get();
+                if (companyDoc.exists) {
+                    companyNameFilter = companyDoc.data().name;
+                }
+            }
+
+            // 2. Fetch Farm Data
             let farmsQuery = db.collection('fazendas');
             const selectedTypes = tipos ? tipos.split(',').filter(t => t) : [];
-
             if (selectedTypes.length > 0) {
                 farmsQuery = farmsQuery.where('types', 'array-contains-any', selectedTypes);
             }
-
             const snapshot = await farmsQuery.get();
             if (snapshot.empty) {
                 return res.status(404).send('Nenhuma fazenda encontrada para os filtros selecionados.');
             }
 
-            const varietyData = {};
-            let totalArea = 0;
+            // 3. Process and Group Data
+            const companyData = {};
+            let grandTotalArea = 0;
 
             snapshot.forEach(doc => {
                 const farm = doc.data();
                 if (farm.talhoes && Array.isArray(farm.talhoes)) {
                     farm.talhoes.forEach(talhao => {
                         const variety = talhao.variedade ? talhao.variedade.trim().toUpperCase() : 'NÃO IDENTIFICADA';
+                        const company = varietyToCompany[variety] || 'Outras';
                         const area = parseFloat(talhao.area) || 0;
+
+                        if (companyId && varietyToCompany[variety] !== companyNameFilter) {
+                            return; // Skip if filtering by company and it doesn't match
+                        }
+
                         if (area > 0) {
-                            if (!varietyData[variety]) {
-                                varietyData[variety] = 0;
+                            if (!companyData[company]) {
+                                companyData[company] = { totalArea: 0, varieties: {} };
                             }
-                            varietyData[variety] += area;
-                            totalArea += area;
+                            if (!companyData[company].varieties[variety]) {
+                                companyData[company].varieties[variety] = 0;
+                            }
+                            companyData[company].varieties[variety] += area;
+                            companyData[company].totalArea += area;
+                            grandTotalArea += area;
                         }
                     });
                 }
             });
 
-            if (totalArea === 0) {
+            if (grandTotalArea === 0) {
                 return res.status(404).send('Nenhum talhão com área ou variedade encontrada.');
             }
 
-            const sortedVarieties = Object.entries(varietyData)
-                .map(([name, area]) => ({
-                    name,
-                    area,
-                    percentage: (area / totalArea) * 100
-                }))
-                .sort((a, b) => b.area - a.area);
-
+            // 4. Generate Report
             if (format === 'pdf') {
                 const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
                 res.setHeader('Content-Type', 'application/pdf');
                 res.setHeader('Content-Disposition', 'attachment; filename=relatorio_censo_varietal.pdf');
                 doc.pipe(res);
 
-                await generatePdfHeader(doc, 'Relatório de Censo Varietal');
+                let currentY = await generatePdfHeader(doc, `Relatório de Censo Varietal - ${companyNameFilter}`);
 
-                const table = {
-                    headers: ['Variedade', 'Área (ha)', 'Participação (%)'],
-                    rows: sortedVarieties.map(v => [
-                        v.name,
-                        v.area.toFixed(2),
-                        v.percentage.toFixed(2) + '%'
-                    ])
-                };
+                const sortedCompanies = Object.keys(companyData).sort();
 
-                table.rows.push(['TOTAL', totalArea.toFixed(2), '100.00%']);
+                for (const company of sortedCompanies) {
+                    currentY = await checkPageBreak(doc, currentY, 'Censo Varietal', 60);
+                    doc.y = currentY;
+                    doc.fontSize(12).font('Helvetica-Bold').text(company, { underline: true });
+                    currentY = doc.y + 5;
 
-                await doc.table(table, {
-                    prepareHeader: () => doc.font('Helvetica-Bold'),
-                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(10),
-                });
+                    const sortedVarieties = Object.entries(companyData[company].varieties)
+                        .map(([name, area]) => ({ name, area, percentage: (area / companyData[company].totalArea) * 100 }))
+                        .sort((a, b) => b.area - a.area);
+
+                    const table = {
+                        headers: ['Variedade', 'Área (ha)', `Participação (${company})`],
+                        rows: sortedVarieties.map(v => [v.name, v.area.toFixed(2), v.percentage.toFixed(2) + '%'])
+                    };
+                    table.rows.push(['Subtotal', companyData[company].totalArea.toFixed(2), '100.00%']);
+
+                    await doc.table(table, {
+                        y: currentY,
+                        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
+                        prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
+                        width: doc.page.width - doc.page.margins.left - doc.page.margins.right
+                    });
+                    currentY = doc.y + 15;
+                }
+
+                doc.y = currentY + 10;
+                doc.fontSize(12).font('Helvetica-Bold').text(`Total Geral: ${grandTotalArea.toFixed(2)} ha`);
 
                 generatePdfFooter(doc, generatedBy);
                 doc.end();
 
             } else if (format === 'csv') {
+                const records = [];
+                const sortedCompanies = Object.keys(companyData).sort();
+                for (const company of sortedCompanies) {
+                    const sortedVarieties = Object.entries(companyData[company].varieties)
+                        .map(([name, area]) => ({ name, area, percentage: (area / grandTotalArea) * 100 }))
+                        .sort((a, b) => b.area - a.area);
+
+                    sortedVarieties.forEach(v => {
+                        records.push({
+                            company: company,
+                            variety: v.name,
+                            area: v.area.toFixed(2),
+                            percentage: v.percentage.toFixed(2)
+                        });
+                    });
+                }
+
                 const filePath = path.join(os.tmpdir(), `censo_varietal_${Date.now()}.csv`);
                 const csvWriter = createObjectCsvWriter({
                     path: filePath,
                     header: [
-                        { id: 'name', title: 'Variedade' },
+                        { id: 'company', title: 'Empresa' },
+                        { id: 'variety', title: 'Variedade' },
                         { id: 'area', title: 'Área (ha)' },
                         { id: 'percentage', title: 'Participação (%)' }
                     ]
                 });
-                const records = sortedVarieties.map(v => ({
-                    name: v.name,
-                    area: v.area.toFixed(2),
-                    percentage: v.percentage.toFixed(2)
-                }));
                 await csvWriter.writeRecords(records);
                 res.download(filePath);
             } else {
