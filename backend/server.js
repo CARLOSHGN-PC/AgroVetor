@@ -846,6 +846,77 @@ try {
         }
     });
 
+    app.get('/reports/plantio/:format', async (req, res) => {
+        const { format } = req.params;
+        const { generatedBy } = req.query;
+
+        try {
+            const snapshot = await db.collection('plantingPlans').orderBy('date', 'desc').get();
+            if (snapshot.empty) {
+                return res.status(404).send('Nenhum plano de plantio encontrado.');
+            }
+
+            const reportData = [];
+            snapshot.forEach(doc => {
+                reportData.push({ id: doc.id, ...doc.data() });
+            });
+
+            if (format === 'pdf') {
+                const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', 'attachment; filename=relatorio_planejamento_plantio.pdf');
+                doc.pipe(res);
+
+                await generatePdfHeader(doc, 'Relatório de Planejamento de Plantio');
+
+                const table = {
+                    headers: ['Plano', 'Safra', 'Data', 'Tipo', 'Prestador', 'Área (ha)', 'Variedade', 'TCH'],
+                    rows: reportData.map(p => [
+                        p.planName,
+                        p.safra,
+                        p.date,
+                        p.tipoPlantio,
+                        p.prestador,
+                        p.area.toFixed(2),
+                        p.variedade,
+                        p.tch.toFixed(2)
+                    ])
+                };
+
+                await doc.table(table, {
+                    prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
+                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
+                });
+
+                generatePdfFooter(doc, generatedBy);
+                doc.end();
+            } else if (format === 'csv') {
+                const filePath = path.join(os.tmpdir(), `relatorio_plantio_${Date.now()}.csv`);
+                const csvWriter = createObjectCsvWriter({
+                    path: filePath,
+                    header: [
+                        { id: 'planName', title: 'Plano' },
+                        { id: 'safra', title: 'Safra' },
+                        { id: 'date', title: 'Data' },
+                        { id: 'tipoPlantio', title: 'Tipo' },
+                        { id: 'prestador', title: 'Prestador' },
+                        { id: 'area', title: 'Área (ha)' },
+                        { id: 'variedade', title: 'Variedade' },
+                        { id: 'tch', title: 'TCH' }
+                    ]
+                });
+                await csvWriter.writeRecords(reportData);
+                res.download(filePath);
+            } else {
+                res.status(400).send('Formato de relatório inválido.');
+            }
+
+        } catch (error) {
+            console.error("Erro ao gerar relatório de plantio:", error);
+            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+        }
+    });
+
     app.get('/reports/falta-colher/:format', async (req, res) => {
         const { format } = req.params;
         const { planId, fazendaCodigo, talhao, generatedBy } = req.query;
