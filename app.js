@@ -413,6 +413,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 date: document.getElementById('plantingPlanDate'),
                 tch: document.getElementById('plantingPlanTCH'),
                 obs: document.getElementById('plantingPlanObs'),
+                tipoPlantio: document.getElementById('plantingPlanTipoPlantio'),
+                prestador: document.getElementById('plantingPlanPrestador'),
+                tipoArea: document.getElementById('plantingPlanTipoArea'),
+                preReforma: document.getElementById('plantingPlanPreReforma'),
+                preReformaOutro: document.getElementById('plantingPlanPreReformaOutro'),
             },
             broca: {
                 form: document.getElementById('lancamentoBroca'),
@@ -496,6 +501,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             relatorioFaltaColher: {
                 select: document.getElementById('faltaColherPlanoSelect'),
+                fazendaFiltro: document.getElementById('faltaColherFazendaFiltro'),
+                talhaoFiltro: document.getElementById('faltaColherTalhaoFiltro'),
                 btnPDF: document.getElementById('btnPDFFaltaColher'),
                 btnExcel: document.getElementById('btnExcelFaltaColher'),
             },
@@ -1234,7 +1241,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cadastros.farmSelect,
                     App.elements.broca.codigo,
                     App.elements.perda.codigo,
-                    App.elements.relatorioMonitoramento.fazendaFiltro
+                    App.elements.relatorioMonitoramento.fazendaFiltro,
+                    App.elements.planting.fazenda,
+                    App.elements.relatorioFaltaColher.fazendaFiltro
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
@@ -2304,6 +2313,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (action === 'edit-planting') App.actions.editPlantingPlan(id);
                     if (action === 'delete-planting') App.actions.deletePlantingPlan(id);
                 });
+
+                if (plantingEls.preReforma) {
+                    plantingEls.preReforma.addEventListener('change', (e) => {
+                        plantingEls.preReformaOutro.style.display = e.target.value === 'outro' ? 'block' : 'none';
+                    });
+                }
                 
                 if (App.elements.broca.codigo) App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
                 if (App.elements.broca.talhao) App.elements.broca.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('broca'));
@@ -3079,12 +3094,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         els.date.value = plan.date;
                         els.tch.value = plan.tch;
                         els.obs.value = plan.obs;
+                        els.tipoPlantio.value = plan.tipoPlantio || 'mecanizado';
+                        els.prestador.value = plan.prestador || '';
+                        els.tipoArea.value = plan.tipoArea || 'reforma';
+                        els.preReforma.value = plan.preReforma || 'pousio';
+                        if (plan.preReforma === 'outro') {
+                            els.preReformaOutro.style.display = 'block';
+                            els.preReformaOutro.value = plan.preReformaOutro || '';
+                        } else {
+                            els.preReformaOutro.style.display = 'none';
+                            els.preReformaOutro.value = '';
+                        }
                     }
                 } else {
                     // Clear form for new entry
-                    const formElements = [els.planId, els.planName, els.safra, els.fazenda, els.talhao, els.variedade, els.area, els.tch, els.obs];
+                    const formElements = [els.planId, els.planName, els.safra, els.fazenda, els.talhao, els.variedade, els.area, els.tch, els.obs, els.prestador, els.preReformaOutro];
                     formElements.forEach(el => el.value = '');
                     els.date.value = new Date().toISOString().split('T')[0];
+                    els.tipoPlantio.value = 'mecanizado';
+                    els.tipoArea.value = 'reforma';
+                    els.preReforma.value = 'pousio';
+                    els.preReformaOutro.style.display = 'none';
                 }
             },
             async savePlantingPlan() {
@@ -3101,10 +3131,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     date: els.date.value,
                     tch: parseFloat(els.tch.value) || 0,
                     obs: els.obs.value.trim(),
+                    tipoPlantio: els.tipoPlantio.value,
+                    prestador: els.prestador.value.trim(),
+                    tipoArea: els.tipoArea.value,
+                    preReforma: els.preReforma.value,
+                    preReformaOutro: els.preReforma.value === 'outro' ? els.preReformaOutro.value.trim() : null,
                     updatedAt: serverTimestamp()
                 };
 
-                if (!planData.planName || !planData.safra || !planData.fazendaId || !planData.talhao || !planData.variedade || !planData.area || !planData.date || !planData.tch) {
+                if (!planData.planName || !planData.safra || !planData.fazendaId || !planData.talhao || !planData.variedade || !planData.area || !planData.date || !planData.tch || !planData.prestador) {
                     App.ui.showAlert("Preencha todos os campos obrigatórios.", "error");
                     return;
                 }
@@ -5936,7 +5971,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generateFaltaColherReport(format) {
-                const { select } = App.elements.relatorioFaltaColher;
+                const { select, fazendaFiltro, talhaoFiltro } = App.elements.relatorioFaltaColher;
                 const planId = select.value;
 
                 if (!planId) {
@@ -5950,7 +5985,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const filters = { planId };
+                const farmId = fazendaFiltro.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                const filters = {
+                    planId,
+                    fazendaCodigo: farm ? farm.code : '',
+                    talhao: talhaoFiltro.value.trim()
+                };
                 this._fetchAndDownloadReport(`falta-colher/${format}`, filters, `relatorio_falta_colher_${plan.frontName}.${format}`);
             }
         },
