@@ -319,6 +319,26 @@ try {
         }
     });
 
+    app.get('/api/cutting-order-next-id', async (req, res) => {
+        const counterRef = db.collection('counters').doc('cuttingOrder');
+        try {
+            const nextId = await db.runTransaction(async (transaction) => {
+                const counterDoc = await transaction.get(counterRef);
+                if (!counterDoc.exists) {
+                    transaction.set(counterRef, { currentId: 1 });
+                    return 1;
+                }
+                const newId = counterDoc.data().currentId + 1;
+                transaction.update(counterRef, { currentId: newId });
+                return newId;
+            });
+            res.status(200).json({ nextId: nextId });
+        } catch (error) {
+            console.error("Erro ao gerar próximo ID da Ordem de Corte:", error);
+            res.status(500).json({ message: 'Erro no servidor ao gerar ID.' });
+        }
+    });
+
     app.get('/api/history', async (req, res) => {
         const { userId, startDate, endDate } = req.query;
 
@@ -454,48 +474,6 @@ try {
                      { align: 'left', lineBreak: false });
         }
     };
-
-    const drawRow = (doc, rowData, y, isHeader = false, isFooter = false, customWidths, textPadding = 5, rowHeight = 18, columnHeadersConfig = [], isClosed = false) => {
-        const startX = doc.page.margins.left;
-        const fontSize = 8;
-        
-        if (isHeader || isFooter) {
-            doc.font('Helvetica-Bold').fontSize(fontSize);
-            doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
-            doc.fillColor('black');
-        } else {
-            doc.font('Helvetica').fontSize(fontSize);
-            if (isClosed) {
-                doc.rect(startX, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight).fillAndStroke('#f0f0f0', '#f0f0f0');
-                doc.fillColor('#999');
-            }
-        }
-        
-        let currentX = startX;
-        let maxRowHeight = rowHeight;
-
-        rowData.forEach((cell, i) => {
-            let columnId = null;
-            if (Array.isArray(columnHeadersConfig) && i < columnHeadersConfig.length && columnHeadersConfig[i]) {
-                columnId = columnHeadersConfig[i].id;
-            }
-
-            const cellWidth = customWidths[i] - (textPadding * 2);
-            const textOptions = { width: cellWidth, align: 'left', continued: false };
-
-            if (['talhoes', 'variedade'].includes(columnId)) {
-                textOptions.lineBreak = true;
-                textOptions.lineGap = 2;
-            } else {
-                textOptions.lineBreak = false;
-            }
-            
-            const textHeight = doc.heightOfString(String(cell), textOptions);
-            maxRowHeight = Math.max(maxRowHeight, textHeight + textPadding * 2);
-
-            doc.text(String(cell), currentX + textPadding, y + textPadding, textOptions);
-            currentX += customWidths[i];
-        });
 
     // --- [NOVO] FUNÇÕES AUXILIARES PARA MONITORAMENTO ---
     let cachedShapefile = null;
@@ -1197,7 +1175,14 @@ try {
                     { text: grandTotal.saldoProd.toFixed(2), bold: true },
                 ];
 
-                await doc.table({ headers: [], rows: [grandTotalRow] });
+                // Adiciona uma tabela final para o total geral, escondendo o cabeçalho
+                await doc.table({
+                    headers: headers, // Reutiliza os cabeçalhos para manter a estrutura de colunas
+                    rows: [grandTotalRow]
+                }, {
+                    hideHeader: true,
+                    prepareRow: (row, i) => doc.font('Helvetica-Bold').fontSize(9),
+                });
 
                 generatePdfFooter(doc, generatedBy);
                 doc.end();
@@ -1965,6 +1950,71 @@ try {
             console.error("Erro ao gerar PDF de Armadilhas Ativas:", error);
             if (!res.headersSent) res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
             else doc.end();
+        }
+    });
+
+    app.get('/reports/ordem-de-corte/:id/pdf', async (req, res) => {
+        const { id } = req.params;
+        const { generatedBy } = req.query;
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=ordem_de_corte_${id.substring(0,6)}.pdf`);
+        doc.pipe(res);
+
+        try {
+            const orderDoc = await db.collection('cuttingOrders').doc(id).get();
+            if (!orderDoc.exists) {
+                throw new Error("Ordem de corte não encontrada.");
+            }
+            const order = orderDoc.data();
+            const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${orderDoc.id.substring(0, 8).toUpperCase()}`;
+
+            // Header
+            await generatePdfHeader(doc, 'Ordem de Corte');
+            doc.font('Helvetica-Bold').fontSize(16).text(orderNumber, { align: 'right' });
+            doc.moveDown(1.5);
+
+            // Details Section
+            doc.font('Helvetica-Bold').fontSize(11).text('Detalhes da Operação', { underline: true });
+            doc.moveDown(0.5);
+
+            const detailsTable = {
+                headers: [], // No headers for this layout
+                rows: [
+                    ['Frente de Colheita:', order.frontName, 'Status:', { text: order.status, font: 'Helvetica-Bold' }],
+                    ['Fazenda:', `${order.fazendaCodigo} - ${order.fazendaName}`, 'Período de Corte:', `${new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')} a ${new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}`],
+                    ['ATR Previsto:', order.atr, 'Produção Estimada:', `${(order.totalProducao || 0).toFixed(2)} ton`],
+                    ['Área Total:', `${(order.totalArea || 0).toFixed(2)} ha`, '', '']
+                ]
+            };
+            await doc.table(detailsTable, { hideHeader: true });
+            doc.moveDown(2);
+
+            // Plots Section
+            doc.font('Helvetica-Bold').fontSize(11).text('Talhões Incluídos', { underline: true });
+            doc.moveDown(0.5);
+
+            const plotsTable = {
+                headers: ['Nome do Talhão'],
+                rows: (order.plots || []).map(p => [p.talhaoName])
+            };
+            await doc.table(plotsTable, {
+                prepareHeader: () => doc.font('Helvetica-Bold'),
+                prepareRow: (row, i) => doc.font('Helvetica'),
+            });
+            doc.moveDown(2);
+
+            // Footer
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF da Ordem de Corte:", error);
+            if (!res.headersSent) {
+                doc.fontSize(12).text(`Erro ao gerar o relatório: ${error.message}`);
+                doc.end();
+            }
         }
     });
 
