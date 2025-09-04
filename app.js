@@ -534,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 farmTypeFilter: document.querySelectorAll('#censoVarietalFarmTypeFilter input[type="checkbox"]'),
                 companyFilter: document.getElementById('censoVarietalCompanyFilter'),
                 model: document.getElementById('censoVarietalModel'),
+                cuttingOrderInput: document.getElementById('censoVarietalCuttingOrder'),
                 btnPDF: document.getElementById('btnPDFCensoVarietal'),
                 btnExcel: document.getElementById('btnExcelCensoVarietal'),
             },
@@ -1715,21 +1716,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const table = document.createElement('table');
-                table.className = 'harvestPlanTable'; // Reutilizar estilo existente
-                table.innerHTML = `<thead><tr><th>Nº da Ordem</th><th>Frente</th><th>Data Criação</th><th>Status</th><th>Ações</th></tr></thead><tbody></tbody>`;
-                const tbody = table.querySelector('tbody');
+                const sortedOrders = App.state.cuttingOrders.sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0));
 
-                App.state.cuttingOrders.sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0)).forEach(order => {
-                    const row = tbody.insertRow();
-                    const statusClass = order.status ? order.status.toLowerCase() : 'pendente';
-                    const createdAt = order.createdAt?.toDate() ? order.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
+                sortedOrders.forEach(order => {
+                    const card = document.createElement('div');
+                    card.className = 'plano-card';
+                    card.style.borderLeftColor = 'var(--color-success)';
+
+                    const statusClass = (order.status || 'Pendente').toLowerCase().replace(/\s+/g, '-');
                     const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
+                    const talhoesSummary = `${(order.plots || []).length} talhão(ões)`;
 
-                    let actionsHTML = `
-                        <button class="btn-excluir" style="background-color: var(--color-purple);" data-action="view-cutting-order" data-id="${order.id}"><i class="fas fa-eye"></i> Ver</button>
-                    `;
-
+                    let actionsHTML = `<button class="btn-excluir" style="background-color: var(--color-purple);" data-action="view-cutting-order" data-id="${order.id}"><i class="fas fa-eye"></i> Ver Detalhes</button>`;
                     if (order.status !== 'Encerrada') {
                         actionsHTML += `
                             <button class="btn-excluir" style="background-color: var(--color-info);" data-action="edit-cutting-order" data-id="${order.id}"><i class="fas fa-edit"></i> Editar</button>
@@ -1738,20 +1736,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                     }
 
-
-                    row.innerHTML = `
-                        <td data-label="Nº da Ordem">${orderNumber}</td>
-                        <td data-label="Frente">${order.frontName}</td>
-                        <td data-label="Data Criação">${createdAt}</td>
-                        <td data-label="Status"><span class="plano-status ${statusClass}">${order.status || 'Pendente'}</span></td>
-                        <td data-label="Ações">
-                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                ${actionsHTML}
-                            </div>
-                        </td>
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-file-signature"></i> ${orderNumber}</span>
+                            <span class="plano-status ${statusClass}">${order.status || 'Pendente'}</span>
+                        </div>
+                        <div class="plano-details" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+                            <div><i class="fas fa-tractor"></i> <strong>Frente:</strong> ${order.frontName}</div>
+                            <div><i class="fas fa-map-marker-alt"></i> <strong>Fazenda:</strong> ${order.fazendaName}</div>
+                            <div><i class="fas fa-calendar-alt"></i> <strong>Período:</strong> ${new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')} a ${new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
+                            <div><i class="fas fa-th-large"></i> <strong>Talhões:</strong> ${talhoesSummary}</div>
+                            <div><i class="fas fa-ruler-combined"></i> <strong>Área:</strong> ${(order.totalArea || 0).toFixed(2)} ha</div>
+                            <div><i class="fas fa-weight-hanging"></i> <strong>Produção:</strong> ${(order.totalProducao || 0).toFixed(2)} ton</div>
+                        </div>
+                        <div class="plano-actions">
+                            ${actionsHTML}
+                        </div>
                     `;
+                    listContainer.appendChild(card);
                 });
-                listContainer.appendChild(table);
             },
             renderLogoPreview() {
                 const { logoPreview, removeLogoBtn } = App.elements.companyConfig;
@@ -6486,12 +6489,13 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generateCensoVarietalReport(format) {
-                const { farmTypeFilter, companyFilter, model } = App.elements.relatorioCensoVarietal;
+                const { farmTypeFilter, companyFilter, model, cuttingOrderInput } = App.elements.relatorioCensoVarietal;
                 const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
                 const filters = {
                     tipos: selectedTypes.join(','),
                     companyId: companyFilter.value,
-                    model: model.value
+                    model: model.value,
+                    cuttingOrderNumber: cuttingOrderInput.value || '',
                 };
                 this._fetchAndDownloadReport(`censo-varietal/${format}`, filters, `censo_varietal.${format}`);
             },
