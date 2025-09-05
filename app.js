@@ -6010,8 +6010,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderTop10FazendasPerda(data);
                     this.renderPerdaPorFrente(data);
                 }, 0);
-            },
-            renderTop10FazendasBroca(data) {
+            },
+            renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
                 data.forEach(item => {
                     const fazendaKey = `${item.codigo} - ${item.fazenda}`;
