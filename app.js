@@ -2447,13 +2447,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (action === 'delete-variety-company') App.actions.deleteVarietyCompany(id);
                 });
 
-            renderMaturationList() {
+            renderMaturationList() 
+                {
                 const { list } = App.elements.maturation;
                 list.innerHTML = '';
                 if (!App.state.varietyMaturations || App.state.varietyMaturations.length === 0) {
                     list.innerHTML = '<p>Nenhuma classificação de maturação cadastrada.</p>';
                     return;
-                }
+                };
                 const table = document.createElement('table');
                 table.className = 'harvestPlanTable';
                 table.innerHTML = `<thead><tr><th>Variedade</th><th>Ciclo de Maturação</th><th>Ações</th></tr></thead><tbody></tbody>`;
