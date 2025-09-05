@@ -562,7 +562,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnExcel: document.getElementById('btnExcelMonitoramento'),
             },
             relatorioOrdemDeCorte: {
-                select: document.getElementById('ordemDeCorteRelatorioSelect'),
+                inicio: document.getElementById('ordemDeCorteInicio'),
+                fim: document.getElementById('ordemDeCorteFim'),
                 btnPDF: document.getElementById('btnPDFOrdemDeCorte'),
             },
             trapPlacementModal: {
@@ -876,6 +877,17 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         ui: {
+            _setupSelectAllListener(selectAllId, containerId) {
+                const selectAllCheckbox = document.getElementById(selectAllId);
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.addEventListener('change', (e) => {
+                        const isChecked = e.target.checked;
+                        document.querySelectorAll(`#${containerId} input[type="checkbox"]`).forEach(cb => {
+                            cb.checked = isChecked;
+                        });
+                    });
+                }
+            },
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
                 return {
@@ -975,8 +987,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('renderPlantingPlansList', () => this.renderPlantingPlansList());
                 renderWithCatch('renderCuttingOrdersList', () => this.renderCuttingOrdersList());
                 renderWithCatch('populateHarvestPlanSelect', () => this.populateHarvestPlanSelect());
-                renderWithCatch('populateCuttingOrderSelect', () => this.populateCuttingOrderSelect());
-
                 renderWithCatch('dashboard-view', () => {
                     if (document.getElementById('dashboard').classList.contains('active')) {
                         this.showDashboardView('broca');
@@ -1088,25 +1098,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            populateCuttingOrderSelect() {
-                const { select } = App.elements.relatorioOrdemDeCorte;
-                if (!select) return;
-
-                const savedValue = select.value;
-                select.innerHTML = '<option value="">Selecione uma Ordem de Corte...</option>';
-                if (App.state.cuttingOrders.length === 0) {
-                    select.innerHTML += '<option value="" disabled>Nenhuma ordem de corte encontrada</option>';
-                } else {
-                    App.state.cuttingOrders
-                        .sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0))
-                        .forEach(order => {
-                            const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
-                            select.innerHTML += `<option value="${order.id}">${orderNumber} - ${order.frontName}</option>`;
-                        });
-                }
-                select.value = savedValue;
-            },
-
             showTab(id) {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
@@ -1161,9 +1152,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
                 if (id === 'ordensDeCorte') this.renderCuttingOrdersList();
                 if (id === 'planejamentoPlantio') this.showPlantingPlanList();
-                if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCensoVarietal'].includes(id)) this.setDefaultDatesForReportForms();
+                if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCensoVarietal', 'relatorioOrdemDeCorte'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom' || id === 'relatorioFaltaColher') this.populateHarvestPlanSelect();
-                if (id === 'relatorioOrdemDeCorte') this.populateCuttingOrderSelect();
                 if (id === 'lancamentoBroca' || id === 'lancamentoPerda') this.setDefaultDatesForEntryForms();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
@@ -1275,6 +1265,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.relatorioMonitoramento.inicio) {
                     App.elements.relatorioMonitoramento.inicio.value = firstDayOfMonth;
                     App.elements.relatorioMonitoramento.fim.value = lastDayOfMonth;
+                }
+                if (App.elements.relatorioOrdemDeCorte.inicio) {
+                    App.elements.relatorioOrdemDeCorte.inicio.value = firstDayOfMonth;
+                    App.elements.relatorioOrdemDeCorte.fim.value = lastDayOfMonth;
                 }
             },
             setDefaultDatesForDashboard(type) {
@@ -1566,14 +1560,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         label.classList.add('talhao-closed');
                     }
                     label.htmlFor = `talhao-select-${talhao.id}`;
-            
+
+                    const varietyName = talhao.variedade || 'N/A';
+                    const maturation = App.state.varietyMaturations.find(m => m.varietyName.toUpperCase() === varietyName.toUpperCase());
+                    const cycle = maturation ? maturation.cycle : 'N/A';
+                    const cycleClass = maturation ? `maturation-cycle-${cycle.toLowerCase()}` : '';
+
                     label.innerHTML = `
                         <input type="checkbox" id="talhao-select-${talhao.id}" data-talhao-id="${talhao.id}" ${isChecked ? 'checked' : ''} ${isClosed ? 'disabled' : ''}>
                         <div class="talhao-name">${talhao.name}</div>
                         <div class="talhao-details">
                             <span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area ? talhao.area.toFixed(2) : 0} ha</span>
                             <span><i class="fas fa-weight-hanging"></i>Produção: ${talhao.producao ? talhao.producao.toFixed(2) : 0} ton</span>
-                            <span><i class="fas fa-seedling"></i>Variedade: ${talhao.variedade || 'N/A'}</span>
+                            <span><i class="fas fa-seedling"></i>Variedade: ${varietyName} <span class="maturation-cycle-tag ${cycleClass}">${cycle}</span></span>
                             <span><i class="fas fa-cut"></i>Corte: ${talhao.corte || 'N/A'}</span>
                         </div>
                         ${isClosed ? '<div class="talhao-closed-overlay">Encerrado</div>' : ''}
@@ -2689,15 +2688,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (censoVarietalEls.btnPDF) censoVarietalEls.btnPDF.addEventListener('click', () => App.reports.generateCensoVarietalReport('pdf'));
                 if (censoVarietalEls.btnExcel) censoVarietalEls.btnExcel.addEventListener('click', () => App.reports.generateCensoVarietalReport('csv'));
 
-                const censoSelectAll = document.getElementById('censoVarietalSelectAll');
-                if (censoSelectAll) {
-                    censoSelectAll.addEventListener('change', (e) => {
-                        const isChecked = e.target.checked;
-                        document.querySelectorAll('#censoVarietalFarmTypeFilter input[type="checkbox"]').forEach(cb => {
-                            cb.checked = isChecked;
-                        });
-                    });
-                }
+                this._setupSelectAllListener('censoVarietalSelectAll', 'censoVarietalFarmTypeFilter');
+                this._setupSelectAllListener('brocaSelectAll', 'brocaReportFarmTypeFilter');
+                this._setupSelectAllListener('perdaSelectAll', 'perdaReportFarmTypeFilter');
 
                 const faltaColherEls = App.elements.relatorioFaltaColher;
                 if (faltaColherEls.btnPDF) faltaColherEls.btnPDF.addEventListener('click', () => App.reports.generateFaltaColherReport('pdf'));
@@ -4931,14 +4924,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                const harvestMonth = new Date(plan.startDate + 'T03:00:00Z').toLocaleString('pt-BR', { month: 'long' });
+
                 const prompt = `
-                    Otimize a seguinte sequência de colheita de cana-de-açúcar para o mês de ${new Date(plan.startDate).toLocaleString('pt-BR', { month: 'long' })}.
+                    Otimize a seguinte sequência de colheita de cana-de-açúcar para o mês de ${harvestMonth}.
                     Sua tarefa é ser um especialista em agronomia e otimizar a logística de colheita.
                     
                     Critérios de otimização, em ordem de importância:
                     1.  **Potencial de Açúcar (ATR):** Priorize o ATR mais alto. É o fator mais importante.
                     2.  **Maturador:** Se houver maturador aplicado, a colheita ideal é entre 15 e 30 dias após a aplicação. Priorize talhões nessa janela.
-                    3.  **Variedade vs. Mês:** Considere a época ideal de colheita para cada variedade. Variedades de início de safra devem ser colhidas mais cedo (Abril, Maio), as de meio no meio, e as de fim de safra mais tarde (Setembro, Outubro). Use seu conhecimento para julgar.
+                    3.  **Ciclo de Maturação vs. Mês:** Use o ciclo de maturação ('Precoce', 'Médio', 'Tardio') para alinhar com o mês da colheita.
+                        - 'Precoce' (Início de safra): Ideal para colher de Abril a Junho.
+                        - 'Médio' (Meio de safra): Ideal para colher de Julho a Agosto.
+                        - 'Tardio' (Fim de safra): Ideal para colher de Setembro a Novembro.
+                        Priorize grupos cujo ciclo de maturação corresponda melhor ao mês atual da colheita (${harvestMonth}).
                     4.  **Idade da Cana:** Cana mais velha (maior idade em meses) geralmente deve ser priorizada, mas os critérios acima são mais importantes.
                     5.  **Proximidade na Sequência Original:** Se todos os outros critérios forem semelhantes, tente manter a ordem original para não atrapalhar a logística.
 
@@ -4949,10 +4948,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const contextData = plan.sequence.map((group, index) => {
                     const farm = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
                     const varieties = new Set();
+                    const maturationCycles = new Set();
+
                     group.plots.forEach(plot => {
                         const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
                         if (talhao?.variedade) {
+                            const varietyName = talhao.variedade.toUpperCase();
                             varieties.add(talhao.variedade);
+                            const maturation = App.state.varietyMaturations.find(m => m.varietyName.toUpperCase() === varietyName);
+                            if (maturation) {
+                                maturationCycles.add(maturation.cycle);
+                            }
                         }
                     });
 
@@ -4960,9 +4966,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: group.id,
                         fazendaName: group.fazendaName,
                         varieties: Array.from(varieties),
+                        maturationCycles: Array.from(maturationCycles),
                         originalOrder: index + 1,
                         atr: group.atr,
-                        averageAgeMonths: App.actions.calculateAverageAge(group, new Date(plan.startDate)),
+                        averageAgeMonths: App.actions.calculateAverageAge(group, new Date(plan.startDate + 'T03:00:00Z')),
                         maturadorDays: App.actions.calculateMaturadorDays(group)
                     };
                 });
@@ -6633,13 +6640,16 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         generateOrdemDeCorteReport() {
-            const { select } = App.elements.relatorioOrdemDeCorte;
-            const orderId = select.value;
-            if (!orderId) {
-                App.ui.showAlert("Por favor, selecione uma ordem de corte.", "warning");
+            const { inicio, fim } = App.elements.relatorioOrdemDeCorte;
+            if (!inicio.value || !fim.value) {
+                App.ui.showAlert("Por favor, selecione a Data Início e a Data Fim.", "warning");
                 return;
             }
-            this._fetchAndDownloadReport(`ordem-de-corte/${orderId}/pdf`, {}, `ordem_de_corte_${orderId.substring(0,6)}.pdf`);
+            const filters = {
+                inicio: inicio.value,
+                fim: fim.value,
+            };
+            this._fetchAndDownloadReport(`ordem-de-corte/pdf`, filters, `relatorio_ordens_de_corte.pdf`);
         },
 
         generateFaltaColherReport(format) {
