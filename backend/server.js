@@ -550,10 +550,18 @@ try {
                 fazendasData[docSnap.data().code] = docSnap.data();
             });
 
+            const maturationsSnapshot = await db.collection('varietyMaturations').get();
+            const varietyMaturation = {};
+            maturationsSnapshot.forEach(doc => {
+                const data = doc.data();
+                varietyMaturation[data.varietyName.toUpperCase()] = data.cycle;
+            });
+
             const enrichedData = data.map(reg => {
                 const farm = fazendasData[reg.codigo];
                 const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === reg.talhao.toUpperCase());
-                return { ...reg, variedade: talhao?.variedade || 'N/A' };
+                const variedade = talhao?.variedade || 'N/A';
+                return { ...reg, variedade: variedade, maturacao: varietyMaturation[variedade.toUpperCase()] || 'N/A' };
             });
 
             const isModelB = filters.tipoRelatorio === 'B';
@@ -569,23 +577,34 @@ try {
                 }, {});
 
                 for (const fazendaKey of Object.keys(groupedData).sort()) {
-                    doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, { underline: true });
+                    // Adiciona quebra de página se não houver espaço suficiente
+                    if (doc.y + 60 > doc.page.height - doc.page.margins.bottom) {
+                        doc.addPage();
+                    }
+
+                    doc.fontSize(10).font('Helvetica-Bold').text(fazendaKey, { underline: true });
                     doc.moveDown(0.5);
 
                     const farmData = groupedData[fazendaKey];
                     const table = {
-                        headers: ['Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'],
-                        rows: farmData.map(r => [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento])
+                    headers: ['Data', 'Talhão', 'Variedade', 'Maturação', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'],
+                    rows: farmData.map(r => [r.data, r.talhao, r.variedade, r.maturacao, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento])
                     };
-                    await doc.table(table, { prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') });
+                await doc.table(table, {
+                    prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+                    prepareRow: () => doc.font('Helvetica').fontSize(8)
+                });
                     doc.moveDown();
                 }
             } else { // Modelo A - Geral
                 const table = {
-                    headers: ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'],
-                    rows: enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento])
+                headers: ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Maturação', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'],
+                rows: enrichedData.map(r => [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.maturacao, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento])
                 };
-                await doc.table(table, { prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') });
+            await doc.table(table, {
+                prepareHeader: () => doc.font('Helvetica-Bold').fontSize(9),
+                prepareRow: () => doc.font('Helvetica').fontSize(8)
+            });
             }
 
             generatePdfFooter(doc, filters.generatedBy);
@@ -853,7 +872,7 @@ try {
                             const variety = talhao.variedade ? talhao.variedade.trim().toUpperCase() : 'NÃO IDENTIFICADA';
                             const company = varietyToCompany[variety] || 'Outras';
                             const area = parseFloat(talhao.area) || 0;
-                            if (companyId && varietyToCompany[variety]?.toLowerCase() !== companyNameFilter?.toLowerCase()) return;
+                        if (companyId && company.toLowerCase() !== companyNameFilter.toLowerCase()) return;
                             if (area > 0) {
                                 if (!companyData[company]) companyData[company] = { totalArea: 0, varieties: {} };
                                 if (!companyData[company].varieties[variety]) companyData[company].varieties[variety] = 0;
@@ -1206,6 +1225,10 @@ try {
                         rows.push(subtotalRow);
                         Object.keys(grandTotal).forEach(key => { grandTotal[key] += farmData.subtotal[key]; });
 
+                if (doc.y + (rows.length * 15) > doc.page.height - doc.page.margins.bottom) {
+                    doc.addPage();
+                }
+
                         await doc.table({ headers, rows }, {
                             prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
                             prepareRow: (row, i) => doc.font(row[0] === 'Subtotal' ? 'Helvetica-Bold' : 'Helvetica').fontSize(8),
@@ -1320,7 +1343,10 @@ try {
                         headers: ['Data', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço', 'Total'],
                         rows: farmData.map(p => [p.data, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco), formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)])
                     };
-                    await doc.table(table, { prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') });
+                    await doc.table(table, {
+                        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8),
+                        prepareRow: (row, i) => doc.font('Helvetica').fontSize(8)
+                    });
                     doc.moveDown();
                 }
             } else { // Modelo A - Resumido
@@ -1328,7 +1354,10 @@ try {
                     headers: ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'],
                     rows: data.map(p => [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.total)])
                 };
-                await doc.table(table, { prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') });
+                await doc.table(table, {
+                    prepareHeader: () => doc.font('Helvetica-Bold').fontSize(9),
+                    prepareRow: (row, i) => doc.font('Helvetica').fontSize(8)
+                });
             }
 
             generatePdfFooter(doc, filters.generatedBy);
@@ -1515,10 +1544,13 @@ try {
             });
             
             const table = {
-                headers: activeHeaders,
+            headers: activeHeaders.map(h => h.header),
                 rows: rows
             };
-            await doc.table(table, { prepareHeader: () => doc.font('Helvetica-Bold'), prepareRow: () => doc.font('Helvetica') });
+        await doc.table(table, {
+            prepareHeader: () => doc.font('Helvetica-Bold').fontSize(9),
+            prepareRow: (row, i) => doc.font('Helvetica').fontSize(8)
+        });
 
             generatePdfFooter(doc, generatedBy);
             doc.end();
@@ -1990,67 +2022,68 @@ try {
         }
     });
 
-    app.get('/reports/ordem-de-corte/:id/pdf', async (req, res) => {
-        const { id } = req.params;
-        const { generatedBy } = req.query;
-        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+    app.get('/reports/ordem-de-corte/pdf', async (req, res) => {
+        const { inicio, fim, generatedBy } = req.query;
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=ordem_de_corte_${id.substring(0,6)}.pdf`);
+        res.setHeader('Content-Disposition', `attachment; filename=relatorio_ordens_de_corte.pdf`);
         doc.pipe(res);
 
         try {
-            const orderDoc = await db.collection('cuttingOrders').doc(id).get();
-            if (!orderDoc.exists) {
-                throw new Error("Ordem de corte não encontrada.");
+            let query = db.collection('cuttingOrders');
+            if (inicio) {
+                query = query.where('startDate', '>=', inicio);
             }
-            const order = orderDoc.data();
-            const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${orderDoc.id.substring(0, 8).toUpperCase()}`;
-            const frontName = order.frontName || `Frente para ${orderNumber}`;
+            if (fim) {
+                query = query.where('startDate', '<=', fim);
+            }
+            const snapshot = await query.orderBy('startDate', 'asc').get();
 
-            // Header
-            await generatePdfHeader(doc, 'Ordem de Corte');
-            doc.font('Helvetica-Bold').fontSize(16).text(orderNumber, { align: 'right' });
-            doc.moveDown(1.5);
+            const title = 'Relatório de Ordens de Corte';
+            await generatePdfHeader(doc, title);
 
-            // Details Section
-            doc.font('Helvetica-Bold').fontSize(11).text('Detalhes da Operação', { underline: true });
-            doc.moveDown(0.5);
+            if (snapshot.empty) {
+                doc.text('Nenhuma ordem de corte encontrada para os filtros selecionados.');
+                generatePdfFooter(doc, generatedBy);
+                doc.end();
+                return;
+            }
 
-            const detailsTable = {
-                headers: [], // No headers for this layout
-                rows: [
-                    ['Frente de Colheita:', frontName, 'Status:', { text: order.status, font: 'Helvetica-Bold' }],
-                    ['Fazenda:', `${order.fazendaCodigo} - ${order.fazendaName}`, 'Período de Corte:', `${new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR')} a ${new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR')}`],
-                    ['ATR Previsto:', order.atr, 'Produção Estimada:', `${formatNumber(order.totalProducao || 0)} ton`],
-                    ['Área Total:', `${formatNumber(order.totalArea || 0)} ha`, '', '']
-                ]
+            const orders = [];
+            snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
+
+            const table = {
+                headers: ['Nº Ordem', 'Frente', 'Fazenda', 'Data Início', 'Data Fim', 'Área (ha)', 'Produção (ton)', 'Status'],
+                rows: orders.map(order => {
+                    const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
+                    return [
+                        orderNumber,
+                        order.frontName,
+                        `${order.fazendaCodigo} - ${order.fazendaName}`,
+                        new Date(order.startDate + 'T03:00:00Z').toLocaleDateString('pt-BR'),
+                        new Date(order.endDate + 'T03:00:00Z').toLocaleDateString('pt-BR'),
+                        formatNumber(order.totalArea),
+                        formatNumber(order.totalProducao),
+                        order.status
+                    ];
+                })
             };
-            await doc.table(detailsTable, { hideHeader: true });
-            doc.moveDown(2);
 
-            // Plots Section
-            doc.font('Helvetica-Bold').fontSize(11).text('Talhões Incluídos', { underline: true });
-            doc.moveDown(0.5);
-
-            const plotsTable = {
-                headers: ['Nome do Talhão'],
-                rows: (order.plots || []).map(p => [p.talhaoName])
-            };
-            await doc.table(plotsTable, {
-                prepareHeader: () => doc.font('Helvetica-Bold'),
-                prepareRow: (row, i) => doc.font('Helvetica'),
+            await doc.table(table, {
+                prepareHeader: () => doc.font('Helvetica-Bold').fontSize(9),
+                prepareRow: () => doc.font('Helvetica').fontSize(8),
             });
-            doc.moveDown(2);
 
-            // Footer
             generatePdfFooter(doc, generatedBy);
             doc.end();
 
         } catch (error) {
-            console.error("Erro ao gerar PDF da Ordem de Corte:", error);
+            console.error("Erro ao gerar PDF de Ordem de Corte:", error);
             if (!res.headersSent) {
                 doc.fontSize(12).text(`Erro ao gerar o relatório: ${error.message}`);
+                doc.end();
+            } else {
                 doc.end();
             }
         }

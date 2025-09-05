@@ -658,6 +658,18 @@
       .talhao-details { grid-area: details; display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--color-text-light); }
       .talhao-details span { display: flex; align-items: center; gap: 8px; }
       .talhao-details i { width: 14px; text-align: center; color: var(--color-accent); flex-shrink: 0; }
+      .maturation-cycle-tag {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 2px 8px;
+          border-radius: 12px;
+          color: var(--color-white);
+          background-color: var(--color-text-light);
+          text-transform: uppercase;
+      }
+      .maturation-cycle-precoce { background-color: #4CAF50; /* Verde */ }
+      .maturation-cycle-média { background-color: #FFC107; /* Amarelo */ }
+      .maturation-cycle-tardia { background-color: #F44336; /* Vermelho */ }
       #harvest-plans-list .plano-card { border-left-color: var(--color-success); }
       .editable-atr { cursor: pointer; background-color: color-mix(in srgb, var(--color-accent) 15%, transparent); padding: 2px 6px; border-radius: 6px; font-weight: 500;}
       .editable-atr:hover { background-color: color-mix(in srgb, var(--color-accent) 25%, transparent); }
@@ -1789,7 +1801,14 @@
                     <div class="form-col"><label for="fimBrocamento" class="required">Data Fim:</label><input type="date" id="fimBrocamento" /></div>
                 </div>
                 <div class="checkbox-group-container">
-                    <label>Filtrar por Tipo de Fazenda:</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label>Filtrar por Tipo de Fazenda:</label>
+                        <label class="report-option-item" style="flex-direction: row; padding: 5px 10px; height: auto;">
+                            <input type="checkbox" id="brocaSelectAll">
+                            <span class="checkbox-visual" style="position: static; width: 18px; height: 18px;"></span>
+                            <span class="option-content" style="font-size: 14px;">Selecionar Todos</span>
+                        </label>
+                    </div>
                     <div class="checkbox-group-grid" id="brocaReportFarmTypeFilter">
                         <label class="report-option-item"><input type="checkbox" name="brocaFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
                         <label class="report-option-item"><input type="checkbox" name="brocaFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
@@ -1961,16 +1980,20 @@
             </section>
 
             <section id="relatorioOrdemDeCorte" class="tab-content card" aria-label="Relatório de Ordem de Corte" tabindex="0" hidden>
-                <h2 style="color: var(--color-purple);"><i class="fas fa-file-pdf"></i> Relatório de Ordem de Corte</h2>
-                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Selecione uma ordem de corte para visualizar e imprimir seu relatório detalhado.</p>
+                <h2 style="color: var(--color-purple);"><i class="fas fa-file-pdf"></i> Relatório de Ordens de Corte</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Filtre as ordens de corte por um período para gerar um relatório consolidado.</p>
                 <div class="form-row">
                     <div class="form-col">
-                        <label for="ordemDeCorteRelatorioSelect" class="required">Selecione uma Ordem de Corte:</label>
-                        <select id="ordemDeCorteRelatorioSelect" required></select>
+                        <label for="ordemDeCorteInicio" class="required">Data Início:</label>
+                        <input type="date" id="ordemDeCorteInicio" required />
+                    </div>
+                    <div class="form-col">
+                        <label for="ordemDeCorteFim" class="required">Data Fim:</label>
+                        <input type="date" id="ordemDeCorteFim" required />
                     </div>
                 </div>
                 <div class="botoes-relatorio" style="margin-top: 20px;">
-                    <button id="btnPDFOrdemDeCorte" type="button" style="background: var(--color-purple);"><i class="fas fa-print"></i> Imprimir Ordem de Corte (PDF)</button>
+                    <button id="btnPDFOrdemDeCorte" type="button" style="background: var(--color-purple);"><i class="fas fa-print"></i> Gerar Relatório (PDF)</button>
                 </div>
             </section>
 
@@ -2058,7 +2081,14 @@
                     <div class="form-col"><label for="fimPerda" class="required">Data Fim:</label><input type="date"id="fimPerda" /></div>
                 </div>
                  <div class="checkbox-group-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <label>Filtrar por Tipo de Fazenda:</label>
+                    <label class="report-option-item" style="flex-direction: row; padding: 5px 10px; height: auto;">
+                        <input type="checkbox" id="perdaSelectAll">
+                        <span class="checkbox-visual" style="position: static; width: 18px; height: 18px;"></span>
+                        <span class="option-content" style="font-size: 14px;">Selecionar Todos</span>
+                    </label>
+                </div>
                     <div class="checkbox-group-grid" id="perdaReportFarmTypeFilter">
                         <label class="report-option-item"><input type="checkbox" name="perdaFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
                         <label class="report-option-item"><input type="checkbox" name="perdaFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
