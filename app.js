@@ -1087,6 +1087,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     select.value = savedValue;
                 });
             },
+
+            populateCuttingOrderSelect() {
+                const { select } = App.elements.relatorioOrdemDeCorte;
+                if (!select) return;
+
+                const savedValue = select.value;
+                select.innerHTML = '<option value="">Selecione uma Ordem de Corte...</option>';
+                if (App.state.cuttingOrders.length === 0) {
+                    select.innerHTML += '<option value="" disabled>Nenhuma ordem de corte encontrada</option>';
+                } else {
+                    App.state.cuttingOrders
+                        .sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0))
+                        .forEach(order => {
+                            const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
+                            select.innerHTML += `<option value="${order.id}">${orderNumber} - ${order.frontName}</option>`;
+                        });
+                }
+                select.value = savedValue;
+            },
+
             showTab(id) {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
@@ -6610,25 +6630,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 model: model.value
             };
             this._fetchAndDownloadReport(`censo-varietal/${format}`, filters, `censo_varietal.${format}`);
-        },
-
-        populateCuttingOrderSelect() {
-            const { select } = App.elements.relatorioOrdemDeCorte;
-            if (!select) return;
-
-            const savedValue = select.value;
-            select.innerHTML = '<option value="">Selecione uma Ordem de Corte...</option>';
-            if (App.state.cuttingOrders.length === 0) {
-                select.innerHTML += '<option value="" disabled>Nenhuma ordem de corte encontrada</option>';
-            } else {
-                App.state.cuttingOrders
-                    .sort((a, b) => (b.sequentialId || 0) - (a.sequentialId || 0))
-                    .forEach(order => {
-                        const orderNumber = order.sequentialId ? `OC-${order.sequentialId}` : `OC-${order.id.substring(0, 4)}`;
-                        select.innerHTML += `<option value="${order.id}">${orderNumber} - ${order.frontName}</option>`;
-                    });
-            }
-            select.value = savedValue;
         },
 
         generateOrdemDeCorteReport() {
