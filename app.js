@@ -597,34 +597,42 @@ document.addEventListener('DOMContentLoaded', () => {
         auth: {
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        const userDoc = await App.data.getUserData(user.uid);
-                        if (userDoc && userDoc.active) {
-                            App.state.currentUser = { ...user, ...userDoc };
-                            App.actions.saveUserProfileLocally(App.state.currentUser);
-                            App.ui.showAppScreen();
-                            App.data.listenToAllData();
+                    try {
+                        if (user) {
+                            const userDoc = await App.data.getUserData(user.uid);
+                            if (userDoc && userDoc.active) {
+                                App.state.currentUser = { ...user, ...userDoc };
+                                App.actions.saveUserProfileLocally(App.state.currentUser);
+                                App.ui.showAppScreen();
+                                App.data.listenToAllData();
 
-                            const draftRestored = await App.actions.checkForDraft();
-                            if (!draftRestored) {
-                                const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
-                                App.ui.showTab(lastTab || 'dashboard');
-                            }
+                                const draftRestored = await App.actions.checkForDraft();
+                                if (!draftRestored) {
+                                    const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
+                                    App.ui.showTab(lastTab || 'dashboard');
+                                }
 
-                            if (navigator.onLine) {
-                                App.actions.syncOfflineWrites();
+                                if (navigator.onLine) {
+                                    App.actions.syncOfflineWrites();
+                                }
+                            } else {
+                                await this.logout();
+                                App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                             }
                         } else {
-                            this.logout();
-                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
+                            const localProfiles = App.actions.getLocalUserProfiles();
+                            if (localProfiles.length > 0 && !navigator.onLine) {
+                                App.ui.showOfflineUserSelection(localProfiles);
+                            } else {
+                                App.ui.showLoginScreen();
+                            }
                         }
-                    } else {
-                        const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection(localProfiles);
-                        } else {
-                            App.ui.showLoginScreen();
-                        }
+                    } catch (error) {
+                        console.error("Falha crítica durante a verificação de sessão:", error);
+                        // Se houver qualquer erro (rede, regras do firebase, etc), deslogue o usuário
+                        // e mostre a tela de login para evitar o congelamento da aplicação.
+                        await this.logout();
+                        App.ui.showLoginMessage("Erro ao conectar. Verifique sua conexão e tente novamente.");
                     }
                 });
             },
