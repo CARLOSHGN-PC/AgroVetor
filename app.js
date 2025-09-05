@@ -1405,6 +1405,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cadastros.talhaoManagementContainer.style.display = 'none';
                 }
             },
+
+            renderMaturationList()
+                {
+                const { list } = App.elements.maturation;
+                list.innerHTML = '';
+                if (!App.state.varietyMaturations || App.state.varietyMaturations.length === 0) {
+                    list.innerHTML = '<p>Nenhuma classificação de maturação cadastrada.</p>';
+                    return;
+                };
+                const table = document.createElement('table');
+                table.className = 'harvestPlanTable';
+                table.innerHTML = `<thead><tr><th>Variedade</th><th>Ciclo de Maturação</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+                App.state.varietyMaturations.sort((a, b) => a.varietyName.localeCompare(b.varietyName)).forEach(m => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td data-label="Variedade">${m.varietyName}</td>
+                        <td data-label="Ciclo">${m.cycle}</td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-maturation" data-id="${m.id}"><i class="fas fa-edit"></i></button>
+                                <button class="btn-excluir" data-action="delete-maturation" data-id="${m.id}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                });
+                list.appendChild(table);
+            },
+
             renderTalhaoList(farmId) {
                 const { talhaoList, talhaoManagementContainer, selectedFarmName, selectedFarmTypes } = App.elements.cadastros;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -2451,37 +2480,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(action === 'delete-talhao') App.actions.deleteTalhao(id);
                     if(action === 'edit-farm') this.openEditFarmModal(id);
                     if(action === 'delete-farm') App.actions.deleteFarm(id);
-            if (action === 'edit-variety-company') App.actions.editVarietyCompany(id);
-            if (action === 'delete-variety-company') App.actions.deleteVarietyCompany(id);
+                    if (action === 'edit-variety-company') App.actions.editVarietyCompany(id);
+                    if (action === 'delete-variety-company') App.actions.deleteVarietyCompany(id);
                 });
-
-            renderMaturationList() 
-                {
-                const { list } = App.elements.maturation;
-                list.innerHTML = '';
-                if (!App.state.varietyMaturations || App.state.varietyMaturations.length === 0) {
-                    list.innerHTML = '<p>Nenhuma classificação de maturação cadastrada.</p>';
-                    return;
-                };
-                const table = document.createElement('table');
-                table.className = 'harvestPlanTable';
-                table.innerHTML = `<thead><tr><th>Variedade</th><th>Ciclo de Maturação</th><th>Ações</th></tr></thead><tbody></tbody>`;
-                const tbody = table.querySelector('tbody');
-                App.state.varietyMaturations.sort((a, b) => a.varietyName.localeCompare(b.varietyName)).forEach(m => {
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td data-label="Variedade">${m.varietyName}</td>
-                        <td data-label="Ciclo">${m.cycle}</td>
-                        <td data-label="Ações">
-                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-maturation" data-id="${m.id}"><i class="fas fa-edit"></i></button>
-                                <button class="btn-excluir" data-action="delete-maturation" data-id="${m.id}"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </td>
-                    `;
-                });
-                list.appendChild(table);
-            },
 
                 if (App.elements.cadastros.btnSaveTalhao) App.elements.cadastros.btnSaveTalhao.addEventListener('click', () => App.actions.saveTalhao());
         if (App.elements.cadastros.btnSaveVarietyCompany) App.elements.cadastros.btnSaveVarietyCompany.addEventListener('click', () => App.actions.saveVarietyCompany());
