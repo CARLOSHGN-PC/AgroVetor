@@ -3750,6 +3750,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
                 const total = Object.values(fields).reduce((s, v) => s + v, 0);
+                const nonZeroFieldsCount = Object.values(fields).filter(v => v > 0).length;
+                const media = nonZeroFieldsCount > 0 ? total / nonZeroFieldsCount : 0;
                 const newEntry = {
                     ...fields,
                     data: perda.data.value,
@@ -3762,7 +3764,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     matricula: operator.matricula,
                     operador: operator.name,
                     total,
-                    media: (total / 6).toFixed(2).replace('.', ','),
+                    media: media.toFixed(2).replace('.', ','),
                     usuario: App.state.currentUser.username
                 };
 
