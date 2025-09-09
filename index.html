@@ -1589,6 +1589,71 @@
                 </div>
             </section>
 
+            <section id="planejamentoPlantio" class="tab-content card" aria-label="Planejamento de Plantio" tabindex="0" hidden>
+                <h2><i class="fas fa-seedling"></i> Planejamento de Plantio</h2>
+                <div class="card" style="border-left-color: var(--color-success);">
+                    <h3><i class="fas fa-plus-circle"></i> Novo Plano de Plantio</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="plantioAnoSafra" class="required">Ano/Safra:</label><input type="text" id="plantioAnoSafra" placeholder="Ex: 2025/2026" required></div>
+                        <div class="form-col"><label for="plantioCultura" class="required">Cultura:</label><input type="text" id="plantioCultura" value="Cana-de-açúcar" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="plantioFazenda" class="required">Fazenda:</label><select id="plantioFazenda" required></select></div>
+                        <div class="form-col"><label for="plantioTalhao" class="required">Talhão(ões):</label><input type="text" id="plantioTalhao" placeholder="Ex: T-01, T-02" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="plantioVariedade" class="required">Variedade:</label><input type="text" id="plantioVariedade" placeholder="Ex: RB867515" required></div>
+                        <div class="form-col"><label for="plantioArea" class="required">Área (ha):</label><input type="number" id="plantioArea" placeholder="0.00" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="plantioDataPrevista" class="required">Data Prevista:</label><input type="date" id="plantioDataPrevista" required></div>
+                        <div class="form-col"><label for="plantioResponsavel" class="required">Responsável:</label><select id="plantioResponsavel" required></select></div>
+                    </div>
+                    <label for="plantioObs">Observações:</label>
+                    <textarea id="plantioObs" placeholder="Detalhes adicionais sobre o plantio..."></textarea>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button class="save" id="btnSalvarPlanoPlantio" style="max-width: 300px; background: linear-gradient(to right, var(--color-success), #81c784);"><i class="fas fa-save"></i> Salvar Plano</button>
+                    </div>
+                </div>
+                <h3><i class="fas fa-tasks"></i> Planos de Plantio Salvos</h3>
+                <div id="listaPlanosPlantio"></div>
+            </section>
+
+            <section id="ordemDeCorte" class="tab-content card" aria-label="Ordem de Corte" tabindex="0" hidden>
+                <h2><i class="fas fa-file-signature"></i> Ordens de Corte</h2>
+
+                <div class="card" style="border-left-color: var(--color-info);">
+                    <h3><i class="fas fa-stream"></i> Gerar a partir de Plano de Colheita</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="ordemCortePlanoSelect" class="required">Selecione um Plano de Colheita:</label>
+                            <select id="ordemCortePlanoSelect" required></select>
+                        </div>
+                    </div>
+                    <div id="ordemCortePlanoSequencia">
+                        <!-- A sequência do plano de colheita será renderizada aqui -->
+                    </div>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
+                    <h3><i class="fas fa-plus-circle"></i> Gerar Ordem de Corte Manual</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="ordemCorteManualFazenda" class="required">Fazenda:</label><select id="ordemCorteManualFazenda" required></select></div>
+                        <div class="form-col"><label for="ordemCorteManualTalhao" class="required">Talhão(ões):</label><input type="text" id="ordemCorteManualTalhao" placeholder="Ex: T-01, T-02" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="ordemCorteManualData" class="required">Data de Início do Corte:</label><input type="date" id="ordemCorteManualData" required></div>
+                        <div class="form-col"><label for="ordemCorteManualFrente" class="required">Frente de Colheita:</label><input type="text" id="ordemCorteManualFrente" placeholder="Ex: Frente 01" required></div>
+                    </div>
+                    <label for="ordemCorteManualObs">Observações:</label>
+                    <textarea id="ordemCorteManualObs" placeholder="Instruções especiais, etc..."></textarea>
+                    <button class="save" id="btnGerarOrdemManual" style="max-width: 300px; background: linear-gradient(to right, var(--color-purple), #9c27b0);"><i class="fas fa-file-medical"></i> Gerar Ordem Manual</button>
+                </div>
+
+                <h3><i class="fas fa-tasks"></i> Ordens de Corte Geradas</h3>
+                <div id="listaOrdensDeCorte"></div>
+            </section>
+
             <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
                 <h2><i class="fas fa-calendar-alt"></i> Planejamento de Inspeções</h2>
                 <div class="card" style="border-left-color: var(--color-info);">
@@ -1752,6 +1817,43 @@
                     <div class="botoes-relatorio">
                         <button id="btnGerarRelatorioCustomPDF" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
                         <button id="btnGerarRelatorioCustomExcel" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="relatorioFaltaColher" class="tab-content card" aria-label="Relatório do que Falta Colher" tabindex="0" hidden>
+                <h2 style="color: var(--color-warning);"><i class="fas fa-question-circle"></i> Relatório: O que Falta Colher</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere um relatório com a área e produção restantes de um plano de colheita, com base nos dados de colheita já sincronizados.</p>
+
+                <div class="card" style="border-left-color: var(--color-warning);">
+                    <h3><i class="fas fa-filter"></i> Selecione o Plano</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="faltaColherPlanoSelect" class="required">Selecione um Plano de Colheita:</label>
+                            <select id="faltaColherPlanoSelect" required></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-warning);">
+                    <h3><i class="fas fa-file-export"></i> Gerar Relatório</h3>
+                    <div class="botoes-relatorio">
+                        <button id="btnPDFFaltaColher" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                        <button id="btnExcelFaltaColher" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="relatorioCensoVarietal" class="tab-content card" aria-label="Relatório de Censo Varietal" tabindex="0" hidden>
+                <h2 style="color: var(--color-success);"><i class="fas fa-chart-pie"></i> Relatório: Censo Varietal</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere um relatório consolidado da área plantada por variedade em todas as fazendas.</p>
+
+                <div class="card" style="border-left-color: var(--color-success);">
+                    <h3><i class="fas fa-file-export"></i> Gerar Relatório</h3>
+                    <p>Clique nos botões abaixo para gerar o relatório em PDF ou exportar para Excel.</p>
+                    <div class="botoes-relatorio">
+                        <button id="btnPDFCensoVarietal" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                        <button id="btnExcelCensoVarietal" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                     </div>
                 </div>
             </section>
