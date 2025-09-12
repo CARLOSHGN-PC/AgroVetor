@@ -56,6 +56,43 @@ try {
         res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
     });
 
+    // --- [NOVO] ROTAS DO MÓDULO DE CADASTRO CENTRAL ---
+    const coreRoutes = require('./routes/core-routes')(db);
+    app.use('/api/core', coreRoutes);
+
+    // --- [NOVO] ROTAS DO MÓDULO DE OPERAÇÕES E PLANEJAMENTO ---
+    const operationsRoutes = require('./routes/operations-routes')(db);
+    app.use('/api/operations', operationsRoutes);
+
+    // --- [NOVO] ROTAS DO MÓDULO DE GESTÃO DE ESTOQUES ---
+    const inventoryRoutes = require('./routes/inventory-routes')(db);
+    app.use('/api/inventory', inventoryRoutes);
+
+    // --- [NOVO] ROTAS DO MÓDULO DE MAQUINÁRIO ---
+    const machineryRoutes = require('./routes/machinery-routes')(db);
+    app.use('/api/machinery', machineryRoutes);
+
+    // --- [NOVO] ROTAS DO MÓDULO FINANCEIRO ---
+    const financialRoutes = require('./routes/financial-routes')(db);
+    app.use('/api/financial', financialRoutes);
+
+    // --- [NOVO] ROTAS DO MÓDULO DE CLIMA ---
+    const weatherRoutes = require('./routes/weather-routes')(db);
+    app.use('/api/weather', weatherRoutes);
+
+    // --- [NOVO] ROTAS DO MÓDULO DE ANÁLISE (BI) ---
+    const analyticsRoutes = require('./routes/analytics-routes')(db);
+    app.use('/api/analytics', analyticsRoutes);
+
+    // --- [NOVO] ROTAS DO MÓDULO DE RASTREABILIDADE E CONFORMIDADE ---
+    const complianceRoutes = require('./routes/compliance-routes')(db);
+    app.use('/api/compliance', complianceRoutes);
+
+    // --- [NOVO] ROTAS DO MÓDULO DE IOT (SENSORES) ---
+    const iotRoutes = require('./routes/iot-routes')(db);
+    app.use('/api/iot', iotRoutes);
+
+
     // ROTA PARA UPLOAD DO LOGO
     app.post('/upload-logo', async (req, res) => {
         const { logoBase64 } = req.body;
