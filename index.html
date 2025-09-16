@@ -1590,6 +1590,68 @@
                 </div>
             </section>
 
+            <section id="planejamentoPlantio" class="tab-content card" aria-label="Planejamento de Plantio" tabindex="0" hidden>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-purple); margin: 0;"><i class="fas fa-seedling"></i> Planejamento de Plantio</h2>
+                    <div class="button-group">
+                        <button id="btnAddNewPlantingPlan" class="save" style="background: var(--color-purple);"><i class="fas fa-plus"></i> Novo Plano</button>
+                    </div>
+                </div>
+
+                <div id="planting-plans-list-container">
+                    <h3 style="margin-top: 30px;"><i class="fas fa-tasks"></i> Planos de Plantio Guardados</h3>
+                    <div id="planting-plans-list"></div>
+                </div>
+
+                <div id="planting-plan-editor" style="display: none;">
+                    <div class="card" style="border-left-color: var(--color-purple); margin-top:20px;">
+                        <h3><i class="fas fa-cogs"></i> Configurações do Plano de Plantio</h3>
+                        <div class="form-row">
+                            <div class="form-col"><label for="plantingPlanName" class="required">Nome do Plano:</label><input type="text" id="plantingPlanName" placeholder="Ex: Plantio Safra 2025/26" required></div>
+                            <div class="form-col"><label for="plantingPlanSeason" class="required">Safra:</label><input type="text" id="plantingPlanSeason" placeholder="Ex: 2025/2026" required></div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="border-left-color: var(--color-purple);">
+                        <h3 id="addPlotToPlantingTitle"><i class="fas fa-plus-circle"></i> Adicionar Talhão ao Plano</h3>
+                        <div class="form-row">
+                            <div class="form-col" style="flex-grow: 2;"><label for="plantingFazenda" class="required">Fazenda:</label><select id="plantingFazenda" required></select></div>
+                            <div class="form-col" style="flex-grow: 2;"><label for="plantingTalhao" class="required">Talhão:</label><select id="plantingTalhao" required></select></div>
+                        </div>
+                        <div class="form-row" style="align-items: flex-end;">
+                            <div class="form-col"><button class="save" id="btnAddPlotToPlantingPlan" style="background: var(--color-purple);"><i class="fas fa-plus"></i> Adicionar ao Plano</button></div>
+                            <div class="form-col"><button id="btnSuggestVariety" class="btn-ai"><i class="fas fa-magic"></i> Sugerir Variedades (IA)</button></div>
+                        </div>
+                    </div>
+
+                    <h3><i class="fas fa-list-ol"></i> Sequência de Plantio</h3>
+                    <div class="table-responsive">
+                        <table id="plantingPlanTable">
+                            <thead>
+                                <tr>
+                                    <th>Fazenda</th>
+                                    <th>Talhão</th>
+                                    <th>Ambiente</th>
+                                    <th>Área (ha)</th>
+                                    <th>Variedade Sugerida</th>
+                                    <th>Custo Previsto (R$)</th>
+                                    <th>Produção Projetada (ton)</th>
+                                    <th>Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="plantingSummary" class="harvest-summary" style="border-top-color: var(--color-purple);"></div>
+                    <div class="botoes-relatorio" style="margin-top: 32px; justify-content: flex-start;">
+                        <button id="btnSavePlantingPlan" class="save" style="background: var(--color-purple); flex: 0 1 250px;"><i class="fas fa-save"></i> Guardar Plano</button>
+                        <button id="btnPDFPlantingPlan" type="button" style="background: var(--color-danger); flex: 0 1 250px;"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                        <button id="btnExcelPlantingPlan" type="button" style="background: var(--color-success); flex: 0 1 250px;"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                        <button id="btnCancelPlantingPlan" class="btn-secondary" style="margin-left: auto; flex: 0 1 250px;"><i class="fas fa-times"></i> Voltar para a Lista</button>
+                    </div>
+                </div>
+            </section>
+
             <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
                 <h2><i class="fas fa-calendar-alt"></i> Planejamento de Inspeções</h2>
                 <div class="card" style="border-left-color: var(--color-info);">
@@ -1902,6 +1964,17 @@
                             <div class="form-col"><label for="talhaoProducao" class="required">Produção (ton):</label><input type="number" id="talhaoProducao" readonly></div>
                             <div class="form-col"><label for="talhaoCorte">Corte:</label><input type="number" id="talhaoCorte" min="1" placeholder="Ex: 1"></div>
                             <div class="form-col"><label for="talhaoVariedade">Variedade:</label><input type="text" id="talhaoVariedade"></div>
+                            <div class="form-col">
+                                <label for="talhaoAmbiente">Ambiente de Produção:</label>
+                                <select id="talhaoAmbiente">
+                                    <option value="">N/A</option>
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                    <option value="D">D</option>
+                                    <option value="E">E</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="form-row">
                             <div class="form-col"><label for="talhaoDistancia">Distância (km):</label><input type="number" id="talhaoDistancia"></div>
@@ -1986,6 +2059,10 @@
                         <div class="form-col">
                             <label for="dailyCost">Custo Diário da Frente (R$):</label>
                             <input type="number" id="dailyCost" placeholder="Ex: 3000.00" step="0.01">
+                        </div>
+                        <div class="form-col">
+                            <label for="costPerHectarePlanted">Custo de Plantio (R$/ha):</label>
+                            <input type="number" id="costPerHectarePlanted" placeholder="Ex: 500.00" step="0.01">
                         </div>
                     </div>
                     <button id="btnSaveCosts" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Guardar Custos</button>
