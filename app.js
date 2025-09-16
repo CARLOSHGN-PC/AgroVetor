@@ -118,6 +118,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     submenu: [
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
+                        { label: 'Cadastrar Recursos', icon: 'fas fa-cogs', target: 'cadastrarRecursos', permission: 'configuracoes' },
+                        { label: 'Estoque de Mudas', icon: 'fas fa-leaf', target: 'estoqueMudas', permission: 'configuracoes' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
                         { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
@@ -148,12 +150,15 @@ document.addEventListener('DOMContentLoaded', () => {
             costSoilPrep: 0,
             costInputs: 0,
             costPlantingOp: 0,
+            seedlingsPerHectare: 0,
             activeSubmenu: null,
             charts: {},
             harvestPlans: [],
             activeHarvestPlan: null,
             plantingPlans: [],
             activePlantingPlan: null,
+            resources: [],
+            seedlingStock: [],
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -288,6 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 costSoilPrep: document.getElementById('costSoilPrep'),
                 costInputs: document.getElementById('costInputs'),
                 costPlantingOp: document.getElementById('costPlantingOp'),
+                seedlingsPerHectare: document.getElementById('seedlingsPerHectare'),
                 btnSaveCosts: document.getElementById('btnSaveCosts'),
             },
             dashboard: {
@@ -493,6 +499,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
+            resources: {
+                id: document.getElementById('resourceId'),
+                name: document.getElementById('resourceName'),
+                type: document.getElementById('resourceType'),
+                btnSave: document.getElementById('btnSaveResource'),
+                list: document.getElementById('resourceList'),
+            },
+            stock: {
+                variety: document.getElementById('stockVariety'),
+                quantity: document.getElementById('stockQuantity'),
+                unit: document.getElementById('stockUnit'),
+                btnSave: document.getElementById('btnSaveStock'),
+                list: document.getElementById('stockList'),
+            },
             planting: {
                 plansListContainer: document.getElementById('planting-plans-list-container'),
                 plansList: document.getElementById('planting-plans-list'),
@@ -500,6 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnAddNew: document.getElementById('btnAddNewPlantingPlan'),
                 planName: document.getElementById('plantingPlanName'),
                 planSeason: document.getElementById('plantingPlanSeason'),
+                plantingRate: document.getElementById('plantingRate'),
                 fazenda: document.getElementById('plantingFazenda'),
                 plantingType: document.getElementById('plantingType'),
                 plantingDate: document.getElementById('plantingDate'),
@@ -513,6 +534,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnCancelPlan: document.getElementById('btnCancelPlantingPlan'),
                 btnPDF: document.getElementById('btnPDFPlantingPlan'),
                 btnExcel: document.getElementById('btnExcelPlantingPlan'),
+                viewTableBtn: document.getElementById('btnPlantingViewTable'),
+                viewGanttBtn: document.getElementById('btnPlantingViewGantt'),
+                ganttContainer: document.getElementById('planting-gantt-chart-container'),
+                tableContainer: document.getElementById('planting-table-container'),
             },
         },
 
@@ -742,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'plantingPlans', 'armadilhas' ];
+                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'plantingPlans', 'resources', 'seedlingStock', 'armadilhas' ];
                 
                 collectionsToListen.forEach(collectionName => {
                     const q = collection(db, collectionName);
@@ -778,14 +803,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.costSoilPrep = configData.costSoilPrep || 0;
                         App.state.costInputs = configData.costInputs || 0;
                         App.state.costPlantingOp = configData.costPlantingOp || 0;
+                        App.state.seedlingsPerHectare = configData.seedlingsPerHectare || 0;
 
-                        const { costPerKm, costPerTon, dailyCost, costSoilPrep, costInputs, costPlantingOp } = App.elements.companyConfig;
+                        const { costPerKm, costPerTon, dailyCost, costSoilPrep, costInputs, costPlantingOp, seedlingsPerHectare } = App.elements.companyConfig;
                         if (costPerKm) costPerKm.value = App.state.costPerKm;
                         if (costPerTon) costPerTon.value = App.state.costPerTon;
                         if (dailyCost) dailyCost.value = App.state.dailyCost;
                         if (costSoilPrep) costSoilPrep.value = App.state.costSoilPrep;
                         if (costInputs) costInputs.value = App.state.costInputs;
                         if (costPlantingOp) costPlantingOp.value = App.state.costPlantingOp;
+                        if (seedlingsPerHectare) seedlingsPerHectare.value = App.state.seedlingsPerHectare;
 
                     } else {
                         App.state.companyLogo = null;
@@ -795,6 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.costSoilPrep = 0;
                         App.state.costInputs = 0;
                         App.state.costPlantingOp = 0;
+                        App.state.seedlingsPerHectare = 0;
                     }
                     App.ui.renderLogoPreview();
                 });
@@ -1137,6 +1165,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (id === 'cadastros') this.renderFarmSelect();
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
+                if (id === 'cadastrarRecursos') this.renderResourceList();
+                if (id === 'estoqueMudas') this.renderStockList();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
                 if (id === 'planejamentoPlantio') this.showPlantingPlanList();
@@ -1581,6 +1611,62 @@ document.addEventListener('DOMContentLoaded', () => {
                     .map((u) => this._createModernUserCardHTML(u))
                     .join(''); 
             },
+            renderStockList() {
+                const { list } = App.elements.stock;
+                list.innerHTML = '';
+                if (App.state.seedlingStock.length === 0) {
+                    list.innerHTML = '<p>Nenhum estoque cadastrado.</p>';
+                    return;
+                }
+                const table = document.createElement('table');
+                table.id = 'stockTable';
+                table.className = 'harvestPlanTable';
+                table.innerHTML = `<thead><tr><th>Variedade</th><th>Quantidade</th><th>Unidade</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+                App.state.seedlingStock.sort((a,b) => a.id.localeCompare(b.id)).forEach(s => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td data-label="Variedade">${s.id}</td>
+                        <td data-label="Quantidade">${s.quantity.toLocaleString('pt-BR')}</td>
+                        <td data-label="Unidade">${s.unit}</td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" data-action="delete-stock" data-id="${s.id}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                });
+                list.appendChild(table);
+            },
+
+            renderResourceList() {
+                const { list } = App.elements.resources;
+                list.innerHTML = '';
+                if (App.state.resources.length === 0) {
+                    list.innerHTML = '<p>Nenhum recurso cadastrado.</p>';
+                    return;
+                }
+                const table = document.createElement('table');
+                table.id = 'resourceTable';
+                table.className = 'harvestPlanTable';
+                table.innerHTML = `<thead><tr><th>Nome</th><th>Tipo</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+                App.state.resources.sort((a,b) => a.name.localeCompare(b.name)).forEach(r => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td data-label="Nome">${r.name}</td>
+                        <td data-label="Tipo">${r.type}</td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-resource" data-id="${r.id}"><i class="fas fa-edit"></i></button>
+                                <button class="btn-excluir" data-action="delete-resource" data-id="${r.id}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                });
+                list.appendChild(table);
+            },
+
             renderPersonnelList() {
                 const { list } = App.elements.personnel;
                 list.innerHTML = '';
@@ -1744,8 +1830,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            togglePlantingView(view) {
+                const els = App.elements.planting;
+                const isTable = view === 'table';
+
+                els.tableContainer.style.display = isTable ? 'block' : 'none';
+                els.ganttContainer.style.display = isTable ? 'none' : 'block';
+
+                els.viewTableBtn.style.background = isTable ? '' : '#6c757d';
+                els.viewGanttBtn.style.background = isTable ? '#6c757d' : '';
+            },
+
             renderPlantingSequence() {
                 if (!App.state.activePlantingPlan) return;
+                App.charts.renderPlantingGanttChart();
                 const { tableBody, summary } = App.elements.planting;
                 const { sequence } = App.state.activePlantingPlan;
 
@@ -1760,6 +1858,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     grandTotalProduction += activity.projecaoProducao;
 
                     const row = tableBody.insertRow();
+                    const resourceOptions = App.state.resources.map(r => `<option value="${r.id}" ${activity.resourceId === r.id ? 'selected' : ''}>${r.name}</option>`).join('');
                     row.innerHTML = `
                         <td data-label="Fazenda">${activity.fazendaName}</td>
                         <td data-label="Talhão">${activity.talhaoName}</td>
@@ -1770,6 +1869,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Variedade Sugerida">${activity.variedadeSugerida}</td>
                         <td data-label="Custo Previsto (R$)">${activity.custoPrevisto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                         <td data-label="Produção Projetada (ton)">${activity.projecaoProducao.toFixed(2)}</td>
+                        <td data-label="Recurso Alocado">
+                            <select class="resource-select" data-activity-id="${activity.activityId}">
+                                <option value="">Nenhum</option>
+                                ${resourceOptions}
+                            </select>
+                        </td>
                         <td data-label="1ª Colheita (Prev.)">${App.actions.formatDateForDisplay(activity.projectedHarvestDate)}</td>
                         <td data-label="Ação">
                             <button class="btn-excluir" data-action="remove-planting-activity" data-id="${activity.activityId}"><i class="fas fa-times"></i></button>
@@ -2242,6 +2347,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.personnel.csvUploadArea) App.elements.personnel.csvUploadArea.addEventListener('click', () => App.elements.personnel.csvFileInput.click());
                 if (App.elements.personnel.csvFileInput) App.elements.personnel.csvFileInput.addEventListener('change', (e) => App.actions.importPersonnelFromCSV(e.target.files[0]));
                 if (App.elements.personnel.btnDownloadCsvTemplate) App.elements.personnel.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadPersonnelCsvTemplate());
+
+                const resourceEls = App.elements.resources;
+                if (resourceEls.btnSave) resourceEls.btnSave.addEventListener('click', () => App.actions.saveResource());
+                if (resourceEls.list) resourceEls.list.addEventListener('click', e => {
+                    const btn = e.target.closest('button');
+                    if (!btn) return;
+                    const { action, id } = btn.dataset;
+                    if (action === 'edit-resource') App.actions.editResource(id);
+                    if (action === 'delete-resource') App.actions.deleteResource(id);
+                });
+
+                const stockEls = App.elements.stock;
+                if (stockEls.btnSave) stockEls.btnSave.addEventListener('click', () => App.actions.saveStock());
+                if (stockEls.list) stockEls.list.addEventListener('click', e => {
+                    const btn = e.target.closest('button[data-action="delete-stock"]');
+                    if (btn) App.actions.deleteStock(btn.dataset.id);
+                });
                 
                 const companyConfigEls = App.elements.companyConfig;
                 if (companyConfigEls.logoUploadArea) companyConfigEls.logoUploadArea.addEventListener('click', () => companyConfigEls.logoInput.click());
@@ -2434,6 +2556,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const removeBtn = e.target.closest('button[data-action="remove-planting-activity"]');
                     if (removeBtn) {
                         App.actions.removePlantingActivity(removeBtn.dataset.id);
+                    }
+                });
+                if(plantingEls.viewTableBtn) plantingEls.viewTableBtn.addEventListener('click', () => App.ui.togglePlantingView('table'));
+                if(plantingEls.viewGanttBtn) plantingEls.viewGanttBtn.addEventListener('click', () => App.ui.togglePlantingView('gantt'));
+                if (plantingEls.tableBody) plantingEls.tableBody.addEventListener('change', (e) => {
+                    if (e.target.classList.contains('resource-select')) {
+                        const activityId = e.target.dataset.activityId;
+                        const resourceId = e.target.value;
+                        const activity = App.state.activePlantingPlan.sequence.find(a => a.activityId == activityId);
+                        if (activity) {
+                            activity.resourceId = resourceId || null;
+                            App.charts.renderPlantingGanttChart(); // Re-render Gantt to check for conflicts
+                        }
                     }
                 });
                 
@@ -2894,6 +3029,86 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal("Tem certeza que deseja excluir esta pessoa?", async () => {
                     await App.data.deleteDocument('personnel', personnelId);
                     App.ui.showAlert('Pessoa excluída com sucesso.', 'info');
+                });
+            },
+
+            async saveResource() {
+                const { id, name, type } = App.elements.resources;
+                const nameValue = name.value.trim();
+                const typeValue = type.value;
+                if (!nameValue || !typeValue) { App.ui.showAlert("Nome e Tipo são obrigatórios.", "error"); return; }
+
+                const existingId = id.value;
+                const data = { name: nameValue, type: typeValue };
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar o recurso ${nameValue}?`, async () => {
+                    try {
+                        if (existingId) {
+                            await App.data.updateDocument('resources', existingId, data);
+                        } else {
+                            await App.data.addDocument('resources', data);
+                        }
+                        App.ui.showAlert("Recurso guardado com sucesso!");
+                        id.value = ''; name.value = ''; type.value = 'Equipe';
+                    } catch (e) {
+                        App.ui.showAlert("Erro ao guardar recurso.", "error");
+                    }
+                });
+            },
+
+            editResource(resourceId) {
+                const { id, name, type } = App.elements.resources;
+                const resource = App.state.resources.find(r => r.id === resourceId);
+                if (resource) {
+                    id.value = resource.id;
+                    name.value = resource.name;
+                    type.value = resource.type;
+                    name.focus();
+                }
+            },
+
+            deleteResource(resourceId) {
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este recurso?", async () => {
+                    await App.data.deleteDocument('resources', resourceId);
+                    App.ui.showAlert('Recurso excluído com sucesso.', 'info');
+                });
+            },
+
+            async saveStock() {
+                const { variety, quantity, unit } = App.elements.stock;
+                const varietyName = variety.value.trim().toUpperCase();
+                const quantityValue = parseInt(quantity.value);
+                const unitValue = unit.value;
+
+                if (!varietyName || isNaN(quantityValue) || quantityValue < 0) {
+                    App.ui.showAlert("Por favor, preencha a variedade e uma quantidade válida.", "error");
+                    return;
+                }
+
+                const existingStock = App.state.seedlingStock.find(s => s.id === varietyName);
+
+                const data = {
+                    quantity: quantityValue,
+                    unit: unitValue,
+                    updatedAt: serverTimestamp()
+                };
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja ${existingStock ? 'atualizar' : 'adicionar'} o estoque para a variedade ${varietyName}?`, async () => {
+                    try {
+                        await App.data.setDocument('seedlingStock', varietyName, data);
+                        App.ui.showAlert("Estoque guardado com sucesso!");
+                        variety.value = '';
+                        quantity.value = '';
+                    } catch (e) {
+                        App.ui.showAlert("Erro ao guardar o estoque.", "error");
+                    }
+                });
+            },
+
+            deleteStock(varietyName) {
+                 App.ui.showConfirmationModal(`Tem a certeza que deseja excluir o estoque da variedade ${varietyName}?`, async () => {
+                    await App.data.deleteDocument('seedlingStock', varietyName);
+                    App.ui.showAlert('Estoque excluído com sucesso.', 'info');
                 });
             },
             async handleLogoUpload(e) {
@@ -3580,7 +3795,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  reader.readAsText(file, 'ISO-8859-1');
             },
             async saveCosts() {
-                const { costPerKm, costPerTon, dailyCost, costSoilPrep, costInputs, costPlantingOp } = App.elements.companyConfig;
+                const { costPerKm, costPerTon, dailyCost, costSoilPrep, costInputs, costPlantingOp, seedlingsPerHectare } = App.elements.companyConfig;
                 const costs = {
                     costPerKm: parseFloat(costPerKm.value) || 0,
                     costPerTon: parseFloat(costPerTon.value) || 0,
@@ -3588,6 +3803,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     costSoilPrep: parseFloat(costSoilPrep.value) || 0,
                     costInputs: parseFloat(costInputs.value) || 0,
                     costPlantingOp: parseFloat(costPlantingOp.value) || 0,
+                    seedlingsPerHectare: parseInt(seedlingsPerHectare.value) || 0,
                 };
 
                 App.ui.showConfirmationModal("Tem a certeza que deseja guardar estes parâmetros de custo?", async () => {
@@ -4126,6 +4342,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.activePlantingPlan = {
                         planName: '',
                         planSeason: '',
+                        plantingRate: 10,
                         sequence: [],
                         author: App.state.currentUser.uid,
                     };
@@ -4133,6 +4350,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 planName.value = App.state.activePlantingPlan.planName;
                 planSeason.value = App.state.activePlantingPlan.planSeason;
+                App.elements.planting.plantingRate.value = App.state.activePlantingPlan.plantingRate || 10;
 
                 App.ui.renderPlantingSequence();
                 App.ui.populatePlantingFazendaSelects();
@@ -4142,9 +4360,10 @@ document.addEventListener('DOMContentLoaded', () => {
             async savePlantingPlan() {
                 if (!App.state.activePlantingPlan) return;
 
-                const { planName, planSeason } = App.elements.planting;
+                const { planName, planSeason, plantingRate } = App.elements.planting;
                 App.state.activePlantingPlan.planName = planName.value.trim();
                 App.state.activePlantingPlan.planSeason = planSeason.value.trim();
+                App.state.activePlantingPlan.plantingRate = parseFloat(plantingRate.value) || 10;
 
                 if (!App.state.activePlantingPlan.planName || !App.state.activePlantingPlan.planSeason) {
                     App.ui.showAlert("Preencha o Nome e a Safra do plano.", "error");
@@ -4223,6 +4442,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             variedadeSugerida: 'N/A',
                             custoPrevisto: (talhao.area || 0) * ((App.state.costSoilPrep || 0) + (App.state.costInputs || 0) + (App.state.costPlantingOp || 0)),
                             projecaoProducao: (talhao.area || 0) * (talhao.tch || 0),
+                            resourceId: null, // New field
                         };
                         App.state.activePlantingPlan.sequence.push(newActivity);
                     }
@@ -5378,6 +5598,118 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         charts: {
+            renderPlantingGanttChart() {
+                const plan = App.state.activePlantingPlan;
+                if (!plan || !plan.sequence || !plan.sequence.length) {
+                    const ctx = document.getElementById('plantingGanttChart')?.getContext('2d');
+                    if(ctx && App.state.charts.plantingGantt) {
+                         App.state.charts.plantingGantt.destroy();
+                         delete App.state.charts.plantingGantt;
+                    }
+                    return;
+                }
+
+                const labels = plan.sequence.map(a => `${a.talhaoName} (${a.fazendaName})`);
+                const data = plan.sequence.map(a => {
+                    const startDate = new Date(a.plantingDate + 'T03:00:00Z');
+                    const plantingRate = plan.plantingRate > 0 ? plan.plantingRate : 1;
+                    const durationDays = Math.ceil(a.area / plantingRate);
+                    const endDate = new Date(startDate);
+                    endDate.setDate(startDate.getDate() + durationDays);
+                    return [startDate, endDate];
+                });
+
+                // --- Conflict Detection ---
+                const resourceUsage = {};
+                plan.sequence.forEach((activity, index) => {
+                    if (activity.resourceId) {
+                        if (!resourceUsage[activity.resourceId]) {
+                            resourceUsage[activity.resourceId] = [];
+                        }
+                        resourceUsage[activity.resourceId].push({
+                            id: activity.activityId,
+                            start: data[index][0],
+                            end: data[index][1]
+                        });
+                    }
+                });
+
+                const conflictingActivityIds = new Set();
+                for (const resourceId in resourceUsage) {
+                    const activities = resourceUsage[resourceId].sort((a, b) => a.start - b.start);
+                    for (let i = 0; i < activities.length - 1; i++) {
+                        if (activities[i].end > activities[i+1].start) { // Overlap detected
+                            conflictingActivityIds.add(activities[i].id);
+                            conflictingActivityIds.add(activities[i+1].id);
+                        }
+                    }
+                }
+                // --- End Conflict Detection ---
+
+                const dataset = {
+                    label: 'Duração do Plantio',
+                    data: data,
+                    backgroundColor: plan.sequence.map(a => conflictingActivityIds.has(a.activityId) ? '#d32f2f' : '#388e3c'),
+                    barPercentage: 0.6,
+                };
+
+                const chartOptions = {
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                tooltipFormat: 'dd/MM/yyyy',
+                                displayFormats: {
+                                    day: 'dd/MM'
+                                }
+                            },
+                            min: data.length > 0 ? data[0][0] : new Date(),
+                            grid: {
+                                color: App.ui._getThemeColors().border
+                            },
+                            ticks: {
+                                color: App.ui._getThemeColors().text
+                            }
+                        },
+                        y: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: App.ui._getThemeColors().text
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const start = new Date(context.raw[0]).toLocaleDateString('pt-BR');
+                                    const end = new Date(context.raw[1]).toLocaleDateString('pt-BR');
+                                    return `${context.dataset.label}: ${start} - ${end}`;
+                                }
+                            }
+                        },
+                        datalabels: {
+                            display: false
+                        }
+                    }
+                };
+
+                this._createOrUpdateChart('plantingGanttChart', {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [dataset]
+                    },
+                    options: chartOptions
+                });
+            },
             _getVibrantColors(count) {
                 const colors = [
                     '#1976D2', '#D32F2F', '#388E3C', '#F57C00', '#7B1FA2', '#00796B',
