@@ -1609,6 +1609,7 @@
                         <div class="form-row">
                             <div class="form-col"><label for="plantingPlanName" class="required">Nome do Plano:</label><input type="text" id="plantingPlanName" placeholder="Ex: Plantio Safra 2025/26" required></div>
                             <div class="form-col"><label for="plantingPlanSeason" class="required">Safra:</label><input type="text" id="plantingPlanSeason" placeholder="Ex: 2025/2026" required></div>
+                            <div class="form-col"><label for="plantingRate">Média de Plantio (ha/dia):</label><input type="number" id="plantingRate" value="10"></div>
                         </div>
                     </div>
 
@@ -1640,8 +1641,17 @@
                         </div>
                     </div>
 
-                    <h3><i class="fas fa-list-ol"></i> Sequência de Plantio</h3>
-                    <div class="table-responsive">
+                    <div class="card-header-actions" style="margin-top: 20px;">
+                        <h3><i class="fas fa-list-ol"></i> Sequência de Plantio</h3>
+                        <div class="button-group">
+                            <button id="btnPlantingViewTable" class="save active-view-btn" style="padding: 8px 12px; font-size: 14px;"><i class="fas fa-table"></i> Tabela</button>
+                            <button id="btnPlantingViewGantt" class="save" style="padding: 8px 12px; font-size: 14px; background: #6c757d;"><i class="fas fa-chart-bar"></i> Gráfico de Gantt</button>
+                        </div>
+                    </div>
+                    <div id="planting-gantt-chart-container" class="chart-card" style="min-height: 400px; display: none; margin-top: 15px;">
+                        <div class="chart-container"><canvas id="plantingGanttChart"></canvas></div>
+                    </div>
+                    <div id="planting-table-container" class="table-responsive">
                         <table id="plantingPlanTable">
                             <thead>
                                 <tr>
@@ -1654,12 +1664,14 @@
                                     <th>Variedade Sugerida</th>
                                     <th>Custo Previsto (R$)</th>
                                     <th>Produção Projetada (ton)</th>
+                                    <th>Recurso Alocado</th>
                                     <th>1ª Colheita (Prev.)</th>
                                     <th>Ação</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
                         </table>
+                    </div>
                     </div>
                     <div id="plantingSummary" class="harvest-summary" style="border-top-color: var(--color-purple);"></div>
                     <div class="botoes-relatorio">
@@ -2048,6 +2060,49 @@
                     <h3><i class="fas fa-users"></i> Pessoas Cadastradas</h3>
                 <div id="personnelList" class="table-responsive"></div>
             </section>
+
+            <section id="cadastrarRecursos" class="tab-content card" aria-label="Cadastrar Recursos" tabindex="0" hidden>
+                <h2><i class="fas fa-cogs"></i> Cadastro de Recursos (Equipas/Máquinas)</h2>
+                <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
+                    <h3><i class="fas fa-plus-circle"></i> Adicionar/Editar Recurso</h3>
+                    <input type="hidden" id="resourceId">
+                    <div class="form-row">
+                        <div class="form-col"><label for="resourceName" class="required">Nome do Recurso:</label><input type="text" id="resourceName" placeholder="Ex: Equipe de Plantio A"></div>
+                        <div class="form-col">
+                            <label for="resourceType" class="required">Tipo de Recurso:</label>
+                            <select id="resourceType">
+                                <option value="Equipe">Equipe</option>
+                                <option value="Máquina">Máquina</option>
+                                <option value="Outro">Outro</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="btnSaveResource" class="save" style="max-width: 250px; background: var(--color-info);"><i class="fas fa-save"></i> Guardar Recurso</button>
+                </div>
+                <h3 style="margin-top: 30px;"><i class="fas fa-list"></i> Recursos Cadastrados</h3>
+                <div id="resourceList" class="table-responsive"></div>
+            </section>
+
+            <section id="estoqueMudas" class="tab-content card" aria-label="Estoque de Mudas" tabindex="0" hidden>
+                <h2><i class="fas fa-leaf"></i> Estoque de Mudas (Viveiro)</h2>
+                <div class="card" style="border-left-color: var(--color-success); margin-top: 30px;">
+                    <h3><i class="fas fa-plus-circle"></i> Adicionar/Atualizar Estoque</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="stockVariety" class="required">Variedade:</label><input type="text" id="stockVariety" placeholder="Ex: RB867515"></div>
+                        <div class="form-col"><label for="stockQuantity" class="required">Quantidade em Estoque:</label><input type="number" id="stockQuantity" placeholder="Ex: 50000"></div>
+                        <div class="form-col">
+                            <label for="stockUnit" class="required">Unidade:</label>
+                            <select id="stockUnit">
+                                <option value="unidades">Mudas (unidades)</option>
+                                <option value="toneladas">Toneladas</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="btnSaveStock" class="save" style="max-width: 250px; background: var(--color-success);"><i class="fas fa-save"></i> Guardar Estoque</button>
+                </div>
+                <h3 style="margin-top: 30px;"><i class="fas fa-list"></i> Estoque Atual</h3>
+                <div id="stockList" class="table-responsive"></div>
+            </section>
             
             <section id="configuracoesEmpresa" class="tab-content card" aria-label="Configurações da Empresa" tabindex="0" hidden>
                 <h2><i class="fas fa-building"></i> Configurações da Empresa</h2>
@@ -2090,6 +2145,12 @@
                         <div class="form-col">
                             <label for="costPlantingOp">Custo Operação Plantio (R$/ha):</label>
                             <input type="number" id="costPlantingOp" placeholder="Ex: 100.00" step="0.01">
+                        </div>
+                    </div>
+                    <div class="form-row" style="margin-top: 15px;">
+                        <div class="form-col">
+                            <label for="seedlingsPerHectare">Média de Mudas por Hectare:</label>
+                            <input type="number" id="seedlingsPerHectare" placeholder="Ex: 12000" step="100">
                         </div>
                     </div>
                     <button id="btnSaveCosts" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Guardar Custos</button>
