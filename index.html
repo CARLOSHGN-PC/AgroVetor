@@ -1626,8 +1626,10 @@
                             <div class="form-col">
                                 <label for="plantingType" class="required">Tipo de Plantio:</label>
                                 <select id="plantingType">
-                                    <option value="Novo Plantio">Novo Plantio</option>
                                     <option value="Reforma">Reforma</option>
+                                    <option value="Expansão">Expansão</option>
+                                    <option value="Pousio">Pousio</option>
+                                    <option value="Soja">Soja</option>
                                 </select>
                             </div>
                             <div class="form-col">
@@ -1635,6 +1637,18 @@
                                 <input type="date" id="plantingDate">
                             </div>
                         </div>
+                        <div class="form-row" style="margin-top: 15px;">
+                             <div class="form-col" style="flex-grow: 0; display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="useSeedlingSource" style="width: auto; margin-top: 0;">
+                                <label for="useSeedlingSource" style="margin-top: 0; font-weight: 600;">Usar talhão como fonte de mudas?</label>
+                            </div>
+                        </div>
+                        <div id="seedlingSourceContainer" class="form-row" style="display: none;">
+                            <div class="form-col"><label for="seedlingSourceFarm">Fonte de Mudas (Fazenda):</label><select id="seedlingSourceFarm"></select></div>
+                            <div class="form-col"><label for="seedlingSourcePlot">Fonte de Mudas (Talhão):</label><select id="seedlingSourcePlot"></select></div>
+                            <div class="form-col"><label for="seedlingArea">Área de Mudas (ha):</label><input type="number" id="seedlingArea" step="0.01"></div>
+                        </div>
+
                         <div class="form-row" style="align-items: flex-end;">
                             <div class="form-col"><button class="save" id="btnAddPlotToPlantingPlan" style="background: var(--color-purple);"><i class="fas fa-plus"></i> Adicionar Selecionados</button></div>
                             <div class="form-col"><button id="btnSuggestVariety" class="btn-ai"><i class="fas fa-magic"></i> Sugerir Variedades (IA)</button></div>
