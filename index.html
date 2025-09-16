@@ -1570,6 +1570,7 @@
                                     <th>Área (ha)</th>
                                     <th>Prod. (ton)</th>
                                     <th>ATR</th>
+                                    <th>Custo (R$)</th>
                                     <th>Idade (m)</th>
                                     <th>Maturador</th>
                                     <th>Dias Aplic.</th>
@@ -1728,6 +1729,11 @@
                             <input type="checkbox" data-column="atr" checked>
                             <span class="checkbox-visual"><i class="fas fa-check"></i></span>
                             <span class="option-content"><i class="fas fa-vial"></i><span>ATR</span></span>
+                        </label>
+                        <label class="report-option-item">
+                            <input type="checkbox" data-column="cost" checked>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content"><i class="fas fa-dollar-sign"></i><span>Custo (R$)</span></span>
                         </label>
                         <label class="report-option-item">
                             <input type="checkbox" data-column="maturador" checked>
@@ -1965,6 +1971,26 @@
                     <button id="removeLogoBtn" class="btn-secondary" style="background: var(--color-danger); max-width: 200px; display: none;"><i class="fas fa-trash"></i> Remover Logo</button>
                 </div>
                 
+                <div class="card" style="border-left-color: var(--color-success); margin-top: 30px;">
+                    <h3><i class="fas fa-money-bill-wave"></i> Parâmetros de Custo da Colheita</h3>
+                    <p>Estes valores serão usados para calcular os custos estimados no módulo de Planejamento de Colheita.</p>
+                    <div class="form-row" style="margin-top: 15px;">
+                        <div class="form-col">
+                            <label for="costPerKm">Custo por KM (R$):</label>
+                            <input type="number" id="costPerKm" placeholder="Ex: 2.50" step="0.01">
+                        </div>
+                        <div class="form-col">
+                            <label for="costPerTon">Custo por Tonelada (R$):</label>
+                            <input type="number" id="costPerTon" placeholder="Ex: 5.00" step="0.01">
+                        </div>
+                        <div class="form-col">
+                            <label for="dailyCost">Custo Diário da Frente (R$):</label>
+                            <input type="number" id="dailyCost" placeholder="Ex: 3000.00" step="0.01">
+                        </div>
+                    </div>
+                    <button id="btnSaveCosts" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Guardar Custos</button>
+                </div>
+
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
                     <h3><i class="fas fa-map"></i> Contornos dos Talhões (Shapefile)</h3>
                     <p>Importe os limites geográficos das suas fazendas e talhões. Faça o upload de um arquivo <strong>.zip</strong> contendo os arquivos .shp, .shx e .dbf.</p>

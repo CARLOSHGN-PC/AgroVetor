@@ -105,6 +105,118 @@ try {
         }
     });
 
+    app.get('/reports/colheita/csv', async (req, res) => {
+        try {
+            const { planId, selectedColumns } = req.query;
+            const selectedCols = JSON.parse(selectedColumns || '{}');
+            if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
+
+            const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
+            if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
+
+            const harvestPlan = harvestPlanDoc.data();
+            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasData = {};
+            fazendasSnapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                fazendasData[data.code] = { id: docSnap.id, ...data };
+            });
+
+            const configDoc = await db.collection('config').doc('company').get();
+            const configData = configDoc.exists ? configDoc.data() : {};
+            const { costPerKm = 0, costPerTon = 0, dailyCost = 0 } = configData;
+
+            const allPossibleHeaders = [
+                { id: 'seq', title: 'Seq.' },
+                { id: 'fazenda', title: 'Fazenda' },
+                { id: 'talhoes', title: 'Talhoes' },
+                { id: 'area', title: 'Area (ha)' },
+                { id: 'producao', title: 'Producao (ton)' },
+                { id: 'atr', title: 'ATR' },
+                { id: 'cost', title: 'Custo (R$)' },
+                { id: 'variedade', title: 'Variedade' },
+                { id: 'idade', title: 'Idade (m)' },
+                { id: 'maturador', title: 'Maturador' },
+                { id: 'diasAplicacao', title: 'Dias Aplic.' },
+                { id: 'distancia', title: 'Distancia (KM)' },
+                { id: 'entrada', title: 'Entrada' },
+                { id: 'saida', title: 'Saida' }
+            ];
+
+            const finalHeader = allPossibleHeaders.filter(h => {
+                if (['seq', 'fazenda', 'area', 'producao', 'entrada', 'saida'].includes(h.id)) return true;
+                return selectedCols[h.id];
+            });
+
+            const records = [];
+            let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
+            const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+
+            for (let i = 0; i < harvestPlan.sequence.length; i++) {
+                const group = harvestPlan.sequence[i];
+                const diasNecessarios = dailyTon > 0 ? Math.ceil(group.totalProducao / dailyTon) : 0;
+                const dataEntrada = new Date(currentDate.getTime());
+                let dataSaida = new Date(dataEntrada.getTime());
+                dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
+                currentDate = new Date(dataSaida.getTime());
+                currentDate.setDate(currentDate.getDate() + 1);
+
+                let totalAgeInDays = 0, plotsWithDate = 0;
+                let totalDistancia = 0, plotsWithDistancia = 0;
+                const allVarieties = new Set();
+                const farm = fazendasData[group.fazendaCodigo];
+                group.plots.forEach(plot => {
+                    const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
+                    if (talhao) {
+                        if (talhao.dataUltimaColheita) {
+                            totalAgeInDays += Math.abs(dataEntrada - new Date(talhao.dataUltimaColheita + 'T03:00:00Z'));
+                            plotsWithDate++;
+                        }
+                        if (talhao.variedade) allVarieties.add(talhao.variedade);
+                        if (typeof talhao.distancia === 'number') {
+                            totalDistancia += talhao.distancia;
+                            plotsWithDistancia++;
+                        }
+                    }
+                });
+
+                const idadeMediaMeses = plotsWithDate > 0 ? ((totalAgeInDays / plotsWithDate) / (1000 * 60 * 60 * 24 * 30)).toFixed(1).replace('.', ',') : 'N/A';
+                const avgDistanciaNum = plotsWithDistancia > 0 ? (totalDistancia / plotsWithDistancia) : 0;
+                const diasAplicacao = group.maturadorDate ? Math.floor((new Date() - new Date(group.maturadorDate + 'T03:00:00Z')) / (1000 * 60 * 60 * 24)) : 'N/A';
+
+                const costTransport = avgDistanciaNum * group.totalProducao * costPerKm;
+                const costProduction = group.totalProducao * costPerTon;
+                const costOperation = diasNecessarios * dailyCost;
+                const groupCost = costTransport + costProduction + costOperation;
+
+                records.push({
+                    seq: i + 1,
+                    fazenda: `${group.fazendaCodigo} - ${group.fazendaName}`,
+                    talhoes: group.plots.map(p => p.talhaoName).join(', '),
+                    area: group.totalArea.toFixed(2).replace('.', ','),
+                    producao: group.totalProducao.toFixed(2).replace('.', ','),
+                    atr: group.atr || 'N/A',
+                    cost: groupCost.toFixed(2).replace('.', ','),
+                    variedade: Array.from(allVarieties).join(', ') || 'N/A',
+                    idade: idadeMediaMeses,
+                    maturador: group.maturador || 'N/A',
+                    diasAplicacao: diasAplicacao,
+                    distancia: avgDistanciaNum > 0 ? avgDistanciaNum.toFixed(2).replace('.', ',') : 'N/A',
+                    entrada: dataEntrada.toLocaleDateString('pt-BR'),
+                    saida: dataSaida.toLocaleDateString('pt-BR')
+                });
+            }
+
+            const filePath = path.join(os.tmpdir(), `colheita_detalhada_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({ path: filePath, header: finalHeader });
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Colheita Detalhada:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
     // ROTA PARA INGESTÃO DE RELATÓRIO HISTÓRICO (SEM IA)
     app.post('/api/upload/historical-report', async (req, res) => {
         const { reportData: originalReportData } = req.body;
@@ -866,20 +978,25 @@ try {
                 fazendasData[data.code] = { id: docSnap.id, ...data };
             });
 
+            const configDoc = await db.collection('config').doc('company').get();
+            const configData = configDoc.exists ? configDoc.data() : {};
+            const { costPerKm = 0, costPerTon = 0, dailyCost = 0 } = configData;
+
             const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
             let currentY = await generatePdfHeader(doc, title);
 
             const allPossibleHeadersConfig = [
                 { id: 'seq', title: 'Seq.', minWidth: 35 },
                 { id: 'fazenda', title: 'Fazenda', minWidth: 120 },
-                { id: 'talhoes', title: 'Talhões', minWidth: 160 },
+                { id: 'talhoes', title: 'Talhões', minWidth: 150 },
                 { id: 'area', title: 'Área (ha)', minWidth: 50 },
                 { id: 'producao', title: 'Prod. (ton)', minWidth: 60 },
-                { id: 'variedade', title: 'Variedade', minWidth: 130 },
-                { id: 'idade', title: 'Idade (m)', minWidth: 55 },
                 { id: 'atr', title: 'ATR', minWidth: 40 },
+                { id: 'cost', title: 'Custo (R$)', minWidth: 65 },
+                { id: 'variedade', title: 'Variedade', minWidth: 120 },
+                { id: 'idade', title: 'Idade (m)', minWidth: 55 },
                 { id: 'maturador', title: 'Matur.', minWidth: 60 },
-                { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 70 },
+                { id: 'diasAplicacao', title: 'Dias Aplic.', minWidth: 60 },
                 { id: 'distancia', title: 'KM', minWidth: 40 },
                 { id: 'entrada', title: 'Entrada', minWidth: 65 },
                 { id: 'saida', title: 'Saída', minWidth: 65 }
@@ -951,6 +1068,7 @@ try {
 
             let grandTotalProducao = 0;
             let grandTotalArea = 0;
+            let grandTotalCost = 0;
             let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
             const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
             const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
@@ -1014,15 +1132,25 @@ try {
                     } catch (e) { diasAplicacao = 'N/A'; }
                 }
 
+                const costTransport = avgDistancia * group.totalProducao * costPerKm;
+                const costProduction = group.totalProducao * costPerTon;
+                const costOperation = diasNecessarios * dailyCost;
+                const groupCost = costTransport + costProduction + costOperation;
+
+                if (!isGroupClosed) {
+                    grandTotalCost += groupCost;
+                }
+
                 const rowDataMap = {
                     seq: i + 1,
                     fazenda: `${group.fazendaCodigo} - ${group.fazendaName} ${isGroupClosed ? '(ENCERRADO)' : ''}`,
                     talhoes: group.plots.map(p => p.talhaoName).join(', '),
                     area: formatNumber(group.totalArea),
                     producao: formatNumber(group.totalProducao),
+                    atr: group.atr || 'N/A',
+                    cost: formatNumber(groupCost),
                     variedade: Array.from(allVarieties).join(', ') || 'N/A',
                     idade: idadeMediaMeses,
-                    atr: group.atr || 'N/A',
                     maturador: group.maturador || 'N/A',
                     diasAplicacao: diasAplicacao,
                     distancia: avgDistancia,
@@ -1043,6 +1171,7 @@ try {
             const fazendaIndex = finalHeaders.findIndex(h => h.id === 'fazenda');
             const areaIndex = finalHeaders.findIndex(h => h.id === 'area');
             const prodIndex = finalHeaders.findIndex(h => h.id === 'producao');
+            const costIndex = finalHeaders.findIndex(h => h.id === 'cost');
 
             if (fazendaIndex !== -1) {
                 totalRowData[fazendaIndex] = 'Total Geral (Ativo)';
@@ -1055,6 +1184,9 @@ try {
             }
             if (prodIndex !== -1) {
                 totalRowData[prodIndex] = formatNumber(grandTotalProducao);
+            }
+            if (costIndex !== -1) {
+                totalRowData[costIndex] = formatNumber(grandTotalCost);
             }
 
             drawRow(doc, totalRowData, currentY, false, true, finalColumnWidths, textPadding, rowHeight, finalHeaders);

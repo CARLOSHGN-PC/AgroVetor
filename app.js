@@ -136,6 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
             fazendas: [],
             personnel: [],
             companyLogo: null,
+            costPerKm: 0,
+            costPerTon: 0,
+            dailyCost: 0,
             activeSubmenu: null,
             charts: {},
             harvestPlans: [],
@@ -268,6 +271,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 historicalReportInput: document.getElementById('historicalReportInput'),
                 btnDownloadHistoricalTemplate: document.getElementById('btnDownloadHistoricalTemplate'),
                 btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
+                costPerKm: document.getElementById('costPerKm'),
+                costPerTon: document.getElementById('costPerTon'),
+                dailyCost: document.getElementById('dailyCost'),
+                btnSaveCosts: document.getElementById('btnSaveCosts'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -726,7 +733,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const configDocRef = doc(db, 'config', 'company');
                 const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
-                    App.state.companyLogo = doc.exists() ? doc.data().logoBase64 : null; 
+                    if (doc.exists()) {
+                        const configData = doc.data();
+                        App.state.companyLogo = configData.logoBase64 || null;
+                        App.state.costPerKm = configData.costPerKm || 0;
+                        App.state.costPerTon = configData.costPerTon || 0;
+                        App.state.dailyCost = configData.dailyCost || 0;
+
+                        const { costPerKm, costPerTon, dailyCost } = App.elements.companyConfig;
+                        if (costPerKm) costPerKm.value = App.state.costPerKm;
+                        if (costPerTon) costPerTon.value = App.state.costPerTon;
+                        if (dailyCost) dailyCost.value = App.state.dailyCost;
+
+                    } else {
+                        App.state.companyLogo = null;
+                        App.state.costPerKm = 0;
+                        App.state.costPerTon = 0;
+                        App.state.dailyCost = 0;
+                    }
                     App.ui.renderLogoPreview();
                 });
                 App.state.unsubscribeListeners.push(unsubscribeConfig);
@@ -1576,6 +1600,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tableBody.innerHTML = '';
                 let grandTotalProducao = 0;
                 let grandTotalArea = 0;
+                let grandTotalCost = 0;
 
                 let currentDate = startDate ? new Date(startDate + 'T03:00:00Z') : new Date();
                 if (isNaN(currentDate.getTime())) {
@@ -1604,6 +1629,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, dataEntrada);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
 
+                    // --- Cost Calculation ---
+                    const { costPerKm, costPerTon, dailyCost } = App.state;
+                    let groupCost = 0;
+                    if (costPerKm > 0 || costPerTon > 0 || dailyCost > 0) {
+                        const farmData = App.state.fazendas.find(f => f.code === group.fazendaCodigo);
+                        let totalDistance = 0;
+                        let plotsWithDistance = 0;
+                        if (farmData && farmData.talhoes) {
+                            group.plots.forEach(p => {
+                                const talhao = farmData.talhoes.find(t => t.id === p.talhaoId);
+                                if (talhao && typeof talhao.distancia === 'number') {
+                                    totalDistance += talhao.distancia;
+                                    plotsWithDistance++;
+                                }
+                            });
+                        }
+                        const avgDistance = plotsWithDistance > 0 ? totalDistance / plotsWithDistance : 0;
+
+                        const costTransport = avgDistance * group.totalProducao * costPerKm;
+                        const costProduction = group.totalProducao * costPerTon;
+                        const costOperation = diasNecessarios * dailyCost;
+                        groupCost = costTransport + costProduction + costOperation;
+                        grandTotalCost += groupCost;
+                    }
+                    // --- End Cost Calculation ---
+
                     const areaColhida = group.areaColhida || 0;
                     const producaoColhida = group.producaoColhida || 0;
 
@@ -1618,6 +1669,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Área (ha)">${areaColhida.toFixed(2)} / ${group.totalArea.toFixed(2)}</td>
                         <td data-label="Prod. (ton)">${producaoColhida.toFixed(2)} / ${group.totalProducao.toFixed(2)}</td>
                         <td data-label="ATR"><span>${group.atr || 'N/A'}</span></td>
+                        <td data-label="Custo (R$)">${groupCost > 0 ? groupCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'N/A'}</td>
                         <td data-label="Idade (m)">${idadeMediaMeses}</td>
                         <td data-label="Maturador">${group.maturador || 'N/A'}</td>
                         <td data-label="Dias Aplic.">${diasAplicacao}</td>
@@ -1653,6 +1705,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     summary.innerHTML = `
                         <p>Produção Total (Ativa): <span>${grandTotalProducao.toFixed(2)} ton</span></p>
                         <p>Área Total (Ativa): <span>${grandTotalArea.toFixed(2)} ha</span></p>
+                        <p>Custo Total Previsto: <span style="color: var(--color-danger);">${grandTotalCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></p>
                         <p>Data Final de Saída Prevista: <span>${finalDate.toLocaleDateString('pt-BR')}</span></p>
                         <p>Variedades na Sequência: <span>${varietiesString}</span></p>
                     `;
@@ -2017,6 +2070,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (companyConfigEls.btnDeleteHistoricalData) {
                     companyConfigEls.btnDeleteHistoricalData.addEventListener('click', () => App.actions.deleteHistoricalData());
+                }
+                if (companyConfigEls.btnSaveCosts) {
+                    companyConfigEls.btnSaveCosts.addEventListener('click', () => App.actions.saveCosts());
                 }
                 if (companyConfigEls.historicalReportUploadArea) {
                     const uploadArea = companyConfigEls.historicalReportUploadArea;
@@ -3304,6 +3360,28 @@ document.addEventListener('DOMContentLoaded', () => {
                  };
                  reader.readAsText(file, 'ISO-8859-1');
             },
+            async saveCosts() {
+                const { costPerKm, costPerTon, dailyCost } = App.elements.companyConfig;
+                const costs = {
+                    costPerKm: parseFloat(costPerKm.value) || 0,
+                    costPerTon: parseFloat(costPerTon.value) || 0,
+                    dailyCost: parseFloat(dailyCost.value) || 0,
+                };
+
+                App.ui.showConfirmationModal("Tem a certeza que deseja guardar estes parâmetros de custo?", async () => {
+                    App.ui.setLoading(true, "A guardar custos...");
+                    try {
+                        await App.data.setDocument('config', 'company', costs);
+                        App.ui.showAlert('Parâmetros de custo guardados com sucesso!');
+                    } catch (error) {
+                        console.error("Erro ao guardar custos no Firestore:", error);
+                        App.ui.showAlert(`Erro ao guardar os custos: ${error.message}`, 'error');
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
             downloadPersonnelCsvTemplate() {
                 const headers = "Matricula;Nome";
                 const exampleRow = "12345;José Almeida";
