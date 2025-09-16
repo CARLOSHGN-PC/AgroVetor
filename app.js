@@ -1628,7 +1628,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 table.className = 'harvestPlanTable';
                 table.innerHTML = `<thead><tr><th>Variedade</th><th>Quantidade</th><th>Unidade</th><th>Ações</th></tr></thead><tbody></tbody>`;
                 const tbody = table.querySelector('tbody');
-                App.state.seedlingStock.sort((a,b) => a.id.localeCompare(b.id)).forEach(s => {
+                App.state.seedlingStock.sort((a,b) => (a.id || '').localeCompare(b.id || '')).forEach(s => {
                     const row = tbody.insertRow();
                     row.innerHTML = `
                         <td data-label="Variedade">${s.id}</td>
@@ -1656,7 +1656,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 table.className = 'harvestPlanTable';
                 table.innerHTML = `<thead><tr><th>Nome</th><th>Tipo</th><th>Ações</th></tr></thead><tbody></tbody>`;
                 const tbody = table.querySelector('tbody');
-                App.state.resources.sort((a,b) => a.name.localeCompare(b.name)).forEach(r => {
+                App.state.resources.sort((a,b) => (a.name || '').localeCompare(b.name || '')).forEach(r => {
                     const row = tbody.insertRow();
                     row.innerHTML = `
                         <td data-label="Nome">${r.name}</td>
