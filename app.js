@@ -145,7 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
             costPerKm: 0,
             costPerTon: 0,
             dailyCost: 0,
-            costPerHectarePlanted: 0,
+            costSoilPrep: 0,
+            costInputs: 0,
+            costPlantingOp: 0,
             activeSubmenu: null,
             charts: {},
             harvestPlans: [],
@@ -283,7 +285,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 costPerKm: document.getElementById('costPerKm'),
                 costPerTon: document.getElementById('costPerTon'),
                 dailyCost: document.getElementById('dailyCost'),
-                costPerHectarePlanted: document.getElementById('costPerHectarePlanted'),
+                costSoilPrep: document.getElementById('costSoilPrep'),
+                costInputs: document.getElementById('costInputs'),
+                costPlantingOp: document.getElementById('costPlantingOp'),
                 btnSaveCosts: document.getElementById('btnSaveCosts'),
             },
             dashboard: {
@@ -497,7 +501,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 planName: document.getElementById('plantingPlanName'),
                 planSeason: document.getElementById('plantingPlanSeason'),
                 fazenda: document.getElementById('plantingFazenda'),
-                talhao: document.getElementById('plantingTalhao'),
+                plantingType: document.getElementById('plantingType'),
+                plantingDate: document.getElementById('plantingDate'),
+                talhaoSelectionList: document.getElementById('plantingTalhaoSelectionList'),
+                selectAllTalhoes: document.getElementById('selectAllPlantingTalhoes'),
                 btnAddPlot: document.getElementById('btnAddPlotToPlantingPlan'),
                 btnSuggestVariety: document.getElementById('btnSuggestVariety'),
                 tableBody: document.querySelector('#plantingPlanTable tbody'),
@@ -768,20 +775,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.costPerKm = configData.costPerKm || 0;
                         App.state.costPerTon = configData.costPerTon || 0;
                         App.state.dailyCost = configData.dailyCost || 0;
-                        App.state.costPerHectarePlanted = configData.costPerHectarePlanted || 0;
+                        App.state.costSoilPrep = configData.costSoilPrep || 0;
+                        App.state.costInputs = configData.costInputs || 0;
+                        App.state.costPlantingOp = configData.costPlantingOp || 0;
 
-                        const { costPerKm, costPerTon, dailyCost, costPerHectarePlanted } = App.elements.companyConfig;
+                        const { costPerKm, costPerTon, dailyCost, costSoilPrep, costInputs, costPlantingOp } = App.elements.companyConfig;
                         if (costPerKm) costPerKm.value = App.state.costPerKm;
                         if (costPerTon) costPerTon.value = App.state.costPerTon;
                         if (dailyCost) dailyCost.value = App.state.dailyCost;
-                        if (costPerHectarePlanted) costPerHectarePlanted.value = App.state.costPerHectarePlanted;
+                        if (costSoilPrep) costSoilPrep.value = App.state.costSoilPrep;
+                        if (costInputs) costInputs.value = App.state.costInputs;
+                        if (costPlantingOp) costPlantingOp.value = App.state.costPlantingOp;
 
                     } else {
                         App.state.companyLogo = null;
                         App.state.costPerKm = 0;
                         App.state.costPerTon = 0;
                         App.state.dailyCost = 0;
-                        App.state.costPerHectarePlanted = 0;
+                        App.state.costSoilPrep = 0;
+                        App.state.costInputs = 0;
+                        App.state.costPlantingOp = 0;
                     }
                     App.ui.renderLogoPreview();
                 });
@@ -1021,17 +1034,45 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             populatePlantingTalhaoSelects(farmId) {
-                const select = App.elements.planting.talhao;
-                if (!select) return;
-                select.innerHTML = '<option value="">Selecione um talhão...</option>';
-                if (!farmId) return;
+                const { talhaoSelectionList, selectAllTalhoes } = App.elements.planting;
+                if (!talhaoSelectionList) return;
+
+                talhaoSelectionList.innerHTML = '';
+                selectAllTalhoes.checked = false;
+
+                if (!farmId) {
+                    talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
+                    return;
+                }
 
                 const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (farm && farm.talhoes) {
-                    farm.talhoes.sort((a, b) => a.name.localeCompare(b.name)).forEach(talhao => {
-                        select.innerHTML += `<option value="${talhao.id}">${talhao.name} (Amb: ${talhao.ambiente || 'N/A'})</option>`;
-                    });
+                if (!farm || !farm.talhoes || farm.talhoes.length === 0) {
+                    talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Nenhum talhão cadastrado nesta fazenda.</p>';
+                    return;
                 }
+
+                const plotsInPlan = App.state.activePlantingPlan ? App.state.activePlantingPlan.sequence.map(a => a.talhaoId) : [];
+
+                farm.talhoes.sort((a, b) => a.name.localeCompare(b.name)).forEach(talhao => {
+                    const isAlreadyInPlan = plotsInPlan.includes(talhao.id);
+                    const label = document.createElement('label');
+                    label.className = 'talhao-selection-item';
+                    if (isAlreadyInPlan) {
+                        label.classList.add('talhao-closed');
+                    }
+                    label.htmlFor = `planting-talhao-select-${talhao.id}`;
+
+                    label.innerHTML = `
+                        <input type="checkbox" id="planting-talhao-select-${talhao.id}" data-talhao-id="${talhao.id}" ${isAlreadyInPlan ? 'disabled' : ''}>
+                        <div class="talhao-name">${talhao.name}</div>
+                        <div class="talhao-details">
+                            <span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area ? talhao.area.toFixed(2) : 0} ha</span>
+                            <span><i class="fas fa-globe-americas"></i>Ambiente: ${talhao.ambiente || 'N/A'}</span>
+                        </div>
+                        ${isAlreadyInPlan ? '<div class="talhao-closed-overlay">NO PLANO</div>' : ''}
+                    `;
+                    talhaoSelectionList.appendChild(label);
+                });
             },
 
             populateHarvestPlanSelect() {
@@ -1724,9 +1765,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Talhão">${activity.talhaoName}</td>
                         <td data-label="Ambiente">${activity.ambiente}</td>
                         <td data-label="Área (ha)">${activity.area.toFixed(2)}</td>
+                        <td data-label="Tipo">${activity.plantingType}</td>
+                        <td data-label="Data Plantio">${App.actions.formatDateForDisplay(activity.plantingDate)}</td>
                         <td data-label="Variedade Sugerida">${activity.variedadeSugerida}</td>
                         <td data-label="Custo Previsto (R$)">${activity.custoPrevisto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                         <td data-label="Produção Projetada (ton)">${activity.projecaoProducao.toFixed(2)}</td>
+                        <td data-label="1ª Colheita (Prev.)">${App.actions.formatDateForDisplay(activity.projectedHarvestDate)}</td>
                         <td data-label="Ação">
                             <button class="btn-excluir" data-action="remove-planting-activity" data-id="${activity.activityId}"><i class="fas fa-times"></i></button>
                         </td>
@@ -2380,6 +2424,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (plantingEls.btnPDF) plantingEls.btnPDF.addEventListener('click', () => App.reports.generatePlantingReport('pdf'));
                 if (plantingEls.btnExcel) plantingEls.btnExcel.addEventListener('click', () => App.reports.generatePlantingReport('csv'));
                 if (plantingEls.fazenda) plantingEls.fazenda.addEventListener('change', (e) => App.ui.populatePlantingTalhaoSelects(e.target.value));
+                if (plantingEls.selectAllTalhoes) plantingEls.selectAllTalhoes.addEventListener('change', (e) => {
+                    const isChecked = e.target.checked;
+                    plantingEls.talhaoSelectionList.querySelectorAll('input[type="checkbox"]:not([disabled])').forEach(cb => {
+                        cb.checked = isChecked;
+                    });
+                });
                 if (plantingEls.tableBody) plantingEls.tableBody.addEventListener('click', (e) => {
                     const removeBtn = e.target.closest('button[data-action="remove-planting-activity"]');
                     if (removeBtn) {
@@ -3530,12 +3580,14 @@ document.addEventListener('DOMContentLoaded', () => {
                  reader.readAsText(file, 'ISO-8859-1');
             },
             async saveCosts() {
-                const { costPerKm, costPerTon, dailyCost, costPerHectarePlanted } = App.elements.companyConfig;
+                const { costPerKm, costPerTon, dailyCost, costSoilPrep, costInputs, costPlantingOp } = App.elements.companyConfig;
                 const costs = {
                     costPerKm: parseFloat(costPerKm.value) || 0,
                     costPerTon: parseFloat(costPerTon.value) || 0,
                     dailyCost: parseFloat(dailyCost.value) || 0,
-                    costPerHectarePlanted: parseFloat(costPerHectarePlanted.value) || 0,
+                    costSoilPrep: parseFloat(costSoilPrep.value) || 0,
+                    costInputs: parseFloat(costInputs.value) || 0,
+                    costPlantingOp: parseFloat(costPlantingOp.value) || 0,
                 };
 
                 App.ui.showConfirmationModal("Tem a certeza que deseja guardar estes parâmetros de custo?", async () => {
@@ -4129,41 +4181,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
             addPlotToPlantingPlan() {
                 if (!App.state.activePlantingPlan) return;
-                const { plantingFazenda, plantingTalhao } = App.elements.planting;
+                const { plantingFazenda, talhaoSelectionList, plantingType, plantingDate } = App.elements.planting;
                 const farmId = plantingFazenda.value;
-                const talhaoId = plantingTalhao.value;
+                const type = plantingType.value;
+                const date = plantingDate.value;
 
-                if (!farmId || !talhaoId) {
-                    App.ui.showAlert("Selecione uma fazenda e um talhão.", "warning");
+                if (!farmId || !type || !date) {
+                    App.ui.showAlert("Selecione uma fazenda, tipo e data de plantio.", "warning");
                     return;
                 }
 
-                const alreadyExists = App.state.activePlantingPlan.sequence.some(act => act.talhaoId === talhaoId);
-                if (alreadyExists) {
-                    App.ui.showAlert("Este talhão já foi adicionado ao plano.", "warning");
+                const selectedCheckboxes = talhaoSelectionList.querySelectorAll('input[type="checkbox"]:checked');
+                if (selectedCheckboxes.length === 0) {
+                    App.ui.showAlert("Selecione pelo menos um talhão.", "warning");
                     return;
                 }
 
                 const farm = App.state.fazendas.find(f => f.id === farmId);
-                const talhao = farm?.talhoes.find(t => t.id == talhaoId);
+                if (!farm) return;
 
-                if (farm && talhao) {
-                    const newActivity = {
-                        activityId: Date.now(),
-                        fazendaId: farm.id,
-                        fazendaName: `${farm.code} - ${farm.name}`,
-                        talhaoId: talhao.id,
-                        talhaoName: talhao.name,
-                        ambiente: talhao.ambiente || 'N/A',
-                        area: talhao.area || 0,
-                        tch: talhao.tch || 0,
-                        variedadeSugerida: 'N/A', // To be filled by AI or manually
-                        custoPrevisto: (talhao.area || 0) * (App.state.costPerHectarePlanted || 0),
-                        projecaoProducao: (talhao.area || 0) * (talhao.tch || 0),
-                    };
-                    App.state.activePlantingPlan.sequence.push(newActivity);
-                    App.ui.renderPlantingSequence();
-                }
+                const plantingDateObj = new Date(date + 'T03:00:00Z');
+                const projectedHarvestDate = new Date(plantingDateObj.setMonth(plantingDateObj.getMonth() + 15)); // Assume 15 months cycle for now
+
+                selectedCheckboxes.forEach(cb => {
+                    const talhaoId = cb.dataset.talhaoId;
+                    const talhao = farm.talhoes.find(t => t.id == talhaoId);
+
+                    if (talhao) {
+                        const newActivity = {
+                            activityId: Date.now() + Math.random(), // Add random to avoid collision in loop
+                            fazendaId: farm.id,
+                            fazendaName: `${farm.code} - ${farm.name}`,
+                            talhaoId: talhao.id,
+                            talhaoName: talhao.name,
+                            ambiente: talhao.ambiente || 'N/A',
+                            area: talhao.area || 0,
+                            tch: talhao.tch || 0,
+                            plantingType: type,
+                            plantingDate: date,
+                            projectedHarvestDate: projectedHarvestDate.toISOString().split('T')[0],
+                            variedadeSugerida: 'N/A',
+                            custoPrevisto: (talhao.area || 0) * ((App.state.costSoilPrep || 0) + (App.state.costInputs || 0) + (App.state.costPlantingOp || 0)),
+                            projecaoProducao: (talhao.area || 0) * (talhao.tch || 0),
+                        };
+                        App.state.activePlantingPlan.sequence.push(newActivity);
+                    }
+                });
+
+                App.ui.renderPlantingSequence();
+                App.ui.populatePlantingTalhaoSelects(farmId); // Re-render to disable added plots
             },
 
             removePlantingActivity(activityId) {
