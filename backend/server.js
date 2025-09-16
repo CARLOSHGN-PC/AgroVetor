@@ -325,6 +325,52 @@ try {
         }
     });
 
+    app.post('/api/gemini/suggest-variety', async (req, res) => {
+        if (!model) {
+            return res.status(503).json({ message: "Esta funcionalidade de IA está temporariamente desativada." });
+        }
+        const { ambiente, safra } = req.body;
+
+        if (!ambiente) {
+            return res.status(400).json({ message: 'O Ambiente de Produção é obrigatório.' });
+        }
+
+        try {
+            const prompt = `
+                Aja como um especialista em agronomia de cana-de-açúcar. Para um talhão com ambiente de produção classificado como '${ambiente}' e para a safra '${safra || 'geral'}', recomende as 3 melhores variedades de cana.
+
+                Considere os seguintes critérios para a sua recomendação:
+                1.  **Adequação ao Ambiente:** A variedade deve ser altamente produtiva no ambiente especificado.
+                2.  **Resistência a Pragas e Doenças:** Priorize variedades com boa resistência às principais pragas e doenças da cana.
+                3.  **Ciclo de Maturação:** Forneça uma mistura de variedades de ciclos diferentes (precoce, médio, tardio) se possível, para escalonamento da colheita.
+
+                Retorne a sua resposta como um array JSON de objetos. Cada objeto deve conter a 'variedade' (o nome da variedade, ex: 'RB867515') e uma 'justificativa' (uma breve explicação do porquê da recomendação).
+                O nome do array deve ser "sugestoes".
+
+                Exemplo de Resposta:
+                {
+                  "sugestoes": [
+                    { "variedade": "CTC4", "justificativa": "Alta produtividade em ambientes restritivos (B, C), bom perfil de maturação e sanidade." },
+                    { "variedade": "RB966928", "justificativa": "Excelente para ambientes bons (A, B), alta longevidade e teor de sacarose." },
+                    { "variedade": "IACSP95-5000", "justificativa": "Boa adaptabilidade, precoce, ideal para início de safra." }
+                  ]
+                }
+            `;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            let text = response.text();
+
+            text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            const jsonResponse = JSON.parse(text);
+            res.status(200).json(jsonResponse);
+
+        } catch (error) {
+            console.error("Erro ao chamar a API do Gemini para sugerir variedade:", error);
+            res.status(500).json({ message: 'Erro ao comunicar com a IA.' });
+        }
+    });
+
     // ROTA PARA CÁLCULO DE ATR PONDERADO
     app.post('/api/calculate-atr', async (req, res) => {
         const { codigoFazenda } = req.body;
@@ -1682,6 +1728,92 @@ try {
 
         } catch (error) {
             console.error("Erro ao gerar CSV de Armadilhas Ativas:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/planting/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=relatorio_plantio.pdf`);
+        doc.pipe(res);
+
+        try {
+            const { planId, generatedBy } = req.query;
+            if (!planId) throw new Error('ID do plano não fornecido.');
+
+            const planDoc = await db.collection('plantingPlans').doc(planId).get();
+            if (!planDoc.exists) throw new Error('Plano de plantio não encontrado.');
+            const plan = planDoc.data();
+
+            const title = `Relatório de Planejamento de Plantio - ${plan.planName}`;
+            let currentY = await generatePdfHeader(doc, title);
+
+            const headers = ['Fazenda', 'Talhão', 'Ambiente', 'Área (ha)', 'Variedade Sugerida', 'Custo Previsto (R$)', 'Produção Projetada (ton)'];
+            const columnWidths = [150, 100, 70, 80, 120, 100, 112];
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            for (const activity of plan.sequence) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                const rowData = [
+                    activity.fazendaName,
+                    activity.talhaoName,
+                    activity.ambiente,
+                    formatNumber(activity.area),
+                    activity.variedadeSugerida,
+                    formatNumber(activity.custoPrevisto),
+                    formatNumber(activity.projecaoProducao)
+                ];
+                currentY = drawRow(doc, rowData, currentY, false, false, columnWidths);
+            }
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Plantio:", error);
+            if (!res.headersSent) res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            else doc.end();
+        }
+    });
+
+    app.get('/reports/planting/csv', async (req, res) => {
+        try {
+            const { planId } = req.query;
+            if (!planId) return res.status(400).send('ID do plano não fornecido.');
+
+            const planDoc = await db.collection('plantingPlans').doc(planId).get();
+            if (!planDoc.exists) return res.status(404).send('Plano de plantio não encontrado.');
+            const plan = planDoc.data();
+
+            const records = plan.sequence.map(activity => ({
+                fazenda: activity.fazendaName,
+                talhao: activity.talhaoName,
+                ambiente: activity.ambiente,
+                area: activity.area.toFixed(2).replace('.', ','),
+                variedade_sugerida: activity.variedadeSugerida,
+                custo_previsto: activity.custoPrevisto.toFixed(2).replace('.', ','),
+                producao_projetada: activity.projecaoProducao.toFixed(2).replace('.', ',')
+            }));
+
+            const filePath = path.join(os.tmpdir(), `plano_plantio_${plan.planName.replace(/[^a-z0-9]/gi, '_')}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'fazenda', title: 'Fazenda' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'ambiente', title: 'Ambiente' },
+                    { id: 'area', title: 'Área (ha)' },
+                    { id: 'variedade_sugerida', title: 'Variedade Sugerida' },
+                    { id: 'custo_previsto', title: 'Custo Previsto (R$)' },
+                    { id: 'producao_projetada', title: 'Produção Projetada (ton)' },
+                ]
+            });
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Plantio:", error);
             res.status(500).send('Erro ao gerar relatório.');
         }
     });
