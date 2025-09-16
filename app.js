@@ -534,6 +534,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnCancelPlan: document.getElementById('btnCancelPlantingPlan'),
                 btnPDF: document.getElementById('btnPDFPlantingPlan'),
                 btnExcel: document.getElementById('btnExcelPlantingPlan'),
+                useSeedlingSource: document.getElementById('useSeedlingSource'),
+                seedlingSourceContainer: document.getElementById('seedlingSourceContainer'),
+                seedlingSourceFarm: document.getElementById('seedlingSourceFarm'),
+                seedlingSourcePlot: document.getElementById('seedlingSourcePlot'),
+                seedlingArea: document.getElementById('seedlingArea'),
                 viewTableBtn: document.getElementById('btnPlantingViewTable'),
                 viewGanttBtn: document.getElementById('btnPlantingViewGantt'),
                 ganttContainer: document.getElementById('planting-gantt-chart-container'),
@@ -1866,7 +1871,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Área (ha)">${activity.area.toFixed(2)}</td>
                         <td data-label="Tipo">${activity.plantingType}</td>
                         <td data-label="Data Plantio">${App.actions.formatDateForDisplay(activity.plantingDate)}</td>
-                        <td data-label="Variedade Sugerida">${activity.variedadeSugerida}</td>
+                        <td data-label="Variedade Sugerida"><input type="text" class="variety-input" data-activity-id="${activity.activityId}" value="${activity.variedadeSugerida}"></td>
                         <td data-label="Custo Previsto (R$)">${activity.custoPrevisto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                         <td data-label="Produção Projetada (ton)">${activity.projecaoProducao.toFixed(2)}</td>
                         <td data-label="Recurso Alocado">
@@ -2560,6 +2565,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 if(plantingEls.viewTableBtn) plantingEls.viewTableBtn.addEventListener('click', () => App.ui.togglePlantingView('table'));
                 if(plantingEls.viewGanttBtn) plantingEls.viewGanttBtn.addEventListener('click', () => App.ui.togglePlantingView('gantt'));
+                if (plantingEls.useSeedlingSource) plantingEls.useSeedlingSource.addEventListener('change', (e) => {
+                    plantingEls.seedlingSourceContainer.style.display = e.target.checked ? 'flex' : 'none';
+                    if(e.target.checked) {
+                        App.ui.populateFazendaSelects([plantingEls.seedlingSourceFarm]);
+                    }
+                });
+                if (plantingEls.seedlingSourceFarm) plantingEls.seedlingSourceFarm.addEventListener('change', (e) => {
+                    const farm = App.state.fazendas.find(f => f.id === e.target.value);
+                    const select = plantingEls.seedlingSourcePlot;
+                    select.innerHTML = '<option value="">Selecione...</option>';
+                    if(farm && farm.talhoes) {
+                        farm.talhoes.forEach(t => {
+                            select.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+                        });
+                    }
+                });
                 if (plantingEls.tableBody) plantingEls.tableBody.addEventListener('change', (e) => {
                     if (e.target.classList.contains('resource-select')) {
                         const activityId = e.target.dataset.activityId;
@@ -2568,6 +2589,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (activity) {
                             activity.resourceId = resourceId || null;
                             App.charts.renderPlantingGanttChart(); // Re-render Gantt to check for conflicts
+                        }
+                    }
+                    if (e.target.classList.contains('variety-input')) {
+                        const activityId = e.target.dataset.activityId;
+                        const newVariety = e.target.value;
+                        const activity = App.state.activePlantingPlan.sequence.find(a => a.activityId == activityId);
+                        if (activity) {
+                            activity.variedadeSugerida = newVariety;
                         }
                     }
                 });
@@ -4380,12 +4409,61 @@ document.addEventListener('DOMContentLoaded', () => {
                             const docRef = await App.data.addDocument('plantingPlans', planToSave);
                             planToSave.id = docRef.id; // Assign new ID for consistency
                         }
+                        await App.actions.updateSourcePlotsFromPlantingPlan(planToSave);
                         App.ui.showAlert(`Plano de plantio "${planToSave.planName}" guardado com sucesso!`);
                         App.ui.showPlantingPlanList();
                     } catch(e) {
                         App.ui.showAlert('Erro ao guardar o plano de plantio.', "error");
                     }
                 });
+            },
+
+            async updateSourcePlotsFromPlantingPlan(plan) {
+                const sourceUpdates = new Map();
+
+                plan.sequence.forEach(activity => {
+                    if (activity.seedlingSource && activity.seedlingSource.plotId && activity.seedlingSource.area > 0) {
+                        if (!sourceUpdates.has(activity.seedlingSource.plotId)) {
+                            sourceUpdates.set(activity.seedlingSource.plotId, 0);
+                        }
+                        const currentDeduction = sourceUpdates.get(activity.seedlingSource.plotId);
+                        sourceUpdates.set(activity.seedlingSource.plotId, currentDeduction + activity.seedlingSource.area);
+                    }
+                });
+
+                if (sourceUpdates.size === 0) return; // No updates needed
+
+                const updatedFarms = new Map();
+
+                for (const [plotId, totalDeduction] of sourceUpdates.entries()) {
+                    const farm = App.state.fazendas.find(f => f.talhoes.some(t => t.id == plotId));
+                    if (farm) {
+                        const talhao = farm.talhoes.find(t => t.id == plotId);
+                        if (talhao) {
+                            talhao.area -= totalDeduction;
+                            talhao.producao = talhao.area * talhao.tch;
+                            updatedFarms.set(farm.id, farm);
+                        }
+                    }
+                }
+
+                if (updatedFarms.size > 0) {
+                    App.ui.setLoading(true, "A atualizar áreas dos talhões de origem...");
+                    try {
+                        const batch = writeBatch(db);
+                        updatedFarms.forEach((farm, farmId) => {
+                            const docRef = doc(db, 'fazendas', farmId);
+                            batch.update(docRef, { talhoes: farm.talhoes });
+                        });
+                        await batch.commit();
+                        App.ui.showAlert("Áreas dos talhões de origem atualizadas com sucesso!", "success");
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao atualizar as áreas dos talhões de origem.", "error");
+                        console.error("Error updating source plots:", error);
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                }
             },
 
             deletePlantingPlan(planId) {
@@ -4405,8 +4483,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const type = plantingType.value;
                 const date = plantingDate.value;
 
-                if (!farmId || !type || !date) {
-                    App.ui.showAlert("Selecione uma fazenda, tipo e data de plantio.", "warning");
+                if (!farmId || !type) {
+                    App.ui.showAlert("Selecione uma fazenda e um tipo de plantio.", "warning");
                     return;
                 }
 
@@ -4427,6 +4505,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const talhao = farm.talhoes.find(t => t.id == talhaoId);
 
                     if (talhao) {
+                        const { useSeedlingSource, seedlingSourceFarm, seedlingSourcePlot, seedlingArea } = App.elements.planting;
                         const newActivity = {
                             activityId: Date.now() + Math.random(), // Add random to avoid collision in loop
                             fazendaId: farm.id,
@@ -4442,7 +4521,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             variedadeSugerida: 'N/A',
                             custoPrevisto: (talhao.area || 0) * ((App.state.costSoilPrep || 0) + (App.state.costInputs || 0) + (App.state.costPlantingOp || 0)),
                             projecaoProducao: (talhao.area || 0) * (talhao.tch || 0),
-                            resourceId: null, // New field
+                            resourceId: null,
+                            seedlingSource: useSeedlingSource.checked ? {
+                                farmId: seedlingSourceFarm.value,
+                                plotId: seedlingSourcePlot.value,
+                                area: parseFloat(seedlingArea.value) || 0
+                            } : null
                         };
                         App.state.activePlantingPlan.sequence.push(newActivity);
                     }
@@ -4608,16 +4692,18 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async getVarietySuggestion() {
-                const { plantingFazenda, plantingTalhao, planSeason } = App.elements.planting;
+                const { plantingFazenda, talhaoSelectionList, planSeason } = App.elements.planting;
                 const farmId = plantingFazenda.value;
-                const talhaoId = plantingTalhao.value;
                 const safra = planSeason.value;
 
-                if (!farmId || !talhaoId) {
-                    App.ui.showAlert("Por favor, selecione uma fazenda e um talhão primeiro.", "warning");
+                const firstSelectedCheckbox = talhaoSelectionList.querySelector('input[type="checkbox"]:checked');
+
+                if (!farmId || !firstSelectedCheckbox) {
+                    App.ui.showAlert("Por favor, selecione uma fazenda e pelo menos um talhão para obter sugestões.", "warning");
                     return;
                 }
 
+                const talhaoId = firstSelectedCheckbox.dataset.talhaoId;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const talhao = farm?.talhoes.find(t => t.id == talhaoId);
 
