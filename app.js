@@ -5688,9 +5688,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const plan = App.state.activePlantingPlan;
                 if (!plan || !plan.sequence || !plan.sequence.length) {
                     const ctx = document.getElementById('plantingGanttChart')?.getContext('2d');
-                    if(ctx && App.state.charts.plantingGantt) {
-                         App.state.charts.plantingGantt.destroy();
-                         delete App.state.charts.plantingGantt;
+                    if(ctx && App.state.charts['plantingGanttChart']) {
+                         App.state.charts['plantingGanttChart'].destroy();
+                         delete App.state.charts['plantingGanttChart'];
                     }
                     return;
                 }
