@@ -988,8 +988,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const createMenuItem = (item) => {
                     const hasPermission = item.submenu ?
-                                          item.submenu.some(sub => currentUser.permissions[sub.permission]) :
-                                          currentUser.permissions[item.permission];
+                                          item.submenu.some(sub => (currentUser.permissions || {})[sub.permission]) :
+                                          (currentUser.permissions || {})[item.permission];
 
                     if (!hasPermission) return null;
                     
@@ -1031,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 submenuContent.appendChild(backBtn);
                 
                 parentItem.submenu.forEach(subItem => {
-                    if (App.state.currentUser.permissions[subItem.permission]) {
+                    if ((App.state.currentUser.permissions || {})[subItem.permission]) {
                         const subBtn = document.createElement('button');
                         subBtn.className = 'submenu-btn';
                         subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
@@ -1086,7 +1086,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const plotsInPlan = App.state.activePlantingPlan ? App.state.activePlantingPlan.sequence.map(a => a.talhaoId) : [];
 
-                farm.talhoes.sort((a, b) => (a.name || '').localeCompare(b.name || '')).forEach(talhao => {
+                farm.talhoes.sort((a, b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const isAlreadyInPlan = plotsInPlan.includes(talhao.id);
                     const label = document.createElement('label');
                     label.className = 'talhao-selection-item';
@@ -1470,7 +1470,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 table.className = 'harvestPlanTable';
                 table.innerHTML = `<thead><tr><th>Nome</th><th>Área</th><th>TCH</th><th>Produção</th><th>Variedade</th><th>Ambiente</th><th>Corte</th><th>Distância</th><th>Última Colheita</th><th>Ações</th></tr></thead><tbody></tbody>`;
                 const tbody = table.querySelector('tbody');
-                farm.talhoes.sort((a,b) => (a.name || '').localeCompare(b.name || '')).forEach(talhao => {
+                farm.talhoes.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const row = tbody.insertRow();
                     const dataColheita = App.actions.formatDateForDisplay(talhao.dataUltimaColheita);
 
@@ -1530,7 +1530,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
         
-                talhoesToShow.sort((a,b) => (a.name || '').localeCompare(b.name || '')).forEach(talhao => {
+                talhoesToShow.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const isChecked = plotIdsToCheck.includes(talhao.id);
                     const isClosed = closedTalhaoIds.has(talhao.id);
                     
@@ -1684,7 +1684,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 table.className = 'harvestPlanTable';
                 table.innerHTML = `<thead><tr><th>Matrícula</th><th>Nome</th><th>Ações</th></tr></thead><tbody></tbody>`;
                 const tbody = table.querySelector('tbody');
-                App.state.personnel.sort((a,b) => (a.name || '').localeCompare(b.name || '')).forEach(p => {
+                App.state.personnel.sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
                     const row = tbody.insertRow();
                     row.innerHTML = `
                         <td data-label="Matrícula">${p.matricula}</td>
@@ -4478,8 +4478,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             addPlotToPlantingPlan() {
                 if (!App.state.activePlantingPlan) return;
-                const { plantingFazenda, talhaoSelectionList, plantingType, plantingDate } = App.elements.planting;
-                const farmId = plantingFazenda.value;
+                const { fazenda, talhaoSelectionList, plantingType, plantingDate } = App.elements.planting;
+                const farmId = fazenda.value;
                 const type = plantingType.value;
                 const date = plantingDate.value;
 
@@ -4497,8 +4497,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm) return;
 
-                const plantingDateObj = new Date(date + 'T03:00:00Z');
-                const projectedHarvestDate = new Date(plantingDateObj.setMonth(plantingDateObj.getMonth() + 15)); // Assume 15 months cycle for now
+                let projectedHarvestDateFormatted = null;
+                if (date) {
+                    const plantingDateObj = new Date(date + 'T03:00:00Z');
+                    if (!isNaN(plantingDateObj.getTime())) {
+                        const projectedHarvestDate = new Date(plantingDateObj.setMonth(plantingDateObj.getMonth() + 15));
+                        projectedHarvestDateFormatted = projectedHarvestDate.toISOString().split('T')[0];
+                    }
+                }
 
                 selectedCheckboxes.forEach(cb => {
                     const talhaoId = cb.dataset.talhaoId;
@@ -4516,8 +4522,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             area: talhao.area || 0,
                             tch: talhao.tch || 0,
                             plantingType: type,
-                            plantingDate: date,
-                            projectedHarvestDate: projectedHarvestDate.toISOString().split('T')[0],
+                            plantingDate: date || null,
+                            projectedHarvestDate: projectedHarvestDateFormatted,
                             variedadeSugerida: 'N/A',
                             custoPrevisto: (talhao.area || 0) * ((App.state.costSoilPrep || 0) + (App.state.costInputs || 0) + (App.state.costPlantingOp || 0)),
                             projecaoProducao: (talhao.area || 0) * (talhao.tch || 0),
@@ -5686,11 +5692,20 @@ document.addEventListener('DOMContentLoaded', () => {
         charts: {
             renderPlantingGanttChart() {
                 const plan = App.state.activePlantingPlan;
-                if (!plan || !plan.sequence || !plan.sequence.length) {
-                    const ctx = document.getElementById('plantingGanttChart')?.getContext('2d');
-                    if(ctx && App.state.charts.plantingGantt) {
-                         App.state.charts.plantingGantt.destroy();
-                         delete App.state.charts.plantingGantt;
+
+                // Gantt chart requires dates. If any activity is missing a date, destroy the chart and hide it.
+                const canRenderChart = plan && plan.sequence && plan.sequence.length > 0 && plan.sequence.every(a => a.plantingDate);
+
+                if (!canRenderChart) {
+                    const canvas = document.getElementById('plantingGanttChart');
+                    if (canvas) {
+                        const existingChart = Chart.getChart(canvas);
+                        if (existingChart) {
+                            existingChart.destroy();
+                        }
+                    }
+                    if (App.state.charts['plantingGanttChart']) {
+                        delete App.state.charts['plantingGanttChart'];
                     }
                     return;
                 }
@@ -5854,15 +5869,24 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             _createOrUpdateChart(id, config, isExpanded = false) {
                 const canvasId = isExpanded ? 'expandedChartCanvas' : id;
-                const ctx = document.getElementById(canvasId)?.getContext('2d');
-                if(!ctx) return;
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) {
+                    console.error(`Canvas element with id "${canvasId}" not found.`);
+                    return;
+                }
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
 
-                const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
-                if (chartInstance) {
-                    chartInstance.destroy();
+                // Use Chart.js's built-in function to get an existing instance and destroy it
+                const existingChart = Chart.getChart(canvas);
+                if (existingChart) {
+                    existingChart.destroy();
                 }
 
+                // Create the new chart
                 const newChart = new Chart(ctx, config);
+
+                // Store the new chart instance in our state
                 if (isExpanded) {
                     App.state.expandedChart = newChart;
                 } else {
