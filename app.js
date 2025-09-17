@@ -4478,8 +4478,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             addPlotToPlantingPlan() {
                 if (!App.state.activePlantingPlan) return;
-                const { plantingFazenda, talhaoSelectionList, plantingType, plantingDate } = App.elements.planting;
-                const farmId = plantingFazenda.value;
+                const { fazenda, talhaoSelectionList, plantingType, plantingDate } = App.elements.planting;
+                const farmId = fazenda.value;
                 const type = plantingType.value;
                 const date = plantingDate.value;
 
