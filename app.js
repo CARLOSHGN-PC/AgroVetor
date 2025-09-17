@@ -987,9 +987,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 menu.appendChild(menuContent);
 
                 const createMenuItem = (item) => {
-                    const hasPermission = item.submenu ? 
-                                          item.submenu.some(sub => currentUser.permissions[sub.permission]) : 
-                                          currentUser.permissions[item.permission];
+                    const hasPermission = item.submenu ?
+                                          item.submenu.some(sub => (currentUser.permissions || {})[sub.permission]) :
+                                          (currentUser.permissions || {})[item.permission];
 
                     if (!hasPermission) return null;
                     
@@ -1031,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 submenuContent.appendChild(backBtn);
                 
                 parentItem.submenu.forEach(subItem => {
-                    if (App.state.currentUser.permissions[subItem.permission]) {
+                    if ((App.state.currentUser.permissions || {})[subItem.permission]) {
                         const subBtn = document.createElement('button');
                         subBtn.className = 'submenu-btn';
                         subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
