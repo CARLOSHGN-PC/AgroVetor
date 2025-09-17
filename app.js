@@ -4483,8 +4483,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const type = plantingType.value;
                 const date = plantingDate.value;
 
-                if (!farmId || !type) {
-                    App.ui.showAlert("Selecione uma fazenda e um tipo de plantio.", "warning");
+                if (!farmId || !type || !date) {
+                    App.ui.showAlert("Selecione uma fazenda, um tipo de plantio e uma data.", "warning");
                     return;
                 }
 
