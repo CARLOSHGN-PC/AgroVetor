@@ -5692,11 +5692,20 @@ document.addEventListener('DOMContentLoaded', () => {
         charts: {
             renderPlantingGanttChart() {
                 const plan = App.state.activePlantingPlan;
-                if (!plan || !plan.sequence || !plan.sequence.length) {
-                    const ctx = document.getElementById('plantingGanttChart')?.getContext('2d');
-                    if(ctx && App.state.charts['plantingGanttChart']) {
-                         App.state.charts['plantingGanttChart'].destroy();
-                         delete App.state.charts['plantingGanttChart'];
+
+                // Gantt chart requires dates. If any activity is missing a date, destroy the chart and hide it.
+                const canRenderChart = plan && plan.sequence && plan.sequence.length > 0 && plan.sequence.every(a => a.plantingDate);
+
+                if (!canRenderChart) {
+                    const canvas = document.getElementById('plantingGanttChart');
+                    if (canvas) {
+                        const existingChart = Chart.getChart(canvas);
+                        if (existingChart) {
+                            existingChart.destroy();
+                        }
+                    }
+                    if (App.state.charts['plantingGanttChart']) {
+                        delete App.state.charts['plantingGanttChart'];
                     }
                     return;
                 }
