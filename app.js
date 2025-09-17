@@ -4483,8 +4483,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const type = plantingType.value;
                 const date = plantingDate.value;
 
-                if (!farmId || !type || !date) {
-                    App.ui.showAlert("Selecione uma fazenda, um tipo de plantio e uma data.", "warning");
+                if (!farmId || !type) {
+                    App.ui.showAlert("Selecione uma fazenda e um tipo de plantio.", "warning");
                     return;
                 }
 
@@ -4497,8 +4497,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm) return;
 
-                const plantingDateObj = new Date(date + 'T03:00:00Z');
-                const projectedHarvestDate = new Date(plantingDateObj.setMonth(plantingDateObj.getMonth() + 15)); // Assume 15 months cycle for now
+                let projectedHarvestDateFormatted = null;
+                if (date) {
+                    const plantingDateObj = new Date(date + 'T03:00:00Z');
+                    if (!isNaN(plantingDateObj.getTime())) {
+                        const projectedHarvestDate = new Date(plantingDateObj.setMonth(plantingDateObj.getMonth() + 15));
+                        projectedHarvestDateFormatted = projectedHarvestDate.toISOString().split('T')[0];
+                    }
+                }
 
                 selectedCheckboxes.forEach(cb => {
                     const talhaoId = cb.dataset.talhaoId;
@@ -4516,8 +4522,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             area: talhao.area || 0,
                             tch: talhao.tch || 0,
                             plantingType: type,
-                            plantingDate: date,
-                            projectedHarvestDate: projectedHarvestDate.toISOString().split('T')[0],
+                            plantingDate: date || null,
+                            projectedHarvestDate: projectedHarvestDateFormatted,
                             variedadeSugerida: 'N/A',
                             custoPrevisto: (talhao.area || 0) * ((App.state.costSoilPrep || 0) + (App.state.costInputs || 0) + (App.state.costPlantingOp || 0)),
                             projecaoProducao: (talhao.area || 0) * (talhao.tch || 0),
@@ -5852,17 +5858,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 return chartOptions;
             },
-            _createOrUpdateChart(id, config, isExpanded = false) { 
+            _createOrUpdateChart(id, config, isExpanded = false) {
                 const canvasId = isExpanded ? 'expandedChartCanvas' : id;
-                const ctx = document.getElementById(canvasId)?.getContext('2d'); 
-                if(!ctx) return; 
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) {
+                    console.error(`Canvas element with id "${canvasId}" not found.`);
+                    return;
+                }
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
 
-                const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
-                if (chartInstance) { 
-                    chartInstance.destroy(); 
-                } 
-                
+                // Use Chart.js's built-in function to get an existing instance and destroy it
+                const existingChart = Chart.getChart(canvas);
+                if (existingChart) {
+                    existingChart.destroy();
+                }
+
+                // Create the new chart
                 const newChart = new Chart(ctx, config);
+
+                // Store the new chart instance in our state
                 if (isExpanded) {
                     App.state.expandedChart = newChart;
                 } else {
