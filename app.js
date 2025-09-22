@@ -92,6 +92,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     ]
                 },
                 {
+                    label: 'Plantio & Reforma', icon: 'fas fa-seedling',
+                    submenu: [
+                        { label: 'Planejamento de Plantio', icon: 'fas fa-leaf', target: 'planejamentoPlantio', permission: 'planejamentoPlantio' },
+                    ]
+                },
+                {
                     label: 'Lançamentos', icon: 'fas fa-pen-to-square',
                     submenu: [
                         { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
@@ -119,8 +125,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, planejamentoPlantio: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, relatorioBroca: true, relatorioPerda: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, planejamentoPlantio: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, relatorioBroca: true, relatorioPerda: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
@@ -140,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
             charts: {},
             harvestPlans: [],
             activeHarvestPlan: null,
+            activePlantingPlan: null,
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -354,6 +361,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnAgendar: document.getElementById('btnAgendarInspecao'),
                 btnSugerir: document.getElementById('btnSugerirPlano'),
                 lista: document.getElementById('listaPlanejamento')
+            },
+            planting: {
+                varietyId: document.getElementById('varietyId'),
+                varietyName: document.getElementById('varietyName'),
+                varietyCycle: document.getElementById('varietyCycle'),
+                varietySoil: document.getElementById('varietySoil'),
+                varietyWater: document.getElementById('varietyWater'),
+                varietyCost: document.getElementById('varietyCost'),
+                varietyTCH: document.getElementById('varietyTCH'),
+                varietyNotes: document.getElementById('varietyNotes'),
+                btnSaveVariety: document.getElementById('btnSaveVariety'),
+                btnCancelEditVariety: document.getElementById('btnCancelEditVariety'),
+                varietyList: document.getElementById('varietyList'),
+
+                // Planting Plan UI
+                planCreator: document.getElementById('planting-plan-creator'),
+                planListContainer: document.getElementById('planting-plan-list-container'),
+                btnAddNewPlantingPlan: document.getElementById('btnAddNewPlantingPlan'),
+                btnCancelPlantingPlan: document.getElementById('btnCancelPlantingPlan'),
+                plantingPlanName: document.getElementById('plantingPlanName'),
+                plantingObjective: document.getElementById('plantingObjective'),
+                plantingTalhaoSelectionList: document.getElementById('plantingTalhaoSelectionList'),
+                btnGeneratePlantingRecommendation: document.getElementById('btnGeneratePlantingRecommendation'),
+                plantingPlansList: document.getElementById('planting-plans-list'),
             },
             harvest: {
                 plansListContainer: document.getElementById('harvest-plans-list-container'),
@@ -699,7 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas' ];
+                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'varietyCharacteristics', 'plantingPlans' ];
                 
                 collectionsToListen.forEach(collectionName => {
                     const q = collection(db, collectionName);
@@ -1013,6 +1044,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'cadastros') this.renderFarmSelect();
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
+                if (id === 'planejamentoPlantio') {
+                    this.renderVarietiesList();
+                    this.showPlantingPlanList();
+                }
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
@@ -1480,6 +1515,193 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                 });
                 list.appendChild(table);
+            },
+            showPlantingPlanList() {
+                App.elements.planting.planListContainer.style.display = 'block';
+                App.elements.planting.planCreator.style.display = 'none';
+                this.renderPlantingPlansList();
+            },
+            showPlantingPlanCreator() {
+                App.elements.planting.planListContainer.style.display = 'none';
+                App.elements.planting.planCreator.style.display = 'block';
+                this.renderPlantingTalhaoSelection();
+            },
+            renderPlantingPlansList() {
+                const { plantingPlansList } = App.elements.planting;
+                plantingPlansList.innerHTML = '';
+
+                if (!App.state.plantingPlans || App.state.plantingPlans.length === 0) {
+                    plantingPlansList.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum plano de plantio criado ainda.</p>';
+                    return;
+                }
+
+                App.state.plantingPlans.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).forEach(plan => {
+                    const card = document.createElement('div');
+                    card.className = 'plano-card';
+                    card.style.borderLeftColor = 'var(--color-info)';
+
+                    const objectiveText = {
+                        MAXIMIZE_YIELD: "Maximizar Produtividade",
+                        MINIMIZE_COST: "Minimizar Custo",
+                        BALANCED: "Balanceado"
+                    }[plan.objective] || "N/A";
+
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-leaf"></i> ${plan.planName}</span>
+                            <span class="plano-status" style="background-color: var(--color-info);">${(plan.recommendations || []).length} talhão(ões)</span>
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-bullseye"></i> Objetivo: ${objectiveText}</div>
+                            <div><i class="fas fa-calendar-alt"></i> Criado em: ${new Date(plan.createdAt).toLocaleDateString('pt-BR')}</div>
+                        </div>
+                        <div class="plano-actions">
+                            <button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="view-planting-plan" data-id="${plan.id}"><i class="fas fa-eye"></i> Ver Plano</button>
+                            <button class="btn-excluir" data-action="delete-planting-plan" data-id="${plan.id}"><i class="fas fa-trash"></i> Excluir</button>
+                        </div>
+                    `;
+                    plantingPlansList.appendChild(card);
+                });
+            },
+            renderPlantingTalhaoSelection() {
+                const { plantingTalhaoSelectionList } = App.elements.planting;
+                plantingTalhaoSelectionList.innerHTML = '';
+
+                const sixMonthsAgo = new Date();
+                sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+                const availableTalhoes = [];
+                App.state.fazendas.forEach(farm => {
+                    if (!farm.talhoes || farm.talhoes.length === 0) return;
+
+                    farm.talhoes.forEach(talhao => {
+                        const lastHarvest = talhao.dataUltimaColheita ? new Date(talhao.dataUltimaColheita) : null;
+                        // Talhão is available if it has no harvest date or was harvested more than 6 months ago
+                        if (!lastHarvest || lastHarvest < sixMonthsAgo) {
+                            availableTalhoes.push({ farm, talhao });
+                        }
+                    });
+                });
+
+                if (availableTalhoes.length === 0) {
+                    plantingTalhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Nenhum talhão disponível para plantio encontrado.</p>';
+                    return;
+                }
+
+                availableTalhoes.sort((a,b) => a.talhao.name.localeCompare(b.talhao.name)).forEach(({ farm, talhao }) => {
+                    const label = document.createElement('label');
+                    label.className = 'talhao-selection-item';
+                    label.htmlFor = `planting-talhao-select-${talhao.id}`;
+
+                    label.innerHTML = `
+                        <input type="checkbox" id="planting-talhao-select-${talhao.id}" data-talhao-id="${talhao.id}" data-farm-id="${farm.id}">
+                        <div class="talhao-name">${farm.name} - ${talhao.name}</div>
+                        <div class="talhao-details">
+                            <span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area ? talhao.area.toFixed(2) : 0} ha</span>
+                            <span><i class="fas fa-seedling"></i>Variedade Atual: ${talhao.variedade || 'N/A'}</span>
+                        </div>
+                    `;
+                    plantingTalhaoSelectionList.appendChild(label);
+                });
+            },
+            renderVarietiesList() {
+                const { varietyList } = App.elements.planting;
+                varietyList.innerHTML = '';
+                if (!App.state.varietyCharacteristics || App.state.varietyCharacteristics.length === 0) {
+                    varietyList.innerHTML = '<p>Nenhuma variedade cadastrada.</p>';
+                    return;
+                }
+
+                const table = document.createElement('table');
+                table.id = 'varietyTable';
+                table.className = 'harvestPlanTable'; // Reuse existing styles
+                table.innerHTML = `<thead><tr>
+                    <th>Nome</th>
+                    <th>Ciclo</th>
+                    <th>Custo/ha</th>
+                    <th>TCH Esp.</th>
+                    <th>Ações</th>
+                </tr></thead><tbody></tbody>`;
+
+                const tbody = table.querySelector('tbody');
+                App.state.varietyCharacteristics.sort((a, b) => a.name.localeCompare(b.name)).forEach(v => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td data-label="Nome">${v.name}</td>
+                        <td data-label="Ciclo">${v.cycle}</td>
+                        <td data-label="Custo/ha">R$ ${v.cost ? v.cost.toFixed(2) : '0.00'}</td>
+                        <td data-label="TCH Esp.">${v.tch ? v.tch.toFixed(2) : '0.00'} ton/ha</td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-variety" data-id="${v.id}"><i class="fas fa-edit"></i></button>
+                                <button class="btn-excluir" data-action="delete-variety" data-id="${v.id}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                });
+                varietyList.appendChild(table);
+            },
+            renderPlantingRecommendations() {
+                const { planCreator } = App.elements.planting;
+                const { activePlantingPlan } = App.state;
+                let displayEl = planCreator.querySelector('#planting-recommendation-display');
+
+                if (displayEl) {
+                    displayEl.remove();
+                }
+
+                if (!activePlantingPlan) return;
+
+                displayEl = document.createElement('div');
+                displayEl.id = 'planting-recommendation-display';
+
+                let recommendationCardsHTML = activePlantingPlan.recommendations.map(rec => {
+                    const farm = App.state.fazendas.find(f => f.id === rec.farmId);
+                    const talhao = farm?.talhoes.find(t => t.id == rec.talhaoId);
+                    const variety = App.state.varietyCharacteristics.find(v => v.id === rec.recommendedVarietyId);
+
+                    if (!farm || !talhao || !variety) return '';
+
+                    return `
+                        <div class="plano-card" style="border-left-color: var(--color-purple);">
+                            <div class="plano-header">
+                                <span class="plano-title"><i class="fas fa-map-marker-alt"></i> ${farm.name} - ${talhao.name}</span>
+                            </div>
+                            <div class="plano-details" style="grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div>
+                                    <i class="fas fa-leaf" style="color: var(--color-success);"></i>
+                                    <strong>Variedade Recomendada:</strong> ${variety.name}
+                                </div>
+                                <div>
+                                    <i class="fas fa-info-circle" style="color: var(--color-info);"></i>
+                                    <strong>Justificativa da IA:</strong> ${rec.reasoning}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                displayEl.innerHTML = `
+                    <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
+                        <h3><i class="fas fa-brain"></i> Plano de Plantio Recomendado para "${activePlantingPlan.planName}"</h3>
+                        <div id="recommendation-cards-container">
+                            ${recommendationCardsHTML}
+                        </div>
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 24px;">
+                            <button class="save" id="btnSavePlantingPlan" style="background: var(--color-purple);"><i class="fas fa-save"></i> Salvar Plano</button>
+                            <button class="btn-secondary" id="btnDiscardPlantingPlan"><i class="fas fa-trash"></i> Descartar</button>
+                        </div>
+                    </div>
+                `;
+
+                planCreator.appendChild(displayEl);
+
+                displayEl.querySelector('#btnSavePlantingPlan').addEventListener('click', () => App.actions.savePlantingPlan());
+
+                displayEl.querySelector('#btnDiscardPlantingPlan').addEventListener('click', () => {
+                    App.state.activePlantingPlan = null;
+                    displayEl.remove();
+                });
             },
             renderLogoPreview() {
                 const { logoPreview, removeLogoBtn } = App.elements.companyConfig;
@@ -2250,10 +2472,209 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.monitoramentoAereo.btnHistory) {
                     // This listener is now attached in showTab
                 }
+
+                // Listeners for Planting Planning
+                const plantingEls = App.elements.planting;
+                if (plantingEls.btnSaveVariety) plantingEls.btnSaveVariety.addEventListener('click', () => App.actions.saveVariety());
+                if (plantingEls.btnCancelEditVariety) plantingEls.btnCancelEditVariety.addEventListener('click', () => App.actions.cancelEditVariety());
+                if (plantingEls.varietyList) plantingEls.varietyList.addEventListener('click', e => {
+                    const button = e.target.closest('button[data-action]');
+                    if (!button) return;
+                    const { action, id } = button.dataset;
+                    if (action === 'edit-variety') App.actions.editVariety(id);
+                    if (action === 'delete-variety') App.actions.deleteVariety(id);
+                });
+
+                if (plantingEls.btnAddNewPlantingPlan) plantingEls.btnAddNewPlantingPlan.addEventListener('click', () => App.ui.showPlantingPlanCreator());
+                if (plantingEls.btnCancelPlantingPlan) plantingEls.btnCancelPlantingPlan.addEventListener('click', () => App.ui.showPlantingPlanList());
+                if (plantingEls.btnGeneratePlantingRecommendation) plantingEls.btnGeneratePlantingRecommendation.addEventListener('click', () => App.actions.generatePlantingRecommendations());
+                if (plantingEls.plantingPlansList) plantingEls.plantingPlansList.addEventListener('click', e => {
+                    const button = e.target.closest('button[data-action]');
+                    if (!button) return;
+                    const { action, id } = button.dataset;
+                    if (action === 'view-planting-plan') App.actions.viewPlantingPlan(id);
+                    if (action === 'delete-planting-plan') App.actions.deletePlantingPlan(id);
+                });
             }
         },
         
         actions: {
+            async generatePlantingRecommendations() {
+                const { plantingObjective, plantingTalhaoSelectionList, plantingPlanName } = App.elements.planting;
+
+                const objective = plantingObjective.value;
+                const planName = plantingPlanName.value.trim();
+                const selectedCheckboxes = plantingTalhaoSelectionList.querySelectorAll('input[type="checkbox"]:checked');
+
+                if (!planName) {
+                    App.ui.showAlert("Por favor, dê um nome ao seu plano de plantio.", "error");
+                    return;
+                }
+
+                if (selectedCheckboxes.length === 0) {
+                    App.ui.showAlert("Selecione pelo menos um talhão para o plano.", "error");
+                    return;
+                }
+
+                const plots = Array.from(selectedCheckboxes).map(cb => ({
+                    talhaoId: cb.dataset.talhaoId,
+                    farmId: cb.dataset.farmId
+                }));
+
+                App.ui.setLoading(true, "A IA está a analisar os dados e a gerar o plano de plantio otimizado...");
+
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/planting/recommend`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ objective, plots }),
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Erro desconhecido no servidor');
+                    }
+
+                    App.state.activePlantingPlan = {
+                        planName: planName,
+                        objective: objective,
+                        recommendations: result.recommendations,
+                        createdAt: new Date().toISOString()
+                    };
+
+                    App.ui.renderPlantingRecommendations();
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao gerar recomendações: ${error.message}`, "error");
+                    console.error(error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+            async savePlantingPlan() {
+                if (!App.state.activePlantingPlan) {
+                    App.ui.showAlert("Nenhum plano ativo para salvar.", "error");
+                    return;
+                }
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja salvar o plano "${App.state.activePlantingPlan.planName}"?`, async () => {
+                    try {
+                        await App.data.addDocument('plantingPlans', App.state.activePlantingPlan);
+                        App.ui.showAlert("Plano de plantio salvo com sucesso!");
+                        App.state.activePlantingPlan = null;
+                        App.ui.showPlantingPlanList();
+                    } catch (e) {
+                        App.ui.showAlert("Erro ao salvar o plano de plantio.", "error");
+                        console.error(e);
+                    }
+                });
+            },
+            viewPlantingPlan(planId) {
+                const plan = App.state.plantingPlans.find(p => p.id === planId);
+                if (!plan) {
+                    App.ui.showAlert("Plano não encontrado.", "error");
+                    return;
+                }
+                App.state.activePlantingPlan = plan;
+                App.ui.showPlantingPlanCreator();
+                App.ui.renderPlantingRecommendations();
+            },
+            deletePlantingPlan(planId) {
+                const plan = App.state.plantingPlans.find(p => p.id === planId);
+                if (!plan) return;
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja excluir o plano "${plan.planName}"?`, async () => {
+                    try {
+                        await App.data.deleteDocument('plantingPlans', planId);
+                        App.ui.showAlert("Plano excluído com sucesso.", "info");
+                    } catch (e) {
+                        App.ui.showAlert("Erro ao excluir o plano.", "error");
+                    }
+                });
+            },
+            saveVariety() {
+                const { varietyId, varietyName, varietyCycle, varietySoil, varietyWater, varietyCost, varietyTCH, varietyNotes } = App.elements.planting;
+
+                const data = {
+                    name: varietyName.value.trim(),
+                    cycle: varietyCycle.value,
+                    soil: varietySoil.value.split(',').map(s => s.trim()).filter(Boolean),
+                    water: varietyWater.value,
+                    cost: parseFloat(varietyCost.value) || 0,
+                    tch: parseFloat(varietyTCH.value) || 0,
+                    notes: varietyNotes.value.trim()
+                };
+
+                if (!data.name || !data.cycle || data.cost <= 0 || data.tch <= 0) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios (Nome, Ciclo, Custo, TCH).", "error");
+                    return;
+                }
+
+                const existingId = varietyId.value;
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar os dados da variedade ${data.name}?`, async () => {
+                    try {
+                        if (existingId) {
+                            await App.data.updateDocument('varietyCharacteristics', existingId, data);
+                            App.ui.showAlert("Variedade atualizada com sucesso!");
+                        } else {
+                            await App.data.addDocument('varietyCharacteristics', data);
+                            App.ui.showAlert("Variedade adicionada com sucesso!");
+                        }
+                        this.cancelEditVariety();
+                    } catch (e) {
+                        App.ui.showAlert("Erro ao guardar a variedade.", "error");
+                        console.error(e);
+                    }
+                });
+            },
+
+            editVariety(id) {
+                const { varietyId, varietyName, varietyCycle, varietySoil, varietyWater, varietyCost, varietyTCH, varietyNotes, btnCancelEditVariety } = App.elements.planting;
+                const variety = App.state.varietyCharacteristics.find(v => v.id === id);
+                if (!variety) return;
+
+                varietyId.value = variety.id;
+                varietyName.value = variety.name;
+                varietyCycle.value = variety.cycle;
+                varietySoil.value = (variety.soil || []).join(', ');
+                varietyWater.value = variety.water;
+                varietyCost.value = variety.cost;
+                varietyTCH.value = variety.tch;
+                varietyNotes.value = variety.notes;
+
+                btnCancelEditVariety.style.display = 'inline-flex';
+                varietyName.focus();
+            },
+
+            deleteVariety(id) {
+                const variety = App.state.varietyCharacteristics.find(v => v.id === id);
+                if (!variety) return;
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja excluir a variedade "${variety.name}"? Esta ação é irreversível.`, async () => {
+                    try {
+                        await App.data.deleteDocument('varietyCharacteristics', id);
+                        App.ui.showAlert("Variedade excluída com sucesso.", "info");
+                    } catch (e) {
+                        App.ui.showAlert("Erro ao excluir a variedade.", "error");
+                    }
+                });
+            },
+
+            cancelEditVariety() {
+                const { varietyId, varietyName, varietyCycle, varietySoil, varietyWater, varietyCost, varietyTCH, varietyNotes, btnCancelEditVariety } = App.elements.planting;
+                varietyId.value = '';
+                varietyName.value = '';
+                varietyCycle.value = '';
+                varietySoil.value = '';
+                varietyWater.value = '';
+                varietyCost.value = '';
+                varietyTCH.value = '';
+                varietyNotes.value = '';
+                btnCancelEditVariety.style.display = 'none';
+            },
+
             filterDashboardData(dataType, startDate, endDate) {
                 if (!startDate || !endDate) {
                     return App.state[dataType];

@@ -287,6 +287,96 @@ try {
         }
     }
 
+    app.post('/api/planting/recommend', async (req, res) => {
+        if (!model) {
+            return res.status(503).json({ message: "Esta funcionalidade de IA está temporariamente desativada." });
+        }
+        const { objective, plots } = req.body; // plots is an array of {talhaoId, farmId}
+
+        if (!objective || !plots || !Array.isArray(plots) || plots.length === 0) {
+            return res.status(400).json({ message: 'O objetivo e uma lista de talhões são obrigatórios.' });
+        }
+
+        try {
+            // 1. Fetch all variety characteristics
+            const varietiesSnapshot = await db.collection('varietyCharacteristics').get();
+            if (varietiesSnapshot.empty) {
+                return res.status(400).json({ message: 'Nenhuma característica de variedade cadastrada. Adicione variedades primeiro.' });
+            }
+            const varieties = [];
+            varietiesSnapshot.forEach(doc => varieties.push({ id: doc.id, ...doc.data() }));
+
+            // 2. Fetch details for the selected plots
+            const farmsSnapshot = await db.collection('fazendas').get();
+            const allFarms = [];
+            farmsSnapshot.forEach(doc => allFarms.push({ id: doc.id, ...doc.data() }));
+
+            const selectedPlotDetails = plots.map(p => {
+                const farm = allFarms.find(f => f.id === p.farmId);
+                const talhao = farm?.talhoes.find(t => t.id == p.talhaoId);
+                return {
+                    farmId: farm?.id,
+                    farmName: farm?.name,
+                    talhaoId: talhao?.id,
+                    talhaoName: talhao?.name,
+                    area: talhao?.area,
+                    currentVariety: talhao?.variedade,
+                    // We can add more plot details here if needed, e.g., soil type from another source
+                };
+            }).filter(p => p.talhaoId); // Filter out any plots that weren't found
+
+            if (selectedPlotDetails.length === 0) {
+                return res.status(400).json({ message: 'Nenhum dos talhões selecionados foi encontrado no banco de dados.' });
+            }
+
+            // 3. Construct the prompt for the AI
+            const objectiveText = {
+                MAXIMIZE_YIELD: "O objetivo principal é maximizar a produtividade (TCH - Toneladas de Cana por Hectare).",
+                MINIMIZE_COST: "O objetivo principal é minimizar o custo de implantação do plantio (Custo por Hectare).",
+                BALANCED: "O objetivo é um equilíbrio entre um bom TCH e um custo de implantação moderado."
+            }[objective] || "O objetivo é um equilíbrio entre produtividade e custo.";
+
+            const prompt = `
+                Você é um agrônomo especialista em cana-de-açúcar. Sua tarefa é criar um plano de plantio otimizado.
+                ${objectiveText}
+
+                Abaixo está a lista de variedades de cana disponíveis e suas características:
+                ${JSON.stringify(varieties, null, 2)}
+
+                Abaixo está a lista dos talhões selecionados para o plantio:
+                ${JSON.stringify(selectedPlotDetails, null, 2)}
+
+                Para cada talhão, recomende a melhor variedade a ser plantada. Sua recomendação deve se basear no objetivo principal e nas características das variedades e dos talhões. Considere o ciclo da variedade, suas necessidades e o custo/produtividade.
+
+                Por favor, forneça sua resposta como um único objeto JSON válido. O objeto deve ter uma chave "recommendations", que é um array de objetos. Cada objeto no array deve representar a recomendação para um único talhão e deve ter as seguintes chaves:
+                - "talhaoId": O ID do talhão (use o valor de 'talhaoId' do input).
+                - "farmId": O ID da fazenda (use o valor de 'farmId' do input).
+                - "recommendedVarietyId": O ID da variedade que você recomenda.
+                - "reasoning": Uma breve explicação em português do motivo da sua escolha para este talhão, considerando o objetivo do usuário.
+
+                Não inclua nenhum texto ou formatação fora do objeto JSON principal.
+            `;
+
+            // 4. Call Gemini API
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            let text = response.text();
+
+            text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            const jsonResponse = JSON.parse(text);
+
+            res.status(200).json(jsonResponse);
+
+        } catch (error) {
+            console.error("Erro na rota /api/planting/recommend:", error);
+            if (error instanceof SyntaxError) {
+                res.status(500).json({ message: 'A IA retornou uma resposta em formato inválido. Tente novamente.' });
+            } else {
+                res.status(500).json({ message: `Erro no servidor: ${error.message}` });
+            }
+        }
+    });
+
     app.post('/api/delete/historical-data', async (req, res) => {
         try {
             console.log("Iniciando a exclusão da coleção 'historicalHarvests'...");
