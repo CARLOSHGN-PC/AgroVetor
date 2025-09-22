@@ -1589,6 +1589,111 @@
                 </div>
             </section>
 
+            <section id="planejamentoPlantio" class="tab-content card" aria-label="Planejamento de Plantio" tabindex="0" hidden>
+                <h2 style="color: var(--color-success);"><i class="fas fa-leaf"></i> Planejamento de Plantio</h2>
+
+                <div class="card" style="border-left-color: var(--color-success); margin-top: 20px;">
+                    <h3><i class="fas fa-plus-circle"></i> Adicionar/Editar Característica de Variedade</h3>
+                    <input type="hidden" id="varietyId">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="varietyName" class="required">Nome da Variedade:</label>
+                            <input type="text" id="varietyName" placeholder="Ex: RB867515" required>
+                        </div>
+                        <div class="form-col">
+                            <label for="varietyCycle" class="required">Ciclo:</label>
+                            <select id="varietyCycle" required>
+                                <option value="">Selecione...</option>
+                                <option value="Precoce">Precoce</option>
+                                <option value="Média">Média</option>
+                                <option value="Tardia">Tardia</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="varietySoil">Tipo de Solo Ideal (separado por vírgula):</label>
+                            <input type="text" id="varietySoil" placeholder="Ex: Argiloso, Misto">
+                        </div>
+                        <div class="form-col">
+                            <label for="varietyWater">Necessidade Hídrica:</label>
+                            <select id="varietyWater">
+                                <option value="">Selecione...</option>
+                                <option value="Baixa">Baixa</option>
+                                <option value="Média">Média</option>
+                                <option value="Alta">Alta</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="varietyCost" class="required">Custo por Hectare (R$):</label>
+                            <input type="number" id="varietyCost" placeholder="0.00" required>
+                        </div>
+                        <div class="form-col">
+                            <label for="varietyTCH" class="required">TCH Esperado (ton/ha):</label>
+                            <input type="number" id="varietyTCH" placeholder="0.00" required>
+                        </div>
+                    </div>
+                    <label for="varietyNotes">Observações:</label>
+                    <textarea id="varietyNotes" placeholder="Detalhes sobre a variedade, como resistência a pragas, etc."></textarea>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 24px;">
+                        <button class="save" id="btnSaveVariety" style="max-width: 300px;"><i class="fas fa-save"></i> Guardar Variedade</button>
+                        <button class="btn-secondary" id="btnCancelEditVariety" style="max-width: 300px; display: none;"><i class="fas fa-times"></i> Cancelar Edição</button>
+                    </div>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-success); margin-top: 30px;">
+                    <h3><i class="fas fa-list"></i> Variedades Cadastradas</h3>
+                    <div id="varietyList" class="table-responsive"></div>
+                </div>
+
+                <hr style="margin: 40px 0;">
+
+                <div id="planting-plan-creator" style="display: none;">
+                    <div class="card" style="border-left-color: var(--color-info);">
+                        <h3><i class="fas fa-magic"></i> Criar Plano de Plantio com IA</h3>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="plantingPlanName" class="required">Nome do Plano:</label>
+                                <input type="text" id="plantingPlanName" placeholder="Ex: Plantio Safra 2025/26" required>
+                            </div>
+                            <div class="form-col">
+                                <label for="plantingObjective" class="required">Objetivo Principal:</label>
+                                <select id="plantingObjective" required>
+                                    <option value="MAXIMIZE_YIELD">Maximizar Produtividade (TCH)</option>
+                                    <option value="MINIMIZE_COST">Minimizar Custo de Implantação</option>
+                                    <option value="BALANCED">Balanceado</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="border-left-color: var(--color-info); margin-top: 20px;">
+                        <h3><i class="fas fa-th-large"></i> Selecionar Talhões para o Plano</h3>
+                        <div id="plantingTalhaoSelectionContainer">
+                            <label>Fazendas e Talhões Disponíveis (Apenas talhões sem dados de colheita recente serão listados):</label>
+                            <div id="plantingTalhaoSelectionList" class="talhao-selection-list"></div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 24px;">
+                        <button id="btnGeneratePlantingRecommendation" class="btn-ai"><i class="fas fa-brain"></i> Gerar Recomendações com IA</button>
+                        <button id="btnCancelPlantingPlan" class="btn-secondary">Voltar para a Lista</button>
+                    </div>
+                </div>
+
+                <div id="planting-plan-list-container">
+                    <div class="card-header-actions">
+                        <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-tasks"></i> Planos de Plantio Salvos</h2>
+                        <div class="button-group">
+                            <button id="btnAddNewPlantingPlan" class="save" style="background: var(--color-info);"><i class="fas fa-plus"></i> Novo Plano de Plantio</button>
+                        </div>
+                    </div>
+                    <div id="planting-plans-list"></div>
+                </div>
+            </section>
+
             <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
                 <h2><i class="fas fa-calendar-alt"></i> Planejamento de Inspeções</h2>
                 <div class="card" style="border-left-color: var(--color-info);">
