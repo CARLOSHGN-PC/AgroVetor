@@ -1040,6 +1040,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
+                // Limpa o formulário de cigarrinha se o usuário estava nele e navegou para outro lugar
+                const currentActiveTab = document.querySelector('.tab-content.active');
+                if (currentActiveTab && currentActiveTab.id === 'lancamentoCigarrinha' && currentActiveTab.id !== id) {
+                    this.clearForm(App.elements.cigarrinha.form);
+                }
+
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
@@ -2322,6 +2328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
+                this.enableEnterKeyNavigation('#lancamentoCigarrinha');
                 this.enableEnterKeyNavigation('#changePasswordModal');
                 this.enableEnterKeyNavigation('#cadastros');
                 this.enableEnterKeyNavigation('#cadastrarPessoas');
@@ -5613,80 +5620,103 @@ document.addEventListener('DOMContentLoaded', () => {
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF();
                     const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                    if (!filtroInicio.value || !filtroFim.value) {
+                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        return;
+                    }
 
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
 
-                    let data = App.state.cigarrinha.filter(item => {
-                        const itemDate = new Date(item.data);
-                        const startDate = new Date(filtroInicio.value);
-                        const endDate = new Date(filtroFim.value);
+                    const filteredData = App.state.cigarrinha.filter(item => {
+                        const itemDate = new Date(item.data + 'T00:00:00-03:00');
+                        const startDate = new Date(filtroInicio.value + 'T00:00:00-03:00');
+                        const endDate = new Date(filtroFim.value + 'T23:59:59-03:00');
                         const isDateInRange = itemDate >= startDate && itemDate <= endDate;
                         const isFarmMatch = !farm || item.codigo === farm.code;
                         return isDateInRange && isFarmMatch;
                     });
 
-                    if (data.length === 0) {
+                    if (filteredData.length === 0) {
                         App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "warning");
                         return;
                     }
 
                     const head = [['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado']];
-                    const body = data.map(item => [
-                        new Date(item.data).toLocaleDateString('pt-BR'),
+                    const body = filteredData.map(item => [
+                        new Date(item.data + 'T00:00:00-03:00').toLocaleDateString('pt-BR'),
                         item.fazenda,
                         item.talhao,
-                        item.variedade,
+                        item.variedade || 'N/A',
                         item.fase1,
                         item.fase2,
                         item.fase3,
                         item.fase4,
                         item.fase5,
                         item.adulto ? 'Sim' : 'Não',
-                        item.resultado.toFixed(2)
+                        (item.resultado || 0).toFixed(2)
                     ]);
 
-                    doc.autoTable({ head, body });
+                    doc.autoTable({
+                        head: head,
+                        body: body,
+                        didDrawPage: function(data) {
+                            if (App.state.companyLogo) {
+                                try {
+                                    doc.addImage(App.state.companyLogo, 'PNG', data.settings.margin.left, 15, 40, 15);
+                                } catch(e) {
+                                    console.error("Error adding logo to PDF", e);
+                                }
+                            }
+                            doc.setFontSize(18);
+                            doc.setTextColor(40);
+                            doc.text('Relatório de Monitoramento de Cigarrinha', data.settings.margin.left + 50, 22);
+                        },
+                        margin: { top: 40 }
+                    });
                     doc.save('relatorio_cigarrinha.pdf');
                 },
 
                 generateCigarrinhaCSV() {
                     const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                    if (!filtroInicio.value || !filtroFim.value) {
+                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        return;
+                    }
 
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
 
-                    let data = App.state.cigarrinha.filter(item => {
-                        const itemDate = new Date(item.data);
-                        const startDate = new Date(filtroInicio.value);
-                        const endDate = new Date(filtroFim.value);
+                    const filteredData = App.state.cigarrinha.filter(item => {
+                        const itemDate = new Date(item.data + 'T00:00:00-03:00');
+                        const startDate = new Date(filtroInicio.value + 'T00:00:00-03:00');
+                        const endDate = new Date(filtroFim.value + 'T23:59:59-03:00');
                         const isDateInRange = itemDate >= startDate && itemDate <= endDate;
                         const isFarmMatch = !farm || item.codigo === farm.code;
                         return isDateInRange && isFarmMatch;
                     });
 
-                    if (data.length === 0) {
+                    if (filteredData.length === 0) {
                         App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "warning");
                         return;
                     }
 
-                    const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5', 'Adulto Presente', 'Resultado'];
+                    const headers = ['Data', 'Fazenda', 'Talhao', 'Variedade', 'Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5', 'Adulto Presente', 'Resultado'];
                     const csvRows = [headers.join(';')];
-                    data.forEach(item => {
+
+                    filteredData.forEach(item => {
                         const row = [
-                            new Date(item.data).toLocaleDateString('pt-BR'),
-                            item.fazenda,
-                            item.talhao,
-                            item.variedade,
+                            new Date(item.data + 'T00:00:00-03:00').toLocaleDateString('pt-BR'),
+                            `"${item.fazenda}"`,
+                            `"${item.talhao}"`,
+                            `"${item.variedade || 'N/A'}"`,
                             item.fase1,
                             item.fase2,
                             item.fase3,
                             item.fase4,
                             item.fase5,
                             item.adulto ? 'Sim' : 'Não',
-                            item.resultado.toFixed(2)
+                            (item.resultado || 0).toFixed(2)
                         ];
                         csvRows.push(row.join(';'));
                     });
