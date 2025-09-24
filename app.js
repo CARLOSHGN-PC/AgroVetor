@@ -860,6 +860,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }, 60000); // Verifica a cada minuto
 
+                // Adiciona verificação periódica para sincronização offline
+                setInterval(() => {
+                    if (navigator.onLine) {
+                        console.log("Verificando por registos offline para sincronizar...");
+                        App.actions.syncOfflineWrites();
+                    }
+                }, 60000); // Tenta sincronizar a cada minuto
+
                 this.renderMenu();
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
