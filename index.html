@@ -1809,6 +1809,48 @@
                 <button class="save" type="button" id="btnSalvarPerda"><i class="fas fa-save"></i> Guardar Perda de Cana</button>
             </section>
 
+            <section id="lancamentoCigarrinha" class="tab-content card" aria-label="Lançamento Cigarrinha" tabindex="0" hidden>
+                <h2><i class="fas fa-leaf"></i> Lançamento Monitoramento de Cigarrinha</h2>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="dataCigarrinha" class="required">Data do Levantamento:</label>
+                        <input type="date" id="dataCigarrinha" required />
+                    </div>
+                    <div class="form-col">
+                        <label for="codigoCigarrinha" class="required">Fazenda:</label>
+                        <select id="codigoCigarrinha" required></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="talhaoCigarrinha" class="required">Talhão:</label>
+                        <input type="text" id="talhaoCigarrinha" placeholder="Ex: T12, T15-A" required />
+                    </div>
+                    <div class="form-col">
+                        <label>Variedade:</label>
+                        <div id="varietyDisplayCigarrinha" class="info-display" style="margin-top: 8px; padding: 12px 14px; border-radius: var(--border-radius); border: 1px solid var(--color-border); background-color: var(--color-bg); min-height: 45px;"></div>
+                    </div>
+                </div>
+                <h3>Fases (Ninfas)</h3>
+                <div class="form-row">
+                    <div class="form-col"><label for="fase1Cigarrinha">Fase 1:</label><input type="number" id="fase1Cigarrinha" min="0" placeholder="0" /></div>
+                    <div class="form-col"><label for="fase2Cigarrinha">Fase 2:</label><input type="number" id="fase2Cigarrinha" min="0" placeholder="0" /></div>
+                    <div class="form-col"><label for="fase3Cigarrinha">Fase 3:</label><input type="number" id="fase3Cigarrinha" min="0" placeholder="0" /></div>
+                    <div class="form-col"><label for="fase4Cigarrinha">Fase 4:</label><input type="number" id="fase4Cigarrinha" min="0" placeholder="0" /></div>
+                    <div class="form-col"><label for="fase5Cigarrinha">Fase 5:</label><input type="number" id="fase5Cigarrinha" min="0" placeholder="0" /></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col" style="display: flex; align-items: center; justify-content: flex-start;">
+                        <label for="adultoPresenteCigarrinha" style="display: flex; align-items: center; gap: 10px; margin-top: 20px;">
+                            <input type="checkbox" id="adultoPresenteCigarrinha" style="width: auto; transform: scale(1.4);">
+                            <span>Presença de Adulto?</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="resultado" id="resultadoCigarrinha"></div>
+                <button class="save" type="button" id="btnSalvarCigarrinha"><i class="fas fa-save"></i> Guardar Monitoramento</button>
+            </section>
+
             <section id="relatorioPerda" class="tab-content card" aria-label="Relatório Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-chart-pie"></i> Relatório de Perda de Cana</h2>
                 <div class="form-row">
@@ -1836,6 +1878,21 @@
                     <button id="btnPDFPerda" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
                     <button id="btnExcelPerda" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
+            </section>
+
+            <section id="relatorioCigarrinha" class="tab-content card" aria-label="Relatório Cigarrinha" tabindex="0" hidden>
+                <h2><i class="fas fa-leaf"></i> Relatório de Monitoramento de Cigarrinha</h2>
+                <div class="form-row">
+                    <div class="form-col"><label for="fazendaFiltroCigarrinha">Filtrar por Fazenda:</label><select id="fazendaFiltroCigarrinha"><option value="">Todas</option></select></div>
+                    <div class="form-col"><label for="inicioCigarrinha" class="required">Data Início:</label><input type="date" id="inicioCigarrinha" /></div>
+                    <div class="form-col"><label for="fimCigarrinha" class="required">Data Fim:</label><input type="date" id="fimCigarrinha" /></div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnVisualizarCigarrinha" type="button" class="save" style="background: var(--color-info);"><i class="fas fa-eye"></i> Visualizar Relatório</button>
+                    <button id="btnPDFCigarrinha" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelCigarrinha" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+                <div id="tabelaRelatorioCigarrinha" class="table-responsive" style="margin-top: 20px;"></div>
             </section>
 
             <section id="excluirDados" class="tab-content card" aria-label="Excluir Lançamentos" tabindex="0" hidden>
