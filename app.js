@@ -2307,6 +2307,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 window.addEventListener('online', () => App.actions.syncOfflineWrites());
 
+                // Adiciona um gatilho de sincronização quando o separador/app se torna visível
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible' && navigator.onLine) {
+                        console.log("App tornou-se visível, a verificar por sincronizações pendentes.");
+                        App.actions.syncOfflineWrites();
+                    }
+                });
+
                 const historyModal = App.elements.historyFilterModal;
                 if (historyModal.overlay) historyModal.overlay.addEventListener('click', e => { if(e.target === historyModal.overlay) this.hideHistoryFilterModal(); });
                 if (historyModal.closeBtn) historyModal.closeBtn.addEventListener('click', () => this.hideHistoryFilterModal());
