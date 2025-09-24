@@ -3710,32 +3710,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const offlineWrites = await OfflineDB.getAll('offline-writes');
                 if (offlineWrites.length === 0) {
-                    console.log("Nenhuma escrita offline para sincronizar.");
                     return;
                 }
 
-                App.ui.showAlert(`Sincronizando ${offlineWrites.length} registos offline...`, 'info', 5000);
-                
-                for (const write of offlineWrites) {
-                    try {
-                        const dataToSync = { ...write.data };
-                        // Ensure the server generates the timestamp by removing any local/null one
-                        delete dataToSync.createdAt;
+                App.ui.showAlert(`Iniciando sincronização de ${offlineWrites.length} registo(s) offline...`, 'info', 4000);
 
-                        await App.data.addDocument(write.collection, dataToSync);
-                        await OfflineDB.delete('offline-writes', write.id);
-                    } catch (error) {
-                        console.error("Falha ao sincronizar registo offline:", error, write);
-                        // If it fails, it remains in the queue for the next attempt
+                const batch = writeBatch(db);
+                const offlineIdsToDelete = [];
+
+                offlineWrites.forEach(write => {
+                    // Each write from IndexedDB should have a `collection` and `data` property.
+                    if (write.collection && write.data) {
+                        const newDocRef = doc(collection(db, write.collection));
+                        const dataToSync = { ...write.data, createdAt: serverTimestamp() };
+                        batch.set(newDocRef, dataToSync);
+                        offlineIdsToDelete.push(write.id);
                     }
-                }
-                
-                // Check if all writes were synced
-                const remainingWrites = await OfflineDB.getAll('offline-writes');
-                if (remainingWrites.length === 0) {
-                    App.ui.showAlert("Sincronização offline concluída com sucesso!", 'success');
-                } else {
-                    App.ui.showAlert(`Falha ao sincronizar ${remainingWrites.length} registos. Tentarão novamente mais tarde.`, 'warning');
+                });
+
+                try {
+                    await batch.commit();
+
+                    // If commit is successful, clear the synced items from IndexedDB
+                    for (const id of offlineIdsToDelete) {
+                        await OfflineDB.delete('offline-writes', id);
+                    }
+
+                    App.ui.showAlert('Sincronização offline concluída com sucesso!', 'success');
+
+                } catch (error) {
+                    console.error("Falha ao cometer o lote de sincronização:", error);
+                    // This alert is crucial for debugging with the user
+                    App.ui.showAlert(`ERRO DE SINCRONIZAÇÃO: ${error.message}. Por favor, reporte este erro.`, 'error', 15000);
                 }
             },
 
