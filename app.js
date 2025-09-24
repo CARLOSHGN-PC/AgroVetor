@@ -3708,39 +3708,51 @@ document.addEventListener('DOMContentLoaded', () => {
             async syncOfflineWrites() {
                 if (!navigator.onLine) return;
 
-                const offlineWrites = await OfflineDB.getAll('offline-writes');
-                if (offlineWrites.length === 0) {
-                    return;
+                const db = await OfflineDB.dbPromise;
+                const tx = db.transaction('offline-writes', 'readonly');
+                const store = tx.objectStore('offline-writes');
+                let cursor = await store.openCursor();
+
+                if (!cursor) {
+                    return; // No items to sync
                 }
 
-                App.ui.showAlert(`Iniciando sincronização de ${offlineWrites.length} registo(s) offline...`, 'info', 4000);
-
                 const batch = writeBatch(db);
-                const offlineIdsToDelete = [];
+                const keysToDelete = [];
+                let itemsToSyncCount = 0;
 
-                offlineWrites.forEach(write => {
-                    // Each write from IndexedDB should have a `collection` and `data` property.
+                while (cursor) {
+                    const write = cursor.value;
                     if (write.collection && write.data) {
                         const newDocRef = doc(collection(db, write.collection));
                         const dataToSync = { ...write.data, createdAt: serverTimestamp() };
                         batch.set(newDocRef, dataToSync);
-                        offlineIdsToDelete.push(write.id);
+                        keysToDelete.push(cursor.key);
+                        itemsToSyncCount++;
                     }
-                });
+                    cursor = await cursor.continue();
+                }
+
+                if (itemsToSyncCount === 0) {
+                    return; // Nothing to commit, maybe malformed entries were skipped
+                }
+
+                App.ui.showAlert(`Iniciando sincronização de ${itemsToSyncCount} registo(s) offline...`, 'info', 4000);
 
                 try {
                     await batch.commit();
 
                     // If commit is successful, clear the synced items from IndexedDB
-                    for (const id of offlineIdsToDelete) {
-                        await OfflineDB.delete('offline-writes', id);
+                    const deleteTx = (await OfflineDB.dbPromise).transaction('offline-writes', 'readwrite');
+                    for (const key of keysToDelete) {
+                        await deleteTx.store.delete(key);
                     }
+                    await deleteTx.done;
 
-                    App.ui.showAlert('Sincronização offline concluída com sucesso!', 'success');
+                    App.ui.showAlert(`Sincronização de ${keysToDelete.length} registo(s) concluída com sucesso!`, 'success');
 
                 } catch (error) {
                     console.error("Falha ao cometer o lote de sincronização:", error);
-                    // This alert is crucial for debugging with the user
                     App.ui.showAlert(`ERRO DE SINCRONIZAÇÃO: ${error.message}. Por favor, reporte este erro.`, 'error', 15000);
                 }
             },
