@@ -549,58 +549,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            saveCigarrinha() {
-                if (!App.ui.validateFields(['dataCigarrinha', 'codigoCigarrinha', 'talhaoCigarrinha'])) {
-                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
-                    return;
-                }
-
-                const { cigarrinha } = App.elements;
-                const farm = App.state.fazendas.find(f => f.id === cigarrinha.codigo.value);
-                if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
-                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === cigarrinha.talhao.value.trim().toUpperCase());
-
-                if (!talhao) {
-                    App.ui.showAlert(`Talhão "${cigarrinha.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                    return;
-                }
-
-                const newEntry = {
-                    data: cigarrinha.data.value,
-                    codigo: farm.code,
-                    fazenda: farm.name,
-                    talhao: cigarrinha.talhao.value.trim(),
-                    variedade: talhao.variedade || '',
-                    fase1: parseInt(cigarrinha.fase1.value) || 0,
-                    fase2: parseInt(cigarrinha.fase2.value) || 0,
-                    fase3: parseInt(cigarrinha.fase3.value) || 0,
-                    fase4: parseInt(cigarrinha.fase4.value) || 0,
-                    fase5: parseInt(cigarrinha.fase5.value) || 0,
-                    adulto: cigarrinha.adulto.checked,
-                    resultado: (((parseInt(cigarrinha.fase1.value) || 0) + (parseInt(cigarrinha.fase2.value) || 0) + (parseInt(cigarrinha.fase3.value) || 0) + (parseInt(cigarrinha.fase4.value) || 0) + (parseInt(cigarrinha.fase5.value) || 0)) / 5) / 10,
-                    usuario: App.state.currentUser.username
-                };
-
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este monitoramento?', async () => {
-                    App.ui.clearForm(cigarrinha.form);
-                    App.ui.setDefaultDatesForEntryForms();
-
-                    if (navigator.onLine) {
-                        try {
-                            await App.data.addDocument('cigarrinha', newEntry);
-                            App.ui.showAlert('Monitoramento guardado com sucesso!');
-                        } catch (e) {
-                            App.ui.showAlert('Erro ao guardar monitoramento. A guardar offline.', "error");
-                            console.error("Erro ao salvar monitoramento, salvando offline:", e);
-                            await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
-                        }
-                    } else {
-                        await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
-                        App.ui.showAlert('Monitoramento guardado offline. Será enviada quando houver conexão.', 'info');
-                    }
-                });
-            },
-
             async login() {
                 const email = App.elements.loginUser.value.trim();
                 const password = App.elements.loginPass.value;
@@ -1040,10 +988,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
-                // Limpa o formulário de cigarrinha se o usuário estava nele e navegou para outro lugar
                 const currentActiveTab = document.querySelector('.tab-content.active');
                 if (currentActiveTab && currentActiveTab.id === 'lancamentoCigarrinha' && currentActiveTab.id !== id) {
-                    this.clearForm(App.elements.cigarrinha.form);
+                    App.ui.clearForm(App.elements.cigarrinha.form);
                 }
 
                 const mapContainer = App.elements.monitoramentoAereo.container;
@@ -1779,8 +1726,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const f3 = parseInt(fase3.value) || 0;
                 const f4 = parseInt(fase4.value) || 0;
                 const f5 = parseInt(fase5.value) || 0;
-                const total = f1 + f2 + f3 + f4 + f5;
-                const media = (total / 5) / 10;
+
+                // Corrected calculation: (sum of phases / 5) / 10
+                const media = ((f1 + f2 + f3 + f4 + f5) / 5) / 10;
                 resultado.textContent = `Resultado: ${media.toFixed(2).replace('.', ',')}`;
             },
 
@@ -2328,6 +2276,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
+                this.enableEnterKeyNavigation('#lancamentoCigarrinha');
                 this.enableEnterKeyNavigation('#lancamentoCigarrinha');
                 this.enableEnterKeyNavigation('#changePasswordModal');
                 this.enableEnterKeyNavigation('#cadastros');
@@ -3140,6 +3089,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             
+            saveCigarrinha() {
+                if (!App.ui.validateFields(['dataCigarrinha', 'codigoCigarrinha', 'talhaoCigarrinha'])) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
+                    return;
+                }
+
+                const { cigarrinha } = App.elements;
+                const farm = App.state.fazendas.find(f => f.id === cigarrinha.codigo.value);
+                if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
+                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === cigarrinha.talhao.value.trim().toUpperCase());
+
+                if (!talhao) {
+                    App.ui.showAlert(`Talhão "${cigarrinha.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
+                    return;
+                }
+
+                const f1 = parseInt(cigarrinha.fase1.value) || 0;
+                const f2 = parseInt(cigarrinha.fase2.value) || 0;
+                const f3 = parseInt(cigarrinha.fase3.value) || 0;
+                const f4 = parseInt(cigarrinha.fase4.value) || 0;
+                const f5 = parseInt(cigarrinha.fase5.value) || 0;
+
+                const newEntry = {
+                    data: cigarrinha.data.value,
+                    codigo: farm.code,
+                    fazenda: farm.name,
+                    talhao: cigarrinha.talhao.value.trim(),
+                    variedade: talhao.variedade || '',
+                    fase1: f1,
+                    fase2: f2,
+                    fase3: f3,
+                    fase4: f4,
+                    fase5: f5,
+                    adulto: cigarrinha.adulto.checked,
+                    resultado: ((f1 + f2 + f3 + f4 + f5) / 5) / 10,
+                    usuario: App.state.currentUser.username
+                };
+
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este monitoramento?', async () => {
+                    App.ui.clearForm(cigarrinha.form);
+                    App.ui.setDefaultDatesForEntryForms();
+
+                    if (navigator.onLine) {
+                        try {
+                            await App.data.addDocument('cigarrinha', newEntry);
+                            App.ui.showAlert('Monitoramento guardado com sucesso!');
+                        } catch (e) {
+                            App.ui.showAlert('Erro ao guardar monitoramento. A guardar offline.', "error");
+                            console.error("Erro ao salvar monitoramento, salvando offline:", e);
+                            await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
+                        }
+                    } else {
+                        await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
+                        App.ui.showAlert('Monitoramento guardado offline. Será enviada quando houver conexão.', 'info');
+                    }
+                });
+            },
+
             savePerda() {
                 if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) {
                     App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
@@ -5629,9 +5636,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const farm = App.state.fazendas.find(f => f.id === farmId);
 
                     const filteredData = App.state.cigarrinha.filter(item => {
-                        const itemDate = new Date(item.data + 'T00:00:00-03:00');
-                        const startDate = new Date(filtroInicio.value + 'T00:00:00-03:00');
-                        const endDate = new Date(filtroFim.value + 'T23:59:59-03:00');
+                        // As datas do formulário vêm como 'YYYY-MM-DD'. Para garantir a comparação correta,
+                        // tratamos todas as datas como se estivessem no mesmo fuso horário (local).
+                        const itemDate = new Date(item.data);
+                        const startDate = new Date(filtroInicio.value);
+                        const endDate = new Date(filtroFim.value);
+
+                        // Ajusta as horas para garantir que o intervalo seja inclusivo
+                        itemDate.setUTCHours(0, 0, 0, 0);
+                        startDate.setUTCHours(0, 0, 0, 0);
+                        endDate.setUTCHours(23, 59, 59, 999);
+
                         const isDateInRange = itemDate >= startDate && itemDate <= endDate;
                         const isFarmMatch = !farm || item.codigo === farm.code;
                         return isDateInRange && isFarmMatch;
@@ -5644,7 +5659,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const head = [['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado']];
                     const body = filteredData.map(item => [
-                        new Date(item.data + 'T00:00:00-03:00').toLocaleDateString('pt-BR'),
+                        new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
                         item.fazenda,
                         item.talhao,
                         item.variedade || 'N/A',
@@ -5654,7 +5669,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         item.fase4,
                         item.fase5,
                         item.adulto ? 'Sim' : 'Não',
-                        (item.resultado || 0).toFixed(2)
+                        (item.resultado || 0).toFixed(2).replace('.', ',')
                     ]);
 
                     doc.autoTable({
@@ -5688,9 +5703,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const farm = App.state.fazendas.find(f => f.id === farmId);
 
                     const filteredData = App.state.cigarrinha.filter(item => {
-                        const itemDate = new Date(item.data + 'T00:00:00-03:00');
-                        const startDate = new Date(filtroInicio.value + 'T00:00:00-03:00');
-                        const endDate = new Date(filtroFim.value + 'T23:59:59-03:00');
+                        const itemDate = new Date(item.data);
+                        const startDate = new Date(filtroInicio.value);
+                        const endDate = new Date(filtroFim.value);
+
+                        itemDate.setUTCHours(0, 0, 0, 0);
+                        startDate.setUTCHours(0, 0, 0, 0);
+                        endDate.setUTCHours(23, 59, 59, 999);
+
                         const isDateInRange = itemDate >= startDate && itemDate <= endDate;
                         const isFarmMatch = !farm || item.codigo === farm.code;
                         return isDateInRange && isFarmMatch;
@@ -5706,7 +5726,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     filteredData.forEach(item => {
                         const row = [
-                            new Date(item.data + 'T00:00:00-03:00').toLocaleDateString('pt-BR'),
+                            new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
                             `"${item.fazenda}"`,
                             `"${item.talhao}"`,
                             `"${item.variedade || 'N/A'}"`,
@@ -5716,7 +5736,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             item.fase4,
                             item.fase5,
                             item.adulto ? 'Sim' : 'Não',
-                            (item.resultado || 0).toFixed(2)
+                            (item.resultado || 0).toFixed(2).replace('.', ',')
                         ];
                         csvRows.push(row.join(';'));
                     });
