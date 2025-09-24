@@ -693,6 +693,104 @@ try {
         } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
     });
 
+    app.get('/reports/cigarrinha/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_cigarrinha.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getFilteredData('cigarrinha', filters);
+            const title = 'Relatório de Monitoramento de Cigarrinha';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title);
+
+            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado'];
+            const columnWidths = [70, 150, 80, 100, 40, 40, 40, 40, 40, 50, 70];
+            const headersConfig = headers.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+
+            const rowHeight = 18;
+            const textPadding = 5;
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight, headersConfig);
+
+            for(const r of data) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                const rowData = [
+                    new Date(r.data + 'T03:00:00Z').toLocaleDateString('pt-BR'),
+                    `${r.codigo} - ${r.fazenda}`,
+                    r.talhao,
+                    r.variedade,
+                    r.fase1,
+                    r.fase2,
+                    r.fase3,
+                    r.fase4,
+                    r.fase5,
+                    r.adulto ? 'Sim' : 'Não',
+                    (r.resultado || 0).toFixed(2).replace('.', ',')
+                ];
+                currentY = drawRow(doc, rowData, currentY, false, false, columnWidths, textPadding, rowHeight, headersConfig);
+            }
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Cigarrinha:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/cigarrinha/csv', async (req, res) => {
+        try {
+            const data = await getFilteredData('cigarrinha', req.query);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `cigarrinha_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    {id: 'data', title: 'Data'},
+                    {id: 'fazenda', title: 'Fazenda'},
+                    {id: 'talhao', title: 'Talhão'},
+                    {id: 'variedade', title: 'Variedade'},
+                    {id: 'fase1', title: 'Fase 1'},
+                    {id: 'fase2', title: 'Fase 2'},
+                    {id: 'fase3', title: 'Fase 3'},
+                    {id: 'fase4', title: 'Fase 4'},
+                    {id: 'fase5', title: 'Fase 5'},
+                    {id: 'adulto', title: 'Adulto'},
+                    {id: 'resultado', title: 'Resultado'}
+                ]
+            });
+            const records = data.map(r => ({
+                ...r,
+                data: new Date(r.data + 'T03:00:00Z').toLocaleDateString('pt-BR'),
+                fazenda: `${r.codigo} - ${r.fazenda}`,
+                adulto: r.adulto ? 'Sim' : 'Não',
+                resultado: (r.resultado || 0).toFixed(2).replace('.', ',')
+            }));
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Cigarrinha:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
     app.get('/reports/perda/pdf', async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
