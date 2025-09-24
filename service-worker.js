@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v9'; // Incremented version
+const CACHE_NAME = 'agrovetor-cache-v11'; // Incremented version
 const TILE_CACHE_NAME = 'agrovetor-tile-cache-v1';
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
@@ -78,21 +78,41 @@ self.addEventListener('fetch', event => {
   }
 
   const url = new URL(event.request.url);
+  const coreFiles = ['/', '/index.html', '/app.js', '/manifest.json'];
+  // A request for './' will have a pathname of '/' or '/index.html' depending on the server.
+  const isCoreFile = coreFiles.some(path => url.pathname.endsWith(path));
+
+  // Strategy for core app files: Network first, then cache.
+  // This ensures users get the latest logic and UI immediately.
+  if (isCoreFile) {
+    event.respondWith(
+      fetch(event.request)
+        .then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          console.log('Network-first failed for core file, serving from cache:', url.pathname);
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
 
   // Strategy for Google Maps satellite TILEs (Cache First with trimming)
-  // The path '/kh/v=' is specific to satellite imagery (Keyhole).
   if (url.hostname.endsWith('.google.com') && url.pathname.includes('/kh/v=')) {
     event.respondWith(
       caches.open(TILE_CACHE_NAME).then(cache => {
         return cache.match(event.request).then(response => {
-          // If we have a cached response, return it.
           if (response) {
             return response;
           }
-          // Otherwise, fetch from the network.
           return fetch(event.request).then(networkResponse => {
-            // For third-party tiles, we can't check the status (opaque response),
-            // so we trust it and put it in the cache. The cache trimming will handle potential issues.
             const responseToCache = networkResponse.clone();
             cache.put(event.request, responseToCache).then(() => {
               trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
@@ -102,10 +122,10 @@ self.addEventListener('fetch', event => {
         });
       })
     );
-    return; // End execution for this request
+    return;
   }
 
-  // Stale-While-Revalidate strategy for all other requests
+  // Stale-While-Revalidate strategy for all other assets (fonts, libraries, etc.)
   event.respondWith(
     caches.open(CACHE_NAME).then(cache => {
       return cache.match(event.request).then(response => {
@@ -117,7 +137,6 @@ self.addEventListener('fetch', event => {
         }).catch(err => {
           console.warn('Fetch failed; using cache if available.', event.request.url, err);
         });
-        // Return cached response immediately if available, otherwise wait for the network.
         return response || fetchPromise;
       });
     })

@@ -512,16 +512,16 @@ document.addEventListener('DOMContentLoaded', () => {
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
-
-            const splashScreen = document.getElementById('splash-screen');
-            setTimeout(() => {
-                splashScreen.classList.add('hidden');
-            }, 4000); // Hide after 4 seconds as a fallback
         },
         
         auth: {
             async checkSession() {
                 const splashScreen = document.getElementById('splash-screen');
+                const hideSplashScreen = () => {
+                    // Add a small delay to ensure the UI is rendered before hiding
+                    setTimeout(() => splashScreen.classList.add('hidden'), 100);
+                };
+
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         const userDoc = await App.data.getUserData(user.uid);
@@ -552,10 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showLoginScreen();
                         }
                     }
-                    // Hide splash screen after auth check is complete
-                    setTimeout(() => {
-                      splashScreen.classList.add('hidden');
-                    }, 500);
+                    hideSplashScreen();
                 });
             },
 
