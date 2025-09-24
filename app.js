@@ -577,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fase4: parseInt(cigarrinha.fase4.value) || 0,
                     fase5: parseInt(cigarrinha.fase5.value) || 0,
                     adulto: cigarrinha.adulto.checked,
-                    resultado: ((parseInt(cigarrinha.fase1.value) || 0) + (parseInt(cigarrinha.fase2.value) || 0) + (parseInt(cigarrinha.fase3.value) || 0) + (parseInt(cigarrinha.fase4.value) || 0) + (parseInt(cigarrinha.fase5.value) || 0)) / 10,
+                    resultado: (((parseInt(cigarrinha.fase1.value) || 0) + (parseInt(cigarrinha.fase2.value) || 0) + (parseInt(cigarrinha.fase3.value) || 0) + (parseInt(cigarrinha.fase4.value) || 0) + (parseInt(cigarrinha.fase5.value) || 0)) / 5) / 10,
                     usuario: App.state.currentUser.username
                 };
 
@@ -600,6 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
+
             async login() {
                 const email = App.elements.loginUser.value.trim();
                 const password = App.elements.loginPass.value;
@@ -1773,60 +1774,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const f4 = parseInt(fase4.value) || 0;
                 const f5 = parseInt(fase5.value) || 0;
                 const total = f1 + f2 + f3 + f4 + f5;
-                const media = total / 10;
+                const media = (total / 5) / 10;
                 resultado.textContent = `Resultado: ${media.toFixed(2).replace('.', ',')}`;
-            },
-
-            renderCigarrinhaReportTable(data) {
-                const container = document.getElementById('tabelaRelatorioCigarrinha');
-                if (!container) return;
-
-                if (data.length === 0) {
-                    container.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum dado encontrado para os filtros selecionados.</p>';
-                    return;
-                }
-
-                const table = document.createElement('table');
-                table.className = 'harvestPlanTable'; // Reusing existing styles
-
-                const thead = `
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Fazenda</th>
-                            <th>Talhão</th>
-                            <th>Variedade</th>
-                            <th>F1</th>
-                            <th>F2</th>
-                            <th>F3</th>
-                            <th>F4</th>
-                            <th>F5</th>
-                            <th>Adulto</th>
-                            <th>Resultado</th>
-                        </tr>
-                    </thead>
-                `;
-
-                const tbodyRows = data.map(item => `
-                    <tr>
-                        <td data-label="Data">${new Date(item.data + 'T00:00:00-03:00').toLocaleDateString('pt-BR')}</td>
-                        <td data-label="Fazenda">${item.fazenda}</td>
-                        <td data-label="Talhão">${item.talhao}</td>
-                        <td data-label="Variedade">${item.variedade || 'N/A'}</td>
-                        <td data-label="F1">${item.fase1}</td>
-                        <td data-label="F2">${item.fase2}</td>
-                        <td data-label="F3">${item.fase3}</td>
-                        <td data-label="F4">${item.fase4}</td>
-                        <td data-label="F5">${item.fase5}</td>
-                        <td data-label="Adulto">${item.adulto ? 'Sim' : 'Não'}</td>
-                        <td data-label="Resultado">${item.resultado.toFixed(2)}</td>
-                    </tr>
-                `).join('');
-
-                table.innerHTML = `${thead}<tbody>${tbodyRows}</tbody>`;
-
-                container.innerHTML = ''; // Clear previous content
-                container.appendChild(table);
             },
 
             showConfirmationModal(message, onConfirm, inputsConfig = false) {
@@ -2311,9 +2260,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.perda.btnExcel) App.elements.perda.btnExcel.addEventListener('click', () => App.reports.generatePerdaCSV());
                 if (App.elements.cigarrinha.btnPDF) App.elements.cigarrinha.btnPDF.addEventListener('click', () => App.reports.generateCigarrinhaPDF());
                 if (App.elements.cigarrinha.btnExcel) App.elements.cigarrinha.btnExcel.addEventListener('click', () => App.reports.generateCigarrinhaCSV());
-                if (document.getElementById('btnVisualizarCigarrinha')) {
-                    document.getElementById('btnVisualizarCigarrinha').addEventListener('click', () => App.actions.visualizarRelatorioCigarrinha());
-                }
                 if (App.elements.exclusao.lista) App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
                 
                 const customReportEls = App.elements.relatorioColheita;
@@ -4027,29 +3973,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            visualizarRelatorioCigarrinha() {
-                const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
-                if (!filtroInicio.value || !filtroFim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
-                }
-
-                const farmId = filtroFazenda.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-
-                const filteredData = App.state.cigarrinha.filter(item => {
-                    const itemDate = new Date(item.data + 'T00:00:00-03:00'); // Consider timezone
-                    const startDate = new Date(filtroInicio.value + 'T00:00:00-03:00');
-                    const endDate = new Date(filtroFim.value + 'T23:59:59-03:00');
-
-                    const isDateInRange = itemDate >= startDate && itemDate <= endDate;
-                    const isFarmMatch = !farm || item.codigo === farm.code;
-
-                    return isDateInRange && isFarmMatch;
-                });
-
-                App.ui.renderCigarrinhaReportTable(filteredData);
-            },
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
