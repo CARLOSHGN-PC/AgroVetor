@@ -3701,32 +3701,58 @@ document.addEventListener('DOMContentLoaded', () => {
             async syncOfflineWrites() {
                 if (!navigator.onLine) return;
 
-                const offlineWrites = await OfflineDB.getAll('offline-writes');
-                if (offlineWrites.length === 0) {
+                const db = await OfflineDB.dbPromise;
+                if (!db) return;
+
+                // 1. Read all pending writes and their keys.
+                const readTx = db.transaction('offline-writes', 'readonly');
+                const store = readTx.objectStore('offline-writes');
+                const allWrites = await store.getAll();
+                const allKeys = await store.getAllKeys();
+                await readTx.done;
+
+                if (allWrites.length === 0) {
                     console.log("Nenhuma escrita offline para sincronizar.");
                     return;
                 }
 
-                App.ui.showAlert(`Sincronizando ${offlineWrites.length} registos offline...`, 'info', 5000);
+                App.ui.showAlert(`Sincronizando ${allWrites.length} registos offline...`, 'info', 5000);
                 
-                for (const write of offlineWrites) {
-                    try {
-                        // The 'write' object contains 'collection' and 'data' fields
-                        await App.data.addDocument(write.collection, write.data);
-                        // If successful, delete from the offline queue
-                        await OfflineDB.delete('offline-writes', write.id);
-                    } catch (error) {
-                        console.error("Falha ao sincronizar registo offline:", error, write);
-                        // If it fails, it remains in the queue for the next attempt
+                // 2. Try to sync each write to Firestore in parallel.
+                const syncPromises = allWrites.map((write, index) => {
+                    const key = allKeys[index];
+                    return App.data.addDocument(write.collection, write.data)
+                        .then(() => key) // On success, return the key to be deleted.
+                        .catch(error => {
+                            console.error(`Falha ao sincronizar o registo offline com a chave ${key}:`, error, write);
+                            return null; // On failure, return null.
+                        });
+                });
+
+                const results = await Promise.all(syncPromises);
+                const syncedKeys = results.filter(key => key !== null);
+
+                // 3. Delete all successfully synced items from IndexedDB.
+                if (syncedKeys.length > 0) {
+                    const deleteTx = db.transaction('offline-writes', 'readwrite');
+                    const deleteStore = deleteTx.objectStore('offline-writes');
+                    for (const key of syncedKeys) {
+                        await deleteStore.delete(key);
                     }
+                    await deleteTx.done;
                 }
                 
-                // Check if all writes were synced
-                const remainingWrites = await OfflineDB.getAll('offline-writes');
-                if (remainingWrites.length === 0) {
-                    App.ui.showAlert("Sincronização offline concluída com sucesso!", 'success');
+                // 4. Check if any writes are left and notify the user.
+                const remainingCountTx = db.transaction('offline-writes', 'readonly');
+                const remainingCount = await remainingCountTx.objectStore('offline-writes').count();
+                await remainingCountTx.done;
+
+                if (remainingCount === 0) {
+                    if (syncedKeys.length > 0) { // Only show success if something was actually synced
+                        App.ui.showAlert("Sincronização offline concluída com sucesso!", 'success');
+                    }
                 } else {
-                    App.ui.showAlert(`Falha ao sincronizar ${remainingWrites.length} registos. Tentarão novamente mais tarde.`, 'warning');
+                    App.ui.showAlert(`Falha ao sincronizar ${remainingCount} registos. Tentarão novamente mais tarde.`, 'warning');
                 }
             },
 
