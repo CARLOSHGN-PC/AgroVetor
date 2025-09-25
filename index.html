@@ -1279,6 +1279,19 @@
           }
       }
 
+      @media (max-width: 768px) {
+        .splash-logo {
+            width: 60%;
+            max-width: 200px;
+            height: auto;
+        }
+        .splash-message {
+            font-size: 1.2em;
+            text-align: center;
+            padding: 0 20px;
+        }
+      }
+
       @media (max-width: 992px) {
         .dashboard-grid {
             grid-template-columns: 1fr;
@@ -2136,6 +2149,14 @@
                     </div>
                 </div>
 
+            </section>
+
+            <section id="syncHistory" class="tab-content card" aria-label="Histórico de Sincronização" tabindex="0" hidden>
+                <h2><i class="fas fa-history"></i> Histórico de Sincronização</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Veja os detalhes de cada tentativa de sincronização de dados.</p>
+                <div id="syncHistoryList">
+                    <!-- Logs de sincronização serão inseridos aqui -->
+                </div>
             </section>
 
         </main>
