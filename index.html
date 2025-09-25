@@ -238,139 +238,31 @@
       .theme-button#theme-blue { background-color: #1976d2; }
       .theme-button#theme-dark { background-color: #2c3e50; }
 
-      /* [NOVO] Estilos do Dashboard Moderno */
-      .dashboard-container-modern {
-        animation: fadeIn 0.5s ease-out;
+      .dashboard-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 20px;
+          margin-top: 20px;
       }
-      .chart-header {
-          display: flex;
-          flex-direction: column;
-          gap: 15px;
-          margin-bottom: 20px;
-          position: relative;
-      }
-      .chart-header .chart-title {
-          margin-bottom: 0;
-          text-align: left;
-      }
-      .chart-header .btn-expand-chart {
-          top: 0;
-          right: 0;
-      }
-      .chart-pills-container {
-          overflow-x: auto;
-          padding-bottom: 5px;
-      }
-      .chart-pills {
-          display: flex;
-          gap: 15px;
-          width: max-content;
-      }
-      .pill-group {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: var(--color-bg);
-          padding: 5px;
-          border-radius: var(--border-radius-lg);
-      }
-      .pill-group-title {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--color-text-light);
-          padding: 0 8px;
-          white-space: nowrap;
-      }
-      .pill {
-          padding: 8px 14px;
-          border-radius: var(--border-radius);
-          background-color: transparent;
-          color: var(--color-text-light);
-          border: none;
-          cursor: pointer;
-          font-weight: 500;
-          font-size: 14px;
-          transition: var(--transition);
-          white-space: nowrap;
-      }
-      .pill.active, .pill:hover {
-          background-color: var(--color-surface);
-          color: var(--color-primary);
-          box-shadow: var(--shadow-sm);
-      }
-      .dashboard-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 25px;
-        flex-wrap: wrap;
-        gap: 20px;
-      }
-      .dashboard-header-main h2 {
-        margin: 0;
-        font-size: 28px;
-        font-weight: 700;
-        color: var(--color-primary);
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-      .dashboard-header-main p {
-        margin: 0;
-        font-size: 16px;
-        color: var(--color-text-light);
-        margin-top: -5px;
-      }
-      .dashboard-filters {
-          background: var(--color-surface);
-          padding: 10px 15px;
-          border-radius: var(--border-radius-lg);
-          box-shadow: var(--shadow-sm);
-          display: flex;
-          gap: 12px;
-          align-items: center;
-          flex-wrap: wrap;
-      }
-      .dashboard-filters label {
-          margin-top: 0;
-          font-size: 14px;
-          font-weight: 500;
-      }
-      .dashboard-filters input {
-          margin-top: 0;
-          padding: 8px 12px;
-          font-size: 14px;
-          max-width: 150px;
-      }
-      .dashboard-filters button.save {
-          padding: 8px 16px;
-          margin-top: 0;
-          width: auto;
-          max-width: none;
-          font-size: 14px;
-      }
-
-      .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 20px;
-        margin-bottom: 25px;
-      }
-      .kpi-card {
+      .kpi-card, .chart-card {
           background: var(--color-surface);
           border-radius: var(--border-radius-lg);
           box-shadow: var(--shadow-md);
           display: flex;
+          flex-direction: column;
+          transition: var(--transition);
+          position: relative;
+      }
+      .kpi-card:hover, .chart-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg);
+      }
+      .kpi-card {
+          padding: 20px;
           flex-direction: row;
           align-items: center;
           gap: 16px;
-          padding: 20px;
           border-left: 5px solid;
-          transition: var(--transition);
-      }
-      .kpi-card:hover {
-        transform: translateY(-4px);
-        box-shadow: var(--shadow-lg);
       }
       .kpi-card .icon {
           font-size: 24px;
@@ -384,7 +276,7 @@
           flex-shrink: 0;
       }
       .kpi-card .text .value {
-          font-size: 26px;
+          font-size: 24px;
           font-weight: 700;
           color: var(--color-text);
           line-height: 1.2;
@@ -393,26 +285,9 @@
           font-size: 14px;
           color: var(--color-text-light);
       }
-
-      .dashboard-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-          gap: 25px;
-      }
       .chart-card {
-          background: var(--color-surface);
-          border-radius: var(--border-radius-lg);
-          box-shadow: var(--shadow-md);
           padding: 24px;
           min-height: 450px; 
-          display: flex;
-          flex-direction: column;
-          transition: var(--transition);
-          position: relative;
-      }
-       .chart-card:hover {
-        transform: translateY(-4px);
-        box-shadow: var(--shadow-lg);
       }
       .chart-container { 
           position: relative; 
@@ -422,7 +297,7 @@
       }
       .chart-title { 
           text-align: center; 
-          margin-bottom: 20px;
+          margin-bottom: 15px; 
           font-weight: 600;
           font-size: 18px;
           color: var(--color-primary); 
@@ -445,6 +320,113 @@
           justify-content: center; 
       }
       .btn-expand-chart:hover { background: var(--color-primary-light); color: var(--color-primary); }
+
+      .dashboard-selector-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 25px;
+          padding: 20px;
+          justify-content: center;
+      }
+      .dashboard-card {
+          background: var(--color-surface);
+          border-radius: var(--border-radius-lg);
+          box-shadow: var(--shadow-lg);
+          padding: 30px;
+          text-align: center;
+          cursor: pointer;
+          transition: var(--transition);
+          border-bottom: 5px solid var(--color-primary);
+      }
+      .dashboard-card:hover {
+        transform: translateY(-8px) scale(1.03);
+        box-shadow: var(--shadow-xl);
+      }
+      .dashboard-card .icon {
+          font-size: 48px;
+          margin-bottom: 15px;
+          color: var(--color-primary);
+          transition: var(--transition);
+      }
+      .dashboard-card:hover .icon {
+        transform: scale(1.1);
+      }
+      .dashboard-card h3 {
+          font-size: 22px;
+          font-weight: 600;
+          color: var(--color-text);
+          margin-bottom: 8px;
+      }
+      .dashboard-card p {
+          font-size: 14px;
+          color: var(--color-text-light);
+          line-height: 1.4;
+      }
+      .dashboard-card#card-broca { border-color: var(--color-danger); }
+      .dashboard-card#card-broca .icon { color: var(--color-danger); }
+      .dashboard-card#card-perda { border-color: var(--color-warning); }
+      .dashboard-card#card-perda .icon { color: var(--color-warning); }
+      .dashboard-card#card-aerea { border-color: var(--color-info); }
+      .dashboard-card#card-aerea .icon { color: var(--color-info); }
+      
+      .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .dashboard-header-main {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+       .dashboard-header h2 {
+        margin: 0;
+       }
+      .btn-back-dashboard {
+          background: var(--color-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text-light);
+          padding: 8px 16px;
+          border-radius: var(--border-radius);
+          cursor: pointer;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: var(--transition);
+      }
+      .btn-back-dashboard:hover {
+          background-color: var(--color-primary-light);
+          color: var(--color-primary);
+      }
+      .dashboard-filters {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          flex-wrap: wrap;
+      }
+      .dashboard-filters label {
+          margin-top: 0;
+          font-size: 13px;
+          font-weight: 500;
+      }
+      .dashboard-filters input {
+          margin-top: 0;
+          padding: 6px 10px;
+          font-size: 13px;
+          max-width: 130px;
+      }
+      .dashboard-filters button.save {
+          padding: 6px 14px;
+          margin-top: 0;
+          width: auto;
+          max-width: none;
+          font-size: 13px;
+      }
 
       .permission-grid {
           display: grid;
@@ -1484,80 +1466,114 @@
         
         <main class="content" id="content">
             <section id="dashboard" class="tab-content" aria-label="Dashboard" tabindex="0" hidden>
-                <div class="dashboard-container-modern">
+                
+                <div id="dashboard-selector" class="dashboard-selector-grid">
+                    <div id="card-broca" class="dashboard-card">
+                        <i class="icon fas fa-bug"></i>
+                        <h3>Broca</h3>
+                        <p>Analisar índices de infestação, locais mais afetados e evolução mensal.</p>
+                    </div>
+                    <div id="card-perda" class="dashboard-card">
+                        <i class="icon fas fa-chart-line"></i>
+                        <h3>Perdas</h3>
+                        <p>Visualizar perdas por fazenda, tipo de perda e evolução mensal.</p>
+                    </div>
+                    <div id="card-aerea" class="dashboard-card">
+                        <i class="icon fas fa-plane-departure"></i>
+                        <h3>Aplicação Aérea</h3>
+                        <p>Módulo para gestão e análise de aplicações aéreas.</p>
+                    </div>
+                </div>
+
+                <div id="dashboard-broca" style="display: none;">
                     <div class="dashboard-header">
                         <div class="dashboard-header-main">
-                            <h2><i class="fas fa-tachometer-alt"></i> Dashboard Geral</h2>
-                            <p>Visão consolidada dos indicadores chave de performance.</p>
+                            <h2 style="color: var(--color-danger);"><i class="fas fa-bug"></i> Dashboard de Broca</h2>
+                            <div class="dashboard-filters" id="brocaDashboardDateFilter">
+                                <label for="brocaDashboardInicio">De:</label>
+                                <input type="date" id="brocaDashboardInicio">
+                                <label for="brocaDashboardFim">Até:</label>
+                                <input type="date" id="brocaDashboardFim">
+                                <button id="btnFiltrarBrocaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
+                            </div>
                         </div>
-                        <div class="dashboard-filters">
-                            <label for="dashboard-start-date">De:</label>
-                            <input type="date" id="dashboard-start-date">
-                            <label for="dashboard-end-date">Até:</label>
-                            <input type="date" id="dashboard-end-date">
-                            <button id="dashboard-filter-btn" class="save"><i class="fas fa-filter"></i> Filtrar</button>
-                        </div>
+                        <button id="btn-back-to-selector-broca" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
                     </div>
-
-                    <div class="kpi-grid">
-                        <div class="kpi-card" style="border-left-color: var(--color-danger);">
-                            <div class="icon" style="background-color: var(--color-danger);"><i class="fas fa-bug"></i></div>
-                            <div class="text">
-                                <div class="value" id="kpi-broca-media">0.00%</div>
-                                <div class="label" id="kpi-broca-desc">0 amostras</div>
-                            </div>
+                    <div class="dashboard-grid">
+                        <div class="chart-card">
+                            <h3 class="chart-title">Top 10 Fazendas com Maior Índice de Broca (Ponderado)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoTop10FazendasBroca" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoTop10FazendasBroca"></canvas></div>
                         </div>
-                        <div class="kpi-card" style="border-left-color: var(--color-warning);">
-                            <div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-balance-scale-right"></i></div>
-                            <div class="text">
-                                <div class="value" id="kpi-perda-media">0.00 kg</div>
-                                <div class="label" id="kpi-perda-desc">0 amostras</div>
-                            </div>
+                         <div class="chart-card">
+                            <h3 class="chart-title">Evolução Mensal do Índice de Broca (%)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoBrocaMensal" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoBrocaMensal"></canvas></div>
                         </div>
-                        <div class="kpi-card" style="border-left-color: #3498db;">
-                            <div class="icon" style="background-color: #3498db;"><i class="fas fa-leaf"></i></div>
-                            <div class="text">
-                                <div class="value" id="kpi-cigarrinha-media">0.00</div>
-                                <div class="label" id="kpi-cigarrinha-desc">0 amostras</div>
-                            </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Posição de Maior Incidência da Broca (%)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoBrocaPosicao" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoBrocaPosicao"></canvas></div>
                         </div>
-                        <div class="kpi-card" style="border-left-color: var(--color-info);">
-                            <div class="icon" style="background-color: var(--color-info);"><i class="fas fa-calendar-alt"></i></div>
-                            <div class="text">
-                                <div class="value" id="kpi-planos-pendentes">0</div>
-                                <div class="label" id="kpi-planos-desc">0 concluídos</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3 class="chart-title" id="dashboard-chart-title"></h3>
-                            <button class="btn-expand-chart" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
-                            <div class="chart-pills-container">
-                                <div class="chart-pills" id="chart-pills">
-                                    <div class="pill-group">
-                                        <span class="pill-group-title">Broca</span>
-                                        <button class="pill active" data-chart="broca-top-fazendas">Top 10 Fazendas</button>
-                                        <button class="pill" data-chart="broca-mensal">Evolução Mensal</button>
-                                        <button class="pill" data-chart="broca-posicao">Posição</button>
-                                        <button class="pill" data-chart="broca-variedade">Variedade</button>
-                                    </div>
-                                    <div class="pill-group">
-                                        <span class="pill-group-title">Perda</span>
-                                        <button class="pill" data-chart="perda-frente-turno">Frente x Turno</button>
-                                        <button class="pill" data-chart="perda-composicao">Composição</button>
-                                        <button class="pill" data-chart="perda-top-fazendas">Top 10 Fazendas</button>
-                                        <button class="pill" data-chart="perda-frente">Frentes</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="dashboard-chart-canvas"></canvas>
+                         <div class="chart-card">
+                            <h3 class="chart-title">Top 10 Variedades com Maior Índice de Broca (%)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoBrocaPorVariedade" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoBrocaPorVariedade"></canvas></div>
                         </div>
                     </div>
                 </div>
+
+                 <div id="dashboard-perda" style="display: none;">
+                    <div class="dashboard-header">
+                        <div class="dashboard-header-main">
+                            <h2 style="color: var(--color-warning);"><i class="fas fa-chart-line"></i> Dashboard de Perdas</h2>
+                            <div class="dashboard-filters" id="perdaDashboardDateFilter">
+                                <label for="perdaDashboardInicio">De:</label>
+                                <input type="date" id="perdaDashboardInicio">
+                                <label for="perdaDashboardFim">Até:</label>
+                                <input type="date" id="perdaDashboardFim">
+                                <button id="btnFiltrarPerdaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
+                            </div>
+                        </div>
+                        <button id="btn-back-to-selector-perda" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="chart-card">
+                            <h3 class="chart-title">Perda Média por Frente / Turno (kg)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFrenteTurno" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoPerdaPorFrenteTurno"></canvas></div>
+                        </div>
+                         <div class="chart-card">
+                            <h3 class="chart-title">Composição da Perda por Frente (kg)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoComposicaoPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoComposicaoPerda"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Top 10 Fazendas com Maior Perda Média (kg)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoTop10FazendasPerda" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoTop10FazendasPerda"></canvas></div>
+                        </div>
+                         <div class="chart-card">
+                            <h3 class="chart-title">Perda Média por Frente de Serviço (kg)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoPerdaPorFrente" title="Expandir Gráfico"><i class="fas fa-expand"></i></button>
+                            <div class="chart-container"><canvas id="graficoPerdaPorFrente"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dashboard-aerea" style="display: none;">
+                                <div class="dashboard-header">
+                                    <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
+                                    <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                                </div>
+                                <div class="card">
+                                  <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
+                                      <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
+                                      Este módulo ainda está em desenvolvimento.
+                                    </p>
+                                </div>
+                </div>
+
             </section>
             
             <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>

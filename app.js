@@ -287,20 +287,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
             },
             dashboard: {
-                startDate: document.getElementById('dashboard-start-date'),
-                endDate: document.getElementById('dashboard-end-date'),
-                btnFilter: document.getElementById('dashboard-filter-btn'),
-                kpiBrocaMedia: document.getElementById('kpi-broca-media'),
-                kpiBrocaDesc: document.getElementById('kpi-broca-desc'),
-                kpiPerdaMedia: document.getElementById('kpi-perda-media'),
-                kpiPerdaDesc: document.getElementById('kpi-perda-desc'),
-                kpiCigarrinhaMedia: document.getElementById('kpi-cigarrinha-media'),
-                kpiCigarrinhaDesc: document.getElementById('kpi-cigarrinha-desc'),
-                kpiPlanosPendentes: document.getElementById('kpi-planos-pendentes'),
-                kpiPlanosDesc: document.getElementById('kpi-planos-desc'),
-                chartPills: document.getElementById('chart-pills'),
-                chartTitle: document.getElementById('dashboard-chart-title'),
-                chartCanvas: document.getElementById('dashboard-chart-canvas'),
+                selector: document.getElementById('dashboard-selector'),
+                brocaView: document.getElementById('dashboard-broca'),
+                perdaView: document.getElementById('dashboard-perda'),
+                aereaView: document.getElementById('dashboard-aerea'),
+                cardBroca: document.getElementById('card-broca'),
+                cardPerda: document.getElementById('card-perda'),
+                cardAerea: document.getElementById('card-aerea'),
+                btnBackToSelectorBroca: document.getElementById('btn-back-to-selector-broca'),
+                btnBackToSelectorPerda: document.getElementById('btn-back-to-selector-perda'),
+                btnBackToSelectorAerea: document.getElementById('btn-back-to-selector-aerea'),
+                brocaDashboardInicio: document.getElementById('brocaDashboardInicio'),
+                brocaDashboardFim: document.getElementById('brocaDashboardFim'),
+                btnFiltrarBrocaDashboard: document.getElementById('btnFiltrarBrocaDashboard'),
+                perdaDashboardInicio: document.getElementById('perdaDashboardInicio'),
+                perdaDashboardFim: document.getElementById('perdaDashboardFim'),
+                btnFiltrarPerdaDashboard: document.getElementById('btnFiltrarPerdaDashboard'),
             },
             users: {
                 username: document.getElementById('newUserUsername'),
@@ -520,66 +522,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         init() {
             OfflineDB.init();
-            this.ui.debouncedRenderAll = this.debounce(this.ui.renderAllDynamicContent.bind(this.ui), 100);
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
-            // onIdTokenChanged é a forma mais robusta de ouvir o estado de autenticação,
-            // pois também é acionado quando o token de autenticação é atualizado.
-            onIdTokenChanged(auth, this.auth.handleAuthChange.bind(this.auth));
+            this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
         
         auth: {
-            async handleAuthChange(user) {
-                // Esta função é agora o ponto central para lidar com o estado de autenticação.
-                if (user) {
-                    // Utilizador está logado ou o token foi atualizado.
-                    console.log("Auth state changed: User is logged in.", user.uid);
-                    const userDoc = await App.data.getUserData(user.uid);
+            async checkSession() {
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        const userDoc = await App.data.getUserData(user.uid);
+                        if (userDoc && userDoc.active) {
+                            App.state.currentUser = { ...user, ...userDoc };
+                            App.actions.saveUserProfileLocally(App.state.currentUser);
+                            App.ui.showAppScreen();
+                            App.data.listenToAllData();
 
-                    // Previne condição de corrida onde o logout pode ser chamado antes disto completar
-                    if (!auth.currentUser) return;
+                            const draftRestored = await App.actions.checkForDraft();
+                            if (!draftRestored) {
+                                const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
+                                App.ui.showTab(lastTab || 'dashboard');
+                            }
 
-                    if (userDoc && userDoc.active) {
-                        App.state.currentUser = { ...user, ...userDoc };
-                        App.actions.saveUserProfileLocally(App.state.currentUser);
-
-                        // Ordem crítica: Primeiro mostra a tela, depois carrega os dados.
-                        App.ui.showAppScreen();
-                        App.data.listenToAllData(); // Inicia os 'ouvintes' com o token válido.
-
-                        const draftRestored = await App.actions.checkForDraft();
-                        if (!draftRestored) {
-                            const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
-                            App.ui.showTab(lastTab || 'dashboard');
+                            if (navigator.onLine) {
+                                App.actions.syncOfflineWrites();
+                            }
+                        } else {
+                            this.logout();
+                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
-
-                        // A sincronização é acionada após a configuração inicial.
-                        App.actions.syncOfflineWrites();
-
                     } else {
-                        // Utilizador autenticado no Firebase, mas não ativo no nosso sistema.
-                        console.warn("User document not found or inactive. Logging out.", user.uid);
-                        await App.auth.logout();
-                        App.ui.showAlert("A sua conta foi desativada ou não foi encontrada.", "error");
+                        const localProfiles = App.actions.getLocalUserProfiles();
+                        if (localProfiles.length > 0 && !navigator.onLine) {
+                            App.ui.showOfflineUserSelection(localProfiles);
+                        } else {
+                            App.ui.showLoginScreen();
+                        }
                     }
-                } else {
-                    // Utilizador está deslogado.
-                    console.log("Auth state changed: User is logged out.");
-                    App.data.cleanupListeners();
-                    App.actions.stopRealtimeTracking();
-                    App.state.currentUser = null;
-                    clearTimeout(App.state.inactivityTimer);
-                    clearTimeout(App.state.inactivityWarningTimer);
-                    localStorage.removeItem('agrovetor_lastActiveTab');
-
-                    const localProfiles = App.actions.getLocalUserProfiles();
-                    if (localProfiles.length > 0 && !navigator.onLine) {
-                        App.ui.showOfflineUserSelection(localProfiles);
-                    } else {
-                        App.ui.showLoginScreen();
-                    }
-                }
+                });
             },
 
             async login() {
@@ -619,15 +600,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             async logout() {
-                // Apenas termina a sessão. O 'ouvinte' onIdTokenChanged tratará da limpeza.
                 if (navigator.onLine) {
                     await signOut(auth);
-                } else {
-                    // Se estiver offline, não é possível terminar a sessão no servidor. Apenas limpa o estado local.
-                    // O onIdTokenChanged tratará disso quando a aplicação ficar online.
-                    App.state.currentUser = null;
-                    App.ui.showLoginScreen();
                 }
+                App.data.cleanupListeners();
+                App.actions.stopRealtimeTracking(); // Parar o rastreamento
+                App.state.currentUser = null;
+                clearTimeout(App.state.inactivityTimer);
+                clearTimeout(App.state.inactivityWarningTimer);
+                localStorage.removeItem('agrovetor_lastActiveTab');
+                App.ui.showLoginScreen();
             },
             initiateUserCreation() {
                 const els = App.elements.users;
@@ -773,8 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.mapModule.checkTrapStatusAndNotify();
                         }
 
-                        // App.ui.renderAllDynamicContent(); // Chamada original
-                        App.ui.debouncedRenderAll(); // Chamada otimizada
+                        App.ui.renderAllDynamicContent();
                     }, (error) => {
                         console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
                     });
@@ -831,7 +812,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     border: styles.getPropertyValue('--color-border').trim(),
                 };
             },
-            debouncedRenderAll: null,
             setLoading(isLoading, progressText = "A processar...") {
                 App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
                 App.elements.loadingProgressText.textContent = progressText;
@@ -921,10 +901,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 renderWithCatch('dashboard-view', () => {
                     if (document.getElementById('dashboard').classList.contains('active')) {
-                        this.renderDashboard();
+                        this.showDashboardView('broca');
                     }
                 });
             },
+            showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
             showAlert(message, type = 'success', duration = 3000) {
                 const { alertContainer } = App.elements;
                 if (!alertContainer) return;
@@ -1174,108 +1155,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 return "Agora mesmo";
             },
 
-            renderDashboard() {
-                this.loadDashboardDates();
-                this.updateDashboardData();
-            },
-
-            updateDashboardData() {
-                const { startDate, endDate } = App.elements.dashboard;
-                if (!startDate.value || !endDate.value) {
-                    // Se as datas não estiverem definidas, não renderiza os dados
-                    // Isso evita erros durante o carregamento inicial offline
-                    return;
-                }
-                App.actions.saveDashboardDates(startDate.value, endDate.value);
-
-                this.updateKPIs();
-                this.renderActiveChart();
-            },
-
-            updateKPIs() {
+            showDashboardView(viewName) {
                 const dashEls = App.elements.dashboard;
-                if (!dashEls || Object.values(dashEls).some(el => el === null)) {
-                    console.warn("Elementos do dashboard ainda não estão prontos. A pular atualização de KPIs.");
-                    return;
-                }
+                dashEls.selector.style.display = 'none';
+                dashEls.brocaView.style.display = 'none';
+                dashEls.perdaView.style.display = 'none';
+                dashEls.aereaView.style.display = 'none';
+                
+                App.charts.destroyAll();
 
-                const start = dashEls.startDate.value;
-                const end = dashEls.endDate.value;
-
-                // KPI Broca
-                const brocaData = App.actions.filterDashboardData('registros', start, end);
-                const totalEntrenos = brocaData.reduce((sum, item) => sum + Number(item.entrenos), 0);
-                const totalBrocado = brocaData.reduce((sum, item) => sum + Number(item.brocado), 0);
-                const indiceBroca = totalEntrenos > 0 ? (totalBrocado / totalEntrenos) * 100 : 0;
-                dashEls.kpiBrocaMedia.textContent = `${indiceBroca.toFixed(2)}%`;
-                dashEls.kpiBrocaDesc.textContent = `${brocaData.length} amostras`;
-
-                // KPI Perda
-                const perdaData = App.actions.filterDashboardData('perdas', start, end);
-                const totalPerda = perdaData.reduce((sum, item) => sum + item.total, 0);
-                const mediaPerda = perdaData.length > 0 ? totalPerda / perdaData.length : 0;
-                dashEls.kpiPerdaMedia.textContent = `${mediaPerda.toFixed(2)} kg`;
-                dashEls.kpiPerdaDesc.textContent = `${perdaData.length} amostras`;
-
-                // KPI Cigarrinha
-                const cigarrinhaData = App.actions.filterDashboardData('cigarrinha', start, end);
-                const totalResultadoCigarrinha = cigarrinhaData.reduce((sum, item) => sum + item.resultado, 0);
-                const mediaResultadoCigarrinha = cigarrinhaData.length > 0 ? totalResultadoCigarrinha / cigarrinhaData.length : 0;
-                dashEls.kpiCigarrinhaMedia.textContent = mediaResultadoCigarrinha.toFixed(2);
-                dashEls.kpiCigarrinhaDesc.textContent = `${cigarrinhaData.length} amostras`;
-
-                // KPI Planos
-                const planosData = App.actions.filterDashboardData('planos', start, end, 'dataPrevista');
-                const concluidos = planosData.filter(p => p.status === 'Concluído').length;
-                const pendentes = planosData.length - concluidos;
-                dashEls.kpiPlanosPendentes.textContent = pendentes;
-                dashEls.kpiPlanosDesc.textContent = `${concluidos} concluídos`;
-            },
-
-            renderActiveChart() {
-                const activePill = App.elements.dashboard.chartPills.querySelector('.active');
-                if (!activePill) return;
-
-                const chartType = activePill.dataset.chart;
-                const { startDate, endDate, chartTitle } = App.elements.dashboard;
-                const start = startDate.value;
-                const end = endDate.value;
-
-                const brocaData = App.actions.filterDashboardData('registros', start, end);
-                const perdaData = App.actions.filterDashboardData('perdas', start, end);
-                const cigarrinhaData = App.actions.filterDashboardData('cigarrinha', start, end);
-
-                chartTitle.textContent = activePill.textContent;
-                App.charts.destroyAll(); // Garante que o canvas está limpo
-
-                switch (chartType) {
-                    case 'broca-top-fazendas':
-                        App.charts.renderTop10FazendasBroca(brocaData);
+                switch(viewName) {
+                    case 'selector':
+                        dashEls.selector.style.display = 'grid';
                         break;
-                    case 'broca-mensal':
-                        App.charts.renderBrocaMensal(brocaData);
+                    case 'broca':
+                        dashEls.brocaView.style.display = 'block';
+                        this.loadDashboardDates('broca');
+                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
                         break;
-                    case 'broca-posicao':
-                        App.charts.renderBrocaPosicao(brocaData);
+                    case 'perda':
+                        dashEls.perdaView.style.display = 'block';
+                        this.loadDashboardDates('perda');
+                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
                         break;
-                    case 'broca-variedade':
-                        App.charts.renderBrocaPorVariedade(brocaData);
-                        break;
-                    case 'perda-frente-turno':
-                        App.charts.renderPerdaPorFrenteTurno(perdaData);
-                        break;
-                    case 'perda-composicao':
-                        App.charts.renderComposicaoPerdaPorFrente(perdaData);
-                        break;
-                    case 'perda-top-fazendas':
-                        App.charts.renderTop10FazendasPerda(perdaData);
-                        break;
-                    case 'perda-frente':
-                        App.charts.renderPerdaPorFrente(perdaData);
+                    case 'aerea':
+                        dashEls.aereaView.style.display = 'block';
                         break;
                 }
             },
-
             setDefaultDatesForEntryForms() {
                 const today = new Date().toISOString().split('T')[0];
                 App.elements.broca.data.value = today;
@@ -1299,19 +1206,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.relatorioMonitoramento.fim.value = lastDayOfMonth;
                 }
             },
-            loadDashboardDates() {
-                const savedDates = App.actions.getDashboardDates();
-                const { startDate, endDate } = App.elements.dashboard;
+            setDefaultDatesForDashboard(type) {
+                const today = new Date();
+                const firstDayOfYear = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+                const todayDate = today.toISOString().split('T')[0];
 
+                if (type === 'broca') {
+                    App.elements.dashboard.brocaDashboardInicio.value = firstDayOfYear;
+                    App.elements.dashboard.brocaDashboardFim.value = todayDate;
+                } else if (type === 'perda') {
+                    App.elements.dashboard.perdaDashboardInicio.value = firstDayOfYear;
+                    App.elements.dashboard.perdaDashboardFim.value = todayDate;
+                }
+                App.actions.saveDashboardDates(type, firstDayOfYear, todayDate);
+            },
+            loadDashboardDates(type) {
+                const savedDates = App.actions.getDashboardDates(type);
                 if (savedDates.start && savedDates.end) {
-                    startDate.value = savedDates.start;
-                    endDate.value = savedDates.end;
+                    if (type === 'broca') {
+                        App.elements.dashboard.brocaDashboardInicio.value = savedDates.start;
+                        App.elements.dashboard.brocaDashboardFim.value = savedDates.end;
+                    } else if (type === 'perda') {
+                        App.elements.dashboard.perdaDashboardInicio.value = savedDates.start;
+                        App.elements.dashboard.perdaDashboardFim.value = savedDates.end;
+                    }
                 } else {
-                    const today = new Date();
-                    const firstDayOfYear = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
-                    const todayDate = today.toISOString().split('T')[0];
-                    startDate.value = firstDayOfYear;
-                    endDate.value = todayDate;
+                    this.setDefaultDatesForDashboard(type);
                 }
             },
             clearForm(formElement) {
@@ -2152,17 +2072,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 const dashEls = App.elements.dashboard;
-                const dashEls = App.elements.dashboard;
-                if (dashEls.btnFilter) dashEls.btnFilter.addEventListener('click', () => this.updateDashboardData());
-                if (dashEls.chartPills) dashEls.chartPills.addEventListener('click', (e) => {
-                    const pill = e.target.closest('.pill');
-                    if (pill) {
-                        dashEls.chartPills.querySelector('.active')?.classList.remove('active');
-                        pill.classList.add('active');
-                        this.renderActiveChart();
-                    }
-                });
-
+                if (dashEls.cardBroca) dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
+                if (dashEls.cardPerda) dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
+                if (dashEls.cardAerea) dashEls.cardAerea.addEventListener('click', () => this.showDashboardView('aerea'));
+                if (dashEls.btnBackToSelectorBroca) dashEls.btnBackToSelectorBroca.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorPerda) dashEls.btnBackToSelectorPerda.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorAerea) dashEls.btnBackToSelectorAerea.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnFiltrarBrocaDashboard) dashEls.btnFiltrarBrocaDashboard.addEventListener('click', () => App.charts.renderBrocaDashboardCharts());
+                if (dashEls.btnFiltrarPerdaDashboard) dashEls.btnFiltrarPerdaDashboard.addEventListener('click', () => App.charts.renderPerdaDashboardCharts());
+                
                 const chartModal = App.elements.chartModal;
                 if (chartModal.closeBtn) chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
                 if (chartModal.overlay) chartModal.overlay.addEventListener('click', e => { if(e.target === chartModal.overlay) App.charts.closeChartModal(); });
@@ -2204,16 +2122,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const cpModal = App.elements.changePasswordModal;
                 if (App.elements.userMenu.changePasswordBtn) App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
-                if (App.elements.userMenu.manualSyncBtn) App.elements.userMenu.manualSyncBtn.addEventListener('click', () => {
-                    if (auth.currentUser) {
-                        App.ui.showSystemNotification("Sincronização", "A forçar atualização de dados...", "info");
-                        // Forçar a atualização do token irá acionar o 'ouvinte' onIdTokenChanged,
-                        // que por sua vez lida com a reinicialização dos 'ouvintes' de dados e a sincronização.
-                        auth.currentUser.getIdToken(true);
-                    } else {
-                        App.ui.showSystemNotification("Sincronização", "Nenhum utilizador logado.", "warning");
-                    }
-                });
+                if (App.elements.userMenu.manualSyncBtn) App.elements.userMenu.manualSyncBtn.addEventListener('click', () => App.actions.forceTokenRefresh(true));
                 if (cpModal.closeBtn) cpModal.closeBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.cancelBtn) cpModal.cancelBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.saveBtn) cpModal.saveBtn.addEventListener('click', () => App.actions.changePassword());
@@ -2497,23 +2406,22 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
-            filterDashboardData(dataType, startDate, endDate, dateField = 'data') {
+            filterDashboardData(dataType, startDate, endDate) {
                 if (!startDate || !endDate) {
-                    return App.state[dataType] || [];
+                    return App.state[dataType];
                 }
-                return (App.state[dataType] || []).filter(item => {
-                    const itemDate = item[dateField];
-                    return itemDate >= startDate && itemDate <= endDate;
+                return App.state[dataType].filter(item => {
+                    return item.data >= startDate && item.data <= endDate;
                 });
             },
-            saveDashboardDates(start, end) {
-                localStorage.setItem(`dashboard-start`, start);
-                localStorage.setItem(`dashboard-end`, end);
+            saveDashboardDates(type, start, end) {
+                localStorage.setItem(`dashboard-${type}-start`, start);
+                localStorage.setItem(`dashboard-${type}-end`, end);
             },
-            getDashboardDates() {
+            getDashboardDates(type) {
                 return {
-                    start: localStorage.getItem(`dashboard-start`),
-                    end: localStorage.getItem(`dashboard-end`)
+                    start: localStorage.getItem(`dashboard-${type}-start`),
+                    end: localStorage.getItem(`dashboard-${type}-end`)
                 };
             },
             formatDateForInput(dateString) {
@@ -3881,6 +3789,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.trapNotifications = [];
                 App.state.unreadNotificationCount = 0;
                 App.ui.updateNotificationBell();
+            },
+
+            async forceTokenRefresh(isManual = false) {
+                if (!navigator.onLine || !auth.currentUser) {
+                    if (isManual) {
+                        App.ui.showSystemNotification("Sincronização", "Offline ou sem utilizador. Não é possível sincronizar.", "warning");
+                    }
+                    console.log("Offline ou sem utilizador, não é possível atualizar o token.");
+                    return;
+                }
+                try {
+                    const message = isManual ? "A iniciar sincronização manual..." : "Conexão reestabelecida. A iniciar sincronização automática...";
+                    App.ui.showSystemNotification("Sincronização", message, "info");
+                    console.log("A forçar a atualização do token de autenticação...");
+                    await auth.currentUser.getIdToken(true);
+                    console.log("Token de autenticação atualizado com sucesso.");
+
+                    // Reinicia os 'ouvintes' de dados para usar o novo token
+                    App.data.listenToAllData();
+
+                    // Após a atualização bem-sucedida do token, iniciar a sincronização.
+                    this.syncOfflineWrites();
+                } catch (error) {
+                    console.error("Falha ao forçar a atualização do token:", error);
+                    App.ui.showSystemNotification("Erro de Autenticação", "Falha na autenticação. Não foi possível sincronizar.", "error");
+                }
             },
 
             async syncOfflineWrites() {
@@ -5328,65 +5262,89 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 return chartOptions;
             },
-            _createOrUpdateChart(canvasId, config, isExpanded = false) {
-                const ctx = document.getElementById(canvasId)?.getContext('2d');
-                if (!ctx) return;
+            _createOrUpdateChart(id, config, isExpanded = false) { 
+                const canvasId = isExpanded ? 'expandedChartCanvas' : id;
+                const ctx = document.getElementById(canvasId)?.getContext('2d'); 
+                if(!ctx) return; 
 
-                let chartInstance;
-                if (isExpanded) {
-                    chartInstance = App.state.expandedChart;
-                } else {
-                    // There's only one main chart now, stored under a consistent key
-                    chartInstance = App.state.charts['dashboard-chart'];
-                }
-
-                if (chartInstance) {
-                    chartInstance.destroy();
-                }
-
+                const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
+                if (chartInstance) { 
+                    chartInstance.destroy(); 
+                } 
+                
                 const newChart = new Chart(ctx, config);
                 if (isExpanded) {
                     App.state.expandedChart = newChart;
                 } else {
-                    App.state.charts['dashboard-chart'] = newChart;
+                    App.state.charts[id] = newChart;
                 }
             },
-            destroyAll() {
-                Object.values(App.state.charts).forEach(chart => chart.destroy());
-                App.state.charts = {};
+               destroyAll() {
+                Object.keys(App.state.charts).forEach(id => {
+                    if (App.state.charts[id]) {
+                        App.state.charts[id].destroy();
+                        delete App.state.charts[id];
+                    }
+                });
+                if (App.state.expandedChart) {
+                    App.state.expandedChart.destroy();
+                    App.state.expandedChart = null;
+                }
+            },
+            openChartModal(chartId) {
+                const originalChart = App.state.charts[chartId];
+                if (!originalChart) return;
 
-                if (App.state.expandedChart) {
-                    App.state.expandedChart.destroy();
-                    App.state.expandedChart = null;
-                }
-            },
-            openChartModal() {
-                const originalChart = App.state.charts['dashboard-chart'];
-                if (!originalChart) return;
+                const modal = App.elements.chartModal;
+                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).closest('.chart-card').querySelector('.chart-title').textContent;
+                
+                modal.title.textContent = originalTitle;
+                modal.overlay.classList.add('show');
+                
+                const config = JSON.parse(JSON.stringify(originalChart.config._config));
+                config.options.maintainAspectRatio = false;
+                
+                if (originalChart.config.options.plugins.datalabels.formatter) {
+                    config.options.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
+                }
 
-                const modal = App.elements.chartModal;
-                modal.title.textContent = App.elements.dashboard.chartTitle.textContent;
-                modal.overlay.classList.add('show');
+                this._createOrUpdateChart(chartId, config, true);
+            },
+            closeChartModal() {
+                const modal = App.elements.chartModal;
+                modal.overlay.classList.remove('show');
+                if (App.state.expandedChart) {
+                    App.state.expandedChart.destroy();
+                    App.state.expandedChart = null;
+                }
+            },
 
-                const config = JSON.parse(JSON.stringify(originalChart.config._config));
-                config.options.maintainAspectRatio = false;
+            
+            async renderBrocaDashboardCharts() {
+                const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
+                const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
 
-                // A função formatter não é serializável, então a reaplicamos.
-                if (originalChart.config.options.plugins.datalabels.formatter) {
-                    config.options.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
-                }
+                setTimeout(() => {
+                    this.renderTop10FazendasBroca(data);
+                    this.renderBrocaMensal(data);
+                    this.renderBrocaPosicao(data);
+                    this.renderBrocaPorVariedade(data);
+                }, 0);
+            },
+            async renderPerdaDashboardCharts() {
+                const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
+                const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
-                this._createOrUpdateChart('expandedChartCanvas', config, true);
-            },
-            closeChartModal() {
-                const modal = App.elements.chartModal;
-                modal.overlay.classList.remove('show');
-                if (App.state.expandedChart) {
-                    App.state.expandedChart.destroy();
-                    App.state.expandedChart = null;
-                }
-            },
-            renderTop10FazendasBroca(data) {
+                setTimeout(() => {
+                    this.renderPerdaPorFrenteTurno(data);
+                    this.renderComposicaoPerdaPorFrente(data);
+                    this.renderTop10FazendasPerda(data);
+                    this.renderPerdaPorFrente(data);
+                }, 0);
+            },
+            renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
                 data.forEach(item => {
                     const fazendaKey = `${item.codigo} - ${item.fazenda}`;
@@ -5402,7 +5360,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('dashboard-chart-canvas', {
+                this._createOrUpdateChart('graficoTop10FazendasBroca', {
                     type: 'bar',
                     data: {
                         labels: top10.map(f => f.nome),
@@ -5449,7 +5407,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const commonOptions = this._getCommonChartOptions();
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('dashboard-chart-canvas', {
+                this._createOrUpdateChart('graficoBrocaMensal', {
                     type: 'line',
                     data: {
                         labels,
@@ -5489,7 +5447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const commonOptions = this._getCommonChartOptions();
 
-                this._createOrUpdateChart('dashboard-chart-canvas', {
+                this._createOrUpdateChart('graficoBrocaPosicao', {
                     type: 'doughnut',
                     data: {
                         labels: ['Base', 'Meio', 'Topo'],
@@ -5540,7 +5498,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('dashboard-chart-canvas', {
+                this._createOrUpdateChart('graficoBrocaPorVariedade', {
                     type: 'bar',
                     data: {
                         labels: top10.map(v => v.nome),
@@ -5599,7 +5557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const commonOptions = this._getCommonChartOptions();
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('dashboard-chart-canvas', {
+                this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
                     type: 'bar',
                     data: { labels: turnos.map(t => `Turno ${t}`), datasets },
                     options: {
@@ -5647,7 +5605,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const commonOptions = this._getCommonChartOptions();
                 
-                this._createOrUpdateChart('dashboard-chart-canvas', {
+                this._createOrUpdateChart('graficoComposicaoPerda', {
                     type: 'bar',
                     data: { labels: tiposLabels, datasets },
                     options: {
@@ -5682,7 +5640,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('dashboard-chart-canvas', {
+                this._createOrUpdateChart('graficoTop10FazendasPerda', {
                     type: 'bar',
                     data: {
                         labels: sortedFazendas.map(f => f.nome),
@@ -5723,7 +5681,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const commonOptions = this._getCommonChartOptions();
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('dashboard-chart-canvas', {
+                this._createOrUpdateChart('graficoPerdaPorFrente', {
                     type: 'bar',
                     data: {
                         labels: sortedFrentes.map(f => f.nome),
@@ -6113,9 +6071,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('online', () => {
-        App.ui.showAlert("Conexão reestabelecida. A verificar dados...", "info");
-        // A lógica de onIdTokenChanged irá agora lidar automaticamente com a atualização
-        // do token e a ressincronização dos dados quando o Firebase detetar a reconexão.
+        console.log("Conexão detectada. Aguardando 5 segundos para estabilizar...");
+        // Remove o alerta antigo, pois a notificação agora é tratada dentro de forceTokenRefresh
+        setTimeout(() => {
+            App.actions.forceTokenRefresh(false); // isManual = false
+        }, 5000); // Atraso de 5 segundos
     });
 
     // Inicia a aplicação
