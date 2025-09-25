@@ -52,15 +52,17 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 2 for the new object store
-            this.dbPromise = openDB('agrovetor-offline-storage', 2, {
+            // Version 3 for the new sync-history store
+            this.dbPromise = openDB('agrovetor-offline-storage', 3, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
                     }
                     if (oldVersion < 2) {
-                        // Key will be auto-generated
                         db.createObjectStore('offline-writes', { autoIncrement: true });
+                    }
+                    if (oldVersion < 3) {
+                        db.createObjectStore('sync-history', { keyPath: 'timestamp' });
                     }
                 },
             });
@@ -125,12 +127,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
+                        { label: 'Histórico de Sincronização', icon: 'fas fa-history', target: 'syncHistory', permission: 'syncHistory' },
                         { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
                     ]
                 },
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
@@ -1062,6 +1065,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.charts.destroyAll(); 
                 }
                 
+                if (id === 'syncHistory') this.renderSyncHistory();
                 if (id === 'excluirDados') this.renderExclusao();
                 if (id === 'gerenciarUsuarios') {
                     this.renderUsersList();
@@ -1521,6 +1525,54 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${buttonsHTML}
                         </div>
                     </div>`;
+            },
+            async renderSyncHistory() {
+                const listEl = document.getElementById('syncHistoryList');
+                if (!listEl) return;
+
+                try {
+                    const history = await OfflineDB.getAll('sync-history');
+                    history.sort((a, b) => b.timestamp - a.timestamp); // Sort descending
+
+                    listEl.innerHTML = '';
+
+                    if (history.length === 0) {
+                        listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum histórico de sincronização encontrado.</p>';
+                        return;
+                    }
+
+                    const statusMap = {
+                        success: { icon: 'fa-check-circle', color: 'var(--color-success)', label: 'Sucesso' },
+                        partial: { icon: 'fa-exclamation-triangle', color: 'var(--color-warning)', label: 'Parcial' },
+                        failure: { icon: 'fa-exclamation-circle', color: 'var(--color-danger)', label: 'Falha' },
+                        no_data: { icon: 'fa-info-circle', color: 'var(--color-info)', label: 'Informativo' },
+                        critical_error: { icon: 'fa-bomb', color: 'var(--color-danger)', label: 'Erro Crítico' },
+                    };
+
+                    history.forEach(log => {
+                        const statusInfo = statusMap[log.status] || { icon: 'fa-question-circle', color: 'var(--color-text-light)', label: 'Desconhecido' };
+                        const card = document.createElement('div');
+                        card.className = 'plano-card'; // Re-using existing style for consistency
+                        card.style.borderLeftColor = statusInfo.color;
+
+                        card.innerHTML = `
+                            <div class="plano-header">
+                                <span class="plano-title"><i class="fas ${statusInfo.icon}" style="color: ${statusInfo.color};"></i> Sincronização: ${statusInfo.label}</span>
+                                <span class="plano-status" style="background-color: ${statusInfo.color}; font-size: 12px; text-transform: none;">
+                                    ${log.timestamp.toLocaleString('pt-BR')}
+                                </span>
+                            </div>
+                            <div class="plano-details" style="grid-template-columns: 1fr;">
+                                <div><i class="fas fa-comment-alt"></i> Detalhes: ${log.details}</div>
+                            </div>
+                        `;
+                        listEl.appendChild(card);
+                    });
+
+                } catch (error) {
+                    console.error("Erro ao renderizar histórico de sincronização:", error);
+                    listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-danger);">Erro ao carregar o histórico.</p>';
+                }
             },
             renderUsersList() { 
                 const { list } = App.elements.users; 
@@ -2070,7 +2122,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const cpModal = App.elements.changePasswordModal;
                 if (App.elements.userMenu.changePasswordBtn) App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
-                if (App.elements.userMenu.manualSyncBtn) App.elements.userMenu.manualSyncBtn.addEventListener('click', () => App.actions.forceTokenRefresh());
+                if (App.elements.userMenu.manualSyncBtn) App.elements.userMenu.manualSyncBtn.addEventListener('click', () => App.actions.forceTokenRefresh(true));
                 if (cpModal.closeBtn) cpModal.closeBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.cancelBtn) cpModal.cancelBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.saveBtn) cpModal.saveBtn.addEventListener('click', () => App.actions.changePassword());
@@ -3739,15 +3791,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.updateNotificationBell();
             },
 
-            async forceTokenRefresh() {
+            async forceTokenRefresh(isManual = false) {
                 if (!navigator.onLine || !auth.currentUser) {
-                    App.ui.showSystemNotification("Sincronização", "Offline ou sem utilizador. Não é possível sincronizar.", "warning");
+                    if (isManual) {
+                        App.ui.showSystemNotification("Sincronização", "Offline ou sem utilizador. Não é possível sincronizar.", "warning");
+                    }
                     console.log("Offline ou sem utilizador, não é possível atualizar o token.");
                     return;
                 }
                 try {
+                    const message = isManual ? "A iniciar sincronização manual..." : "Conexão reestabelecida. A iniciar sincronização automática...";
+                    App.ui.showSystemNotification("Sincronização", message, "info");
                     console.log("A forçar a atualização do token de autenticação...");
-                    App.ui.showSystemNotification("Sincronização", "A iniciar sincronização manual...", "info");
                     await auth.currentUser.getIdToken(true);
                     console.log("Token de autenticação atualizado com sucesso.");
 
@@ -3770,6 +3825,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.state.isSyncing = true;
                 console.log("Iniciando a verificação de dados offline...");
+                const logEntry = {
+                    timestamp: new Date(),
+                    status: '',
+                    details: ''
+                };
 
                 try {
                     const db = await OfflineDB.dbPromise;
@@ -3788,7 +3848,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (writesToSync.length === 0) {
                         console.log("Nenhuma escrita offline para sincronizar.");
                         App.ui.showSystemNotification("Sincronização", "Nenhum registo pendente para sincronizar.", "info");
-                        App.state.isSyncing = false; // Reset flag
+                        logEntry.status = 'no_data';
+                        logEntry.details = 'Nenhum registo pendente para sincronizar.';
+                        await OfflineDB.add('sync-history', logEntry);
+                        App.state.isSyncing = false;
                         return;
                     }
 
@@ -3821,16 +3884,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (failureCount === 0 && syncedKeys.length > 0) {
-                        App.ui.showSystemNotification("Sincronização Concluída", `${syncedKeys.length} registos enviados com sucesso.`, 'success');
+                        const details = `${syncedKeys.length} registos enviados com sucesso.`;
+                        App.ui.showSystemNotification("Sincronização Concluída", details, 'success');
+                        logEntry.status = 'success';
+                        logEntry.details = details;
                     } else if (syncedKeys.length > 0 && failureCount > 0) {
-                        App.ui.showSystemNotification("Sincronização Parcial", `${syncedKeys.length} registos enviados. ${failureCount} falharam.`, 'warning');
+                        const details = `${syncedKeys.length} registos enviados. ${failureCount} falharam.`;
+                        App.ui.showSystemNotification("Sincronização Parcial", details, 'warning');
+                        logEntry.status = 'partial';
+                        logEntry.details = details;
                     } else if (failureCount > 0) {
-                        App.ui.showSystemNotification("Falha na Sincronização", `Não foi possível enviar ${failureCount} registos.`, 'error');
+                        const details = `Não foi possível enviar ${failureCount} registos.`;
+                        App.ui.showSystemNotification("Falha na Sincronização", details, 'error');
+                        logEntry.status = 'failure';
+                        logEntry.details = details;
                     }
+
+                    await OfflineDB.add('sync-history', logEntry);
 
                 } catch (error) {
                     console.error("Ocorreu um erro inesperado durante a sincronização:", error);
+                    const details = `Erro: ${error.message}`;
                     App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo.", "error");
+                    logEntry.status = 'critical_error';
+                    logEntry.details = details;
+                    await OfflineDB.add('sync-history', logEntry);
                 } finally {
                     App.state.isSyncing = false;
                     console.log("Processo de sincronização finalizado.");
@@ -5987,8 +6065,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('online', () => {
-        App.ui.showAlert("Conexão reestabelecida. A sincronizar dados...", "info");
-        App.actions.forceTokenRefresh();
+        console.log("Conexão detectada. Aguardando 5 segundos para estabilizar...");
+        // Remove o alerta antigo, pois a notificação agora é tratada dentro de forceTokenRefresh
+        setTimeout(() => {
+            App.actions.forceTokenRefresh(false); // isManual = false
+        }, 5000); // Atraso de 5 segundos
     });
 
     // Inicia a aplicação
