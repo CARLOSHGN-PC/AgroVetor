@@ -211,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dropdown: document.getElementById('user-menu-dropdown'),
                 username: document.getElementById('userMenuUsername'),
                 changePasswordBtn: document.getElementById('changePasswordBtn'),
+                manualSyncBtn: document.getElementById('manualSyncBtn'),
                 themeButtons: document.querySelectorAll('.theme-button')
             },
             confirmationModal: {
@@ -911,10 +912,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => alertContainer.classList.remove('show'), duration);
             },
 
-            showSystemNotification(message, type = 'info') {
+            showSystemNotification(title, message, type = 'info') {
                 const { list, count, noNotifications } = App.elements.notificationBell;
 
                 const newNotification = {
+                    title: title,
                     type: type,
                     message: message,
                     timestamp: new Date()
@@ -1095,15 +1097,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     notifications.forEach(notif => {
                         const item = document.createElement('div');
                         item.className = `notification-item ${notif.type}`;
-                        item.dataset.trapId = notif.trapId;
-
-                        const iconClass = notif.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
                         const timeAgo = this.timeSince(notif.timestamp);
+
+                        let iconClass = 'fa-info-circle'; // Default icon
+                        const lowerCaseTitle = (notif.title || '').toLowerCase();
+
+                        if (notif.trapId) {
+                            item.dataset.trapId = notif.trapId; // For click handler
+                            iconClass = 'fa-bug';
+                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
+                            if (notif.type === 'danger') iconClass = 'fa-exclamation-circle';
+                        } else if (lowerCaseTitle.includes('sincroniza')) {
+                            iconClass = 'fa-sync-alt';
+                            if (notif.type === 'success') iconClass = 'fa-check-circle';
+                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
+                            if (notif.type === 'error') iconClass = 'fa-exclamation-circle';
+                        }
+
+                        const itemTitle = notif.title || (notif.trapId ? 'Armadilha Requer Atenção' : 'Notificação do Sistema');
 
                         item.innerHTML = `
                             <i class="fas ${iconClass}"></i>
                             <div class="notification-item-content">
-                                <p><strong>Armadilha Requer Atenção</strong></p>
+                                <p><strong>${itemTitle}</strong></p>
                                 <p>${notif.message}</p>
                                 <div class="timestamp">${timeAgo}</div>
                             </div>
@@ -2054,6 +2070,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const cpModal = App.elements.changePasswordModal;
                 if (App.elements.userMenu.changePasswordBtn) App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
+                if (App.elements.userMenu.manualSyncBtn) App.elements.userMenu.manualSyncBtn.addEventListener('click', () => App.actions.forceTokenRefresh());
                 if (cpModal.closeBtn) cpModal.closeBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.cancelBtn) cpModal.cancelBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.saveBtn) cpModal.saveBtn.addEventListener('click', () => App.actions.changePassword());
@@ -3724,11 +3741,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async forceTokenRefresh() {
                 if (!navigator.onLine || !auth.currentUser) {
+                    App.ui.showSystemNotification("Sincronização", "Offline ou sem utilizador. Não é possível sincronizar.", "warning");
                     console.log("Offline ou sem utilizador, não é possível atualizar o token.");
                     return;
                 }
                 try {
                     console.log("A forçar a atualização do token de autenticação...");
+                    App.ui.showSystemNotification("Sincronização", "A iniciar sincronização manual...", "info");
                     await auth.currentUser.getIdToken(true);
                     console.log("Token de autenticação atualizado com sucesso.");
 
@@ -3739,7 +3758,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.syncOfflineWrites();
                 } catch (error) {
                     console.error("Falha ao forçar a atualização do token:", error);
-                    App.ui.showAlert("Falha na autenticação. Não foi possível sincronizar.", "error");
+                    App.ui.showSystemNotification("Erro de Autenticação", "Falha na autenticação. Não foi possível sincronizar.", "error");
                 }
             },
 
@@ -3768,11 +3787,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (writesToSync.length === 0) {
                         console.log("Nenhuma escrita offline para sincronizar.");
+                        App.ui.showSystemNotification("Sincronização", "Nenhum registo pendente para sincronizar.", "info");
                         App.state.isSyncing = false; // Reset flag
                         return;
                     }
 
-                    App.ui.showAlert(`A sincronizar ${writesToSync.length} registos offline...`, 'info', 4000);
+                    App.ui.showSystemNotification("Sincronização", `A enviar ${writesToSync.length} registos offline...`, 'info');
 
                     const syncPromises = writesToSync.map(write =>
                         App.data.addDocument(write.value.collection, write.value.data)
@@ -3801,16 +3821,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (failureCount === 0 && syncedKeys.length > 0) {
-                        App.ui.showSystemNotification("Sincronização offline concluída com sucesso!", 'success');
+                        App.ui.showSystemNotification("Sincronização Concluída", `${syncedKeys.length} registos enviados com sucesso.`, 'success');
                     } else if (syncedKeys.length > 0 && failureCount > 0) {
-                        App.ui.showSystemNotification(`${syncedKeys.length} registos sincronizados. Falha ao sincronizar ${failureCount}.`, 'warning');
+                        App.ui.showSystemNotification("Sincronização Parcial", `${syncedKeys.length} registos enviados. ${failureCount} falharam.`, 'warning');
                     } else if (failureCount > 0) {
-                        App.ui.showSystemNotification(`Falha ao sincronizar ${failureCount} registos.`, 'error');
+                        App.ui.showSystemNotification("Falha na Sincronização", `Não foi possível enviar ${failureCount} registos.`, 'error');
                     }
 
                 } catch (error) {
                     console.error("Ocorreu um erro inesperado durante a sincronização:", error);
-                    App.ui.showSystemNotification("Ocorreu um erro crítico durante a sincronização.", "error");
+                    App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo.", "error");
                 } finally {
                     App.state.isSyncing = false;
                     console.log("Processo de sincronização finalizado.");
