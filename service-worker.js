@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v10'; // Incremented version
+const CACHE_NAME = 'agrovetor-cache-v9'; // Incremented version
 const TILE_CACHE_NAME = 'agrovetor-tile-cache-v1';
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
@@ -22,7 +22,6 @@ const urlsToCache = [
   './',
   './index.html',
   './app.js',
-  './style.css', // Adicionado o novo arquivo de estilo
   './manifest.json',
   'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
