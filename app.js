@@ -910,6 +910,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 alertContainer.className = `show ${type}`;
                 setTimeout(() => alertContainer.classList.remove('show'), duration);
             },
+
+            showSystemNotification(message, type = 'info') {
+                const { list, count, noNotifications } = App.elements.notificationBell;
+
+                const newNotification = {
+                    type: type,
+                    message: message,
+                    timestamp: new Date()
+                };
+
+                // Adiciona a nova notificação ao início da lista
+                App.state.trapNotifications.unshift(newNotification);
+                App.state.unreadNotificationCount++;
+
+                this.updateNotificationBell();
+            },
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
             renderMenu() {
                 const { menu } = App.elements; const { menuConfig } = App.config; const { currentUser } = App.state;
@@ -2307,13 +2323,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                window.addEventListener('online', () => App.actions.syncOfflineWrites());
+                window.addEventListener('online', () => App.actions.forceTokenRefresh());
 
                 // Adiciona um gatilho de sincronização quando o separador/app se torna visível
                 document.addEventListener('visibilitychange', () => {
                     if (document.visibilityState === 'visible' && navigator.onLine) {
                         console.log("App tornou-se visível, a verificar por sincronizações pendentes.");
-                        App.actions.syncOfflineWrites();
+                        App.actions.forceTokenRefresh();
                     }
                 });
 
@@ -3716,6 +3732,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.updateNotificationBell();
             },
 
+            async forceTokenRefresh() {
+                if (!navigator.onLine || !auth.currentUser) {
+                    console.log("Offline ou sem utilizador, não é possível atualizar o token.");
+                    return;
+                }
+                try {
+                    console.log("A forçar a atualização do token de autenticação...");
+                    await auth.currentUser.getIdToken(true);
+                    console.log("Token de autenticação atualizado com sucesso.");
+                    // Após a atualização bem-sucedida do token, iniciar a sincronização.
+                    this.syncOfflineWrites();
+                } catch (error) {
+                    console.error("Falha ao forçar a atualização do token:", error);
+                    App.ui.showAlert("Falha na autenticação. Não foi possível sincronizar.", "error");
+                }
+            },
+
             async syncOfflineWrites() {
                 if (App.state.isSyncing) {
                     console.log("A sincronização já está em andamento.");
@@ -3723,22 +3756,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.state.isSyncing = true;
-                console.log("Iniciando a sincronização de dados offline...");
+                console.log("Iniciando a verificação de dados offline...");
 
                 try {
-                    if (!navigator.onLine) {
-                        console.log("Offline. A sincronização será adiada.");
-                        return;
-                    }
-
-                    if (!auth.currentUser) {
-                        console.log("Nenhum utilizador autenticado. A sincronização será adiada.");
-                        return;
-                    }
-
-                    await auth.currentUser.getIdToken(true);
-                    console.log("Token de autenticação atualizado com sucesso.");
-
                     const db = await OfflineDB.dbPromise;
                     if (!db) return;
 
@@ -3754,6 +3774,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (writesToSync.length === 0) {
                         console.log("Nenhuma escrita offline para sincronizar.");
+                        App.state.isSyncing = false; // Reset flag
                         return;
                     }
 
@@ -3786,16 +3807,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (failureCount === 0 && syncedKeys.length > 0) {
-                        App.ui.showAlert("Sincronização offline concluída com sucesso!", 'success');
+                        App.ui.showSystemNotification("Sincronização offline concluída com sucesso!", 'success');
                     } else if (syncedKeys.length > 0 && failureCount > 0) {
-                        App.ui.showAlert(`${syncedKeys.length} registos sincronizados. Falha ao sincronizar ${failureCount} registos.`, 'warning', 5000);
+                        App.ui.showSystemNotification(`${syncedKeys.length} registos sincronizados. Falha ao sincronizar ${failureCount}.`, 'warning');
                     } else if (failureCount > 0) {
-                        App.ui.showAlert(`Falha ao sincronizar todos os ${failureCount} registos offline. Tentarão novamente mais tarde.`, 'error', 5000);
+                        App.ui.showSystemNotification(`Falha ao sincronizar ${failureCount} registos.`, 'error');
                     }
 
                 } catch (error) {
                     console.error("Ocorreu um erro inesperado durante a sincronização:", error);
-                    App.ui.showAlert("Ocorreu um erro crítico durante a sincronização.", "error");
+                    App.ui.showSystemNotification("Ocorreu um erro crítico durante a sincronização.", "error");
                 } finally {
                     App.state.isSyncing = false;
                     console.log("Processo de sincronização finalizado.");
