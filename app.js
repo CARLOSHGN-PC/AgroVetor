@@ -3717,6 +3717,17 @@ document.addEventListener('DOMContentLoaded', () => {
             async syncOfflineWrites() {
                 if (!navigator.onLine) return;
 
+                // Força a atualização do token de autenticação para evitar erros de permissão após ficar offline
+                if (auth.currentUser) {
+                    try {
+                        await auth.currentUser.getIdToken(true);
+                        console.log("Token de autenticação atualizado com sucesso.");
+                    } catch (error) {
+                        console.error("Não foi possível atualizar o token de autenticação. A sincronização será adiada.", error);
+                        return; // Interrompe o processo de sincronização se a atualização do token falhar
+                    }
+                }
+
                 const db = await OfflineDB.dbPromise;
                 if (!db) return;
 
@@ -5666,29 +5677,132 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
 
                 generateCigarrinhaPDF() {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
                     const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                    if (!filtroInicio.value || !filtroFim.value) {
+                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        return;
+                    }
+
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : ''
-                    };
-                    this._fetchAndDownloadReport('cigarrinha/pdf', filters, 'relatorio_cigarrinha.pdf');
+
+                    const filteredData = App.state.cigarrinha.filter(item => {
+                        // As datas do formulário vêm como 'YYYY-MM-DD'. Para garantir a comparação correta,
+                        // tratamos todas as datas como se estivessem no mesmo fuso horário (local).
+                        const itemDate = new Date(item.data);
+                        const startDate = new Date(filtroInicio.value);
+                        const endDate = new Date(filtroFim.value);
+
+                        // Ajusta as horas para garantir que o intervalo seja inclusivo
+                        itemDate.setUTCHours(0, 0, 0, 0);
+                        startDate.setUTCHours(0, 0, 0, 0);
+                        endDate.setUTCHours(23, 59, 59, 999);
+
+                        const isDateInRange = itemDate >= startDate && itemDate <= endDate;
+                        const isFarmMatch = !farm || item.codigo === farm.code;
+                        return isDateInRange && isFarmMatch;
+                    });
+
+                    if (filteredData.length === 0) {
+                        App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "warning");
+                        return;
+                    }
+
+                    const head = [['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado']];
+                    const body = filteredData.map(item => [
+                        new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
+                        item.fazenda,
+                        item.talhao,
+                        item.variedade || 'N/A',
+                        item.fase1,
+                        item.fase2,
+                        item.fase3,
+                        item.fase4,
+                        item.fase5,
+                        item.adulto ? 'Sim' : 'Não',
+                        (item.resultado || 0).toFixed(2).replace('.', ',')
+                    ]);
+
+                    doc.autoTable({
+                        head: head,
+                        body: body,
+                        didDrawPage: function(data) {
+                            if (App.state.companyLogo) {
+                                try {
+                                    doc.addImage(App.state.companyLogo, 'PNG', data.settings.margin.left, 15, 40, 15);
+                                } catch(e) {
+                                    console.error("Error adding logo to PDF", e);
+                                }
+                            }
+                            doc.setFontSize(18);
+                            doc.setTextColor(40);
+                            doc.text('Relatório de Monitoramento de Cigarrinha', data.settings.margin.left + 50, 22);
+                        },
+                        margin: { top: 40 }
+                    });
+                    doc.save('relatorio_cigarrinha.pdf');
                 },
 
                 generateCigarrinhaCSV() {
                     const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                    if (!filtroInicio.value || !filtroFim.value) {
+                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        return;
+                    }
+
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : ''
-                    };
-                    this._fetchAndDownloadReport('cigarrinha/csv', filters, 'relatorio_cigarrinha.csv');
+
+                    const filteredData = App.state.cigarrinha.filter(item => {
+                        const itemDate = new Date(item.data);
+                        const startDate = new Date(filtroInicio.value);
+                        const endDate = new Date(filtroFim.value);
+
+                        itemDate.setUTCHours(0, 0, 0, 0);
+                        startDate.setUTCHours(0, 0, 0, 0);
+                        endDate.setUTCHours(23, 59, 59, 999);
+
+                        const isDateInRange = itemDate >= startDate && itemDate <= endDate;
+                        const isFarmMatch = !farm || item.codigo === farm.code;
+                        return isDateInRange && isFarmMatch;
+                    });
+
+                    if (filteredData.length === 0) {
+                        App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "warning");
+                        return;
+                    }
+
+                    const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5', 'Adulto Presente', 'Resultado'];
+                    const csvRows = [headers.join(';')];
+
+                    filteredData.forEach(item => {
+                        const row = [
+                            new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
+                            `"${item.fazenda}"`,
+                            `"${item.talhao}"`,
+                            `"${item.variedade || 'N/A'}"`,
+                            item.fase1,
+                            item.fase2,
+                            item.fase3,
+                            item.fase4,
+                            item.fase5,
+                            item.adulto ? 'Sim' : 'Não',
+                            (item.resultado || 0).toFixed(2).replace('.', ',')
+                        ];
+                        csvRows.push(row.join(';'));
+                    });
+
+                    const csvContent = "\uFEFF" + csvRows.join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", "relatorio_cigarrinha.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
                 },
 
                 generateCustomHarvestReport(format) {
