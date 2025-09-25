@@ -1432,3 +1432,93 @@
         opacity: 1;
         color: var(--color-danger);
       }
+
+      /* [NEW] Dashboard Redesign Styles */
+      #dashboard {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          padding: 0;
+          gap: 0;
+      }
+
+      .dashboard-nav-container {
+          padding: 10px 20px;
+          background-color: var(--color-surface);
+          border-bottom: 1px solid var(--color-border);
+          flex-shrink: 0;
+          z-index: 10;
+      }
+
+      .dashboard-nav {
+          display: flex;
+          gap: 10px;
+          background-color: var(--color-bg);
+          border-radius: var(--border-radius);
+          padding: 6px;
+          max-width: max-content;
+          margin: 0 auto;
+      }
+
+      .dashboard-nav-item {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 10px 20px;
+          border-radius: 8px;
+          border: none;
+          background-color: transparent;
+          color: var(--color-text-light);
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.25s ease-out;
+          position: relative;
+      }
+
+      .dashboard-nav-item:hover {
+          color: var(--color-primary);
+          background-color: var(--color-primary-light);
+      }
+
+      .dashboard-nav-item.active {
+          color: var(--color-white);
+          background-color: var(--color-primary);
+          box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--color-primary) 40%, transparent);
+      }
+
+      .dashboard-nav-item.active[data-view="broca"] { background-color: var(--color-danger); box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--color-danger) 40%, transparent); }
+      .dashboard-nav-item.active[data-view="perda"] { background-color: var(--color-warning); box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--color-warning) 40%, transparent); }
+      .dashboard-nav-item.active[data-view="aerea"] { background-color: var(--color-info); box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--color-info) 40%, transparent); }
+
+
+      .dashboard-content {
+          flex-grow: 1;
+          overflow-y: auto;
+          padding: 20px;
+      }
+
+      .dashboard-view {
+          display: none;
+          animation: fadeIn 0.4s ease-in-out;
+      }
+
+      .dashboard-view.active {
+          display: block;
+      }
+
+      .dashboard-header {
+          background-color: var(--color-surface);
+          padding: 15px;
+          border-radius: var(--border-radius-lg);
+          margin-bottom: 20px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          box-shadow: var(--shadow-sm);
+      }
+
+      .dashboard-grid {
+          display: grid !important;
+      }
