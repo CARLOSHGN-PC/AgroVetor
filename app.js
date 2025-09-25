@@ -5,7 +5,6 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
-import { firebaseConfig } from './firebase-config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -17,6 +16,16 @@ document.addEventListener('DOMContentLoaded', () => {
             splashScreen.classList.add('hidden');
         }, 2500); // Ajuste o tempo conforme necessário
     }
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
+        authDomain: "agrovetor-v2.firebaseapp.com",
+        projectId: "agrovetor-v2",
+        storageBucket: "agrovetor-v2.firebasestorage.app",
+        messagingSenderId: "782518751171",
+        appId: "1:782518751171:web:d501ee31c1db33da4eb776",
+        measurementId: "G-JN4MSW63JR"
+    };
 
     const firebaseApp = initializeApp(firebaseConfig);
     const db = getFirestore(firebaseApp);
@@ -3733,18 +3742,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     const db = await OfflineDB.dbPromise;
                     if (!db) return;
 
-                    const allWrites = await db.getAll('offline-writes');
-                    if (allWrites.length === 0) {
+                    const tx = db.transaction('offline-writes', 'readonly');
+                    const store = tx.objectStore('offline-writes');
+                    let cursor = await store.openCursor();
+
+                    const writesToSync = [];
+                    while (cursor) {
+                        writesToSync.push({ key: cursor.primaryKey, value: cursor.value });
+                        cursor = await cursor.continue();
+                    }
+
+                    if (writesToSync.length === 0) {
                         console.log("Nenhuma escrita offline para sincronizar.");
                         return;
                     }
 
-                    App.ui.showAlert(`A sincronizar ${allWrites.length} registos offline...`, 'info', 4000);
+                    App.ui.showAlert(`A sincronizar ${writesToSync.length} registos offline...`, 'info', 4000);
 
-                    const syncPromises = allWrites.map(write =>
-                        App.data.addDocument(write.collection, write.data)
-                            .then(() => ({ status: 'fulfilled', key: write.id }))
-                            .catch(error => ({ status: 'rejected', key: write.id, error, data: write.data }))
+                    const syncPromises = writesToSync.map(write =>
+                        App.data.addDocument(write.value.collection, write.value.data)
+                            .then(() => ({ status: 'fulfilled', key: write.key }))
+                            .catch(error => ({ status: 'rejected', key: write.key, error, data: write.value.data }))
                     );
 
                     const results = await Promise.allSettled(syncPromises);
@@ -3757,7 +3775,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             syncedKeys.push(result.value.key);
                         } else {
                             failureCount++;
-                            console.error(`Falha ao sincronizar o registo offline:`, result.reason || result.value.error, result.value?.data);
+                            console.error(`Falha ao sincronizar o registo offline com a chave ${result.value?.key}:`, result.reason || result.value.error, result.value?.data);
                         }
                     }
 
