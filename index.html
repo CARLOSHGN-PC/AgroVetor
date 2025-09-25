@@ -1223,6 +1223,62 @@
           border-color: var(--color-danger);
       }
 
+      #splash-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: var(--color-bg);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        transition: opacity 0.8s ease-out, visibility 0.8s;
+        opacity: 1;
+        visibility: visible;
+      }
+      #splash-screen.hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
+      .splash-logo {
+        width: 120px;
+        height: 120px;
+        animation: fadeInScale 1s ease-out forwards;
+        opacity: 0;
+      }
+      .splash-message {
+        margin-top: 20px;
+        font-size: 1.2em;
+        color: var(--color-text-light);
+        opacity: 0;
+        animation: fadeInSlideUp 1s ease-out 0.5s forwards;
+      }
+
+      @keyframes fadeInScale {
+        from {
+            opacity: 0;
+            transform: scale(0.8);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+      }
+
+      @keyframes fadeInSlideUp {
+          from {
+              opacity: 0;
+              transform: translateY(20px);
+          }
+          to {
+              opacity: 1;
+              transform: translateY(0);
+          }
+      }
+
       @media (max-width: 992px) {
         .dashboard-grid {
             grid-template-columns: 1fr;
@@ -1289,6 +1345,10 @@
     </style>
 </head>
 <body>
+    <div id="splash-screen">
+        <img src="icons/icon-512x512.png" alt="AgroVetor Logo" class="splash-logo">
+        <p class="splash-message">Bem-vindo ao futuro do agronegócio.</p>
+    </div>
 
     <div id="alertContainer"></div>
     <div id="notification-container"></div>

@@ -5,18 +5,18 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
+import { firebaseConfig } from './firebase-config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
-        authDomain: "agrovetor-v2.firebaseapp.com",
-        projectId: "agrovetor-v2",
-        storageBucket: "agrovetor-v2.firebasestorage.app",
-        messagingSenderId: "782518751171",
-        appId: "1:782518751171:web:d501ee31c1db33da4eb776",
-        measurementId: "G-JN4MSW63JR"
-    };
+    // Lógica da Tela de Abertura
+    const splashScreen = document.getElementById('splash-screen');
+    if (splashScreen) {
+        // Esconde a tela de abertura após a animação e um pequeno atraso
+        setTimeout(() => {
+            splashScreen.classList.add('hidden');
+        }, 2500); // Ajuste o tempo conforme necessário
+    }
 
     const firebaseApp = initializeApp(firebaseConfig);
     const db = getFirestore(firebaseApp);
@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         state: {
+            isSyncing: false,
             currentUser: null,
             users: [],
             registros: [],
@@ -859,14 +860,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.mapModule.checkTrapStatusAndNotify();
                     }
                 }, 60000); // Verifica a cada minuto
-
-                // Adiciona verificação periódica para sincronização offline
-                setInterval(() => {
-                    if (navigator.onLine) {
-                        console.log("Verificando por registos offline para sincronizar...");
-                        App.actions.syncOfflineWrites();
-                    }
-                }, 60000); // Tenta sincronizar a cada minuto
 
                 this.renderMenu();
                 this.renderAllDynamicContent();
@@ -3715,71 +3708,79 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async syncOfflineWrites() {
-                if (!navigator.onLine) return;
-
-                // Força a atualização do token de autenticação para evitar erros de permissão após ficar offline
-                if (auth.currentUser) {
-                    try {
-                        await auth.currentUser.getIdToken(true);
-                        console.log("Token de autenticação atualizado com sucesso.");
-                    } catch (error) {
-                        console.error("Não foi possível atualizar o token de autenticação. A sincronização será adiada.", error);
-                        return; // Interrompe o processo de sincronização se a atualização do token falhar
-                    }
-                }
-
-                const db = await OfflineDB.dbPromise;
-                if (!db) return;
-
-                // 1. Read all pending writes and their keys.
-                const readTx = db.transaction('offline-writes', 'readonly');
-                const store = readTx.objectStore('offline-writes');
-                const allWrites = await store.getAll();
-                const allKeys = await store.getAllKeys();
-                await readTx.done;
-
-                if (allWrites.length === 0) {
-                    console.log("Nenhuma escrita offline para sincronizar.");
+                if (App.state.isSyncing) {
+                    console.log("A sincronização já está em andamento.");
                     return;
                 }
 
-                App.ui.showAlert(`Sincronizando ${allWrites.length} registos offline...`, 'info', 5000);
-                
-                // 2. Try to sync each write to Firestore in parallel.
-                const syncPromises = allWrites.map((write, index) => {
-                    const key = allKeys[index];
-                    return App.data.addDocument(write.collection, write.data)
-                        .then(() => key) // On success, return the key to be deleted.
-                        .catch(error => {
-                            console.error(`Falha ao sincronizar o registo offline com a chave ${key}:`, error, write);
-                            return null; // On failure, return null.
-                        });
-                });
+                App.state.isSyncing = true;
+                console.log("Iniciando a sincronização de dados offline...");
 
-                const results = await Promise.all(syncPromises);
-                const syncedKeys = results.filter(key => key !== null);
-
-                // 3. Delete all successfully synced items from IndexedDB.
-                if (syncedKeys.length > 0) {
-                    const deleteTx = db.transaction('offline-writes', 'readwrite');
-                    const deleteStore = deleteTx.objectStore('offline-writes');
-                    for (const key of syncedKeys) {
-                        await deleteStore.delete(key);
+                try {
+                    if (!navigator.onLine) {
+                        console.log("Offline. A sincronização será adiada.");
+                        return;
                     }
-                    await deleteTx.done;
-                }
-                
-                // 4. Check if any writes are left and notify the user.
-                const remainingCountTx = db.transaction('offline-writes', 'readonly');
-                const remainingCount = await remainingCountTx.objectStore('offline-writes').count();
-                await remainingCountTx.done;
 
-                if (remainingCount === 0) {
-                    if (syncedKeys.length > 0) { // Only show success if something was actually synced
+                    if (!auth.currentUser) {
+                        console.log("Nenhum utilizador autenticado. A sincronização será adiada.");
+                        return;
+                    }
+
+                    await auth.currentUser.getIdToken(true);
+                    console.log("Token de autenticação atualizado com sucesso.");
+
+                    const db = await OfflineDB.dbPromise;
+                    if (!db) return;
+
+                    const allWrites = await db.getAll('offline-writes');
+                    if (allWrites.length === 0) {
+                        console.log("Nenhuma escrita offline para sincronizar.");
+                        return;
+                    }
+
+                    App.ui.showAlert(`A sincronizar ${allWrites.length} registos offline...`, 'info', 4000);
+
+                    const syncPromises = allWrites.map(write =>
+                        App.data.addDocument(write.collection, write.data)
+                            .then(() => ({ status: 'fulfilled', key: write.id }))
+                            .catch(error => ({ status: 'rejected', key: write.id, error, data: write.data }))
+                    );
+
+                    const results = await Promise.allSettled(syncPromises);
+
+                    const syncedKeys = [];
+                    let failureCount = 0;
+
+                    for (const result of results) {
+                        if (result.status === 'fulfilled' && result.value.status === 'fulfilled') {
+                            syncedKeys.push(result.value.key);
+                        } else {
+                            failureCount++;
+                            console.error(`Falha ao sincronizar o registo offline:`, result.reason || result.value.error, result.value?.data);
+                        }
+                    }
+
+                    if (syncedKeys.length > 0) {
+                        const deleteTx = db.transaction('offline-writes', 'readwrite');
+                        await Promise.all(syncedKeys.map(key => deleteTx.store.delete(key)));
+                        await deleteTx.done;
+                    }
+
+                    if (failureCount === 0 && syncedKeys.length > 0) {
                         App.ui.showAlert("Sincronização offline concluída com sucesso!", 'success');
+                    } else if (syncedKeys.length > 0 && failureCount > 0) {
+                        App.ui.showAlert(`${syncedKeys.length} registos sincronizados. Falha ao sincronizar ${failureCount} registos.`, 'warning', 5000);
+                    } else if (failureCount > 0) {
+                        App.ui.showAlert(`Falha ao sincronizar todos os ${failureCount} registos offline. Tentarão novamente mais tarde.`, 'error', 5000);
                     }
-                } else {
-                    App.ui.showAlert(`Falha ao sincronizar ${remainingCount} registos. Tentarão novamente mais tarde.`, 'warning');
+
+                } catch (error) {
+                    console.error("Ocorreu um erro inesperado durante a sincronização:", error);
+                    App.ui.showAlert("Ocorreu um erro crítico durante a sincronização.", "error");
+                } finally {
+                    App.state.isSyncing = false;
+                    console.log("Processo de sincronização finalizado.");
                 }
             },
 
