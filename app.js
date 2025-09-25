@@ -287,13 +287,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
             },
             dashboard: {
-                inicio: document.getElementById('dashboardInicio'),
-                fim: document.getElementById('dashboardFim'),
-                btnFiltrar: document.getElementById('btnFiltrarDashboard'),
-                kpiBroca: document.getElementById('kpi-broca'),
-                kpiPerda: document.getElementById('kpi-perda'),
-                kpiCigarrinha: document.getElementById('kpi-cigarrinha'),
-                kpiArmadilhas: document.getElementById('kpi-armadilhas'),
+                selector: document.getElementById('dashboard-selector'),
+                brocaView: document.getElementById('dashboard-broca'),
+                perdaView: document.getElementById('dashboard-perda'),
+                aereaView: document.getElementById('dashboard-aerea'),
+                cardBroca: document.getElementById('card-broca'),
+                cardPerda: document.getElementById('card-perda'),
+                cardAerea: document.getElementById('card-aerea'),
+                btnBackToSelectorBroca: document.getElementById('btn-back-to-selector-broca'),
+                btnBackToSelectorPerda: document.getElementById('btn-back-to-selector-perda'),
+                btnBackToSelectorAerea: document.getElementById('btn-back-to-selector-aerea'),
+                brocaDashboardInicio: document.getElementById('brocaDashboardInicio'),
+                brocaDashboardFim: document.getElementById('brocaDashboardFim'),
+                btnFiltrarBrocaDashboard: document.getElementById('btnFiltrarBrocaDashboard'),
+                perdaDashboardInicio: document.getElementById('perdaDashboardInicio'),
+                perdaDashboardFim: document.getElementById('perdaDashboardFim'),
+                btnFiltrarPerdaDashboard: document.getElementById('btnFiltrarPerdaDashboard'),
             },
             users: {
                 username: document.getElementById('newUserUsername'),
@@ -586,11 +595,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (userProfile) {
                     App.state.currentUser = userProfile;
                     App.ui.showAppScreen();
-                    App.mapModule.loadOfflineShapes(); // Carrega formas do mapa offline
-                    App.data.listenToAllData(); // Ouve os dados (que virão do cache)
-
-                    // Garante que o dashboard seja a primeira tela exibida
-                    setTimeout(() => App.ui.showTab('dashboard'), 100);
+                    App.mapModule.loadOfflineShapes();
+                    App.data.listenToAllData();
                 }
             },
             async logout() {
@@ -806,15 +812,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     border: styles.getPropertyValue('--color-border').trim(),
                 };
             },
-            setLoading(isLoading, progressText = "A processar...", force = false) {
-                const { loadingOverlay, loadingProgressText } = App.elements;
-
-                // Exibe o overlay apenas se 'force' for verdadeiro ou se for para esconder o loading.
-                if (force || !isLoading) {
-                    loadingOverlay.style.display = isLoading ? 'flex' : 'none';
-                }
-
-                loadingProgressText.textContent = progressText;
+            setLoading(isLoading, progressText = "A processar...") {
+                App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
+                App.elements.loadingProgressText.textContent = progressText;
             },
             showLoginScreen() {
                 App.elements.loginForm.style.display = 'block';
@@ -901,53 +901,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 renderWithCatch('dashboard-view', () => {
                     if (document.getElementById('dashboard').classList.contains('active')) {
-                        this.renderUnifiedDashboard();
+                        this.showDashboardView('broca');
                     }
                 });
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
-            showAlert(message, type = 'success', duration = 4000) {
-                const container = App.elements.alertContainer;
-                if (!container) {
-                    console.error("Alert container not found!");
-                    return;
-                }
-
-                const toast = document.createElement('div');
-                toast.className = `toast ${type}`;
-
-                const icons = {
-                    success: 'fa-check-circle',
-                    error: 'fa-exclamation-circle',
-                    warning: 'fa-exclamation-triangle',
-                    info: 'fa-info-circle'
-                };
-                const iconClass = icons[type] || 'fa-info-circle';
-
-                toast.innerHTML = `
-                    <i class="fas ${iconClass}"></i>
-                    <p>${message}</p>
-                    <button class="close-btn">&times;</button>
-                `;
-
-                container.appendChild(toast);
-
-                // Animação de entrada
-                setTimeout(() => {
-                    toast.classList.add('show');
-                }, 100);
-
-                const closeBtn = toast.querySelector('.close-btn');
-                const timeoutId = setTimeout(() => {
-                    toast.classList.remove('show');
-                    toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-                }, duration);
-
-                closeBtn.addEventListener('click', () => {
-                    clearTimeout(timeoutId);
-                    toast.classList.remove('show');
-                    toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-                });
+            showAlert(message, type = 'success', duration = 3000) {
+                const { alertContainer } = App.elements;
+                if (!alertContainer) return;
+                const icons = { success: 'check-circle', error: 'exclamation-circle', warning: 'info-circle', info: 'info-circle' };
+                alertContainer.innerHTML = `<i class="fas fa-${icons[type] || 'info-circle'}"></i> ${message}`;
+                alertContainer.className = `show ${type}`;
+                setTimeout(() => alertContainer.classList.remove('show'), duration);
             },
 
             showSystemNotification(title, message, type = 'info') {
@@ -967,59 +932,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.updateNotificationBell();
             },
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
-
-            renderUnifiedDashboard() {
-                App.charts.destroyAll(); // Limpa gráficos antigos
-                const { inicio, fim } = App.elements.dashboard;
-
-                // Define e salva as datas do filtro
-                if (!inicio.value || !fim.value) {
-                    const today = new Date();
-                    const firstDayOfYear = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
-                    inicio.value = firstDayOfYear;
-                    fim.value = today.toISOString().split('T')[0];
-                }
-                App.actions.saveDashboardDates('unified', inicio.value, fim.value);
-
-                // Filtra os dados de todas as fontes
-                const registrosBroca = App.actions.filterDashboardData('registros', inicio.value, fim.value);
-                const registrosPerda = App.actions.filterDashboardData('perdas', inicio.value, fim.value);
-                const registrosCigarrinha = App.actions.filterDashboardData('cigarrinha', inicio.value, fim.value);
-                const registrosArmadilhas = App.state.armadilhas; // Armadilhas não são filtradas por data da mesma forma
-
-                // Renderiza os componentes
-                this.renderKPIs(registrosBroca, registrosPerda, registrosCigarrinha, registrosArmadilhas);
-                setTimeout(() => {
-                    App.charts.renderBrocaMensal(registrosBroca);
-                    App.charts.renderComposicaoPerda(registrosPerda);
-                    App.charts.renderTop5FazendasBroca(registrosBroca);
-                    App.charts.renderTop5FazendasPerda(registrosPerda);
-                }, 150);
-            },
-
-            renderKPIs(dataBroca, dataPerda, dataCigarrinha, dataArmadilhas) {
-                const { kpiBroca, kpiPerda, kpiCigarrinha, kpiArmadilhas } = App.elements.dashboard;
-
-                // KPI Broca
-                const totalEntrenos = dataBroca.reduce((sum, item) => sum + Number(item.entrenos), 0);
-                const totalBrocado = dataBroca.reduce((sum, item) => sum + Number(item.brocado), 0);
-                const mediaBroca = totalEntrenos > 0 ? (totalBrocado / totalEntrenos) * 100 : 0;
-                kpiBroca.innerHTML = `<div class="icon" style="background-color: var(--color-danger);"><i class="fas fa-bug"></i></div><div class="text"><div class="value">${mediaBroca.toFixed(2)}%</div><div class="label">Índice de Broca</div></div>`;
-
-                // KPI Perda
-                const totalPerda = dataPerda.reduce((sum, item) => sum + item.total, 0);
-                const mediaPerda = dataPerda.length > 0 ? totalPerda / dataPerda.length : 0;
-                kpiPerda.innerHTML = `<div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-chart-line"></i></div><div class="text"><div class="value">${mediaPerda.toFixed(2)} kg</div><div class="label">Média de Perda</div></div>`;
-
-                // KPI Cigarrinha
-                const mediaCigarrinha = dataCigarrinha.length > 0 ? dataCigarrinha.reduce((sum, item) => sum + item.resultado, 0) / dataCigarrinha.length : 0;
-                kpiCigarrinha.innerHTML = `<div class="icon" style="background-color: var(--color-success);"><i class="fas fa-leaf"></i></div><div class="text"><div class="value">${mediaCigarrinha.toFixed(2)}</div><div class="label">Índice de Cigarrinha</div></div>`;
-
-                // KPI Armadilhas
-                const armadilhasAtivas = dataArmadilhas.filter(a => a.status === 'Ativa').length;
-                kpiArmadilhas.innerHTML = `<div class="icon" style="background-color: var(--color-info);"><i class="fas fa-map-pin"></i></div><div class="text"><div class="value">${armadilhasAtivas}</div><div class="label">Armadilhas Ativas</div></div>`;
-            },
-
             renderMenu() {
                 const { menu } = App.elements; const { menuConfig } = App.config; const { currentUser } = App.state;
                 menu.innerHTML = '';
@@ -1148,7 +1060,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 if (id === 'dashboard') {
-                   this.renderUnifiedDashboard();
+                   this.showDashboardView('broca'); 
                 } else {
                     App.charts.destroyAll(); 
                 }
@@ -1243,6 +1155,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 return "Agora mesmo";
             },
 
+            showDashboardView(viewName) {
+                const dashEls = App.elements.dashboard;
+                dashEls.selector.style.display = 'none';
+                dashEls.brocaView.style.display = 'none';
+                dashEls.perdaView.style.display = 'none';
+                dashEls.aereaView.style.display = 'none';
+                
+                App.charts.destroyAll();
+
+                switch(viewName) {
+                    case 'selector':
+                        dashEls.selector.style.display = 'grid';
+                        break;
+                    case 'broca':
+                        dashEls.brocaView.style.display = 'block';
+                        this.loadDashboardDates('broca');
+                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
+                        break;
+                    case 'perda':
+                        dashEls.perdaView.style.display = 'block';
+                        this.loadDashboardDates('perda');
+                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
+                        break;
+                    case 'aerea':
+                        dashEls.aereaView.style.display = 'block';
+                        break;
+                }
+            },
             setDefaultDatesForEntryForms() {
                 const today = new Date().toISOString().split('T')[0];
                 App.elements.broca.data.value = today;
@@ -1264,6 +1204,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.relatorioMonitoramento.inicio) {
                     App.elements.relatorioMonitoramento.inicio.value = firstDayOfMonth;
                     App.elements.relatorioMonitoramento.fim.value = lastDayOfMonth;
+                }
+            },
+            setDefaultDatesForDashboard(type) {
+                const today = new Date();
+                const firstDayOfYear = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+                const todayDate = today.toISOString().split('T')[0];
+
+                if (type === 'broca') {
+                    App.elements.dashboard.brocaDashboardInicio.value = firstDayOfYear;
+                    App.elements.dashboard.brocaDashboardFim.value = todayDate;
+                } else if (type === 'perda') {
+                    App.elements.dashboard.perdaDashboardInicio.value = firstDayOfYear;
+                    App.elements.dashboard.perdaDashboardFim.value = todayDate;
+                }
+                App.actions.saveDashboardDates(type, firstDayOfYear, todayDate);
+            },
+            loadDashboardDates(type) {
+                const savedDates = App.actions.getDashboardDates(type);
+                if (savedDates.start && savedDates.end) {
+                    if (type === 'broca') {
+                        App.elements.dashboard.brocaDashboardInicio.value = savedDates.start;
+                        App.elements.dashboard.brocaDashboardFim.value = savedDates.end;
+                    } else if (type === 'perda') {
+                        App.elements.dashboard.perdaDashboardInicio.value = savedDates.start;
+                        App.elements.dashboard.perdaDashboardFim.value = savedDates.end;
+                    }
+                } else {
+                    this.setDefaultDatesForDashboard(type);
                 }
             },
             clearForm(formElement) {
@@ -1983,9 +1951,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 Chart.defaults.color = this._getThemeColors().text;
 
-                // Se o dashboard unificado estiver ativo, renderiza-o novamente para atualizar as cores dos gráficos
                 if (App.state.currentUser && document.getElementById('dashboard').classList.contains('active')) {
-                    setTimeout(() => this.renderUnifiedDashboard(), 50);
+                    if(document.getElementById('dashboard-broca').style.display !== 'none') {
+                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
+                    }
+                    if(document.getElementById('dashboard-perda').style.display !== 'none') {
+                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
+                    }
                 }
             },
             enableEnterKeyNavigation(formSelector) {
@@ -2100,7 +2072,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 const dashEls = App.elements.dashboard;
-                if (dashEls.btnFiltrar) dashEls.btnFiltrar.addEventListener('click', () => this.renderUnifiedDashboard());
+                if (dashEls.cardBroca) dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
+                if (dashEls.cardPerda) dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
+                if (dashEls.cardAerea) dashEls.cardAerea.addEventListener('click', () => this.showDashboardView('aerea'));
+                if (dashEls.btnBackToSelectorBroca) dashEls.btnBackToSelectorBroca.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorPerda) dashEls.btnBackToSelectorPerda.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorAerea) dashEls.btnBackToSelectorAerea.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnFiltrarBrocaDashboard) dashEls.btnFiltrarBrocaDashboard.addEventListener('click', () => App.charts.renderBrocaDashboardCharts());
+                if (dashEls.btnFiltrarPerdaDashboard) dashEls.btnFiltrarPerdaDashboard.addEventListener('click', () => App.charts.renderPerdaDashboardCharts());
                 
                 const chartModal = App.elements.chartModal;
                 if (chartModal.closeBtn) chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
@@ -5339,174 +5318,395 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.expandedChart = null;
                 }
             },
-            renderTop5FazendasBroca(data) {
-                const fazendasMap = new Map();
-                data.forEach(item => {
-                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
-                    if (!fazendasMap.has(fazendaKey)) fazendasMap.set(fazendaKey, { totalEntrenos: 0, totalBrocado: 0 });
-                    const f = fazendasMap.get(fazendaKey);
-                    f.totalEntrenos += Number(item.entrenos);
-                    f.totalBrocado += Number(item.brocado);
-                });
-                const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }));
-                fazendasArray.sort((a, b) => b.indice - a.indice);
-                const top5 = fazendasArray.slice(0, 5);
 
-                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true, indexAxis: 'y' });
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+            
+            async renderBrocaDashboardCharts() {
+                const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
+                const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
 
-                this._createOrUpdateChart('graficoTop5FazendasBroca', {
-                    type: 'bar',
-                    data: {
-                        labels: top5.map(f => f.nome),
-                        datasets: [{
-                            label: 'Índice de Broca (%)',
-                            data: top5.map(f => f.indice),
-                            backgroundColor: this._getVibrantColors(top5.length)
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor,
-                                anchor: 'end',
-                                align: 'end',
-                                font: { weight: 'bold' },
-                                formatter: (value) => `${value.toFixed(2)}%`
-                            }
-                        }
-                    }
-                });
-            },
-            renderBrocaMensal(data) {
-                const dataByMonth = {};
-                data.forEach(item => {
-                    if (!item.data) return;
-                    const date = new Date(item.data + 'T03:00:00Z');
-                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                    const monthLabel = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
-                    if (!dataByMonth[monthKey]) dataByMonth[monthKey] = { totalBrocado: 0, totalEntrenos: 0, label: monthLabel };
-                    dataByMonth[monthKey].totalBrocado += Number(item.brocado);
-                    dataByMonth[monthKey].totalEntrenos += Number(item.entrenos);
-                });
-                const sortedMonths = Object.keys(dataByMonth).sort();
-                const labels = sortedMonths.map(key => dataByMonth[key].label);
-                const chartData = sortedMonths.map(key => {
-                    const monthData = dataByMonth[key];
-                    return monthData.totalEntrenos > 0 ? (monthData.totalBrocado / monthData.totalEntrenos) * 100 : 0;
-                });
+                setTimeout(() => {
+                    this.renderTop10FazendasBroca(data);
+                    this.renderBrocaMensal(data);
+                    this.renderBrocaPosicao(data);
+                    this.renderBrocaPorVariedade(data);
+                }, 0);
+            },
+            async renderPerdaDashboardCharts() {
+                const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
+                App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
+                const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
 
-                const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+                setTimeout(() => {
+                    this.renderPerdaPorFrenteTurno(data);
+                    this.renderComposicaoPerdaPorFrente(data);
+                    this.renderTop10FazendasPerda(data);
+                    this.renderPerdaPorFrente(data);
+                }, 0);
+            },
+            renderTop10FazendasBroca(data) {
+                const fazendasMap = new Map();
+                data.forEach(item => {
+                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
+                    if (!fazendasMap.has(fazendaKey)) fazendasMap.set(fazendaKey, { totalEntrenos: 0, totalBrocado: 0 });
+                    const f = fazendasMap.get(fazendaKey);
+                    f.totalEntrenos += Number(item.entrenos);
+                    f.totalBrocado += Number(item.brocado);
+                });
+                const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }));
+                fazendasArray.sort((a, b) => b.indice - a.indice);
+                const top10 = fazendasArray.slice(0, 10);
+                
+                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoBrocaMensal', {
-                    type: 'line',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Índice Mensal (%)',
-                            data: chartData,
-                            fill: true,
-                            borderColor: App.ui._getThemeColors().primary,
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            tension: 0.4
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        scales: {
-                            ...commonOptions.scales,
-                            y: { ...commonOptions.scales.y, grid: { color: 'transparent', drawBorder: false } }
-                        },
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                anchor: 'end', align: 'top', offset: 8,
-                                color: datalabelColor,
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)}%`
-                            }
-                        }
-                    }
-                });
-            },
-            renderComposicaoPerda(data) {
-                const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
-                const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
-                const totaisPorTipo = tiposDePerda.map(tipo => data.reduce((sum, item) => sum + (item[tipo] || 0), 0));
+                this._createOrUpdateChart('graficoTop10FazendasBroca', {
+                    type: 'bar',
+                    data: {
+                        labels: top10.map(f => f.nome),
+                        datasets: [{
+                            label: 'Índice de Broca (%)',
+                            data: top10.map(f => f.indice),
+                            backgroundColor: this._getVibrantColors(top10.length)
+                        }]
+                    },
+                    options: { 
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)}%`
+                            }
+                        }
+                    }
+                });
+            },
+            renderBrocaMensal(data) {
+                const dataByMonth = {};
+                data.forEach(item => {
+                    if (!item.data) return;
+                    const date = new Date(item.data + 'T03:00:00Z');
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    const monthLabel = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
+                    if (!dataByMonth[monthKey]) dataByMonth[monthKey] = { totalBrocado: 0, totalEntrenos: 0, label: monthLabel };
+                    dataByMonth[monthKey].totalBrocado += Number(item.brocado);
+                    dataByMonth[monthKey].totalEntrenos += Number(item.entrenos);
+                });
+                const sortedMonths = Object.keys(dataByMonth).sort();
+                const labels = sortedMonths.map(key => dataByMonth[key].label);
+                const chartData = sortedMonths.map(key => {
+                    const monthData = dataByMonth[key];
+                    return monthData.totalEntrenos > 0 ? (monthData.totalBrocado / monthData.totalEntrenos) * 100 : 0;
+                });
+                
+                const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+                this._createOrUpdateChart('graficoBrocaMensal', {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Índice Mensal (%)',
+                            data: chartData,
+                            fill: true,
+                            borderColor: App.ui._getThemeColors().primary,
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: { 
+                        ...commonOptions,
+                        scales: { 
+                            ...commonOptions.scales,
+                            y: { ...commonOptions.scales.y, grid: { color: 'transparent', drawBorder: false } } 
+                        },
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'top', offset: 8,
+                                color: datalabelColor,
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)}%`
+                            }
+                        }
+                    }
+                });
+            },
+            renderBrocaPosicao(data) {
+                const totalBase = data.reduce((sum, item) => sum + Number(item.base), 0);
+                const totalMeio = data.reduce((sum, item) => sum + Number(item.meio), 0);
+                const totalTopo = data.reduce((sum, item) => sum + Number(item.topo), 0);
+                const totalGeral = totalBase + totalMeio + totalTopo;
+                
+                const commonOptions = this._getCommonChartOptions();
 
-                this._createOrUpdateChart('graficoComposicaoPerda', {
-                    type: 'doughnut',
-                    data: {
-                        labels: tiposLabels,
-                        datasets: [{
-                            label: 'Composição da Perda (kg)',
-                            data: totaisPorTipo,
-                            backgroundColor: this._getVibrantColors(tiposLabels.length)
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { ...commonOptions.plugins.legend, position: 'top' },
-                            datalabels: {
-                                color: datalabelColor,
-                                font: { weight: 'bold' },
-                                formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
-                            }
-                        }
-                    }
-                });
-            },
-            renderTop5FazendasPerda(data) {
-                const fazendas = {};
-                data.forEach(item => {
-                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
-                    if (!fazendas[fazendaKey]) fazendas[fazendaKey] = { total: 0, count: 0 };
-                    fazendas[fazendaKey].total += item.total;
-                    fazendas[fazendaKey].count++;
-                });
-                const sortedFazendas = Object.entries(fazendas)
-                    .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
-                    .sort((a, b) => b.media - a.media).slice(0, 5);
+                this._createOrUpdateChart('graficoBrocaPosicao', {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Base', 'Meio', 'Topo'],
+                        datasets: [{
+                            label: 'Posição da Broca',
+                            data: [totalBase, totalMeio, totalTopo],
+                            backgroundColor: this._getVibrantColors(3)
+                        }]
+                    },
+                    options: { 
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { ...commonOptions.plugins.legend, position: 'top' },
+                            datalabels: {
+                                color: '#FFFFFF', 
+                                font: { weight: 'bold', size: 16 },
+                                formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(2)}%` : '0.00%'
+                            }
+                        }
+                    }
+                });
+            },
+            renderBrocaPorVariedade(data) {
+                const variedadesMap = new Map();
+                const fazendas = App.state.fazendas;
 
-                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true, indexAxis: 'y' });
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+                data.forEach(item => {
+                    const farm = fazendas.find(f => f.code === item.codigo);
+                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === item.talhao.toUpperCase());
+                    const variedade = talhao?.variedade || 'N/A';
 
-                this._createOrUpdateChart('graficoTop5FazendasPerda', {
-                    type: 'bar',
-                    data: {
-                        labels: sortedFazendas.map(f => f.nome),
-                        datasets: [{
-                            label: 'Perda Média (kg)',
-                            data: sortedFazendas.map(f => f.media),
-                            backgroundColor: this._getVibrantColors(sortedFazendas.length)
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor,
-                                anchor: 'end',
-                                align: 'end',
-                                font: { weight: 'bold' },
-                                formatter: (value) => `${value.toFixed(2)} kg`
-                            }
-                        }
-                    }
-                });
-            }
+                    if (!variedadesMap.has(variedade)) {
+                        variedadesMap.set(variedade, { totalEntrenos: 0, totalBrocado: 0 });
+                    }
+                    const v = variedadesMap.get(variedade);
+                    v.totalEntrenos += Number(item.entrenos);
+                    v.totalBrocado += Number(item.brocado);
+                });
+
+                const variedadesArray = Array.from(variedadesMap.entries())
+                    .map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }))
+                    .filter(v => v.nome !== 'N/A');
+                    
+                variedadesArray.sort((a, b) => b.indice - a.indice);
+                const top10 = variedadesArray.slice(0, 10);
+
+                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoBrocaPorVariedade', {
+                    type: 'bar',
+                    data: {
+                        labels: top10.map(v => v.nome),
+                        datasets: [{
+                            label: 'Índice de Broca (%)',
+                            data: top10.map(v => v.indice),
+                            backgroundColor: this._getVibrantColors(top10.length).reverse()
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)}%`
+                            }
+                        }
+                    }
+                });
+            },
+            renderPerdaPorFrenteTurno(data) {
+                const structuredData = {};
+                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                const turnos = [...new Set(data.map(p => p.turno || 'N/A'))].sort();
+
+                turnos.forEach(turno => {
+                    structuredData[turno] = {};
+                    frentes.forEach(frente => {
+                        structuredData[turno][frente] = { total: 0, count: 0 };
+                    });
+                });
+
+                data.forEach(p => {
+                    const frente = p.frenteServico || 'N/A';
+                    const turno = p.turno || 'N/A';
+                    if (structuredData[turno] && structuredData[turno][frente]) {
+                        structuredData[turno][frente].total += p.total;
+                        structuredData[turno][frente].count++;
+                    }
+                });
+
+                const datasets = frentes.map((frente, index) => ({
+                    label: `Frente ${frente}`,
+                    data: turnos.map(turno => {
+                        const d = structuredData[turno][frente];
+                        return d.count > 0 ? d.total / d.count : 0;
+                    }),
+                    backgroundColor: this._getVibrantColors(frentes.length)[index]
+                }));
+                
+                const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoPerdaPorFrenteTurno', {
+                    type: 'bar',
+                    data: { labels: turnos.map(t => `Turno ${t}`), datasets },
+                    options: {
+                        ...commonOptions,
+                        scales: { 
+                            ...commonOptions.scales,
+                            y: { ...commonOptions.scales.y, title: { display: true, text: 'Perda Média (kg)', color: commonOptions.scales.y.ticks.color } } 
+                        },
+                        plugins: {
+                            ...commonOptions.plugins,
+                            datalabels: {
+                                color: datalabelColor,
+                                font: { weight: 'bold', size: 12 },
+                                formatter: (value) => value > 0 ? `${value.toFixed(2)} kg` : ''
+                            }
+                        }
+                    }
+                });
+            },
+            renderComposicaoPerdaPorFrente(data) {
+                const tiposDePerda = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
+                const tiposLabels = ['C. Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaço', 'Pedaço'];
+                const frentes = [...new Set(data.map(p => p.frenteServico || 'N/A'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                const structuredData = {};
+
+                tiposDePerda.forEach(tipo => {
+                    structuredData[tipo] = {};
+                    frentes.forEach(frente => {
+                        structuredData[tipo][frente] = 0;
+                    });
+                });
+
+                data.forEach(item => {
+                    const frente = item.frenteServico || 'N/A';
+                    tiposDePerda.forEach(tipo => {
+                        structuredData[tipo][frente] += item[tipo] || 0;
+                    });
+                });
+
+                const datasets = frentes.map((frente, index) => ({
+                    label: `Frente ${frente}`,
+                    data: tiposDePerda.map(tipo => structuredData[tipo][frente]),
+                    backgroundColor: this._getVibrantColors(frentes.length)[index]
+                }));
+
+                const commonOptions = this._getCommonChartOptions();
+                
+                this._createOrUpdateChart('graficoComposicaoPerda', {
+                    type: 'bar',
+                    data: { labels: tiposLabels, datasets },
+                    options: {
+                        ...commonOptions,
+                        scales: { 
+                            x: { ...commonOptions.scales.x, stacked: true }, 
+                            y: { ...commonOptions.scales.y, stacked: true, title: { display: true, text: 'Perda Total (kg)', color: commonOptions.scales.y.ticks.color } } 
+                        },
+                        plugins: {
+                             ...commonOptions.plugins,
+                             datalabels: {
+                                color: '#FFFFFF',
+                                font: { weight: 'bold' },
+                                formatter: (value) => value > 0.1 ? `${value.toFixed(2)} kg` : ''
+                            }
+                        }
+                    }
+                });
+            },
+            renderTop10FazendasPerda(data) {
+                const fazendas = {};
+                data.forEach(item => {
+                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
+                    if (!fazendas[fazendaKey]) fazendas[fazendaKey] = { total: 0, count: 0 };
+                    fazendas[fazendaKey].total += item.total;
+                    fazendas[fazendaKey].count++;
+                });
+                const sortedFazendas = Object.entries(fazendas)
+                    .map(([nome, data]) => ({ nome, media: data.count > 0 ? data.total / data.count : 0 }))
+                    .sort((a, b) => b.media - a.media).slice(0, 10);
+
+                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoTop10FazendasPerda', {
+                    type: 'bar',
+                    data: {
+                        labels: sortedFazendas.map(f => f.nome),
+                        datasets: [{
+                            label: 'Perda Média (kg)',
+                            data: sortedFazendas.map(f => f.media),
+                            backgroundColor: this._getVibrantColors(sortedFazendas.length)
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)} kg`
+                            }
+                        }
+                    }
+                });
+            },
+            renderPerdaPorFrente(data) {
+                const frentes = {};
+                data.forEach(item => {
+                    const frente = item.frenteServico || 'N/A';
+                    if (!frentes[frente]) frentes[frente] = { total: 0, count: 0 };
+                    frentes[frente].total += item.total;
+                    frentes[frente].count++;
+                });
+                const sortedFrentes = Object.entries(frentes)
+                    .map(([nome, data]) => ({ nome: `Frente ${nome}`, media: data.count > 0 ? data.total / data.count : 0 }))
+                    .sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
+
+                const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoPerdaPorFrente', {
+                    type: 'bar',
+                    data: {
+                        labels: sortedFrentes.map(f => f.nome),
+                        datasets: [{
+                            label: 'Perda Média (kg)',
+                            data: sortedFrentes.map(f => f.media),
+                            backgroundColor: this._getVibrantColors(sortedFrentes.length)
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor, 
+                                anchor: 'end', 
+                                align: 'end',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => `${value.toFixed(2)} kg`
+                            }
+                        }
+                    }
+                });
+            }
         },
 
         reports: {
