@@ -755,7 +755,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.mapModule.checkTrapStatusAndNotify();
                         }
 
-                        App.ui.renderAllDynamicContent();
+                        // App.ui.renderAllDynamicContent();
+                        App.ui.renderSpecificContent(collectionName);
                     }, (error) => {
                         console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
                     });
@@ -879,6 +880,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.resetInactivityTimer();
                 App.actions.startRealtimeTracking(); // Iniciar o rastreamento
             },
+            renderSpecificContent(collectionName) {
+                const activeTab = document.querySelector('.tab-content.active')?.id;
+
+                switch (collectionName) {
+                    case 'users':
+                        this.populateUserSelects([App.elements.planejamento.responsavel]);
+                        if (activeTab === 'gerenciarUsuarios') {
+                            this.renderUsersList();
+                        }
+                        if (App.elements.historyFilterModal.overlay.classList.contains('show')) {
+                             this.populateUserSelects([App.elements.historyFilterModal.userSelect]);
+                        }
+                        break;
+                    case 'fazendas':
+                        this.populateFazendaSelects();
+                        if (activeTab === 'cadastros') {
+                            this.renderFarmSelect();
+                        }
+                        break;
+                    case 'personnel':
+                        this.populateOperatorSelects();
+                        if (activeTab === 'cadastrarPessoas') {
+                            this.renderPersonnelList();
+                        }
+                        break;
+                    case 'planos':
+                        if (activeTab === 'planejamento') {
+                            this.renderPlanejamento();
+                        }
+                        break;
+                    case 'harvestPlans':
+                        this.populateHarvestPlanSelect();
+                        if (activeTab === 'planejamentoColheita') {
+                            this.showHarvestPlanList();
+                        }
+                        break;
+                    case 'registros':
+                        if (activeTab === 'dashboard' && document.getElementById('dashboard-broca').style.display !== 'none') {
+                            App.charts.renderBrocaDashboardCharts();
+                        }
+                        if (activeTab === 'excluirDados') {
+                            this.renderExclusao();
+                        }
+                        break;
+                    case 'perdas':
+                        if (activeTab === 'dashboard' && document.getElementById('dashboard-perda').style.display !== 'none') {
+                            App.charts.renderPerdaDashboardCharts();
+                        }
+                        if (activeTab === 'excluirDados') {
+                            this.renderExclusao();
+                        }
+                        break;
+                    // No specific actions needed for 'cigarrinha' or 'armadilhas' on snapshot,
+                    // as their primary UIs are user-triggered or handled elsewhere.
+                }
+            },
+
             renderAllDynamicContent() {
                 const renderWithCatch = (name, fn) => {
                     try {
@@ -2406,11 +2464,11 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
-            filterDashboardData(dataType, startDate, endDate) {
+            filterDashboardData(data, startDate, endDate) {
                 if (!startDate || !endDate) {
-                    return App.state[dataType];
+                    return data;
                 }
-                return App.state[dataType].filter(item => {
+                return data.filter(item => {
                     return item.data >= startDate && item.data <= endDate;
                 });
             },
@@ -3161,24 +3219,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     usuario: App.state.currentUser.username
                 };
 
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', async () => {
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', () => {
+                    // Otimização: Limpar o formulário imediatamente para feedback rápido
                     App.ui.clearForm(broca.form);
                     App.ui.setDefaultDatesForEntryForms();
+                    App.ui.setLoading(true, "A guardar...");
 
-                    if (navigator.onLine) {
+                    // A operação de salvamento agora acontece em segundo plano
+                    (async () => {
                         try {
-                            await App.data.addDocument('registros', newEntry);
-                            App.ui.showAlert('Inspeção guardada com sucesso!');
-                            this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
+                            if (navigator.onLine) {
+                                await App.data.addDocument('registros', newEntry);
+                                App.ui.showAlert('Inspeção guardada com sucesso!');
+                                this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
+                            } else {
+                                await OfflineDB.add('offline-writes', { collection: 'registros', data: newEntry });
+                                App.ui.showAlert('Inspeção guardada offline. Será enviada quando houver conexão.', 'info');
+                            }
                         } catch (e) {
                             App.ui.showAlert('Erro ao guardar inspeção. A guardar offline.', "error");
                             console.error("Erro ao salvar brocamento, salvando offline:", e);
                             await OfflineDB.add('offline-writes', { collection: 'registros', data: newEntry });
+                        } finally {
+                            App.ui.setLoading(false);
                         }
-                    } else {
-                        await OfflineDB.add('offline-writes', { collection: 'registros', data: newEntry });
-                        App.ui.showAlert('Inspeção guardada offline. Será enviada quando houver conexão.', 'info');
-                    }
+                    })();
                 });
             },
             
@@ -3220,23 +3285,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     usuario: App.state.currentUser.username
                 };
 
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este monitoramento?', async () => {
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este monitoramento?', () => {
                     App.ui.clearForm(cigarrinha.form);
                     App.ui.setDefaultDatesForEntryForms();
+                    App.ui.setLoading(true, "A guardar...");
 
-                    if (navigator.onLine) {
+                    (async () => {
                         try {
-                            await App.data.addDocument('cigarrinha', newEntry);
-                            App.ui.showAlert('Monitoramento guardado com sucesso!');
+                            if (navigator.onLine) {
+                                await App.data.addDocument('cigarrinha', newEntry);
+                                App.ui.showAlert('Monitoramento guardado com sucesso!');
+                            } else {
+                                await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
+                                App.ui.showAlert('Monitoramento guardado offline. Será enviada quando houver conexão.', 'info');
+                            }
                         } catch (e) {
                             App.ui.showAlert('Erro ao guardar monitoramento. A guardar offline.', "error");
                             console.error("Erro ao salvar monitoramento, salvando offline:", e);
                             await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
+                        } finally {
+                            App.ui.setLoading(false);
                         }
-                    } else {
-                        await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
-                        App.ui.showAlert('Monitoramento guardado offline. Será enviada quando houver conexão.', 'info');
-                    }
+                    })();
                 });
             },
 
@@ -3278,24 +3348,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     usuario: App.state.currentUser.username
                 };
 
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', async () => {
+                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', () => {
                     App.ui.clearForm(perda.form);
                     App.ui.setDefaultDatesForEntryForms();
+                    App.ui.setLoading(true, "A guardar...");
 
-                    if (navigator.onLine) {
+                    (async () => {
                         try {
-                            await App.data.addDocument('perdas', newEntry);
-                            App.ui.showAlert('Lançamento de perda guardado com sucesso!');
-                            this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
+                            if (navigator.onLine) {
+                                await App.data.addDocument('perdas', newEntry);
+                                App.ui.showAlert('Lançamento de perda guardado com sucesso!');
+                                this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
+                            } else {
+                                await OfflineDB.add('offline-writes', { collection: 'perdas', data: newEntry });
+                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
+                            }
                         } catch (e) {
                             App.ui.showAlert('Erro ao guardar lançamento de perda. A guardar offline.', "error");
                             console.error("Erro ao salvar perda, salvando offline:", e);
                             await OfflineDB.add('offline-writes', { collection: 'perdas', data: newEntry });
+                        } finally {
+                            App.ui.setLoading(false);
                         }
-                    } else {
-                        await OfflineDB.add('offline-writes', { collection: 'perdas', data: newEntry });
-                        App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
-                    }
+                    })();
                 });
             },
             
@@ -3789,6 +3864,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.trapNotifications = [];
                 App.state.unreadNotificationCount = 0;
                 App.ui.updateNotificationBell();
+            },
+
+            async getConsolidatedData(collectionName) {
+                if (!App.state[collectionName]) {
+                    console.warn(`Collection ${collectionName} not found in App.state.`);
+                    return [];
+                }
+
+                // 1. Get the already synced data from the state
+                const syncedData = App.state[collectionName] ? [...App.state[collectionName]] : [];
+
+                // 2. Get pending writes from IndexedDB
+                const pendingWrites = await OfflineDB.getAll('offline-writes');
+
+                // 3. Filter for the specific collection and extract the data
+                const pendingData = pendingWrites
+                    .filter(write => write.collection === collectionName)
+                    .map(write => ({
+                        // Simulate a Firestore document by adding a temporary ID and the data
+                        id: `offline_${Date.now()}_${Math.random()}`,
+                        ...write.data
+                    }));
+
+                // 4. Combine and return
+                return [...syncedData, ...pendingData];
             },
 
             async forceTokenRefresh(isManual = false) {
@@ -5262,21 +5362,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 return chartOptions;
             },
-            _createOrUpdateChart(id, config, isExpanded = false) { 
+            _createOrUpdateChart(id, config, isExpanded = false) {
                 const canvasId = isExpanded ? 'expandedChartCanvas' : id;
-                const ctx = document.getElementById(canvasId)?.getContext('2d'); 
-                if(!ctx) return; 
+                const ctx = document.getElementById(canvasId)?.getContext('2d');
+                if (!ctx) return;
 
-                const chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
-                if (chartInstance) { 
-                    chartInstance.destroy(); 
-                } 
-                
-                const newChart = new Chart(ctx, config);
-                if (isExpanded) {
-                    App.state.expandedChart = newChart;
+                let chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
+
+                if (chartInstance) {
+                    // Otimização: Apenas atualiza os dados e a configuração em vez de destruir
+                    chartInstance.data = config.data;
+                    chartInstance.options = config.options;
+                    chartInstance.update();
                 } else {
-                    App.state.charts[id] = newChart;
+                    // Cria um novo gráfico se não existir
+                    const newChart = new Chart(ctx, config);
+                    if (isExpanded) {
+                        App.state.expandedChart = newChart;
+                    } else {
+                        App.state.charts[id] = newChart;
+                    }
                 }
             },
                destroyAll() {
@@ -5323,7 +5428,8 @@ document.addEventListener('DOMContentLoaded', () => {
             async renderBrocaDashboardCharts() {
                 const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
                 App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
-                const data = App.actions.filterDashboardData('registros', brocaDashboardInicio.value, brocaDashboardFim.value);
+                const consolidatedData = await App.actions.getConsolidatedData('registros');
+                const data = App.actions.filterDashboardData(consolidatedData, brocaDashboardInicio.value, brocaDashboardFim.value);
 
                 setTimeout(() => {
                     this.renderTop10FazendasBroca(data);
@@ -5335,7 +5441,8 @@ document.addEventListener('DOMContentLoaded', () => {
             async renderPerdaDashboardCharts() {
                 const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
                 App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
-                const data = App.actions.filterDashboardData('perdas', perdaDashboardInicio.value, perdaDashboardFim.value);
+                const consolidatedData = await App.actions.getConsolidatedData('perdas');
+                const data = App.actions.filterDashboardData(consolidatedData, perdaDashboardInicio.value, perdaDashboardFim.value);
 
                 setTimeout(() => {
                     this.renderPerdaPorFrenteTurno(data);
