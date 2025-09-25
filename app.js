@@ -1,6 +1,6 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, enableNetwork, disableNetwork } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
@@ -2320,16 +2320,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log(`User response to the install prompt: ${outcome}`);
                         App.state.deferredInstallPrompt = null;
                         App.elements.installAppBtn.style.display = 'none';
-                    }
-                });
-
-                window.addEventListener('online', () => App.actions.forceTokenRefresh());
-
-                // Adiciona um gatilho de sincronização quando o separador/app se torna visível
-                document.addEventListener('visibilitychange', () => {
-                    if (document.visibilityState === 'visible' && navigator.onLine) {
-                        console.log("App tornou-se visível, a verificar por sincronizações pendentes.");
-                        App.actions.forceTokenRefresh();
                     }
                 });
 
@@ -5967,6 +5957,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
+    window.addEventListener('offline', () => {
+        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        disableNetwork(db).then(() => console.log("Rede do Firestore desativada."));
+    });
+
+    window.addEventListener('online', () => {
+        App.ui.showAlert("Conexão reestabelecida. A sincronizar dados...", "info");
+        enableNetwork(db).then(() => {
+            console.log("Rede do Firestore reativada.");
+            App.actions.forceTokenRefresh();
+        });
+    });
 
     // Inicia a aplicação
     App.init();
