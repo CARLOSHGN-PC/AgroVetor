@@ -5124,6 +5124,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showTrapNotification(notification) {
                 const container = App.elements.notificationContainer;
+
+                // Limita o número de notificações na tela para 3
+                while (container.children.length >= 3) {
+                    container.removeChild(container.firstChild);
+                }
+
                 const notificationEl = document.createElement('div');
                 notificationEl.className = `trap-notification ${notification.type}`;
                 notificationEl.dataset.trapId = notification.trapId;
