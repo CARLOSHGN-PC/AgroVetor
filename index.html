@@ -1229,16 +1229,13 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('./icons/imagens.png');
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
+        background-color: var(--color-bg);
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         z-index: 9999;
-        transition: opacity 1.5s ease-in-out, visibility 1.5s;
+        transition: opacity 0.8s ease-out, visibility 0.8s;
         opacity: 1;
         visibility: visible;
       }
@@ -1246,16 +1243,18 @@
         opacity: 0;
         visibility: hidden;
       }
+      .splash-logo {
+        width: 180px; /* Tamanho aumentado */
+        height: 180px; /* Tamanho aumentado */
+        animation: fadeInScale 1s ease-out forwards;
+        opacity: 0;
+      }
       .splash-message {
-        font-size: 1.8em;
-        font-weight: 600;
-        color: var(--color-white);
-        text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+        margin-top: 20px;
+        font-size: 1.2em;
+        color: var(--color-text-light);
         opacity: 0;
         animation: fadeInSlideUp 1s ease-out 0.5s forwards;
-        text-align: center;
-        padding: 0 20px;
-        max-width: 600px;
       }
 
       @keyframes fadeInScale {
@@ -1347,6 +1346,7 @@
 </head>
 <body>
     <div id="splash-screen">
+        <img src="icons/icon-512x512.png" alt="AgroVetor Logo" class="splash-logo">
         <p class="splash-message">Bem-vindo ao futuro do agronegócio.</p>
     </div>
 
