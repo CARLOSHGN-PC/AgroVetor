@@ -3731,6 +3731,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("A forçar a atualização do token de autenticação...");
                     await auth.currentUser.getIdToken(true);
                     console.log("Token de autenticação atualizado com sucesso.");
+
+                    // Reinicia os 'ouvintes' de dados para usar o novo token
+                    App.data.listenToAllData();
+
                     // Após a atualização bem-sucedida do token, iniciar a sincronização.
                     this.syncOfflineWrites();
                 } catch (error) {
