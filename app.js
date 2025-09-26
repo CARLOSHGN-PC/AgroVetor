@@ -765,45 +765,51 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             listenToAllData() {
                 this.cleanupListeners();
-                
+
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                // Se for super-admin e não tiver companyId, ele só poderá ver o painel de super-admin,
-                // que será implementado depois. Por agora, não carregamos dados de nenhuma empresa.
-                if (!companyId && !isSuperAdmin) {
-                    console.log("Utilizador sem empresa associada. A carregar apenas dados de Super Admin.");
-                    // Não força o logout, permite o acesso ao painel de gestão de empresas
-                }
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
 
                 if (isSuperAdmin) {
-                    // Super Admin ouve a coleção de empresas
-                    const q = collection(db, 'companies');
-                    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                    // Super Admin ouve TODOS os dados de todas as coleções relevantes
+                    companyScopedCollections.forEach(collectionName => {
+                        const q = collection(db, collectionName); // Sem filtro 'where'
+                        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                            const data = [];
+                            querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                            App.state[collectionName] = data;
+                            App.ui.renderSpecificContent(collectionName);
+                        }, (error) => {
+                            console.error(`Erro ao ouvir a coleção ${collectionName} como Super Admin: `, error);
+                        });
+                        App.state.unsubscribeListeners.push(unsubscribe);
+                    });
+
+                    // Super Admin também ouve a coleção de empresas
+                    const qCompanies = collection(db, 'companies');
+                    const unsubscribeCompanies = onSnapshot(qCompanies, (querySnapshot) => {
                         const data = [];
                         querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
                         App.state['companies'] = data;
                         App.ui.renderSpecificContent('companies');
                     }, (error) => console.error(`Erro ao ouvir a coleção companies: `, error));
-                    App.state.unsubscribeListeners.push(unsubscribe);
-                }
+                    App.state.unsubscribeListeners.push(unsubscribeCompanies);
 
-                if (companyId) {
-                    const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha' ];
+                    App.state.companyLogo = null;
+                    App.ui.renderLogoPreview();
 
-                    collectionsToListen.forEach(collectionName => {
+                } else if (companyId) {
+                    // Utilizador normal ouve apenas os dados da sua própria empresa
+                    companyScopedCollections.forEach(collectionName => {
                         const q = query(collection(db, collectionName), where("companyId", "==", companyId));
                         const unsubscribe = onSnapshot(q, (querySnapshot) => {
                             const data = [];
-                            querySnapshot.forEach((doc) => {
-                                data.push({ id: doc.id, ...doc.data() });
-                            });
+                            querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
                             App.state[collectionName] = data;
 
                             if (collectionName === 'armadilhas') {
-                                if (App.state.mapboxMap) {
-                                    App.mapModule.loadTraps();
-                                }
+                                if (App.state.mapboxMap) App.mapModule.loadTraps();
                                 App.mapModule.checkTrapStatusAndNotify();
                             }
                             App.ui.renderSpecificContent(collectionName);
@@ -813,14 +819,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.unsubscribeListeners.push(unsubscribe);
                     });
 
-                    // Configurações agora são por empresa
+                    // Configurações específicas da empresa (logotipo, etc.)
                     const configDocRef = doc(db, 'config', companyId);
                     const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
-                        if(doc.exists()){
+                        if (doc.exists()) {
                             const configData = doc.data();
                             App.state.companyLogo = configData.logoBase64 || null;
                             if (configData.shapefileURL) {
-                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
+                                App.mapModule.loadAndCacheShapes(configData.shapefileURL);
                             }
                         } else {
                             App.state.companyLogo = null;
@@ -828,6 +834,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.renderLogoPreview();
                     });
                     App.state.unsubscribeListeners.push(unsubscribeConfig);
+                } else {
+                    console.error("Utilizador não é Super Admin e não tem companyId. Carregamento de dados bloqueado.");
                 }
             },
             async getDocument(collectionName, docId, options) {
@@ -2560,6 +2568,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.monitoramentoAereo.btnHistory) {
                     // This listener is now attached in showTab
                 }
+
+                // Listeners para salvar rascunhos de formulários automaticamente
+                const debouncedSaveBroca = App.debounce(() => App.actions.saveFormDraft('broca'), 1000);
+                if (App.elements.broca.form) App.elements.broca.form.addEventListener('input', debouncedSaveBroca);
+
+                const debouncedSavePerda = App.debounce(() => App.actions.saveFormDraft('perda'), 1000);
+                if (App.elements.perda.form) App.elements.perda.form.addEventListener('input', debouncedSavePerda);
+
+                const debouncedSaveCigarrinha = App.debounce(() => App.actions.saveFormDraft('cigarrinha'), 1000);
+                if (App.elements.cigarrinha.form) App.elements.cigarrinha.form.addEventListener('input', debouncedSaveCigarrinha);
             }
         },
         
@@ -3380,190 +3398,159 @@ document.addEventListener('DOMContentLoaded', () => {
                     return 'N/A';
                 }
             },
-            saveBrocamento() {
-                if (!App.ui.validateFields(['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'])) {
+            async _saveEntry(config) {
+                const {
+                    formType,
+                    formFieldIds,
+                    entryBuilder,
+                    collectionName,
+                    confirmationMessage,
+                    successMessage,
+                    requiresOperatorValidation = false
+                } = config;
+
+                // 1. Validation
+                if (!App.ui.validateFields(formFieldIds)) {
                     App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
                     return;
                 }
 
-                const { broca } = App.elements;
-                const farm = App.state.fazendas.find(f => f.id === broca.codigo.value);
-                if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
-                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === broca.talhao.value.trim().toUpperCase());
-
-                if (!talhao) {
-                    App.ui.showAlert(`Talhão "${broca.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
+                const formElements = App.elements[formType];
+                const farm = App.state.fazendas.find(f => f.id === formElements.codigo.value);
+                if (!farm) {
+                    App.ui.showAlert("Fazenda não encontrada.", "error");
                     return;
                 }
 
-                const newEntry = {
-                    codigo: farm.code, fazenda: farm.name, data: broca.data.value,
-                    talhao: broca.talhao.value.trim(),
-                    corte: talhao ? talhao.corte : null,
-                    entrenos: parseInt(broca.entrenos.value),
-                    base: parseInt(broca.base.value),
-                    meio: parseInt(broca.meio.value),
-                    topo: parseInt(broca.topo.value),
-                    brocado: parseInt(broca.brocado.value),
-                    brocamento: (((parseInt(broca.brocado.value) || 0) / (parseInt(broca.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
-                    usuario: App.state.currentUser.username,
-                    companyId: App.state.currentUser.companyId
-                };
+                const talhaoName = formElements.talhao.value.trim().toUpperCase();
+                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName);
+                if (!talhao) {
+                    App.ui.showAlert(`Talhão "${formElements.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
+                    return;
+                }
 
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', () => {
-                    // Otimização: Limpar o formulário imediatamente para feedback rápido
-                    App.ui.clearForm(broca.form);
+                let operator = null;
+                if (requiresOperatorValidation) {
+                    operator = App.state.personnel.find(p => p.matricula === formElements.matricula.value.trim());
+                    if (!operator) {
+                        App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
+                        return;
+                    }
+                }
+
+                // 2. Build entry
+                const newEntry = entryBuilder(formElements, farm, talhao, operator);
+
+                // 3. Confirmation and Save
+                App.ui.showConfirmationModal(confirmationMessage, () => {
+                    App.ui.clearForm(formElements.form);
+                    this.clearFormDraft(formType); // Limpa o rascunho após a confirmação
                     App.ui.setDefaultDatesForEntryForms();
                     App.ui.setLoading(true, "A guardar...");
 
-                    // A operação de salvamento agora acontece em segundo plano
                     (async () => {
                         try {
                             if (navigator.onLine) {
-                                await App.data.addDocument('registros', newEntry);
-                                App.ui.showAlert('Inspeção guardada com sucesso!');
-                                this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
+                                await App.data.addDocument(collectionName, newEntry);
+                                App.ui.showAlert(successMessage);
+                                if (formType === 'broca' || formType === 'perda') {
+                                    this.verificarEAtualizarPlano(formType, newEntry.codigo, newEntry.talhao);
+                                }
                             } else {
-                                await OfflineDB.add('offline-writes', { collection: 'registros', data: newEntry });
-                                App.ui.showAlert('Inspeção guardada offline. Será enviada quando houver conexão.', 'info');
+                                await OfflineDB.add('offline-writes', { collection: collectionName, data: newEntry });
+                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
                             }
                         } catch (e) {
-                            App.ui.showAlert('Erro ao guardar inspeção. A guardar offline.', "error");
-                            console.error("Erro ao salvar brocamento, salvando offline:", e);
-                            await OfflineDB.add('offline-writes', { collection: 'registros', data: newEntry });
+                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
+                            console.error(`Erro ao salvar ${formType}, salvando offline:`, e);
+                            await OfflineDB.add('offline-writes', { collection: collectionName, data: newEntry });
                         } finally {
                             App.ui.setLoading(false);
                         }
                     })();
+                });
+            },
+
+            saveBrocamento() {
+                this._saveEntry({
+                    formType: 'broca',
+                    formFieldIds: ['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'],
+                    collectionName: 'registros',
+                    confirmationMessage: 'Tem a certeza que deseja guardar esta inspeção de broca?',
+                    successMessage: 'Inspeção guardada com sucesso!',
+                    entryBuilder: (els, farm, talhao) => ({
+                        codigo: farm.code, fazenda: farm.name, data: els.data.value,
+                        talhao: els.talhao.value.trim(),
+                        corte: talhao ? talhao.corte : null,
+                        entrenos: parseInt(els.entrenos.value),
+                        base: parseInt(els.base.value),
+                        meio: parseInt(els.meio.value),
+                        topo: parseInt(els.topo.value),
+                        brocado: parseInt(els.brocado.value),
+                        brocamento: (((parseInt(els.brocado.value) || 0) / (parseInt(els.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
+                        usuario: App.state.currentUser.username,
+                        companyId: App.state.currentUser.companyId
+                    })
                 });
             },
             
             saveCigarrinha() {
-                if (!App.ui.validateFields(['dataCigarrinha', 'codigoCigarrinha', 'talhaoCigarrinha'])) {
-                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
-                    return;
-                }
-
-                const { cigarrinha } = App.elements;
-                const farm = App.state.fazendas.find(f => f.id === cigarrinha.codigo.value);
-                if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
-                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === cigarrinha.talhao.value.trim().toUpperCase());
-
-                if (!talhao) {
-                    App.ui.showAlert(`Talhão "${cigarrinha.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                    return;
-                }
-
-                const f1 = parseInt(cigarrinha.fase1.value) || 0;
-                const f2 = parseInt(cigarrinha.fase2.value) || 0;
-                const f3 = parseInt(cigarrinha.fase3.value) || 0;
-                const f4 = parseInt(cigarrinha.fase4.value) || 0;
-                const f5 = parseInt(cigarrinha.fase5.value) || 0;
-
-                const newEntry = {
-                    data: cigarrinha.data.value,
-                    codigo: farm.code,
-                    fazenda: farm.name,
-                    talhao: cigarrinha.talhao.value.trim(),
-                    variedade: talhao.variedade || '',
-                    fase1: f1,
-                    fase2: f2,
-                    fase3: f3,
-                    fase4: f4,
-                    fase5: f5,
-                    adulto: cigarrinha.adulto.checked,
-                    resultado: ((f1 + f2 + f3 + f4 + f5) / 5) / 10,
-                    usuario: App.state.currentUser.username,
-                    companyId: App.state.currentUser.companyId
-                };
-
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este monitoramento?', () => {
-                    App.ui.clearForm(cigarrinha.form);
-                    App.ui.setDefaultDatesForEntryForms();
-                    App.ui.setLoading(true, "A guardar...");
-
-                    (async () => {
-                        try {
-                            if (navigator.onLine) {
-                                await App.data.addDocument('cigarrinha', newEntry);
-                                App.ui.showAlert('Monitoramento guardado com sucesso!');
-                            } else {
-                                await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
-                                App.ui.showAlert('Monitoramento guardado offline. Será enviada quando houver conexão.', 'info');
-                            }
-                        } catch (e) {
-                            App.ui.showAlert('Erro ao guardar monitoramento. A guardar offline.', "error");
-                            console.error("Erro ao salvar monitoramento, salvando offline:", e);
-                            await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
-                        } finally {
-                            App.ui.setLoading(false);
-                        }
-                    })();
+                this._saveEntry({
+                    formType: 'cigarrinha',
+                    formFieldIds: ['dataCigarrinha', 'codigoCigarrinha', 'talhaoCigarrinha'],
+                    collectionName: 'cigarrinha',
+                    confirmationMessage: 'Tem a certeza que deseja guardar este monitoramento?',
+                    successMessage: 'Monitoramento guardado com sucesso!',
+                    entryBuilder: (els, farm, talhao) => {
+                        const f1 = parseInt(els.fase1.value) || 0;
+                        const f2 = parseInt(els.fase2.value) || 0;
+                        const f3 = parseInt(els.fase3.value) || 0;
+                        const f4 = parseInt(els.fase4.value) || 0;
+                        const f5 = parseInt(els.fase5.value) || 0;
+                        return {
+                            data: els.data.value,
+                            codigo: farm.code,
+                            fazenda: farm.name,
+                            talhao: els.talhao.value.trim(),
+                            variedade: talhao.variedade || '',
+                            fase1: f1, fase2: f2, fase3: f3, fase4: f4, fase5: f5,
+                            adulto: els.adulto.checked,
+                            resultado: ((f1 + f2 + f3 + f4 + f5) / 5) / 10,
+                            usuario: App.state.currentUser.username,
+                            companyId: App.state.currentUser.companyId
+                        };
+                    }
                 });
             },
 
             savePerda() {
-                if (!App.ui.validateFields(['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'])) {
-                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
-                    return;
-                }
-
-                const { perda } = App.elements;
-                const farm = App.state.fazendas.find(f => f.id === perda.codigo.value);
-                const operator = App.state.personnel.find(p => p.matricula === perda.matricula.value.trim());
-                if (!operator) {
-                    App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
-                    return;
-                }
-                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === perda.talhao.value.trim().toUpperCase());
-
-                if (!talhao) {
-                    App.ui.showAlert(`Talhão "${perda.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                    return;
-                }
-
-                const fields = { canaInteira: parseFloat(perda.canaInteira.value) || 0, tolete: parseFloat(perda.tolete.value) || 0, toco: parseFloat(perda.toco.value) || 0, ponta: parseFloat(perda.ponta.value) || 0, estilhaco: parseFloat(perda.estilhaco.value) || 0, pedaco: parseFloat(perda.pedaco.value) || 0 };
-                const total = Object.values(fields).reduce((s, v) => s + v, 0);
-                const newEntry = {
-                    ...fields,
-                    data: perda.data.value,
-                    codigo: farm ? farm.code : 'N/A',
-                    fazenda: farm ? farm.name : 'Desconhecida',
-                    frenteServico: perda.frente.value.trim(),
-                    turno: perda.turno.value,
-                    talhao: perda.talhao.value.trim(),
-                    frota: perda.frota.value.trim(),
-                    matricula: operator.matricula,
-                    operador: operator.name,
-                    total,
-                    media: (total / 6).toFixed(2).replace('.', ','),
-                    usuario: App.state.currentUser.username,
-                    companyId: App.state.currentUser.companyId
-                };
-
-                App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', () => {
-                    App.ui.clearForm(perda.form);
-                    App.ui.setDefaultDatesForEntryForms();
-                    App.ui.setLoading(true, "A guardar...");
-
-                    (async () => {
-                        try {
-                            if (navigator.onLine) {
-                                await App.data.addDocument('perdas', newEntry);
-                                App.ui.showAlert('Lançamento de perda guardado com sucesso!');
-                                this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
-                            } else {
-                                await OfflineDB.add('offline-writes', { collection: 'perdas', data: newEntry });
-                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
-                            }
-                        } catch (e) {
-                            App.ui.showAlert('Erro ao guardar lançamento de perda. A guardar offline.', "error");
-                            console.error("Erro ao salvar perda, salvando offline:", e);
-                            await OfflineDB.add('offline-writes', { collection: 'perdas', data: newEntry });
-                        } finally {
-                            App.ui.setLoading(false);
-                        }
-                    })();
+                this._saveEntry({
+                    formType: 'perda',
+                    formFieldIds: ['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'],
+                    collectionName: 'perdas',
+                    confirmationMessage: 'Tem a certeza que deseja guardar este lançamento de perda?',
+                    successMessage: 'Lançamento de perda guardado com sucesso!',
+                    requiresOperatorValidation: true,
+                    entryBuilder: (els, farm, talhao, operator) => {
+                        const fields = { canaInteira: parseFloat(els.canaInteira.value) || 0, tolete: parseFloat(els.tolete.value) || 0, toco: parseFloat(els.toco.value) || 0, ponta: parseFloat(els.ponta.value) || 0, estilhaco: parseFloat(els.estilhaco.value) || 0, pedaco: parseFloat(els.pedaco.value) || 0 };
+                        const total = Object.values(fields).reduce((s, v) => s + v, 0);
+                        return {
+                            ...fields,
+                            data: els.data.value,
+                            codigo: farm.code,
+                            fazenda: farm.name,
+                            frenteServico: els.frente.value.trim(),
+                            turno: els.turno.value,
+                            talhao: els.talhao.value.trim(),
+                            frota: els.frota.value.trim(),
+                            matricula: operator.matricula,
+                            operador: operator.name,
+                            total,
+                            media: (total / 6).toFixed(2).replace('.', ','),
+                            usuario: App.state.currentUser.username,
+                            companyId: App.state.currentUser.companyId
+                        };
+                    }
                 });
             },
             
@@ -3624,7 +3611,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                      code: farmCode,
                                      name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
                                      types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
-                                     talhoes: []
+                                     talhoes: [],
+                                     companyId: App.state.currentUser.companyId // FIX: Adicionar companyId a novas fazendas
                                  };
                              }
 
@@ -3760,7 +3748,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                      updatedCountInChunk++;
                                  } else {
                                      const newPersonRef = doc(collection(db, 'personnel'));
-                                     batch.set(newPersonRef, { matricula, name });
+                                 batch.set(newPersonRef, { matricula, name, companyId: App.state.currentUser.companyId }); // FIX: Adicionar companyId
                                      newCountInChunk++;
                                  }
                              });
@@ -4260,9 +4248,10 @@ document.addEventListener('DOMContentLoaded', () => {
             async checkForDraft() {
                 const userId = App.state.currentUser.uid;
                 try {
-                    const draft = await App.data.getDocument('userDrafts', userId);
-                    if (draft) {
-                        App.state.activeHarvestPlan = draft;
+                    // Rascunho do plano de colheita (Firestore)
+                    const harvestPlanDraft = await App.data.getDocument('userDrafts', userId);
+                    if (harvestPlanDraft) {
+                        App.state.activeHarvestPlan = harvestPlanDraft;
                         App.ui.showTab('planejamentoColheita');
                         App.ui.showHarvestPlanEditor();
 
@@ -4272,12 +4261,64 @@ document.addEventListener('DOMContentLoaded', () => {
                         dailyRate.value = App.state.activeHarvestPlan.dailyRate;
 
                         App.ui.renderHarvestSequence();
-                        return true;
+                        return true; // Indica que um rascunho foi restaurado, impedindo a navegação para a última aba
                     }
                 } catch (error) {
-                    console.error("Erro ao verificar o rascunho:", error);
+                    console.error("Erro ao verificar o rascunho do plano de colheita:", error);
                 }
-                return false;
+
+                // Rascunhos de formulários de lançamento (LocalStorage)
+                ['broca', 'perda', 'cigarrinha'].forEach(formType => {
+                    this.loadFormDraft(formType);
+                });
+
+                return false; // Permite que a navegação para a última aba prossiga se nenhum rascunho de colheita for encontrado
+            },
+
+            saveFormDraft(formType) {
+                const form = App.elements[formType]?.form;
+                if (!form) return;
+
+                const formData = {};
+                form.querySelectorAll('input, select, textarea').forEach(el => {
+                    if (el.id) {
+                        formData[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+                    }
+                });
+                localStorage.setItem(`draft_${formType}`, JSON.stringify(formData));
+            },
+
+            loadFormDraft(formType) {
+                const draftData = localStorage.getItem(`draft_${formType}`);
+                if (!draftData) return;
+
+                const form = App.elements[formType]?.form;
+                if (!form) return;
+
+                App.ui.showConfirmationModal(
+                    `Encontramos um rascunho não salvo para o lançamento de ${formType}. Deseja restaurá-lo?`,
+                    () => {
+                        const formData = JSON.parse(draftData);
+                        Object.keys(formData).forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) {
+                                if (el.type === 'checkbox') {
+                                    el.checked = formData[id];
+                                } else {
+                                    el.value = formData[id];
+                                }
+                                // Dispara o evento de input para atualizar cálculos e outros listeners
+                                el.dispatchEvent(new Event('input'));
+                            }
+                        });
+                        App.ui.showAlert("Rascunho restaurado.", "success");
+                    },
+                    false // No input needed
+                );
+            },
+
+            clearFormDraft(formType) {
+                localStorage.removeItem(`draft_${formType}`);
             },
 
             startRealtimeTracking() {
@@ -5671,12 +5712,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const consolidatedData = await App.actions.getConsolidatedData('registros');
                 const data = App.actions.filterDashboardData(consolidatedData, brocaDashboardInicio.value, brocaDashboardFim.value);
 
-                setTimeout(() => {
-                    this.renderTop10FazendasBroca(data);
-                    this.renderBrocaMensal(data);
-                    this.renderBrocaPosicao(data);
-                    this.renderBrocaPorVariedade(data);
-                }, 0);
+                // Otimização: Passar os dados já filtrados para as funções de renderização
+                this.renderTop10FazendasBroca(data);
+                this.renderBrocaMensal(data);
+                this.renderBrocaPosicao(data);
+                this.renderBrocaPorVariedade(data);
             },
             async renderPerdaDashboardCharts() {
                 const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
@@ -5684,12 +5724,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const consolidatedData = await App.actions.getConsolidatedData('perdas');
                 const data = App.actions.filterDashboardData(consolidatedData, perdaDashboardInicio.value, perdaDashboardFim.value);
 
-                setTimeout(() => {
-                    this.renderPerdaPorFrenteTurno(data);
-                    this.renderComposicaoPerdaPorFrente(data);
-                    this.renderTop10FazendasPerda(data);
-                    this.renderPerdaPorFrente(data);
-                }, 0);
+                // Otimização: Passar os dados já filtrados para as funções de renderização
+                this.renderPerdaPorFrenteTurno(data);
+                this.renderComposicaoPerdaPorFrente(data);
+                this.renderTop10FazendasPerda(data);
+                this.renderPerdaPorFrente(data);
             },
             renderTop10FazendasBroca(data) {
                 const fazendasMap = new Map();
@@ -6174,13 +6213,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const farm = App.state.fazendas.find(f => f.id === farmId);
 
                     const filteredData = App.state.cigarrinha.filter(item => {
-                        // As datas do formulário vêm como 'YYYY-MM-DD'. Para garantir a comparação correta,
-                        // tratamos todas as datas como se estivessem no mesmo fuso horário (local).
                         const itemDate = new Date(item.data);
                         const startDate = new Date(filtroInicio.value);
                         const endDate = new Date(filtroFim.value);
 
-                        // Ajusta as horas para garantir que o intervalo seja inclusivo
                         itemDate.setUTCHours(0, 0, 0, 0);
                         startDate.setUTCHours(0, 0, 0, 0);
                         endDate.setUTCHours(23, 59, 59, 999);
