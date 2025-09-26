@@ -345,6 +345,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnCreate: document.getElementById('btnCreateCompany'),
                 list: document.getElementById('companiesList'),
             },
+            editCompanyModal: {
+                overlay: document.getElementById('editCompanyModal'),
+                title: document.getElementById('editCompanyModalTitle'),
+                closeBtn: document.getElementById('editCompanyModalCloseBtn'),
+                cancelBtn: document.getElementById('editCompanyModalCancelBtn'),
+                saveBtn: document.getElementById('editCompanyModalSaveBtn'),
+                editingCompanyId: document.getElementById('editingCompanyId'),
+                companyNameDisplay: document.getElementById('editCompanyNameDisplay'),
+                modulesGrid: document.getElementById('editCompanyModulesGrid'),
+            },
             personnel: {
                 id: document.getElementById('personnelId'),
                 matricula: document.getElementById('personnelMatricula'),
@@ -1661,6 +1671,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Data de Criação">${creationDate}</td>
                         <td data-label="Ações">
                             <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background:var(--color-info);" data-action="edit-company" data-id="${c.id}" title="Editar Módulos"><i class="fas fa-edit"></i></button>
                                 <button class="${buttonClass}" data-action="toggle-company" data-id="${c.id}"><i class="fas ${buttonIcon}"></i> ${buttonText}</button>
                                 <button class="btn-excluir-permanente" data-action="delete-company-permanently" data-id="${c.id}" title="Excluir Permanentemente"><i class="fas fa-skull-crossbones"></i></button>
                             </div>
@@ -2070,7 +2081,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let results = {};
                     let allValid = true;
                     if (inputsConfig) {
-                        const inputs = Array.from(inputContainer.querySelectorAll('input, textarea'));
+                        const inputs = Array.from(inputContainer.querySelectorAll('input, textarea, select'));
                         inputs.forEach(input => {
                             if (input.required && !input.value) {
                                 allValid = false;
@@ -2085,7 +2096,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // For backward compatibility with single input
-                    if (!Array.isArray(inputsConfig) && inputsConfig) {
+                    if (!Array.isArray(inputsConfig) && inputsConfig && typeof inputsConfig !== 'boolean') {
                         results = results['confirmationModalInput'];
                     }
                     
@@ -2133,6 +2144,46 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             closeUserEditModal() {
                 App.elements.userEditModal.overlay.classList.remove('show');
+            },
+            openEditCompanyModal(companyId) {
+                const modal = App.elements.editCompanyModal;
+                const company = App.state.companies.find(c => c.id === companyId);
+                if (!company) {
+                    App.ui.showAlert("Empresa não encontrada.", "error");
+                    return;
+                }
+
+                modal.editingCompanyId.value = company.id;
+                modal.companyNameDisplay.textContent = company.name;
+
+                const grid = modal.modulesGrid;
+                grid.innerHTML = ''; // Limpa o grid antes de preencher
+
+                const allPermissions = App.config.menuConfig.flatMap(item =>
+                    item.submenu ? item.submenu : [item]
+                ).filter(item => item.permission && item.permission !== 'superAdmin');
+
+                const subscribedModules = new Set(company.subscribedModules || []);
+
+                allPermissions.forEach(perm => {
+                    const isChecked = subscribedModules.has(perm.permission);
+                    const checkboxHTML = `
+                        <label class="report-option-item">
+                            <input type="checkbox" data-module="${perm.permission}" ${isChecked ? 'checked' : ''}>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content">
+                                <i class="${perm.icon}"></i>
+                                <span>${perm.label}</span>
+                            </span>
+                        </label>
+                    `;
+                    grid.innerHTML += checkboxHTML;
+                });
+
+                modal.overlay.classList.add('show');
+            },
+            closeEditCompanyModal() {
+                App.elements.editCompanyModal.overlay.classList.remove('show');
             },
             openEditFarmModal(farmId) {
                 const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -2376,9 +2427,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const button = e.target.closest('button[data-action]');
                     if (!button) return;
                     const { action, id } = button.dataset;
+                    if (action === 'edit-company') this.openEditCompanyModal(id);
                     if (action === 'toggle-company') App.actions.toggleCompanyStatus(id);
                     if (action === 'delete-company-permanently') App.actions.deleteCompanyPermanently(id);
                 });
+
+                const editCompanyModalEls = App.elements.editCompanyModal;
+                if (editCompanyModalEls.closeBtn) editCompanyModalEls.closeBtn.addEventListener('click', () => this.closeEditCompanyModal());
+                if (editCompanyModalEls.cancelBtn) editCompanyModalEls.cancelBtn.addEventListener('click', () => this.closeEditCompanyModal());
+                if (editCompanyModalEls.saveBtn) editCompanyModalEls.saveBtn.addEventListener('click', () => App.actions.saveCompanyModuleChanges());
+                if (editCompanyModalEls.overlay) editCompanyModalEls.overlay.addEventListener('click', e => { if (e.target === editCompanyModalEls.overlay) this.closeEditCompanyModal(); });
 
                 const btnMigrate = document.getElementById('btnMigrateOldData');
                 if (btnMigrate) btnMigrate.addEventListener('click', () => App.actions.migrateOldData());
@@ -3353,6 +3411,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     deletedCount += chunk.length;
                 }
                 return deletedCount;
+            },
+
+            async saveCompanyModuleChanges() {
+                const modal = App.elements.editCompanyModal;
+                const companyId = modal.editingCompanyId.value;
+                if (!companyId) {
+                    App.ui.showAlert("ID da empresa não encontrado.", "error");
+                    return;
+                }
+
+                const newSubscribedModules = Array.from(modal.modulesGrid.querySelectorAll('input:checked'))
+                                                  .map(cb => cb.dataset.module);
+
+                if (newSubscribedModules.length === 0) {
+                    App.ui.showAlert("Uma empresa deve ter pelo menos um módulo subscrito.", "error");
+                    return;
+                }
+
+                try {
+                    await App.data.updateDocument('companies', companyId, {
+                        subscribedModules: newSubscribedModules
+                    });
+                    App.ui.showAlert("Módulos da empresa atualizados com sucesso!", "success");
+                    App.ui.closeEditCompanyModal();
+                } catch (error) {
+                    App.ui.showAlert("Erro ao guardar as alterações.", "error");
+                    console.error("Erro ao atualizar módulos da empresa:", error);
+                }
             },
 
             async _executeCascadeDelete(companyId) {

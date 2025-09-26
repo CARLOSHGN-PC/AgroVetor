@@ -2387,6 +2387,29 @@
             </div>
         </div>
 
+        <div id="editCompanyModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="editCompanyModalTitle">Editar Empresa</h2>
+                    <button id="editCompanyModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <input type="hidden" id="editingCompanyId">
+                <p style="font-size: 16px;"><strong>Empresa:</strong> <span id="editCompanyNameDisplay" style="font-weight: 600; color: var(--color-primary);"></span></p>
+
+                <div class="checkbox-group-container" style="margin-top: 20px;">
+                    <label class="required" style="font-size: 15px; margin-bottom: 10px;">Módulos Subscritos:</label>
+                    <div class="checkbox-group-grid" id="editCompanyModulesGrid">
+                        <!-- Os módulos serão gerados aqui pelo app.js -->
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button id="editCompanyModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="editCompanyModalSaveBtn" class="save">Guardar Alterações</button>
+                </div>
+            </div>
+        </div>
+
         <div id="historyFilterModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 500px;">
                 <div class="modal-header">
