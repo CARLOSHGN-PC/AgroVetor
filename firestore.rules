@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to get the user's company ID from their profile
+    function userCompanyId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId;
+    }
+
+    // Helper function to check if the requesting user is an admin of their company
+    function isCompanyAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Helper function to check for Super Admin role
+    function isSuperAdmin() {
+      // Check if the user document exists before trying to access its data
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super-admin';
+    }
+
+    // Rule for user profiles
+    match /users/{userId} {
+      allow read: if isSuperAdmin() || request.auth.uid == userId || (isCompanyAdmin() && resource.data.companyId == userCompanyId());
+      allow list: if isSuperAdmin() || userCompanyId() != null;
+      allow write: if isSuperAdmin() || (isCompanyAdmin() && request.resource.data.companyId == userCompanyId()) || request.auth.uid == userId;
+    }
+
+    // Rule for company configuration
+    match /config/{companyId} {
+        allow read, write: if isSuperAdmin() || (isCompanyAdmin() && companyId == userCompanyId());
+    }
+
+    // Generic function to check if the data belongs to the user's company
+    function isOwnedByCompany() {
+      return request.resource.data.companyId == userCompanyId();
+    }
+
+    // Rules for all data collections
+    match /fazendas/{docId}      { allow read, write: if isSuperAdmin() || isOwnedByCompany(); }
+    match /personnel/{docId}     { allow read, write: if isSuperAdmin() || isOwnedByCompany(); }
+    match /registros/{docId}     { allow read, write: if isSuperAdmin() || isOwnedByCompany(); }
+    match /perdas/{docId}        { allow read, write: if isSuperAdmin() || isOwnedByCompany(); }
+    match /planos/{docId}        { allow read, write: if isSuperAdmin() || isOwnedByCompany(); }
+    match /harvestPlans/{docId}  { allow read, write: if isSuperAdmin() || isOwnedByCompany(); }
+    match /armadilhas/{docId}    { allow read, write: if isSuperAdmin() || isOwnedByCompany(); }
+    match /cigarrinha/{docId}    { allow read, write: if isSuperAdmin() || isOwnedByCompany(); }
+    match /userDrafts/{docId}    { allow read, write: if isSuperAdmin() || request.auth.uid == docId; }
+
+    // Collection for managing companies themselves, only super-admin can touch this.
+    match /companies/{companyId} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}

@@ -134,8 +134,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
                     ]
                 },
+                {
+                    label: 'Super Admin', icon: 'fas fa-user-shield',
+                    submenu: [
+                        { label: 'Gerir Empresas', icon: 'fas fa-building', target: 'gerenciarEmpresas', permission: 'superAdmin' },
+                    ]
+                }
             ],
             roles: {
+                "super-admin": { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, superAdmin: true },
                 admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true },
@@ -150,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
             connectionCheckInterval: null,
             currentUser: null,
             users: [],
+                companies: [],
             registros: [],
             perdas: [],
             cigarrinha: [],
@@ -329,6 +337,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnSaveChanges: document.getElementById('btnSaveUserChanges'),
                 btnResetPassword: document.getElementById('btnResetPassword'),
                 btnDeleteUser: document.getElementById('btnDeleteUser'),
+            },
+            companyManagement: {
+                companyName: document.getElementById('newCompanyName'),
+                adminEmail: document.getElementById('newCompanyAdminEmail'),
+                adminPassword: document.getElementById('newCompanyAdminPassword'),
+                btnCreate: document.getElementById('btnCreateCompany'),
+                list: document.getElementById('companiesList'),
             },
             personnel: {
                 id: document.getElementById('personnelId'),
@@ -540,6 +555,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         const userDoc = await App.data.getUserData(user.uid);
                         if (userDoc && userDoc.active) {
                             App.state.currentUser = { ...user, ...userDoc };
+
+                            // Validação CRÍTICA para o modelo multi-empresa
+                            if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
+                                App.auth.logout();
+                                App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
+                                return;
+                            }
+
                             App.actions.saveUserProfileLocally(App.state.currentUser);
                             App.ui.showAppScreen();
                             App.data.listenToAllData();
@@ -656,7 +679,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         email: email,
                         role: role,
                         active: true,
-                        permissions: permissions
+                        permissions: permissions,
+                        companyId: App.state.currentUser.companyId // <-- Vincular à empresa do admin
                     };
                     await App.data.createUserData(newUser.uid, userData);
                     
@@ -742,46 +766,69 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
                 
-                const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha' ];
-                
-                collectionsToListen.forEach(collectionName => {
-                    const q = collection(db, collectionName);
+                const companyId = App.state.currentUser.companyId;
+                const isSuperAdmin = App.state.currentUser.role === 'super-admin';
+
+                // Se for super-admin e não tiver companyId, ele só poderá ver o painel de super-admin,
+                // que será implementado depois. Por agora, não carregamos dados de nenhuma empresa.
+                if (!companyId && !isSuperAdmin) {
+                    console.log("Utilizador sem empresa associada. A carregar apenas dados de Super Admin.");
+                    // Não força o logout, permite o acesso ao painel de gestão de empresas
+                }
+
+                if (isSuperAdmin) {
+                    // Super Admin ouve a coleção de empresas
+                    const q = collection(db, 'companies');
                     const unsubscribe = onSnapshot(q, (querySnapshot) => {
                         const data = [];
-                        querySnapshot.forEach((doc) => {
-                            data.push({ id: doc.id, ...doc.data() });
-                        });
-                        App.state[collectionName] = data;
-                        
-                        if (collectionName === 'armadilhas') {
-                            if (App.state.mapboxMap) {
-                                App.mapModule.loadTraps();
-                            }
-                            App.mapModule.checkTrapStatusAndNotify();
-                        }
-
-                        // App.ui.renderAllDynamicContent();
-                        App.ui.renderSpecificContent(collectionName);
-                    }, (error) => {
-                        console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
-                    });
+                        querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                        App.state['companies'] = data;
+                        App.ui.renderSpecificContent('companies');
+                    }, (error) => console.error(`Erro ao ouvir a coleção companies: `, error));
                     App.state.unsubscribeListeners.push(unsubscribe);
-                });
-                
-                const configDocRef = doc(db, 'config', 'company');
-                const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
-                    App.state.companyLogo = doc.exists() ? doc.data().logoBase64 : null; 
-                    App.ui.renderLogoPreview();
-                });
-                App.state.unsubscribeListeners.push(unsubscribeConfig);
+                }
 
-                const shapefileDocRef = doc(db, 'config', 'shapefile');
-                const unsubscribeShapefile = onSnapshot(shapefileDocRef, (doc) => {
-                    if (doc.exists() && doc.data().shapefileURL) {
-                        App.mapModule.loadAndCacheShapes(doc.data().shapefileURL);
-                    }
-                });
-                App.state.unsubscribeListeners.push(unsubscribeShapefile);
+                if (companyId) {
+                    const collectionsToListen = [ 'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha' ];
+
+                    collectionsToListen.forEach(collectionName => {
+                        const q = query(collection(db, collectionName), where("companyId", "==", companyId));
+                        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                            const data = [];
+                            querySnapshot.forEach((doc) => {
+                                data.push({ id: doc.id, ...doc.data() });
+                            });
+                            App.state[collectionName] = data;
+
+                            if (collectionName === 'armadilhas') {
+                                if (App.state.mapboxMap) {
+                                    App.mapModule.loadTraps();
+                                }
+                                App.mapModule.checkTrapStatusAndNotify();
+                            }
+                            App.ui.renderSpecificContent(collectionName);
+                        }, (error) => {
+                            console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
+                        });
+                        App.state.unsubscribeListeners.push(unsubscribe);
+                    });
+
+                    // Configurações agora são por empresa
+                    const configDocRef = doc(db, 'config', companyId);
+                    const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
+                        if(doc.exists()){
+                            const configData = doc.data();
+                            App.state.companyLogo = configData.logoBase64 || null;
+                            if (configData.shapefileURL) {
+                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
+                            }
+                        } else {
+                            App.state.companyLogo = null;
+                        }
+                        App.ui.renderLogoPreview();
+                    });
+                    App.state.unsubscribeListeners.push(unsubscribeConfig);
+                }
             },
             async getDocument(collectionName, docId, options) {
                 return await getDoc(doc(db, collectionName, docId)).then(docSnap => {
@@ -890,6 +937,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
 
                 switch (collectionName) {
+                    case 'companies':
+                        if (activeTab === 'gerenciarEmpresas') {
+                            this.renderCompaniesList();
+                        }
+                        break;
                     case 'users':
                         this.populateUserSelects([App.elements.planejamento.responsavel]);
                         if (activeTab === 'gerenciarUsuarios') {
@@ -1143,6 +1195,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'gerenciarUsuarios') {
                     this.renderUsersList();
                     this.renderPermissionItems(App.elements.users.permissionsContainer);
+                }
+                 if (id === 'gerenciarEmpresas') {
+                    this.renderCompaniesList();
                 }
                 if (id === 'cadastros') this.renderFarmSelect();
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
@@ -1555,9 +1610,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             },
+            renderCompaniesList() {
+                const { list } = App.elements.companyManagement;
+                list.innerHTML = '';
+                 if (App.state.companies.length === 0) {
+                    list.innerHTML = '<p>Nenhuma empresa cadastrada.</p>';
+                    return;
+                }
+                const table = document.createElement('table');
+                table.id = 'companiesTable';
+                table.className = 'harvestPlanTable'; // Reutilizando estilo
+                table.innerHTML = `<thead><tr><th>Nome da Empresa</th><th>Data de Criação</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+                App.state.companies.sort((a,b) => a.name.localeCompare(b.name)).forEach(c => {
+                    const row = tbody.insertRow();
+                    const creationDate = c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
+                    row.innerHTML = `
+                        <td data-label="Nome">${c.name}</td>
+                        <td data-label="Data de Criação">${creationDate}</td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" data-action="delete-company" data-id="${c.id}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                });
+                list.appendChild(table);
+            },
             _createModernUserCardHTML(user) {
                 const getRoleInfo = (role) => {
                     const roles = { 
+                        "super-admin": ['Super Admin', 'var(--color-ai)'],
                         admin: ['Administrador', 'var(--color-danger)'], 
                         supervisor: ['Supervisor', 'var(--color-warning)'], 
                         tecnico: ['Técnico', 'var(--color-info)'], 
@@ -2192,6 +2275,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (modalEls.btnDeleteUser) modalEls.btnDeleteUser.addEventListener('click', () => App.auth.deleteUser(modalEls.editingUserId.value));
                 if (modalEls.role) modalEls.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value, '#editUserPermissionGrid'));
                 
+                const companyEls = App.elements.companyManagement;
+                if (companyEls.btnCreate) companyEls.btnCreate.addEventListener('click', () => App.actions.createCompany());
                 
                 const cpModal = App.elements.changePasswordModal;
                 if (App.elements.userMenu.changePasswordBtn) App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
@@ -2690,7 +2775,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.showConfirmationModal(`Tem a certeza que deseja guardar a fazenda ${name}?`, async () => {
                     try {
-                        await App.data.addDocument('fazendas', { code, name, types, talhoes: [] });
+                        await App.data.addDocument('fazendas', { code, name, types, talhoes: [], companyId: App.state.currentUser.companyId });
                         App.ui.showAlert("Fazenda adicionada com sucesso!");
                         farmCode.value = ''; 
                         farmName.value = '';
@@ -2846,7 +2931,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!matriculaValue || !nameValue) { App.ui.showAlert("Matrícula e Nome são obrigatórios.", "error"); return; }
                 
                 const existingId = id.value;
-                const data = { matricula: matriculaValue, name: nameValue };
+                const data = { matricula: matriculaValue, name: nameValue, companyId: App.state.currentUser.companyId };
                 
                 App.ui.showConfirmationModal(`Tem a certeza que deseja guardar os dados de ${nameValue}?`, async () => {
                     try {
@@ -2902,7 +2987,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 reader.onload = async (event) => {
                     const base64String = event.target.result;
                     try {
-                        await App.data.setDocument('config', 'company', { logoBase64: base64String });
+                        await App.data.setDocument('config', App.state.currentUser.companyId, { logoBase64: base64String }, { merge: true });
                         App.ui.showAlert('Logo carregado com sucesso!');
                     } catch (error) {
                         console.error("Erro ao carregar o logo para o Firestore:", error);
@@ -2923,7 +3008,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal("Tem a certeza que deseja remover o logotipo?", async () => {
                     App.ui.setLoading(true, "A remover logo...");
                     try {
-                        await App.data.setDocument('config', 'company', { logoBase64: null });
+                        await App.data.updateDocument('config', App.state.currentUser.companyId, { logoBase64: null });
                         App.ui.showAlert('Logo removido com sucesso!');
                     } catch (error) {
                         console.error("Erro ao remover logo do Firestore:", error);
@@ -2944,7 +3029,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (Object.values(campos).some(v => !v)) { App.ui.showAlert("Todos os campos obrigatórios devem ser preenchidos.", "error"); return; }
                 
                 App.ui.showConfirmationModal("Tem a certeza que deseja agendar esta inspeção?", async () => {
-                    const novoPlano = { ...campos, meta: els.meta.value || null, observacoes: els.obs.value.trim() || null, status: 'Pendente' };
+                    const novoPlano = { ...campos, meta: els.meta.value || null, observacoes: els.obs.value.trim() || null, status: 'Pendente', companyId: App.state.currentUser.companyId };
                     await App.data.addDocument('planos', novoPlano);
                     App.ui.showAlert("Inspeção agendada com sucesso!");
                     els.talhao.value = ''; els.data.value = ''; els.meta.value = ''; els.obs.value = '';
@@ -3000,6 +3085,66 @@ document.addEventListener('DOMContentLoaded', () => {
                     operadorNome.style.color = 'var(--color-danger)';
                 }
             },
+            async createCompany() {
+                const { companyName, adminEmail, adminPassword } = App.elements.companyManagement;
+                const name = companyName.value.trim();
+                const email = adminEmail.value.trim();
+                const password = adminPassword.value.trim();
+
+                if (!name || !email || !password) {
+                    App.ui.showAlert("Todos os campos são obrigatórios.", "error");
+                    return;
+                }
+                if (password.length < 6) {
+                    App.ui.showAlert("A senha deve ter pelo menos 6 caracteres.", "error");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A criar nova empresa...");
+
+                try {
+                    // 1. Criar a empresa primeiro para obter um ID
+                    const companyRef = await App.data.addDocument('companies', {
+                        name: name,
+                        createdAt: serverTimestamp()
+                    });
+                    const companyId = companyRef.id;
+
+                    // 2. Criar o utilizador admin para a empresa
+                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                    const newUser = userCredential.user;
+                    await signOut(secondaryAuth); // Deslogar o utilizador temporário
+
+                    // 3. Criar o documento do utilizador no Firestore, associando-o à empresa
+                    const adminPermissions = App.config.roles['admin'];
+                    const userData = {
+                        username: email.split('@')[0],
+                        email: email,
+                        role: 'admin',
+                        active: true,
+                        permissions: adminPermissions,
+                        companyId: companyId
+                    };
+                    await App.data.createUserData(newUser.uid, userData);
+
+                    App.ui.showAlert(`Empresa "${name}" e administrador criados com sucesso!`);
+                    companyName.value = '';
+                    adminEmail.value = '';
+                    adminPassword.value = '';
+
+                } catch (error) {
+                    if (error.code === 'auth/email-already-in-use') {
+                        App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
+                    } else if (error.code === 'auth/weak-password') {
+                        App.ui.showAlert("A senha deve ter pelo menos 6 caracteres.", "error");
+                    } else {
+                        App.ui.showAlert("Erro ao criar a empresa.", "error");
+                        console.error("Erro ao criar empresa:", error);
+                    }
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
             async editHarvestPlan(planId = null) {
                 App.ui.showHarvestPlanEditor();
                 const { frontName, startDate, dailyRate } = App.elements.harvest;
@@ -3013,7 +3158,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         startDate: new Date().toISOString().split('T')[0],
                         dailyRate: 750,
                         sequence: [],
-                        closedTalhaoIds: [] 
+                        closedTalhaoIds: [],
+                        companyId: App.state.currentUser.companyId
                     };
                 }
 
@@ -3260,7 +3406,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     topo: parseInt(broca.topo.value),
                     brocado: parseInt(broca.brocado.value),
                     brocamento: (((parseInt(broca.brocado.value) || 0) / (parseInt(broca.entrenos.value) || 1)) * 100).toFixed(2).replace('.', ','),
-                    usuario: App.state.currentUser.username
+                    usuario: App.state.currentUser.username,
+                    companyId: App.state.currentUser.companyId
                 };
 
                 App.ui.showConfirmationModal('Tem a certeza que deseja guardar esta inspeção de broca?', () => {
@@ -3326,7 +3473,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     fase5: f5,
                     adulto: cigarrinha.adulto.checked,
                     resultado: ((f1 + f2 + f3 + f4 + f5) / 5) / 10,
-                    usuario: App.state.currentUser.username
+                    usuario: App.state.currentUser.username,
+                    companyId: App.state.currentUser.companyId
                 };
 
                 App.ui.showConfirmationModal('Tem a certeza que deseja guardar este monitoramento?', () => {
@@ -3389,7 +3537,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     operador: operator.name,
                     total,
                     media: (total / 6).toFixed(2).replace('.', ','),
-                    usuario: App.state.currentUser.username
+                    usuario: App.state.currentUser.username,
+                    companyId: App.state.currentUser.companyId
                 };
 
                 App.ui.showConfirmationModal('Tem a certeza que deseja guardar este lançamento de perda?', () => {
@@ -4625,7 +4774,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             headers: {
                                 'Content-Type': 'application/json',
                             },
-                            body: JSON.stringify({ fileBase64: base64String }),
+                            // Envia o companyId para o backend saber onde associar o shapefile
+                            body: JSON.stringify({ fileBase64: base64String, companyId: App.state.currentUser.companyId }),
                         });
 
                         const result = await response.json();
@@ -5081,6 +5231,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     status: "Ativa",
                     fazendaNome: feature ? findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : null,
                     talhaoNome: feature ? findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) : null,
+                    companyId: App.state.currentUser.companyId
                 };
 
                 try {
