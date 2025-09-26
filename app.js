@@ -143,6 +143,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state: {
             isSyncing: false,
+            isCheckingConnection: false,
+            connectionCheckInterval: null,
             currentUser: null,
             users: [],
             registros: [],
@@ -2464,6 +2466,35 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+            async checkActiveConnection() {
+                if (App.state.isCheckingConnection || !navigator.onLine) return;
+                App.state.isCheckingConnection = true;
+                console.log("Actively checking internet connection...");
+                try {
+                    // This is a lightweight request. A successful response (even if opaque) indicates connectivity.
+                    await fetch('https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js', {
+                        mode: 'no-cors',
+                        method: 'HEAD', // Use HEAD to be even more lightweight
+                        cache: 'no-store' // Avoid hitting the browser cache
+                    });
+
+                    console.log("Active connection confirmed.");
+                    // Stop the periodic check once connection is confirmed
+                    if (App.state.connectionCheckInterval) {
+                        clearInterval(App.state.connectionCheckInterval);
+                        App.state.connectionCheckInterval = null;
+                        console.log("Periodic connection check stopped.");
+                    }
+                    // Now, proceed with the actual synchronization logic
+                    this.forceTokenRefresh(false);
+
+                } catch (error) {
+                    console.warn("Active connection check failed. Still effectively offline.");
+                } finally {
+                    App.state.isCheckingConnection = false;
+                }
+            },
+
             filterDashboardData(data, startDate, endDate) {
                 if (!startDate || !endDate) {
                     return data;
@@ -6171,14 +6202,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('offline', () => {
         App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        if (App.state.connectionCheckInterval) {
+            clearInterval(App.state.connectionCheckInterval);
+            App.state.connectionCheckInterval = null;
+            console.log("Periodic connection check stopped due to offline event.");
+        }
     });
 
     window.addEventListener('online', () => {
-        console.log("Conexão detectada. Aguardando 5 segundos para estabilizar...");
-        // Remove o alerta antigo, pois a notificação agora é tratada dentro de forceTokenRefresh
-        setTimeout(() => {
-            App.actions.forceTokenRefresh(false); // isManual = false
-        }, 5000); // Atraso de 5 segundos
+        console.log("Browser reports 'online'. Starting active connection checks.");
+        App.ui.showAlert("Conexão de rede detetada. A verificar acesso à internet...", "info");
+        // Clear any previous interval just in case
+        if (App.state.connectionCheckInterval) {
+            clearInterval(App.state.connectionCheckInterval);
+        }
+        // Check immediately, then start checking periodically in case the first check fails.
+        App.actions.checkActiveConnection();
+        App.state.connectionCheckInterval = setInterval(() => App.actions.checkActiveConnection(), 15000); // Check every 15 seconds
     });
 
     // Inicia a aplicação
