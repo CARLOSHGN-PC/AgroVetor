@@ -4960,7 +4960,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             findTalhaoFromLocation(position) { // position is a Mapbox LngLat object
                 const containingTalhoes = [];
-                const point = turf.point(position.toArray()); // Use .toArray() for [lng, lat]
+                const point = turf.point([position.lng, position.lat]);
                 const allTalhoes = App.state.geoJsonData;
 
                 if (!allTalhoes || !allTalhoes.features) {
