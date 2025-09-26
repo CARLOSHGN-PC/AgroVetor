@@ -831,6 +831,118 @@ try {
         } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
     });
 
+    app.get('/reports/cigarrinha/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_cigarrinha.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getFilteredData('cigarrinha', filters);
+            const title = 'Relatório de Monitoramento de Cigarrinha';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasData = {};
+            fazendasSnapshot.forEach(docSnap => {
+                fazendasData[docSnap.data().code] = docSnap.data();
+            });
+
+            const enrichedData = data.map(reg => {
+                const farm = fazendasData[reg.codigo];
+                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === reg.talhao.toUpperCase());
+                return { ...reg, variedade: talhao?.variedade || 'N/A' };
+            });
+
+            let currentY = await generatePdfHeader(doc, title);
+
+            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado'];
+            const columnWidths = [80, 180, 80, 100, 40, 40, 40, 40, 40, 50, 72];
+            const headersConfig = headers.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 18, headersConfig);
+
+            for(const r of enrichedData) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                const row = [
+                    r.data,
+                    `${r.codigo} - ${r.fazenda}`,
+                    r.talhao,
+                    r.variedade,
+                    r.fase1,
+                    r.fase2,
+                    r.fase3,
+                    r.fase4,
+                    r.fase5,
+                    r.adulto ? 'Sim' : 'Não',
+                    (r.resultado || 0).toFixed(2).replace('.', ',')
+                ];
+                currentY = drawRow(doc, row, currentY, false, false, columnWidths, 5, 18, headersConfig);
+            }
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Cigarrinha:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/cigarrinha/csv', async (req, res) => {
+        try {
+            const data = await getFilteredData('cigarrinha', req.query);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `cigarrinha_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    {id: 'data', title: 'Data'}, {id: 'fazenda', title: 'Fazenda'}, {id: 'talhao', title: 'Talhão'},
+                    {id: 'variedade', title: 'Variedade'}, {id: 'fase1', title: 'Fase 1'}, {id: 'fase2', title: 'Fase 2'},
+                    {id: 'fase3', title: 'Fase 3'}, {id: 'fase4', title: 'Fase 4'}, {id: 'fase5', title: 'Fase 5'},
+                    {id: 'adulto', title: 'Adulto Presente'}, {id: 'resultado', title: 'Resultado'}
+                ]
+            });
+
+            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasData = {};
+            fazendasSnapshot.forEach(docSnap => {
+                fazendasData[docSnap.data().code] = docSnap.data();
+            });
+
+            const records = data.map(r => {
+                const farm = fazendasData[r.codigo];
+                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === r.talhao.toUpperCase());
+                return {
+                    ...r,
+                    fazenda: `${r.codigo} - ${r.fazenda}`,
+                    variedade: talhao?.variedade || 'N/A',
+                    adulto: r.adulto ? 'Sim' : 'Não',
+                    resultado: (r.resultado || 0).toFixed(2).replace('.', ',')
+                };
+            });
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Cigarrinha:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
     app.get('/reports/colheita/pdf', async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
@@ -1124,6 +1236,171 @@ try {
         } catch (error) {
             console.error("Erro ao gerar CSV de Previsão Mensal:", error);
             res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/colheita/csv', async (req, res) => {
+        try {
+            const { planId, selectedColumns } = req.query;
+            const selectedCols = JSON.parse(selectedColumns || '{}');
+            if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
+
+            const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
+            if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
+
+            const harvestPlan = harvestPlanDoc.data();
+            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasData = {};
+            fazendasSnapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                fazendasData[data.code] = { id: docSnap.id, ...data };
+            });
+
+            const allPossibleHeaders = [
+                { id: 'seq', title: 'Seq.' }, { id: 'fazenda', title: 'Fazenda' },
+                { id: 'talhoes', title: 'Talhões' }, { id: 'area', title: 'Área (ha)' },
+                { id: 'producao', title: 'Produção (ton)' }, { id: 'variedade', title: 'Variedade' },
+                { id: 'idade', title: 'Idade (m)' }, { id: 'atr', title: 'ATR' },
+                { id: 'maturador', title: 'Maturador' }, { id: 'diasAplicacao', title: 'Dias Aplic.' },
+                { id: 'distancia', title: 'KM' }, { id: 'entrada', title: 'Entrada' },
+                { id: 'saida', title: 'Saída' }
+            ];
+
+            let finalHeaders = allPossibleHeaders.filter(h =>
+                ['seq', 'fazenda', 'area', 'producao', 'entrada', 'saida'].includes(h.id) || selectedCols[h.id]
+            );
+
+            const records = [];
+            let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
+            const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+            const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
+
+            for (let i = 0; i < harvestPlan.sequence.length; i++) {
+                const group = harvestPlan.sequence[i];
+                const isGroupClosed = group.plots.every(p => closedTalhaoIds.has(p.talhaoId));
+
+                const diasNecessarios = dailyTon > 0 ? Math.ceil(group.totalProducao / dailyTon) : 0;
+                const dataEntrada = new Date(currentDate.getTime());
+                let dataSaida = new Date(dataEntrada.getTime());
+                dataSaida.setDate(dataSaida.getDate() + (diasNecessarios > 0 ? diasNecessarios - 1 : 0));
+
+                if (!isGroupClosed) {
+                    currentDate = new Date(dataSaida.getTime());
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+
+                // Cálculos auxiliares
+                let totalAgeInDays = 0, plotsWithDate = 0, totalDistancia = 0, plotsWithDistancia = 0;
+                const allVarieties = new Set();
+                group.plots.forEach(plot => {
+                    const farm = fazendasData[group.fazendaCodigo];
+                    const talhao = farm?.talhoes.find(t => t.id === plot.talhaoId);
+                    if (talhao) {
+                        if (talhao.dataUltimaColheita) {
+                            const dataUltima = new Date(talhao.dataUltimaColheita + 'T03:00:00Z');
+                            if (!isNaN(dataUltima)) { totalAgeInDays += Math.abs(dataEntrada - dataUltima); plotsWithDate++; }
+                        }
+                        if (talhao.variedade) allVarieties.add(talhao.variedade);
+                        if (typeof talhao.distancia === 'number') { totalDistancia += talhao.distancia; plotsWithDistancia++; }
+                    }
+                });
+                const idadeMediaMeses = plotsWithDate > 0 ? ((totalAgeInDays / plotsWithDate) / (1000 * 60 * 60 * 24 * 30)).toFixed(1) : 'N/A';
+                const avgDistancia = plotsWithDistancia > 0 ? (totalDistancia / plotsWithDistancia).toFixed(2) : 'N/A';
+                let diasAplicacao = 'N/A';
+                if (group.maturadorDate) {
+                    try {
+                        const diffTime = new Date() - new Date(group.maturadorDate + 'T03:00:00Z');
+                        if (diffTime >= 0) diasAplicacao = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                    } catch (e) {}
+                }
+
+                const record = {
+                    seq: i + 1,
+                    fazenda: `${group.fazendaCodigo} - ${group.fazendaName} ${isGroupClosed ? '(ENCERRADO)' : ''}`,
+                    talhoes: group.plots.map(p => p.talhaoName).join(', '),
+                    area: group.totalArea.toFixed(2),
+                    producao: group.totalProducao.toFixed(2),
+                    variedade: Array.from(allVarieties).join(', ') || 'N/A',
+                    idade: idadeMediaMeses,
+                    atr: group.atr || 'N/A',
+                    maturador: group.maturador || 'N/A',
+                    diasAplicacao: diasAplicacao,
+                    distancia: avgDistancia,
+                    entrada: dataEntrada.toLocaleDateString('pt-BR'),
+                    saida: dataSaida.toLocaleDateString('pt-BR')
+                };
+                records.push(record);
+            }
+
+            const filePath = path.join(os.tmpdir(), `relatorio_colheita_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({ path: filePath, header: finalHeaders });
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Colheita Detalhado:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/colheita/mensal/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=previsao_mensal_colheita.pdf`);
+        doc.pipe(res);
+
+        try {
+            const { planId, generatedBy } = req.query;
+            if (!planId) throw new Error('Nenhum plano de colheita selecionado.');
+
+            const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
+            if (!harvestPlanDoc.exists) throw new Error('Plano de colheita não encontrado.');
+
+            const harvestPlan = harvestPlanDoc.data();
+            const monthlyTotals = {};
+            let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
+            const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
+            const closedTalhaoIds = new Set(harvestPlan.closedTalhaoIds || []);
+
+            harvestPlan.sequence.forEach(group => {
+                if (group.plots.every(p => closedTalhaoIds.has(p.talhaoId))) return;
+                let producaoRestante = group.totalProducao;
+                while (producaoRestante > 0) {
+                    const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                    if (!monthlyTotals[monthKey]) {
+                        monthlyTotals[monthKey] = 0;
+                    }
+                    monthlyTotals[monthKey] += Math.min(producaoRestante, dailyTon);
+                    producaoRestante -= dailyTon;
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+            });
+
+            const title = `Previsão Mensal de Colheita - ${harvestPlan.frontName}`;
+            let currentY = await generatePdfHeader(doc, title);
+
+            const headers = ['Mês/Ano', 'Produção Total (ton)'];
+            const columnWidths = [250, 250];
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            const sortedMonths = Object.keys(monthlyTotals).sort();
+            for (const monthKey of sortedMonths) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                const [year, month] = monthKey.split('-');
+                const monthName = new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'long' });
+                const rowData = [
+                    `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${year}`,
+                    formatNumber(monthlyTotals[monthKey])
+                ];
+                currentY = drawRow(doc, rowData, currentY, false, false, columnWidths);
+            }
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Previsão Mensal:", error);
+            if (!res.headersSent) res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            else doc.end();
         }
     });
 
