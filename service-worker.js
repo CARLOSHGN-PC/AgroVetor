@@ -1,5 +1,5 @@
-const CACHE_NAME = 'agrovetor-cache-v11'; // Incremented version for update
-const TILE_CACHE_NAME = 'agrovetor-tile-cache-v3'; // Incremented tile cache
+const CACHE_NAME = 'agrovetor-cache-v13'; // Incremented version for update
+const TILE_CACHE_NAME = 'agrovetor-tile-cache-v5'; // Incremented tile cache
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the tile cache
@@ -23,20 +23,8 @@ const urlsToCache = [
   './index.html',
   './app.js',
   './manifest.json',
-  'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js',
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
   './icons/icon-192x192.png',
-  './icons/icon-512x512.png',
-  'https://unpkg.com/shpjs@latest/dist/shp.js',
-  'https://unpkg.com/idb@7.1.1/build/index.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js'
+  './icons/icon-512x512.png'
 ];
 
 // Install event: force the new service worker to become active
@@ -79,19 +67,15 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(event.request.url);
 
-  // Strategy for Mapbox tiles, fonts, and sprites (Cache First with trimming)
+  // Strategy 1: Cache First for Mapbox tiles (unchanged)
   if (url.hostname.includes('mapbox.com')) {
     event.respondWith(
       caches.open(TILE_CACHE_NAME).then(cache => {
         return cache.match(event.request).then(response => {
-          // If we have a cached response, return it.
           if (response) {
             return response;
           }
-          // Otherwise, fetch from the network.
           return fetch(event.request).then(networkResponse => {
-            // For third-party tiles, we can't check the status (opaque response),
-            // so we trust it and put it in the cache. The cache trimming will handle potential issues.
             const responseToCache = networkResponse.clone();
             cache.put(event.request, responseToCache).then(() => {
               trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
@@ -101,10 +85,32 @@ self.addEventListener('fetch', event => {
         });
       })
     );
-    return; // End execution for this request
+    return;
   }
 
-  // Stale-While-Revalidate strategy for all other requests
+  // Strategy 2: Network First for critical app files (HTML and JS)
+  if (event.request.destination === 'document' || event.request.destination === 'script') {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(cache => {
+        return fetch(event.request)
+          .then(networkResponse => {
+            // Network request successful, update the cache and return the response
+            if (networkResponse && networkResponse.status === 200) {
+              cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          })
+          .catch(() => {
+            // Network request failed, return from cache
+            console.warn('Network first failed. Serving from cache:', event.request.url);
+            return cache.match(event.request);
+          });
+      })
+    );
+    return;
+  }
+
+  // Strategy 3: Stale-While-Revalidate for all other assets (e.g., fonts, icons, CSS)
   event.respondWith(
     caches.open(CACHE_NAME).then(cache => {
       return cache.match(event.request).then(response => {
@@ -114,9 +120,8 @@ self.addEventListener('fetch', event => {
           }
           return networkResponse;
         }).catch(err => {
-          console.warn('Fetch failed; using cache if available.', event.request.url, err);
+          console.warn('SWR fetch failed; using cache if available.', event.request.url, err);
         });
-        // Return cached response immediately if available, otherwise wait for the network.
         return response || fetchPromise;
       });
     })
