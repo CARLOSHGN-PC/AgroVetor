@@ -2390,8 +2390,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Modo de seleção manual ativado. Clique no talhão desejado no mapa.", "info", 4000);
                 });
                 if (trapModal.confirmBtn) trapModal.confirmBtn.addEventListener('click', () => {
-                    const { trapPlacementMode, trapPlacementData, googleUserMarker } = App.state;
-                    if (!googleUserMarker) return;
+                    const { trapPlacementMode, trapPlacementData, mapboxUserMarker } = App.state;
+                    if (!mapboxUserMarker) return;
 
                     let selectedFeature = null;
 
@@ -2409,8 +2409,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (selectedFeature) {
-                        const position = googleUserMarker.getPosition();
-                        App.mapModule.installTrap(position.lat(), position.lng(), selectedFeature);
+                        const position = mapboxUserMarker.getLngLat();
+                        App.mapModule.installTrap(position.lat, position.lng, selectedFeature);
                         App.mapModule.hideTrapPlacementModal();
                     }
                 });
@@ -4856,46 +4856,32 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             promptInstallTrap() {
-                if (!App.state.googleUserMarker) {
+                if (!App.state.mapboxUserMarker) {
                     App.ui.showAlert("Localização do usuário não disponível para instalar a armadilha.", "error");
                     return;
                 }
                 this.showTrapPlacementModal('loading');
-                const position = App.state.googleUserMarker.getPosition();
+                const position = App.state.mapboxUserMarker.getLngLat();
                 this.findTalhaoFromLocation(position);
             },
 
-            findTalhaoFromLocation(position) {
+            findTalhaoFromLocation(position) { // position is a Mapbox LngLat object
                 const containingTalhoes = [];
-                const dataLayer = App.state.mapPolygons[0]; // Assumindo que só há um dataLayer
-                if (!dataLayer) {
+                const point = turf.point([position.lng, position.lat]);
+                const allTalhoes = App.state.geoJsonData;
+
+                if (!allTalhoes || !allTalhoes.features) {
                     this.showTrapPlacementModal('failure');
                     return;
                 }
 
-                dataLayer.forEach(feature => {
-                    const geometry = feature.getGeometry();
-                    if (!geometry) return;
-
-                    const type = geometry.getType();
-                    let polygon;
-
-                    if (type === 'Polygon') {
-                        try {
-                            polygon = new google.maps.Polygon({ paths: geometry.getArray()[0].getArray() });
-                             if (google.maps.geometry.poly.containsLocation(position, polygon)) {
-                                containingTalhoes.push(feature);
-                            }
-                        } catch(e) { console.error("Erro ao processar geometria de Polígono:", e); }
-                    } else if (type === 'MultiPolygon') {
-                        geometry.getArray().forEach(p => {
-                            try {
-                                polygon = new google.maps.Polygon({ paths: p.getArray()[0].getArray() });
-                                if (google.maps.geometry.poly.containsLocation(position, polygon)) {
-                                    containingTalhoes.push(feature);
-                                }
-                            } catch(e) { console.error("Erro ao processar geometria de MultiPolígono:", e); }
-                        });
+                allTalhoes.features.forEach(feature => {
+                    try {
+                        if (turf.booleanPointInPolygon(point, feature.geometry)) {
+                            containingTalhoes.push(feature);
+                        }
+                    } catch (e) {
+                        console.error("Erro ao processar geometria com Turf.js:", e, feature.geometry);
                     }
                 });
 
@@ -4909,7 +4895,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             showTrapPlacementModal(state, data = null) {
-                const { overlay, body, confirmBtn, manualBtn, title } = App.elements.trapPlacementModal;
+                const { overlay, body, confirmBtn, manualBtn } = App.elements.trapPlacementModal;
                 let content = '';
                 
                 confirmBtn.style.display = 'none';
@@ -4921,20 +4907,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         manualBtn.style.display = 'none';
                         break;
                     case 'success':
-                        const feature = data[0];
-                        const props = {};
-                        feature.forEachProperty((value, property) => {
-                            props[property.toUpperCase()] = value;
-                        });
-                        const findProp = (keys) => {
+                        const feature = data[0]; // This is now a GeoJSON feature
+                        const findProp = (keys, props) => {
+                            if (!props) return 'Não identificado';
                             for (const key of keys) {
-                                if (props[key.toUpperCase()] !== undefined) return props[key.toUpperCase()];
+                                const upperKey = key.toUpperCase();
+                                for (const propKey in props) {
+                                    if (propKey.toUpperCase() === upperKey) {
+                                        return props[propKey];
+                                    }
+                                }
                             }
                             return 'Não identificado';
                         };
-                        const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
-                        const talhaoName = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-                        const fundoAgricola = findProp(['FUNDO_AGR']);
+
+                        const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA'], feature.properties);
+                        const talhaoName = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO'], feature.properties);
+                        const fundoAgricola = findProp(['FUNDO_AGR'], feature.properties);
 
                         content = `<p style="font-weight: 500;">Confirme o local de instalação:</p>
                                    <div class="location-confirmation-box">
@@ -4949,7 +4938,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'conflict':
                         content = `<p>Vários talhões detetados na sua localização. Por favor, selecione o correto:</p><div id="talhao-conflict-list" style="margin-top:15px; text-align:left;">`;
                         data.forEach((f, index) => {
-                            const name = f.getProperty('CD_TALHAO') || f.getProperty('TALHAO') || `Opção ${index + 1}`;
+                            const name = f.properties.CD_TALHAO || f.properties.TALHAO || `Opção ${index + 1}`;
                             content += `<label class="report-option-item" style="margin-bottom:10px;"><input type="radio" name="talhaoConflict" value="${index}"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">${name}</span></label>`;
                         });
                         content += `</div>`;
@@ -4976,10 +4965,17 @@ document.addEventListener('DOMContentLoaded', () => {
                  App.state.trapPlacementData = null;
             },
 
-            async installTrap(lat, lng, feature = null) {
+            async installTrap(lat, lng, feature = null) { // feature is a GeoJSON feature
                 const findProp = (keys) => {
+                    if (!feature || !feature.properties) return null;
                     for (const key of keys) {
-                        if (feature.getProperty(key.toUpperCase()) !== undefined) return feature.getProperty(key.toUpperCase());
+                        const upperKey = key.toUpperCase();
+                        // Search for property case-insensitively
+                        for (const propKey in feature.properties) {
+                            if (propKey.toUpperCase() === upperKey) {
+                                return feature.properties[propKey];
+                            }
+                        }
                     }
                     return null;
                 };
