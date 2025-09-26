@@ -2056,6 +2056,32 @@
                 <div id="usersList"></div>
             </section>
 
+            <section id="gerenciarEmpresas" class="tab-content card" aria-label="Gerir Empresas" tabindex="0" hidden>
+                <h2><i class="fas fa-building"></i> Gerir Empresas (Super Admin)</h2>
+                <div class="card" style="border-left-color: var(--color-danger);">
+                    <h3><i class="fas fa-plus-circle"></i> Criar Nova Empresa e Admin</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="newCompanyName" class="required">Nome da Empresa:</label>
+                            <input id="newCompanyName" type="text" required />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="newCompanyAdminEmail" class="required">Email do Administrador da Empresa:</label>
+                            <input id="newCompanyAdminEmail" type="email" required />
+                        </div>
+                        <div class="form-col">
+                            <label for="newCompanyAdminPassword" class="required">Senha do Administrador:</label>
+                            <input id="newCompanyAdminPassword" type="password" required />
+                        </div>
+                    </div>
+                    <button class="save" id="btnCreateCompany" style="max-width: 300px; margin-top: 25px; background: var(--color-danger);"><i class="fas fa-plus-circle"></i> Criar Empresa</button>
+                </div>
+                <h3><i class="fas fa-building"></i> Empresas Cadastradas</h3>
+                <div id="companiesList"></div>
+            </section>
+
             <section id="cadastrarPessoas" class="tab-content card" aria-label="Cadastrar Pessoas" tabindex="0" hidden>
                 <h2><i class="fas fa-id-card"></i> Cadastro de Pessoas</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
