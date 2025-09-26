@@ -3174,45 +3174,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.setLoading(true, "A criar nova empresa...");
 
+                let companyId = null; // Manter o ID da empresa acessível
                 try {
                     // 1. Criar a empresa primeiro para obter um ID
                     const companyRef = await App.data.addDocument('companies', {
                         name: name,
-                        active: true,
+                        active: true, // Garantir que a empresa é criada como ativa
                         createdAt: serverTimestamp()
                     });
-                    const companyId = companyRef.id;
+                    companyId = companyRef.id;
 
-                    // 2. Criar o utilizador admin para a empresa
+                    // 2. Criar o utilizador de autenticação
                     const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
                     const newUser = userCredential.user;
-                    await signOut(secondaryAuth); // Deslogar o utilizador temporário
+                    await signOut(secondaryAuth);
 
-                    // 3. Criar o documento do utilizador no Firestore, associando-o à empresa
-                    const adminPermissions = App.config.roles['admin'];
-                    const userData = {
-                        username: email.split('@')[0],
-                        email: email,
-                        role: 'admin',
-                        active: true,
-                        permissions: adminPermissions,
-                        companyId: companyId
-                    };
-                    await App.data.createUserData(newUser.uid, userData);
+                    // 3. Criar o documento do utilizador no Firestore (etapa crítica)
+                    try {
+                        const adminPermissions = App.config.roles['admin'];
+                        const userData = {
+                            username: email.split('@')[0],
+                            email: email,
+                            role: 'admin',
+                            active: true,
+                            permissions: adminPermissions,
+                            companyId: companyId
+                        };
+                        await App.data.createUserData(newUser.uid, userData);
 
-                    App.ui.showAlert(`Empresa "${name}" e administrador criados com sucesso!`);
-                    companyName.value = '';
-                    adminEmail.value = '';
-                    adminPassword.value = '';
+                        App.ui.showAlert(`Empresa "${name}" e administrador criados com sucesso!`);
+                        companyName.value = '';
+                        adminEmail.value = '';
+                        adminPassword.value = '';
+
+                    } catch (dbError) {
+                        // Se a criação do utilizador no Firestore falhar, a empresa fica órfã.
+                        console.error("ERRO CRÍTICO: Falha ao gravar o utilizador no Firestore. A reverter a criação da empresa.", dbError);
+
+                        // Tenta apagar a empresa que foi criada para evitar dados órfãos.
+                        await App.data.deleteDocument('companies', companyId);
+
+                        const userMessage = `ERRO GRAVE: Ocorreu um erro ao guardar os dados do administrador na base de dados. A criação da empresa foi cancelada.\n\n` +
+                                            `Ação necessária: O utilizador de autenticação para "${email}" foi criado mas está órfão. Por favor, ` +
+                                            `elimine este utilizador manualmente na consola do Firebase (Authentication -> Users) antes de tentar novamente.\n\n` +
+                                            `Detalhes do erro: ${dbError.message}`;
+                        App.ui.showAlert(userMessage, "error", 15000); // Mostra o alerta por 15 segundos
+                    }
 
                 } catch (error) {
+                    // Erros na criação da empresa ou do utilizador de autenticação
+                    if (companyId) {
+                        // Se a empresa foi criada mas o utilizador de autenticação falhou, apaga a empresa.
+                        await App.data.deleteDocument('companies', companyId);
+                    }
+
                     if (error.code === 'auth/email-already-in-use') {
                         App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
                     } else if (error.code === 'auth/weak-password') {
                         App.ui.showAlert("A senha deve ter pelo menos 6 caracteres.", "error");
                     } else {
-                        App.ui.showAlert("Erro ao criar a empresa.", "error");
-                        console.error("Erro ao criar empresa:", error);
+                        App.ui.showAlert("Erro ao criar a empresa ou o utilizador de autenticação.", "error");
+                        console.error("Erro na criação inicial:", error);
                     }
                 } finally {
                     App.ui.setLoading(false);
