@@ -3272,15 +3272,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     // A operação de salvamento agora acontece em segundo plano
                     (async () => {
                         try {
-                            // Tenta salvar diretamente no Firestore
-                            await App.data.addDocument('registros', newEntry);
-                            App.ui.showAlert('Inspeção guardada com sucesso!');
-                            this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
+                            if (navigator.onLine) {
+                                await App.data.addDocument('registros', newEntry);
+                                App.ui.showAlert('Inspeção guardada com sucesso!');
+                                this.verificarEAtualizarPlano('broca', newEntry.codigo, newEntry.talhao);
+                            } else {
+                                await OfflineDB.add('offline-writes', { collection: 'registros', data: newEntry });
+                                App.ui.showAlert('Inspeção guardada offline. Será enviada quando houver conexão.', 'info');
+                            }
                         } catch (e) {
-                            // Se a escrita no Firestore falhar (ex: offline), salva no IndexedDB
-                            console.warn("Falha ao salvar no Firestore, salvando offline.", e.message);
+                            App.ui.showAlert('Erro ao guardar inspeção. A guardar offline.', "error");
+                            console.error("Erro ao salvar brocamento, salvando offline:", e);
                             await OfflineDB.add('offline-writes', { collection: 'registros', data: newEntry });
-                            App.ui.showAlert('Inspeção guardada offline. Será enviada quando houver conexão.', 'info');
                         } finally {
                             App.ui.setLoading(false);
                         }
@@ -3333,14 +3336,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     (async () => {
                         try {
-                            // Tenta salvar diretamente no Firestore
-                            await App.data.addDocument('cigarrinha', newEntry);
-                            App.ui.showAlert('Monitoramento guardado com sucesso!');
+                            if (navigator.onLine) {
+                                await App.data.addDocument('cigarrinha', newEntry);
+                                App.ui.showAlert('Monitoramento guardado com sucesso!');
+                            } else {
+                                await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
+                                App.ui.showAlert('Monitoramento guardado offline. Será enviada quando houver conexão.', 'info');
+                            }
                         } catch (e) {
-                            // Se a escrita no Firestore falhar (ex: offline), salva no IndexedDB
-                            console.warn("Falha ao salvar no Firestore, salvando offline.", e.message);
+                            App.ui.showAlert('Erro ao guardar monitoramento. A guardar offline.', "error");
+                            console.error("Erro ao salvar monitoramento, salvando offline:", e);
                             await OfflineDB.add('offline-writes', { collection: 'cigarrinha', data: newEntry });
-                            App.ui.showAlert('Monitoramento guardado offline. Será enviada quando houver conexão.', 'info');
                         } finally {
                             App.ui.setLoading(false);
                         }
@@ -3393,15 +3399,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     (async () => {
                         try {
-                            // Tenta salvar diretamente no Firestore
-                            await App.data.addDocument('perdas', newEntry);
-                            App.ui.showAlert('Lançamento de perda guardado com sucesso!');
-                            this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
+                            if (navigator.onLine) {
+                                await App.data.addDocument('perdas', newEntry);
+                                App.ui.showAlert('Lançamento de perda guardado com sucesso!');
+                                this.verificarEAtualizarPlano('perda', newEntry.codigo, newEntry.talhao);
+                            } else {
+                                await OfflineDB.add('offline-writes', { collection: 'perdas', data: newEntry });
+                                App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
+                            }
                         } catch (e) {
-                            // Se a escrita no Firestore falhar (ex: offline), salva no IndexedDB
-                            console.warn("Falha ao salvar no Firestore, salvando offline.", e.message);
+                            App.ui.showAlert('Erro ao guardar lançamento de perda. A guardar offline.', "error");
+                            console.error("Erro ao salvar perda, salvando offline:", e);
                             await OfflineDB.add('offline-writes', { collection: 'perdas', data: newEntry });
-                            App.ui.showAlert('Lançamento de perda guardado offline. Será enviada quando houver conexão.', 'info');
                         } finally {
                             App.ui.setLoading(false);
                         }
