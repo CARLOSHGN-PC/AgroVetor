@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 3 for the new sync-history store
-            this.dbPromise = openDB('agrovetor-offline-storage', 3, {
+            // Version 4 for the new notifications store
+            this.dbPromise = openDB('agrovetor-offline-storage', 4, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -63,6 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (oldVersion < 3) {
                         db.createObjectStore('sync-history', { keyPath: 'timestamp' });
+                    }
+                    if (oldVersion < 4) {
+                        db.createObjectStore('notifications', { autoIncrement: true });
                     }
                 },
             });
@@ -881,6 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
                 App.actions.startRealtimeTracking(); // Iniciar o rastreamento
+                App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
             },
             renderSpecificContent(collectionName) {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
@@ -973,6 +977,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 alertContainer.innerHTML = `<i class="fas fa-${icons[type] || 'info-circle'}"></i> ${message}`;
                 alertContainer.className = `show ${type}`;
                 setTimeout(() => alertContainer.classList.remove('show'), duration);
+
+                // Adicionado para salvar a notificação
+                const notification = {
+                    title: type.charAt(0).toUpperCase() + type.slice(1), // ex: "Success"
+                    message: message,
+                    type: type,
+                    timestamp: new Date()
+                };
+                App.actions.saveNotification(notification);
             },
 
             showSystemNotification(title, message, type = 'info') {
@@ -3891,10 +3904,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.updateNotificationBell();
             },
             // NOVO: Ação para limpar todas as notificações
-            clearAllNotifications() {
+            async clearAllNotifications() {
                 App.state.trapNotifications = [];
                 App.state.unreadNotificationCount = 0;
                 App.ui.updateNotificationBell();
+                try {
+                    const db = await OfflineDB.dbPromise;
+                    await db.clear('notifications');
+                    App.ui.showAlert("Histórico de notificações limpo.", "info");
+                } catch (error) {
+                    console.error("Erro ao limpar o histórico de notificações do DB:", error);
+                    App.ui.showAlert("Erro ao limpar histórico.", "error");
+                }
+            },
+
+            async loadNotificationHistory() {
+                try {
+                    const history = await OfflineDB.getAll('notifications');
+                    history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    App.state.trapNotifications = history;
+                    App.state.unreadNotificationCount = 0; // Reset on load
+                    App.ui.updateNotificationBell();
+                } catch (error) {
+                    console.error("Erro ao carregar histórico de notificações:", error);
+                }
+            },
+
+            async saveNotification(notification) {
+                try {
+                    const db = await OfflineDB.dbPromise;
+                    const tx = db.transaction('notifications', 'readwrite');
+                    const store = tx.objectStore('notifications');
+
+                    // 1. Adiciona a nova notificação
+                    await store.add(notification);
+
+                    // 2. Conta os itens
+                    const count = await store.count();
+
+                    // 3. Se a contagem exceder 15, deleta os mais antigos
+                    if (count > 15) {
+                        let cursor = await store.openCursor();
+                        const toDelete = count - 15;
+                        for (let i = 0; i < toDelete; i++) {
+                            await cursor.delete();
+                            cursor = await cursor.continue();
+                        }
+                    }
+
+                    await tx.done;
+
+                } catch (error) {
+                    console.error("Erro ao salvar ou limpar notificações no IndexedDB:", error);
+                }
             },
 
             async getConsolidatedData(collectionName) {
