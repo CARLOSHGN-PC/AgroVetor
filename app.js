@@ -1217,6 +1217,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                  if (id === 'gerenciarEmpresas') {
                     this.renderCompaniesList();
+                    this.renderCompanyModules('newCompanyModules');
                 }
                 if (id === 'cadastros') this.renderFarmSelect();
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
@@ -2205,13 +2206,55 @@ document.addEventListener('DOMContentLoaded', () => {
                     </label>
                 `;
             },
-            renderPermissionItems(container, permissions = {}) {
+
+            renderCompanyModules(containerId) {
+                const container = document.getElementById(containerId);
                 if (!container) return;
                 container.innerHTML = '';
-                const permissionItems = App.config.menuConfig.flatMap(item => 
-                    item.submenu ? item.submenu.filter(sub => sub.permission) : (item.permission ? [item] : [])
-                );
-                permissionItems.forEach(perm => {
+
+                // Flatten the menu config to get all permissions, excluding superAdmin
+                const allPermissions = App.config.menuConfig.flatMap(item =>
+                    item.submenu ? item.submenu : [item]
+                ).filter(item => item.permission && item.permission !== 'superAdmin');
+
+                allPermissions.forEach(perm => {
+                    const checkboxHTML = `
+                        <label class="report-option-item">
+                            <input type="checkbox" data-module="${perm.permission}" checked>
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content">
+                                <i class="${perm.icon}"></i>
+                                <span>${perm.label}</span>
+                            </span>
+                        </label>
+                    `;
+                    container.innerHTML += checkboxHTML;
+                });
+            },
+
+            renderPermissionItems(container, permissions = {}, company = null) {
+                if (!container) return;
+                container.innerHTML = '';
+
+                // Define a lista de módulos permitidos
+                let allowedModules = null;
+                if (App.state.currentUser.role !== 'super-admin') {
+                    const currentCompany = App.state.companies.find(c => c.id === App.state.currentUser.companyId);
+                    if (currentCompany && currentCompany.subscribedModules) {
+                        allowedModules = new Set(currentCompany.subscribedModules);
+                    }
+                }
+
+                const allPermissionItems = App.config.menuConfig.flatMap(item =>
+                    item.submenu ? item.submenu : [item]
+                ).filter(item => item.permission && item.permission !== 'superAdmin');
+
+                // Filtra os itens de permissão com base nos módulos subscritos, se aplicável
+                const permissionItemsToRender = allowedModules
+                    ? allPermissionItems.filter(perm => allowedModules.has(perm.permission))
+                    : allPermissionItems;
+
+                permissionItemsToRender.forEach(perm => {
                     container.innerHTML += this._createPermissionItemHTML(perm, permissions);
                 });
             },
@@ -3172,15 +3215,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                const subscribedModules = Array.from(document.querySelectorAll('#newCompanyModules input:checked'))
+                                               .map(cb => cb.dataset.module);
+
+                if (subscribedModules.length === 0) {
+                    App.ui.showAlert("Selecione pelo menos um módulo para a empresa.", "error");
+                    return;
+                }
+
                 App.ui.setLoading(true, "A criar nova empresa...");
 
-                let companyId = null; // Manter o ID da empresa acessível
+                let companyId = null;
                 try {
-                    // 1. Criar a empresa primeiro para obter um ID
+                    // 1. Criar a empresa com os módulos subscritos
                     const companyRef = await App.data.addDocument('companies', {
                         name: name,
-                        active: true, // Garantir que a empresa é criada como ativa
-                        createdAt: serverTimestamp()
+                        active: true,
+                        createdAt: serverTimestamp(),
+                        subscribedModules: subscribedModules
                     });
                     companyId = companyRef.id;
 
@@ -3189,7 +3241,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const newUser = userCredential.user;
                     await signOut(secondaryAuth);
 
-                    // 3. Criar o documento do utilizador no Firestore (etapa crítica)
+                    // 3. Criar o documento do utilizador no Firestore
                     try {
                         const adminPermissions = App.config.roles['admin'];
                         const userData = {
@@ -3206,25 +3258,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         companyName.value = '';
                         adminEmail.value = '';
                         adminPassword.value = '';
+                        document.querySelectorAll('#newCompanyModules input').forEach(cb => cb.checked = true);
 
                     } catch (dbError) {
-                        // Se a criação do utilizador no Firestore falhar, a empresa fica órfã.
                         console.error("ERRO CRÍTICO: Falha ao gravar o utilizador no Firestore. A reverter a criação da empresa.", dbError);
-
-                        // Tenta apagar a empresa que foi criada para evitar dados órfãos.
                         await App.data.deleteDocument('companies', companyId);
-
                         const userMessage = `ERRO GRAVE: Ocorreu um erro ao guardar os dados do administrador na base de dados. A criação da empresa foi cancelada.\n\n` +
                                             `Ação necessária: O utilizador de autenticação para "${email}" foi criado mas está órfão. Por favor, ` +
                                             `elimine este utilizador manualmente na consola do Firebase (Authentication -> Users) antes de tentar novamente.\n\n` +
                                             `Detalhes do erro: ${dbError.message}`;
-                        App.ui.showAlert(userMessage, "error", 15000); // Mostra o alerta por 15 segundos
+                        App.ui.showAlert(userMessage, "error", 15000);
                     }
 
                 } catch (error) {
-                    // Erros na criação da empresa ou do utilizador de autenticação
                     if (companyId) {
-                        // Se a empresa foi criada mas o utilizador de autenticação falhou, apaga a empresa.
                         await App.data.deleteDocument('companies', companyId);
                     }
 
