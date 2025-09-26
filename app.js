@@ -2022,26 +2022,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputContainer.style.display = 'none';
 
                 if (inputsConfig) {
-                    const inputsArray = Array.isArray(inputsConfig) ? inputsConfig : [ { id: 'confirmationModalInput', placeholder: 'Digite para confirmar' } ];
-                    
+                    const inputsArray = Array.isArray(inputsConfig) ? inputsConfig : [{ id: 'confirmationModalInput', placeholder: 'Digite para confirmar' }];
+                    inputContainer.style.display = 'block';
+
                     inputsArray.forEach(config => {
                         let inputEl;
-                        if (config.type === 'textarea') {
+
+                        if (config.type === 'select') {
+                            if (config.label) {
+                                const label = document.createElement('label');
+                                label.htmlFor = config.id;
+                                label.textContent = config.label;
+                                inputContainer.appendChild(label);
+                            }
+                            inputEl = document.createElement('select');
+                            inputEl.id = config.id;
+                            if (config.options && Array.isArray(config.options)) {
+                                config.options.forEach(opt => {
+                                    const option = document.createElement('option');
+                                    option.value = opt.value;
+                                    option.textContent = opt.text;
+                                    inputEl.appendChild(option);
+                                });
+                            }
+                        } else if (config.type === 'textarea') {
                             inputEl = document.createElement('textarea');
+                            inputEl.placeholder = config.placeholder || '';
                         } else {
                             inputEl = document.createElement('input');
                             inputEl.type = config.type || 'text';
+                            inputEl.placeholder = config.placeholder || '';
                         }
+
                         inputEl.id = config.id;
-                        inputEl.placeholder = config.placeholder || '';
                         inputEl.value = config.value || '';
                         if (config.required) {
                             inputEl.required = true;
                         }
                         inputContainer.appendChild(inputEl);
                     });
-                    inputContainer.style.display = 'block';
-                    inputContainer.querySelector('input, textarea')?.focus();
+
+                    inputContainer.querySelector('input, textarea, select')?.focus();
                 }
 
                 const confirmHandler = () => {
@@ -3157,6 +3178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 1. Criar a empresa primeiro para obter um ID
                     const companyRef = await App.data.addDocument('companies', {
                         name: name,
+                        active: true,
                         createdAt: serverTimestamp()
                     });
                     const companyId = companyRef.id;
@@ -3310,61 +3332,85 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                if (!App.state.companies || App.state.companies.length === 0) {
-                    App.ui.showAlert("Nenhuma empresa encontrada. Por favor, crie uma empresa primeiro.", "error");
+                const activeCompanies = App.state.companies.filter(c => c.active !== false);
+
+                if (!activeCompanies || activeCompanies.length === 0) {
+                    App.ui.showAlert("Nenhuma empresa ativa encontrada. Por favor, crie e ative uma empresa primeiro.", "error");
                     return;
                 }
 
-                const targetCompany = App.state.companies[0];
-                const confirmationMessage = `Está prestes a migrar todos os dados antigos (sem empresa associada) para a empresa "${targetCompany.name}" (ID: ${targetCompany.id}).\n\nEsta ação não pode ser desfeita. Tem a certeza?`;
+                const companyOptions = activeCompanies.map(c => ({
+                    value: c.id,
+                    text: `${c.name} (ID: ${c.id.substring(0, 5)}...)`
+                }));
 
-                App.ui.showConfirmationModal(confirmationMessage, async () => {
-                    App.ui.setLoading(true, "A iniciar migração de dados...");
+                const confirmationMessage = `Selecione a empresa de destino para migrar todos os dados antigos (sem empresa associada). Esta ação não pode ser desfeita.`;
 
-                    const collectionsToMigrate = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
-                    let totalMigratedCount = 0;
-                    const errors = [];
-
-                    for (const collectionName of collectionsToMigrate) {
-                        try {
-                            App.ui.setLoading(true, `A verificar a coleção: ${collectionName}...`);
-                            const snapshot = await getDocs(query(collection(db, collectionName), where('companyId', '==', null)));
-
-                            if (snapshot.empty) {
-                                console.log(`Nenhum documento para migrar em '${collectionName}'.`);
-                                continue;
-                            }
-
-                            const batchSize = 400;
-                            const chunks = [];
-                            for (let i = 0; i < snapshot.docs.length; i += batchSize) {
-                                chunks.push(snapshot.docs.slice(i, i + batchSize));
-                            }
-
-                            for (const chunk of chunks) {
-                                const batch = writeBatch(db);
-                                chunk.forEach(doc => {
-                                    batch.update(doc.ref, { companyId: targetCompany.id });
-                                });
-                                await batch.commit();
-                                totalMigratedCount += chunk.length;
-                                App.ui.setLoading(true, `${totalMigratedCount} documentos migrados...`);
-                            }
-                        } catch (error) {
-                            console.error(`Erro ao migrar a coleção ${collectionName}:`, error);
-                            errors.push(collectionName);
+                App.ui.showConfirmationModal(
+                    confirmationMessage,
+                    async (results) => {
+                        const targetCompanyId = results.companySelect;
+                        if (!targetCompanyId) {
+                            App.ui.showAlert("Nenhuma empresa selecionada. Ação cancelada.", "warning");
+                            return;
                         }
-                    }
+                        const targetCompany = activeCompanies.find(c => c.id === targetCompanyId);
 
-                    App.ui.setLoading(false);
-                    if (errors.length > 0) {
-                        App.ui.showAlert(`Migração concluída com erros nas coleções: ${errors.join(', ')}. Total migrado: ${totalMigratedCount}.`, "error", 10000);
-                    } else if (totalMigratedCount > 0) {
-                        App.ui.showAlert(`Migração concluída! ${totalMigratedCount} documentos foram associados à empresa ${targetCompany.name}.`, "success", 10000);
-                    } else {
-                        App.ui.showAlert("Nenhum documento precisava de ser migrado.", "info");
-                    }
-                });
+                        App.ui.setLoading(true, "A iniciar migração de dados...");
+
+                        const collectionsToMigrate = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
+                        let totalMigratedCount = 0;
+                        const errors = [];
+
+                        for (const collectionName of collectionsToMigrate) {
+                            try {
+                                App.ui.setLoading(true, `A verificar a coleção: ${collectionName}...`);
+                                const q = query(collection(db, collectionName), where('companyId', '==', null));
+                                const snapshot = await getDocs(q);
+
+                                if (snapshot.empty) {
+                                    console.log(`Nenhum documento para migrar em '${collectionName}'.`);
+                                    continue;
+                                }
+
+                                const batchSize = 400;
+                                const chunks = [];
+                                for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+                                    chunks.push(snapshot.docs.slice(i, i + batchSize));
+                                }
+
+                                for (const chunk of chunks) {
+                                    const batch = writeBatch(db);
+                                    chunk.forEach(doc => {
+                                        batch.update(doc.ref, { companyId: targetCompanyId });
+                                    });
+                                    await batch.commit();
+                                    totalMigratedCount += chunk.length;
+                                    App.ui.setLoading(true, `${totalMigratedCount} documentos migrados...`);
+                                }
+                            } catch (error) {
+                                console.error(`Erro ao migrar a coleção ${collectionName}:`, error);
+                                errors.push(collectionName);
+                            }
+                        }
+
+                        App.ui.setLoading(false);
+                        if (errors.length > 0) {
+                            App.ui.showAlert(`Migração concluída com erros nas coleções: ${errors.join(', ')}. Total migrado: ${totalMigratedCount}.`, "error", 10000);
+                        } else if (totalMigratedCount > 0) {
+                            App.ui.showAlert(`Migração concluída! ${totalMigratedCount} documentos foram associados à empresa ${targetCompany.name}.`, "success", 10000);
+                        } else {
+                            App.ui.showAlert("Nenhum documento precisava de ser migrado.", "info");
+                        }
+                    },
+                    [{
+                        type: 'select',
+                        id: 'companySelect',
+                        label: 'Selecione a Empresa de Destino',
+                        options: companyOptions,
+                        required: true
+                    }]
+                );
             },
 
             async editHarvestPlan(planId = null) {
