@@ -554,6 +554,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (user) {
                         const userDoc = await App.data.getUserData(user.uid);
                         if (userDoc && userDoc.active) {
+
+                            // Bloqueia o login se a empresa do utilizador estiver inativa
+                            if (userDoc.role !== 'super-admin' && userDoc.companyId) {
+                                const companyDoc = await App.data.getDocument('companies', userDoc.companyId);
+                                if (!companyDoc || companyDoc.active === false) {
+                                    App.auth.logout();
+                                    App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
+                                    return;
+                                }
+                            }
+
                             App.state.currentUser = { ...user, ...userDoc };
 
                             // Validação CRÍTICA para o modelo multi-empresa
@@ -1621,24 +1632,36 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCompaniesList() {
                 const { list } = App.elements.companyManagement;
                 list.innerHTML = '';
-                 if (App.state.companies.length === 0) {
+                if (App.state.companies.length === 0) {
                     list.innerHTML = '<p>Nenhuma empresa cadastrada.</p>';
                     return;
                 }
                 const table = document.createElement('table');
                 table.id = 'companiesTable';
                 table.className = 'harvestPlanTable'; // Reutilizando estilo
-                table.innerHTML = `<thead><tr><th>Nome da Empresa</th><th>Data de Criação</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                table.innerHTML = `<thead><tr><th>Nome da Empresa</th><th>Status</th><th>Data de Criação</th><th>Ações</th></tr></thead><tbody></tbody>`;
                 const tbody = table.querySelector('tbody');
+
                 App.state.companies.sort((a,b) => a.name.localeCompare(b.name)).forEach(c => {
                     const row = tbody.insertRow();
                     const creationDate = c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
+
+                    // Define o status e o estilo do botão
+                    const isActive = c.active !== false; // Considera ativo se 'active' for true ou undefined
+                    const statusText = isActive ? 'Ativa' : 'Inativa';
+                    const statusClass = isActive ? 'status-active' : 'status-inactive';
+                    const buttonText = isActive ? 'Desativar' : 'Ativar';
+                    const buttonClass = isActive ? 'btn-excluir' : 'btn-ativar'; // Usa 'btn-excluir' para vermelho, 'btn-ativar' para verde
+                    const buttonIcon = isActive ? 'fa-ban' : 'fa-check-circle';
+
                     row.innerHTML = `
                         <td data-label="Nome">${c.name}</td>
+                        <td data-label="Status"><span class="status-badge ${statusClass}">${statusText}</span></td>
                         <td data-label="Data de Criação">${creationDate}</td>
                         <td data-label="Ações">
                             <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                <button class="btn-excluir" data-action="delete-company" data-id="${c.id}"><i class="fas fa-trash"></i></button>
+                                <button class="${buttonClass}" data-action="toggle-company" data-id="${c.id}"><i class="fas ${buttonIcon}"></i> ${buttonText}</button>
+                                <button class="btn-excluir-permanente" data-action="delete-company-permanently" data-id="${c.id}" title="Excluir Permanentemente"><i class="fas fa-skull-crossbones"></i></button>
                             </div>
                         </td>
                     `;
@@ -2285,6 +2308,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const companyEls = App.elements.companyManagement;
                 if (companyEls.btnCreate) companyEls.btnCreate.addEventListener('click', () => App.actions.createCompany());
+                if (companyEls.list) companyEls.list.addEventListener('click', e => {
+                    const button = e.target.closest('button[data-action]');
+                    if (!button) return;
+                    const { action, id } = button.dataset;
+                    if (action === 'toggle-company') App.actions.toggleCompanyStatus(id);
+                    if (action === 'delete-company-permanently') App.actions.deleteCompanyPermanently(id);
+                });
+
                 const btnMigrate = document.getElementById('btnMigrateOldData');
                 if (btnMigrate) btnMigrate.addEventListener('click', () => App.actions.migrateOldData());
                 
@@ -3163,6 +3194,113 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } finally {
                     App.ui.setLoading(false);
+                }
+            },
+
+            async toggleCompanyStatus(companyId) {
+                const company = App.state.companies.find(c => c.id === companyId);
+                if (!company) {
+                    App.ui.showAlert("Empresa não encontrada.", "error");
+                    return;
+                }
+
+                const newStatus = company.active === false; // Se for explicitamente falso, o novo status é verdadeiro. Caso contrário, torna-se falso.
+                const actionText = newStatus ? "ativar" : "desativar";
+
+                App.ui.showConfirmationModal(`Tem a certeza que deseja ${actionText} a empresa "${company.name}"?`, async () => {
+                    try {
+                        await App.data.updateDocument('companies', companyId, { active: newStatus });
+                        App.ui.showAlert(`Empresa ${newStatus ? 'ativada' : 'desativada'} com sucesso!`, 'success');
+                    } catch (error) {
+                        App.ui.showAlert(`Erro ao ${actionText} a empresa.`, "error");
+                        console.error(`Erro ao mudar status da empresa ${companyId}:`, error);
+                    }
+                });
+            },
+
+            async deleteCompanyPermanently(companyId) {
+                const company = App.state.companies.find(c => c.id === companyId);
+                if (!company) {
+                    App.ui.showAlert("Empresa não encontrada.", "error");
+                    return;
+                }
+
+                const confirmationMessage = `AÇÃO IRREVERSÍVEL!\nIsto irá apagar permanentemente a empresa "${company.name}" e TODOS os seus dados associados (utilizadores, fazendas, lançamentos, etc.).\n\nPara confirmar, digite o nome exato da empresa no campo abaixo.`;
+
+                App.ui.showConfirmationModal(
+                    confirmationMessage,
+                    async (userInput) => {
+                        if (userInput.confirmationModalInput !== company.name) {
+                            App.ui.showAlert("O nome da empresa não corresponde. A exclusão foi cancelada.", "warning");
+                            return;
+                        }
+                        await this._executeCascadeDelete(companyId);
+                    },
+                    [{ id: 'confirmationModalInput', placeholder: `Digite "${company.name}"`, required: true }]
+                );
+            },
+
+            async _deleteCollectionByCompanyId(collectionName, companyId, batchSize = 400) {
+                const querySnapshot = await getDocs(query(collection(db, collectionName), where("companyId", "==", companyId)));
+                if (querySnapshot.empty) {
+                    console.log(`Nenhum documento para excluir em '${collectionName}' para a empresa ${companyId}.`);
+                    return 0;
+                }
+
+                const chunks = [];
+                for (let i = 0; i < querySnapshot.docs.length; i += batchSize) {
+                    chunks.push(querySnapshot.docs.slice(i, i + batchSize));
+                }
+
+                let deletedCount = 0;
+                for (const chunk of chunks) {
+                    const batch = writeBatch(db);
+                    chunk.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    await batch.commit();
+                    deletedCount += chunk.length;
+                }
+                return deletedCount;
+            },
+
+            async _executeCascadeDelete(companyId) {
+                App.ui.setLoading(true, "A excluir dados da empresa...");
+                const collectionsToDelete = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'cigarrinha', 'planos', 'harvestPlans', 'armadilhas'];
+                const errors = [];
+                let totalDeleted = 0;
+
+                for (const collectionName of collectionsToDelete) {
+                    try {
+                        App.ui.setLoading(true, `A excluir ${collectionName}...`);
+                        const count = await this._deleteCollectionByCompanyId(collectionName, companyId);
+                        totalDeleted += count;
+                        console.log(`${count} documentos excluídos de ${collectionName}.`);
+                    } catch (error) {
+                        console.error(`Erro ao excluir a coleção ${collectionName}:`, error);
+                        errors.push(collectionName);
+                    }
+                }
+
+                try {
+                    // Excluir o documento de configuração da empresa
+                    App.ui.setLoading(true, `A excluir configurações...`);
+                    await App.data.deleteDocument('config', companyId);
+
+                    // Excluir o documento da própria empresa
+                    App.ui.setLoading(true, `A finalizar exclusão...`);
+                    await App.data.deleteDocument('companies', companyId);
+                } catch (error) {
+                     console.error(`Erro ao excluir o documento da empresa ou sua configuração:`, error);
+                     errors.push('company/config');
+                }
+
+
+                App.ui.setLoading(false);
+                if (errors.length > 0) {
+                    App.ui.showAlert(`Exclusão concluída com erros nas coleções: ${errors.join(', ')}.`, "error", 10000);
+                } else {
+                    App.ui.showAlert(`Empresa e todos os seus ${totalDeleted} dados associados foram excluídos permanentemente.`, "success", 10000);
                 }
             },
 
