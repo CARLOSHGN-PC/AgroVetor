@@ -2285,6 +2285,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const companyEls = App.elements.companyManagement;
                 if (companyEls.btnCreate) companyEls.btnCreate.addEventListener('click', () => App.actions.createCompany());
+                const btnMigrate = document.getElementById('btnMigrateOldData');
+                if (btnMigrate) btnMigrate.addEventListener('click', () => App.actions.migrateOldData());
                 
                 const cpModal = App.elements.changePasswordModal;
                 if (App.elements.userMenu.changePasswordBtn) App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
@@ -3163,6 +3165,70 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
+
+            async migrateOldData() {
+                if (App.state.currentUser.role !== 'super-admin') {
+                    App.ui.showAlert("Apenas super administradores podem executar esta ação.", "error");
+                    return;
+                }
+
+                if (!App.state.companies || App.state.companies.length === 0) {
+                    App.ui.showAlert("Nenhuma empresa encontrada. Por favor, crie uma empresa primeiro.", "error");
+                    return;
+                }
+
+                const targetCompany = App.state.companies[0];
+                const confirmationMessage = `Está prestes a migrar todos os dados antigos (sem empresa associada) para a empresa "${targetCompany.name}" (ID: ${targetCompany.id}).\n\nEsta ação não pode ser desfeita. Tem a certeza?`;
+
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A iniciar migração de dados...");
+
+                    const collectionsToMigrate = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
+                    let totalMigratedCount = 0;
+                    const errors = [];
+
+                    for (const collectionName of collectionsToMigrate) {
+                        try {
+                            App.ui.setLoading(true, `A verificar a coleção: ${collectionName}...`);
+                            const snapshot = await getDocs(query(collection(db, collectionName), where('companyId', '==', null)));
+
+                            if (snapshot.empty) {
+                                console.log(`Nenhum documento para migrar em '${collectionName}'.`);
+                                continue;
+                            }
+
+                            const batchSize = 400;
+                            const chunks = [];
+                            for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+                                chunks.push(snapshot.docs.slice(i, i + batchSize));
+                            }
+
+                            for (const chunk of chunks) {
+                                const batch = writeBatch(db);
+                                chunk.forEach(doc => {
+                                    batch.update(doc.ref, { companyId: targetCompany.id });
+                                });
+                                await batch.commit();
+                                totalMigratedCount += chunk.length;
+                                App.ui.setLoading(true, `${totalMigratedCount} documentos migrados...`);
+                            }
+                        } catch (error) {
+                            console.error(`Erro ao migrar a coleção ${collectionName}:`, error);
+                            errors.push(collectionName);
+                        }
+                    }
+
+                    App.ui.setLoading(false);
+                    if (errors.length > 0) {
+                        App.ui.showAlert(`Migração concluída com erros nas coleções: ${errors.join(', ')}. Total migrado: ${totalMigratedCount}.`, "error", 10000);
+                    } else if (totalMigratedCount > 0) {
+                        App.ui.showAlert(`Migração concluída! ${totalMigratedCount} documentos foram associados à empresa ${targetCompany.name}.`, "success", 10000);
+                    } else {
+                        App.ui.showAlert("Nenhum documento precisava de ser migrado.", "info");
+                    }
+                });
+            },
+
             async editHarvestPlan(planId = null) {
                 App.ui.showHarvestPlanEditor();
                 const { frontName, startDate, dailyRate } = App.elements.harvest;
@@ -6185,7 +6251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
 
                 generatePerdaCSV() {
-                    const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.perda;
+                    const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
                     if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -6194,6 +6260,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         inicio: filtroInicio.value,
                         fim: filtroFim.value,
                         fazendaCodigo: farm ? farm.code : '',
+                        talhao: filtroTalhao.value,
+                        matricula: filtroOperador.value,
+                        frenteServico: filtroFrente.value,
                         tipoRelatorio: tipoRelatorio.value,
                         tipos: selectedTypes.join(',')
                     };
@@ -6201,69 +6270,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
 
                 generateCigarrinhaPDF() {
-                    const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF();
                     const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
                     if (!filtroInicio.value || !filtroFim.value) {
                         App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                         return;
                     }
-
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
-
-                    const filteredData = App.state.cigarrinha.filter(item => {
-                        const itemDate = new Date(item.data);
-                        const startDate = new Date(filtroInicio.value);
-                        const endDate = new Date(filtroFim.value);
-
-                        itemDate.setUTCHours(0, 0, 0, 0);
-                        startDate.setUTCHours(0, 0, 0, 0);
-                        endDate.setUTCHours(23, 59, 59, 999);
-
-                        const isDateInRange = itemDate >= startDate && itemDate <= endDate;
-                        const isFarmMatch = !farm || item.codigo === farm.code;
-                        return isDateInRange && isFarmMatch;
-                    });
-
-                    if (filteredData.length === 0) {
-                        App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "warning");
-                        return;
-                    }
-
-                    const head = [['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado']];
-                    const body = filteredData.map(item => [
-                        new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
-                        item.fazenda,
-                        item.talhao,
-                        item.variedade || 'N/A',
-                        item.fase1,
-                        item.fase2,
-                        item.fase3,
-                        item.fase4,
-                        item.fase5,
-                        item.adulto ? 'Sim' : 'Não',
-                        (item.resultado || 0).toFixed(2).replace('.', ',')
-                    ]);
-
-                    doc.autoTable({
-                        head: head,
-                        body: body,
-                        didDrawPage: function(data) {
-                            if (App.state.companyLogo) {
-                                try {
-                                    doc.addImage(App.state.companyLogo, 'PNG', data.settings.margin.left, 15, 40, 15);
-                                } catch(e) {
-                                    console.error("Error adding logo to PDF", e);
-                                }
-                            }
-                            doc.setFontSize(18);
-                            doc.setTextColor(40);
-                            doc.text('Relatório de Monitoramento de Cigarrinha', data.settings.margin.left + 50, 22);
-                        },
-                        margin: { top: 40 }
-                    });
-                    doc.save('relatorio_cigarrinha.pdf');
+                    const filters = {
+                        inicio: filtroInicio.value,
+                        fim: filtroFim.value,
+                        fazendaCodigo: farm ? farm.code : ''
+                    };
+                    this._fetchAndDownloadReport('cigarrinha/pdf', filters, 'relatorio_cigarrinha.pdf');
                 },
 
                 generateCigarrinhaCSV() {
@@ -6272,58 +6291,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                         return;
                     }
-
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
-
-                    const filteredData = App.state.cigarrinha.filter(item => {
-                        const itemDate = new Date(item.data);
-                        const startDate = new Date(filtroInicio.value);
-                        const endDate = new Date(filtroFim.value);
-
-                        itemDate.setUTCHours(0, 0, 0, 0);
-                        startDate.setUTCHours(0, 0, 0, 0);
-                        endDate.setUTCHours(23, 59, 59, 999);
-
-                        const isDateInRange = itemDate >= startDate && itemDate <= endDate;
-                        const isFarmMatch = !farm || item.codigo === farm.code;
-                        return isDateInRange && isFarmMatch;
-                    });
-
-                    if (filteredData.length === 0) {
-                        App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "warning");
-                        return;
-                    }
-
-                    const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5', 'Adulto Presente', 'Resultado'];
-                    const csvRows = [headers.join(';')];
-
-                    filteredData.forEach(item => {
-                        const row = [
-                            new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
-                            `"${item.fazenda}"`,
-                            `"${item.talhao}"`,
-                            `"${item.variedade || 'N/A'}"`,
-                            item.fase1,
-                            item.fase2,
-                            item.fase3,
-                            item.fase4,
-                            item.fase5,
-                            item.adulto ? 'Sim' : 'Não',
-                            (item.resultado || 0).toFixed(2).replace('.', ',')
-                        ];
-                        csvRows.push(row.join(';'));
-                    });
-
-                    const csvContent = "\uFEFF" + csvRows.join('\n');
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.setAttribute("href", url);
-                    link.setAttribute("download", "relatorio_cigarrinha.csv");
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    const filters = {
+                        inicio: filtroInicio.value,
+                        fim: filtroFim.value,
+                        fazendaCodigo: farm ? farm.code : ''
+                    };
+                    this._fetchAndDownloadReport('cigarrinha/csv', filters, 'relatorio_cigarrinha.csv');
                 },
 
                 generateCustomHarvestReport(format) {
