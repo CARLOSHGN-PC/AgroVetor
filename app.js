@@ -299,6 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 historicalReportInput: document.getElementById('historicalReportInput'),
                 btnDownloadHistoricalTemplate: document.getElementById('btnDownloadHistoricalTemplate'),
                 btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
+                cigarrinhaCalcMethod: document.getElementById('cigarrinhaCalcMethod'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -879,8 +880,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (configData.shapefileURL) {
                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
                             }
+                            // Carrega a configuração do método de cálculo
+                            App.state.cigarrinhaCalcMethod = configData.cigarrinhaCalcMethod || '10';
+                            if (App.elements.companyConfig.cigarrinhaCalcMethod) {
+                                App.elements.companyConfig.cigarrinhaCalcMethod.value = App.state.cigarrinhaCalcMethod;
+                            }
                         } else {
                             App.state.companyLogo = null;
+                            App.state.cigarrinhaCalcMethod = '10'; // Padrão se não houver config
                         }
                         App.ui.renderLogoPreview();
                     });
@@ -2119,8 +2126,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const f4 = parseInt(fase4.value) || 0;
                 const f5 = parseInt(fase5.value) || 0;
 
-                // Corrected calculation: (sum of phases / 5) / 10
-                const media = ((f1 + f2 + f3 + f4 + f5) / 5) / 10;
+                const divisor = parseInt(App.state.cigarrinhaCalcMethod) || 10;
+                const media = (f1 + f2 + f3 + f4 + f5) / divisor;
                 resultado.textContent = `Resultado: ${media.toFixed(2).replace('.', ',')}`;
             },
 
@@ -2623,6 +2630,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (companyConfigEls.btnDeleteHistoricalData) {
                     companyConfigEls.btnDeleteHistoricalData.addEventListener('click', () => App.actions.deleteHistoricalData());
+                }
+                if (companyConfigEls.cigarrinhaCalcMethod) {
+                    companyConfigEls.cigarrinhaCalcMethod.addEventListener('change', (e) => App.actions.saveCigarrinhaCalcMethod(e.target.value));
                 }
                 if (companyConfigEls.historicalReportUploadArea) {
                     const uploadArea = companyConfigEls.historicalReportUploadArea;
@@ -3584,6 +3594,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            async saveCigarrinhaCalcMethod(method) {
+                const companyId = App.state.currentUser.companyId;
+                if (!companyId) {
+                    App.ui.showAlert("Não foi possível identificar a empresa.", "error");
+                    return;
+                }
+                try {
+                    await App.data.setDocument('config', companyId, { cigarrinhaCalcMethod: method }, { merge: true });
+                    App.state.cigarrinhaCalcMethod = method; // Atualiza o estado local
+                    App.ui.showAlert("Método de cálculo atualizado com sucesso!", "success");
+                } catch (error) {
+                    App.ui.showAlert("Erro ao guardar a configuração.", "error");
+                    console.error("Erro ao guardar método de cálculo:", error);
+                }
+            },
+
             async _executeCascadeDelete(companyId) {
                 App.ui.setLoading(true, "A excluir dados da empresa...");
                 const collectionsToDelete = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'cigarrinha', 'planos', 'harvestPlans', 'armadilhas'];
@@ -4062,6 +4088,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const f3 = parseInt(els.fase3.value) || 0;
                         const f4 = parseInt(els.fase4.value) || 0;
                         const f5 = parseInt(els.fase5.value) || 0;
+                        const divisor = parseInt(App.state.cigarrinhaCalcMethod) || 10;
                         return {
                             data: els.data.value,
                             codigo: farm.code,
@@ -4070,7 +4097,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             variedade: talhao.variedade || '',
                             fase1: f1, fase2: f2, fase3: f3, fase4: f4, fase5: f5,
                             adulto: els.adulto.checked,
-                            resultado: ((f1 + f2 + f3 + f4 + f5) / 5) / 10,
+                            resultado: (f1 + f2 + f3 + f4 + f5) / divisor,
                             usuario: App.state.currentUser.username,
                             companyId: App.state.currentUser.companyId
                         };
