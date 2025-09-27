@@ -1562,7 +1562,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const currentValue = select.value;
                     select.innerHTML = '<option value="">Selecione um utilizador...</option>';
                     App.state.users
-                        .filter(u => u.active)
+                        .filter(u => u.active && u.role !== 'super-admin')
                         .sort((a, b) => (a.username || '').localeCompare(b.username || ''))
                         .forEach(user => {
                             select.innerHTML += `<option value="${user.id}">${user.username || user.email}</option>`;
@@ -1874,6 +1874,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderUsersList() { 
                 const { list } = App.elements.users; 
                 list.innerHTML = App.state.users
+                    .filter(u => u.role !== 'super-admin')
                     .sort((a,b) => (a.username || '').localeCompare(b.username || ''))
                     .map((u) => this._createModernUserCardHTML(u))
                     .join(''); 
