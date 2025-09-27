@@ -3,51 +3,73 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Função auxiliar para verificar a função do utilizador
-    function getUserRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    // --- FUNÇÕES AUXILIARES ---
+    // Retorna os dados do utilizador autenticado
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Função auxiliar para verificar o companyId do utilizador
-    function getUserCompanyId(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.companyId;
+    // Verifica se o utilizador autenticado é um Super Admin
+    function isSuperAdmin() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+             && getUserData().role == 'super-admin';
     }
 
-    // Função para verificar se o utilizador é um super-admin
-    function isSuperAdmin(userId) {
-      return getUserRole(userId) == 'super-admin';
+    // Verifica se o utilizador autenticado é um Administrador de uma empresa
+    function isAdmin() {
+        return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+               && getUserData().role == 'admin';
     }
 
-    // Regra para a coleção 'companies'
+    // Verifica se o documento que está a ser acedido pertence à empresa do utilizador
+    function isUserCompany(companyId) {
+        return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+               && getUserData().companyId == companyId;
+    }
+
+    // --- REGRAS POR COLEÇÃO ---
+
+    // Coleção de Utilizadores
+    match /users/{userId} {
+      // LEITURA: Um utilizador pode ler o seu próprio perfil. Super-admins podem ler qualquer perfil.
+      allow read: if request.auth.uid == userId || isSuperAdmin();
+
+      // CRIAÇÃO: Super-admins podem criar qualquer utilizador. Admins podem criar utilizadores para a sua própria empresa.
+      allow create: if isSuperAdmin() ||
+                       (isAdmin() && request.resource.data.companyId == getUserData().companyId);
+
+      // ATUALIZAÇÃO: Um utilizador pode atualizar o seu próprio perfil. Super-admins e Admins podem atualizar utilizadores da sua empresa.
+      allow update: if request.auth.uid == userId || isSuperAdmin() ||
+                       (isAdmin() && resource.data.companyId == getUserData().companyId);
+
+      // EXCLUSÃO: Ninguém pode apagar documentos de utilizadores diretamente. A exclusão é feita via `update` (active: false).
+      allow delete: if false;
+    }
+
+    // Coleção de Empresas
     match /companies/{companyId} {
       // Super-admins podem fazer tudo.
-      // Utilizadores normais podem ler os dados da sua própria empresa.
-      allow read: if isSuperAdmin(request.auth.uid) || getUserCompanyId(request.auth.uid) == companyId;
-      // Apenas super-admins podem criar, atualizar ou apagar empresas.
-      allow write: if isSuperAdmin(request.auth.uid);
+      allow read, write: if isSuperAdmin();
+      // Qualquer utilizador pode ler os dados da sua própria empresa.
+      allow read: if isUserCompany(companyId);
     }
 
-    // Regra para a coleção 'config' (logotipos, etc.)
+    // Coleção de Configurações da Empresa (ex: logo)
     match /config/{companyId} {
-        // Super-admins podem ler tudo.
-        // Utilizadores podem ler e escrever a configuração da sua própria empresa.
-        allow read: if isSuperAdmin(request.auth.uid) || getUserCompanyId(request.auth.uid) == companyId;
-        allow write: if isSuperAdmin(request.auth.uid) || getUserCompanyId(request.auth.uid) == companyId;
+        // Super-admins e utilizadores da empresa podem ler e escrever.
+        allow read, write: if isSuperAdmin() || isUserCompany(companyId);
     }
 
-    // Regra genérica para todas as outras coleções com dados de empresas
-    match /{collection}/{docId} {
-      // Super-admins podem ler e escrever em qualquer coleção.
-      allow read, write: if isSuperAdmin(request.auth.uid);
+    // Regra genérica para coleções de DADOS (fazendas, registros, perdas, etc.)
+    match /{collection}/{docId}
+      where collection in ['fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'] {
 
-      // Regras para utilizadores não-super-admins
-      allow read, update, delete: if !isSuperAdmin(request.auth.uid) &&
-                                     resource.data.companyId == getUserCompanyId(request.auth.uid);
+      // Super-admins podem fazer tudo.
+      allow read, write: if isSuperAdmin();
 
-      // A criação é permitida se o novo documento tiver o companyId correto.
-      // Esta regra é a correção CRÍTICA para o bug de login do administrador.
-      allow create: if !isSuperAdmin(request.auth.uid) &&
-                       request.resource.data.companyId == getUserCompanyId(request.auth.uid);
+      // Utilizadores só podem aceder a dados da sua própria empresa.
+      allow create: if request.resource.data.companyId == getUserData().companyId;
+      allow read, update, delete: if resource.data.companyId == getUserData().companyId;
     }
   }
 }
