@@ -4,105 +4,96 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // --- FUNÇÕES AUXILIARES ---
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    // Estas funções obtêm informações do documento do utilizador que faz a requisição.
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
-    function isSuperAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-             && getUserData().role == 'super-admin';
+    function getUserCompanyId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId;
     }
 
-    function isAdmin() {
-        return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-               && getUserData().role == 'admin';
-    }
+    // --- REGRAS GERAIS ---
 
-    function isUserCompany(companyId) {
-        return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-               && getUserData().companyId == companyId;
-    }
-
-    // --- REGRAS POR COLEÇÃO ---
-
-    // Coleção de Utilizadores
-    match /users/{userId} {
-      allow read: if request.auth.uid == userId || isSuperAdmin();
-      allow create: if isSuperAdmin() || (isAdmin() && request.resource.data.companyId == getUserData().companyId);
-      allow update: if request.auth.uid == userId || isSuperAdmin() || (isAdmin() && resource.data.companyId == getUserData().companyId);
-      allow delete: if false; // A exclusão é feita via `update` (active: false).
-    }
-
-    // Coleção de Empresas
+    // Coleção de Empresas (companies)
+    // Apenas super-admins podem ler a lista completa e escrever (criar/editar/apagar).
     match /companies/{companyId} {
-      // Super-admins podem fazer tudo.
-      allow read, write: if isSuperAdmin();
-      // Qualquer utilizador autenticado pode ler os dados da sua própria empresa para validação.
-      allow get: if request.auth != null && isUserCompany(companyId);
+      allow read, write: if getUserRole() == 'super-admin';
+      // Um utilizador pode obter (get) os dados da sua própria empresa para validações.
+      allow get: if request.auth.uid != null && getUserCompanyId() == companyId;
     }
 
-    // Coleção de Configurações da Empresa (ex: logo, shapefileURL)
-    match /config/{companyId} {
-        allow read, write: if isSuperAdmin() || isUserCompany(companyId);
+    // Coleção de Utilizadores (users)
+    match /users/{userId} {
+      // LEITURA: Um utilizador pode ler os seus próprios dados. Um super-admin pode ler tudo.
+      // Um admin pode ler os dados de utilizadores da sua própria empresa.
+      allow get: if request.auth.uid == userId
+                  || getUserRole() == 'super-admin'
+                  || (getUserRole() == 'admin' && getUserCompanyId() == get(/databases/$(database)/documents/users/$(userId)).data.companyId);
+
+      // LISTAGEM: Apenas admins e super-admins podem listar utilizadores (a filtragem por empresa é feita no lado do cliente).
+      allow list: if getUserRole() == 'admin' || getUserRole() == 'super-admin';
+
+      // CRIAÇÃO: Um super-admin pode criar qualquer utilizador. Um admin só pode criar utilizadores para a sua própria empresa.
+      allow create: if getUserRole() == 'super-admin'
+                   || (getUserRole() == 'admin' && request.resource.data.companyId == getUserCompanyId());
+
+      // ATUALIZAÇÃO: Um utilizador pode atualizar os seus próprios dados. Um super-admin pode atualizar tudo.
+      // Um admin pode atualizar utilizadores da sua empresa, mas não pode promover ninguém a super-admin.
+      allow update: if request.auth.uid == userId
+                   || getUserRole() == 'super-admin'
+                   || (getUserRole() == 'admin' && get(/databases/$(database)/documents/users/$(userId)).data.companyId == getUserCompanyId() && request.resource.data.role != 'super-admin');
+
+      // EXCLUSÃO: É proibida para evitar a remoção acidental de registos de autenticação. A desativação é feita por 'update'.
+      allow delete: if false;
     }
 
-    // Coleção de Rascunhos de Planos de Colheita
-    match /userDrafts/{userId} {
-        allow read, write: if request.auth.uid == userId;
-    }
-
-    // --- REGRAS PARA COLEÇÕES DE DADOS DA EMPRESA ---
+    // --- REGRAS PARA COLEÇÕES DE DADOS ESPECÍFICAS DA EMPRESA ---
     // A lógica é a mesma para todas:
-    // - Super Admin pode ler e escrever tudo.
-    // - Utilizadores podem criar dados para a sua própria empresa.
-    // - Utilizadores podem ler, atualizar e apagar dados que pertencem à sua empresa.
+    // - Super Admin pode fazer tudo.
+    // - Utilizadores podem ler/escrever/apagar dados que pertencem à sua empresa.
+    // - Utilizadores podem criar dados se o novo documento tiver o ID da sua empresa.
+    function canAccessCompanyData(companyId) {
+      return getUserRole() == 'super-admin' || getUserCompanyId() == companyId;
+    }
 
     match /fazendas/{docId} {
-      allow read, write: if isSuperAdmin();
-      allow create: if request.resource.data.companyId == getUserData().companyId;
-      allow read, update, delete: if resource.data.companyId == getUserData().companyId;
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-
     match /personnel/{docId} {
-      allow read, write: if isSuperAdmin();
-      allow create: if request.resource.data.companyId == getUserData().companyId;
-      allow read, update, delete: if resource.data.companyId == getUserData().companyId;
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-
     match /registros/{docId} {
-      allow read, write: if isSuperAdmin();
-      allow create: if request.resource.data.companyId == getUserData().companyId;
-      allow read, update, delete: if resource.data.companyId == getUserData().companyId;
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-
     match /perdas/{docId} {
-      allow read, write: if isSuperAdmin();
-      allow create: if request.resource.data.companyId == getUserData().companyId;
-      allow read, update, delete: if resource.data.companyId == getUserData().companyId;
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-
     match /planos/{docId} {
-      allow read, write: if isSuperAdmin();
-      allow create: if request.resource.data.companyId == getUserData().companyId;
-      allow read, update, delete: if resource.data.companyId == getUserData().companyId;
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-
     match /harvestPlans/{docId} {
-      allow read, write: if isSuperAdmin();
-      allow create: if request.resource.data.companyId == getUserData().companyId;
-      allow read, update, delete: if resource.data.companyId == getUserData().companyId;
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-
     match /armadilhas/{docId} {
-      allow read, write: if isSuperAdmin();
-      allow create: if request.resource.data.companyId == getUserData().companyId;
-      allow read, update, delete: if resource.data.companyId == getUserData().companyId;
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-
     match /cigarrinha/{docId} {
-      allow read, write: if isSuperAdmin();
-      allow create: if request.resource.data.companyId == getUserData().companyId;
-      allow read, update, delete: if resource.data.companyId == getUserData().companyId;
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
+    }
+    match /config/{companyId} {
+      allow read, write: if canAccessCompanyData(companyId);
+    }
+    match /userDrafts/{userId} {
+      allow read, write: if request.auth.uid == userId;
     }
   }
 }
