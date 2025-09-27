@@ -142,7 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                "super-admin": { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, superAdmin: true },
                 admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true },
@@ -1104,9 +1103,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 menu.appendChild(menuContent);
 
                 const createMenuItem = (item) => {
-                    const hasPermission = item.submenu ? 
-                                          item.submenu.some(sub => currentUser.permissions[sub.permission]) : 
-                                          currentUser.permissions[item.permission];
+                    const isSuperAdmin = currentUser.role === 'super-admin';
+                    const hasPermission = isSuperAdmin || (item.submenu ?
+                                          item.submenu.some(sub => currentUser.permissions[sub.permission]) :
+                                          currentUser.permissions[item.permission]);
 
                     if (!hasPermission) return null;
                     
@@ -1165,7 +1165,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const subscribedModules = currentUser.role === 'super-admin' ? null : new Set(userCompany?.subscribedModules || []);
 
                 parentItem.submenu.forEach(subItem => {
-                    if (currentUser.permissions[subItem.permission]) {
+                    const isSuperAdmin = currentUser.role === 'super-admin';
+                    if (isSuperAdmin || currentUser.permissions[subItem.permission]) {
                         const subBtn = document.createElement('button');
                         subBtn.className = 'submenu-btn';
                         subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
@@ -1228,12 +1229,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 // Se uma permissão é necessária, verificar a subscrição
-                if (requiredPermission && currentUser.role !== 'super-admin' && currentUser.role !== 'impersonating') {
+                if (requiredPermission && currentUser.role !== 'super-admin' && !App.state.isImpersonating) {
                     const userCompany = companies.find(c => c.id === currentUser.companyId);
+                    // Se não encontrarmos a empresa (pode acontecer durante um instante enquanto os dados carregam), bloqueia por segurança
+                    if (!userCompany) {
+                        console.warn(`Tentativa de acesso ao módulo ${requiredPermission} sem dados da empresa carregados. A bloquear.`);
+                        return;
+                    }
                     const subscribedModules = new Set(userCompany?.subscribedModules || []);
 
                     if (!subscribedModules.has(requiredPermission)) {
-                        App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa. Por favor, contate o suporte de TI.", "warning", 5000);
+                        App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa.", "warning", 5000);
                         return; // Bloqueia a navegação
                     }
                 }
@@ -2203,32 +2209,36 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             showImpersonationBanner(companyName) {
-                this.hideImpersonationBanner(); // Clean up first
+                this.hideImpersonationBanner(); // Limpa qualquer banner anterior
 
                 const banner = document.createElement('div');
                 banner.id = 'impersonation-banner';
-                banner.style.backgroundColor = 'var(--color-purple)';
-                banner.style.color = 'white';
-                banner.style.padding = '10px';
-                banner.style.textAlign = 'center';
-                banner.style.display = 'flex';
-                banner.style.justifyContent = 'center';
-                banner.style.alignItems = 'center';
-                banner.style.fontSize = '14px';
-                banner.style.flexShrink = '0'; // Prevent banner from shrinking
+                const bannerHeight = 40;
 
+                // Estilos do banner
+                Object.assign(banner.style, {
+                    position: 'fixed', top: '0', left: '0', width: '100%', height: `${bannerHeight}px`,
+                    backgroundColor: 'var(--color-purple)', color: 'white', textAlign: 'center',
+                    display: 'flex', justifyContent: 'center', alignItems: 'center',
+                    fontSize: '14px', zIndex: '10001', boxSizing: 'border-box'
+                });
+
+                // Conteúdo do banner
                 banner.innerHTML = `
                     <i class="fas fa-eye" style="margin-right: 10px;"></i>
                     <span>A visualizar como <strong>${companyName}</strong>.</span>
                     <button id="stop-impersonating-btn" style="background: white; color: var(--color-purple); border: none; padding: 5px 10px; border-radius: 5px; margin-left: 20px; cursor: pointer; font-weight: bold;">Sair da Visualização</button>
                 `;
 
-                const appScreen = document.getElementById('appScreen');
-                if (appScreen) {
-                    appScreen.prepend(banner);
-                }
+                // Adiciona o banner ao corpo e ajusta o padding
+                document.body.prepend(banner);
+                document.body.style.paddingTop = `${bannerHeight}px`;
 
-                document.getElementById('stop-impersonating-btn').addEventListener('click', () => App.actions.stopImpersonating());
+                // Adiciona o event listener de forma segura após o elemento estar no DOM
+                const stopBtn = document.getElementById('stop-impersonating-btn');
+                if (stopBtn) {
+                    stopBtn.addEventListener('click', App.actions.stopImpersonating);
+                }
             },
 
             hideImpersonationBanner() {
@@ -2236,6 +2246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (banner) {
                     banner.remove();
                 }
+                document.body.style.paddingTop = '0';
             },
             openUserEditModal(userId) {
                 const modalEls = App.elements.userEditModal;
@@ -5102,10 +5113,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 // Re-initialize the app view
+                App.ui.showImpersonationBanner(companyToImpersonate.name);
                 App.data.listenToAllData(); // This will now use the impersonated companyId
                 App.ui.renderMenu();
                 App.ui.showTab('dashboard');
-                App.ui.showImpersonationBanner(companyToImpersonate.name);
             },
 
             stopImpersonating() {
