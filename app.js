@@ -152,6 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         state: {
+            isImpersonating: false,
+            originalUser: null,
             isSyncing: false,
             isCheckingConnection: false,
             connectionCheckInterval: null,
@@ -655,6 +657,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.data.cleanupListeners();
                 App.actions.stopRealtimeTracking(); // Parar o rastreamento
                 App.state.currentUser = null;
+
+                // Limpar estado de personificação ao sair
+                if (App.state.isImpersonating) {
+                    App.state.isImpersonating = false;
+                    App.state.originalUser = null;
+                    App.ui.hideImpersonationBanner();
+                }
+
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
                 localStorage.removeItem('agrovetor_lastActiveTab');
@@ -1671,8 +1681,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Data de Criação">${creationDate}</td>
                         <td data-label="Ações">
                             <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background:var(--color-purple);" data-action="view-as-company" data-id="${c.id}" title="Ver como ${c.name}"><i class="fas fa-eye"></i></button>
                                 <button class="btn-excluir" style="background:var(--color-info);" data-action="edit-company" data-id="${c.id}" title="Editar Módulos"><i class="fas fa-edit"></i></button>
-                                <button class="${buttonClass}" data-action="toggle-company" data-id="${c.id}"><i class="fas ${buttonIcon}"></i> ${buttonText}</button>
+                                <button class="${buttonClass}" data-action="toggle-company" data-id="${c.id}" title="${buttonText} Empresa"><i class="fas ${buttonIcon}"></i></button>
                                 <button class="btn-excluir-permanente" data-action="delete-company-permanently" data-id="${c.id}" title="Excluir Permanentemente"><i class="fas fa-skull-crossbones"></i></button>
                             </div>
                         </td>
@@ -1695,6 +1706,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
                 const [roleName, roleColor] = getRoleInfo(user.role);
                 const avatarLetter = (user.username || user.email).charAt(0).toUpperCase();
+
+                const company = App.state.companies.find(c => c.id === user.companyId);
+                const companyName = company ? company.name : null;
+                const companyHTML = companyName ? `<span class="user-card-role" style="background-color: var(--color-text-light); margin-left: 8px;"><i class="fas fa-building"></i> ${companyName}</span>` : '';
         
                 const buttonsHTML = user.email.toLowerCase() === 'admin@agrovetor.com' ? '' : `
                     <button class="toggle-btn ${user.active ? 'inactive' : 'active'}" data-action="toggle" data-id="${user.id}">
@@ -1719,6 +1734,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div>
                             <span class="user-card-role" style="background-color: ${roleColor};">${roleName}</span>
+                            ${companyHTML}
                         </div>
                         <div class="user-card-actions">
                             ${buttonsHTML}
@@ -2095,12 +2111,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    // For backward compatibility with single input
-                    if (!Array.isArray(inputsConfig) && inputsConfig && typeof inputsConfig !== 'boolean') {
-                        results = results['confirmationModalInput'];
+                    let valueToConfirm = results;
+                    // For backward compatibility with calls that expect a single string instead of a results object.
+                    // This happens when `inputsConfig` is `true`, which creates a single input with a hardcoded ID.
+                    if (!Array.isArray(inputsConfig) && inputsConfig === true) {
+                        valueToConfirm = results['confirmationModalInput'];
                     }
                     
-                    onConfirm(results);
+                    onConfirm(valueToConfirm);
                     closeHandler();
                 };
                 
@@ -2127,6 +2145,42 @@ document.addEventListener('DOMContentLoaded', () => {
             closeAdminPasswordConfirmModal() {
                 App.elements.adminPasswordConfirmModal.overlay.classList.remove('show');
                 App.elements.adminPasswordConfirmModal.passwordInput.value = '';
+            },
+
+            showImpersonationBanner(companyName) {
+                this.hideImpersonationBanner(); // Clean up first
+
+                const banner = document.createElement('div');
+                banner.id = 'impersonation-banner';
+                banner.style.backgroundColor = 'var(--color-purple)';
+                banner.style.color = 'white';
+                banner.style.padding = '10px';
+                banner.style.textAlign = 'center';
+                banner.style.display = 'flex';
+                banner.style.justifyContent = 'center';
+                banner.style.alignItems = 'center';
+                banner.style.fontSize = '14px';
+                banner.style.flexShrink = '0'; // Prevent banner from shrinking
+
+                banner.innerHTML = `
+                    <i class="fas fa-eye" style="margin-right: 10px;"></i>
+                    <span>A visualizar como <strong>${companyName}</strong>.</span>
+                    <button id="stop-impersonating-btn" style="background: white; color: var(--color-purple); border: none; padding: 5px 10px; border-radius: 5px; margin-left: 20px; cursor: pointer; font-weight: bold;">Sair da Visualização</button>
+                `;
+
+                const appScreen = document.getElementById('appScreen');
+                if (appScreen) {
+                    appScreen.prepend(banner);
+                }
+
+                document.getElementById('stop-impersonating-btn').addEventListener('click', () => App.actions.stopImpersonating());
+            },
+
+            hideImpersonationBanner() {
+                const banner = document.getElementById('impersonation-banner');
+                if (banner) {
+                    banner.remove();
+                }
             },
             openUserEditModal(userId) {
                 const modalEls = App.elements.userEditModal;
@@ -2430,6 +2484,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (action === 'edit-company') this.openEditCompanyModal(id);
                     if (action === 'toggle-company') App.actions.toggleCompanyStatus(id);
                     if (action === 'delete-company-permanently') App.actions.deleteCompanyPermanently(id);
+                    if (action === 'view-as-company') App.actions.impersonateCompany(id);
                 });
 
                 const editCompanyModalEls = App.elements.editCompanyModal;
@@ -3494,10 +3549,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const companyOptions = activeCompanies.map(c => ({
-                    value: c.id,
-                    text: `${c.name} (ID: ${c.id.substring(0, 5)}...)`
-                }));
+                const companyOptions = [
+                    { value: "", text: "Selecione uma empresa..." }, // Placeholder
+                    ...activeCompanies.map(c => ({
+                        value: c.id,
+                        text: `${c.name} (ID: ${c.id.substring(0, 5)}...)`
+                    }))
+                ];
 
                 const confirmationMessage = `Selecione a empresa de destino para migrar todos os dados antigos (sem empresa associada). Esta ação não pode ser desfeita.`;
 
@@ -3520,18 +3578,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         for (const collectionName of collectionsToMigrate) {
                             try {
                                 App.ui.setLoading(true, `A verificar a coleção: ${collectionName}...`);
-                                const q = query(collection(db, collectionName), where('companyId', '==', null));
+                                // Corrigido: a consulta por 'null' pode não funcionar como esperado.
+                                // É mais seguro consultar por ausência do campo.
+                                const q = query(collection(db, collectionName));
                                 const snapshot = await getDocs(q);
 
-                                if (snapshot.empty) {
+                                const docsToMigrate = snapshot.docs.filter(doc => !doc.data().companyId);
+
+                                if (docsToMigrate.length === 0) {
                                     console.log(`Nenhum documento para migrar em '${collectionName}'.`);
                                     continue;
                                 }
 
                                 const batchSize = 400;
                                 const chunks = [];
-                                for (let i = 0; i < snapshot.docs.length; i += batchSize) {
-                                    chunks.push(snapshot.docs.slice(i, i + batchSize));
+                                for (let i = 0; i < docsToMigrate.length; i += batchSize) {
+                                    chunks.push(docsToMigrate.slice(i, i + batchSize));
                                 }
 
                                 for (const chunk of chunks) {
@@ -4958,6 +5020,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     if(atrSpinner) atrSpinner.style.display = 'none';
                 }
+            },
+
+            impersonateCompany(companyId) {
+                if (App.state.currentUser.role !== 'super-admin' || App.state.isImpersonating) {
+                    return;
+                }
+
+                const companyToImpersonate = App.state.companies.find(c => c.id === companyId);
+                if (!companyToImpersonate) {
+                    App.ui.showAlert("Empresa não encontrada.", "error");
+                    return;
+                }
+
+                // Store original user
+                App.state.originalUser = { ...App.state.currentUser };
+                App.state.isImpersonating = true;
+
+                // Create a fake admin user for the target company
+                const adminPermissions = App.config.roles['admin'];
+                App.state.currentUser = {
+                    ...App.state.originalUser, // Keep some original info like UID, email
+                    role: 'admin',
+                    permissions: adminPermissions,
+                    companyId: companyId,
+                };
+
+                // Re-initialize the app view
+                App.data.listenToAllData(); // This will now use the impersonated companyId
+                App.ui.renderMenu();
+                App.ui.showTab('dashboard');
+                App.ui.showImpersonationBanner(companyToImpersonate.name);
+            },
+
+            stopImpersonating() {
+                if (!App.state.isImpersonating || !App.state.originalUser) {
+                    return;
+                }
+
+                // Restore original user
+                App.state.currentUser = { ...App.state.originalUser };
+                App.state.originalUser = null;
+                App.state.isImpersonating = false;
+
+                // Re-initialize the app view
+                App.data.listenToAllData(); // This will go back to super-admin view
+                App.ui.renderMenu();
+                App.ui.showTab('gerenciarEmpresas'); // Go back to a sensible super-admin tab
+                App.ui.hideImpersonationBanner();
             },
 
         },
