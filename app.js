@@ -849,6 +849,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.unsubscribeListeners.push(unsubscribe);
                     });
 
+                    // **INÍCIO DA CORREÇÃO**
+                    // Adiciona um listener para o documento da própria empresa
+                    const companyDocRef = doc(db, 'companies', companyId);
+                    const unsubscribeCompany = onSnapshot(companyDocRef, (doc) => {
+                        if (doc.exists()) {
+                            // Atualiza o estado com os dados da empresa do utilizador
+                            App.state.companies = [{ id: doc.id, ...doc.data() }];
+                            // Re-renderiza o menu para aplicar as permissões do módulo
+                            App.ui.renderMenu();
+                        } else {
+                            // Se a empresa não for encontrada, é um estado inconsistente. Deslogar o utilizador.
+                            console.error(`A empresa com ID ${companyId} não foi encontrada para o utilizador ${App.state.currentUser.uid}. A deslogar.`);
+                            App.auth.logout();
+                            App.ui.showLoginMessage("A sua empresa não foi encontrada. Contacte o suporte.", "error");
+                        }
+                    }, (error) => {
+                        console.error(`Erro ao ouvir o documento da empresa ${companyId}: `, error);
+                    });
+                    App.state.unsubscribeListeners.push(unsubscribeCompany);
+                    // **FIM DA CORREÇÃO**
+
                     // Configurações específicas da empresa (logotipo, etc.)
                     const configDocRef = doc(db, 'config', companyId);
                     const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
