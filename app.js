@@ -299,7 +299,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 historicalReportInput: document.getElementById('historicalReportInput'),
                 btnDownloadHistoricalTemplate: document.getElementById('btnDownloadHistoricalTemplate'),
                 btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
-                cigarrinhaCalcMethod: document.getElementById('cigarrinhaCalcMethod'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -800,7 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'companies'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -831,7 +830,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.renderLogoPreview();
 
                 } else if (companyId) {
-                    // Utilizador normal ouve apenas os dados da sua própria empresa
+                    // Utilizador normal ouve os dados da sua própria empresa
                     companyScopedCollections.forEach(collectionName => {
                         const q = query(collection(db, collectionName), where("companyId", "==", companyId));
                         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -850,26 +849,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.unsubscribeListeners.push(unsubscribe);
                     });
 
-                    // **INÍCIO DA CORREÇÃO**
-                    // Adiciona um listener para o documento da própria empresa
+                    // Adicionado: Listener para o documento da própria empresa para obter os módulos subscritos
                     const companyDocRef = doc(db, 'companies', companyId);
                     const unsubscribeCompany = onSnapshot(companyDocRef, (doc) => {
                         if (doc.exists()) {
-                            // Atualiza o estado com os dados da empresa do utilizador
+                            // Coloca a empresa num array para manter a consistência da estrutura de dados
                             App.state.companies = [{ id: doc.id, ...doc.data() }];
-                            // Re-renderiza o menu para aplicar as permissões do módulo
-                            App.ui.renderMenu();
                         } else {
-                            // Se a empresa não for encontrada, é um estado inconsistente. Deslogar o utilizador.
-                            console.error(`A empresa com ID ${companyId} não foi encontrada para o utilizador ${App.state.currentUser.uid}. A deslogar.`);
-                            App.auth.logout();
-                            App.ui.showLoginMessage("A sua empresa não foi encontrada. Contacte o suporte.", "error");
+                            console.error("A empresa associada ao utilizador não foi encontrada. As permissões de módulo podem não funcionar.");
+                            App.state.companies = [];
                         }
+                        // Renderiza o menu assim que os dados da empresa (e seus módulos) são carregados
+                        App.ui.renderMenu();
                     }, (error) => {
-                        console.error(`Erro ao ouvir o documento da empresa ${companyId}: `, error);
+                        console.error(`Erro ao carregar os dados da empresa (${companyId}): `, error);
                     });
                     App.state.unsubscribeListeners.push(unsubscribeCompany);
-                    // **FIM DA CORREÇÃO**
+
 
                     // Configurações específicas da empresa (logotipo, etc.)
                     const configDocRef = doc(db, 'config', companyId);
@@ -880,14 +876,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (configData.shapefileURL) {
                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
                             }
-                            // Carrega a configuração do método de cálculo
-                            App.state.cigarrinhaCalcMethod = configData.cigarrinhaCalcMethod || '10';
-                            if (App.elements.companyConfig.cigarrinhaCalcMethod) {
-                                App.elements.companyConfig.cigarrinhaCalcMethod.value = App.state.cigarrinhaCalcMethod;
-                            }
                         } else {
                             App.state.companyLogo = null;
-                            App.state.cigarrinhaCalcMethod = '10'; // Padrão se não houver config
                         }
                         App.ui.renderLogoPreview();
                     });
@@ -1569,7 +1559,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const currentValue = select.value;
                     select.innerHTML = '<option value="">Selecione um utilizador...</option>';
                     App.state.users
-                        .filter(u => u.active && u.role !== 'super-admin')
+                        .filter(u => u.active)
                         .sort((a, b) => (a.username || '').localeCompare(b.username || ''))
                         .forEach(user => {
                             select.innerHTML += `<option value="${user.id}">${user.username || user.email}</option>`;
@@ -1881,7 +1871,6 @@ document.addEventListener('DOMContentLoaded', () => {
             renderUsersList() { 
                 const { list } = App.elements.users; 
                 list.innerHTML = App.state.users
-                    .filter(u => u.role !== 'super-admin')
                     .sort((a,b) => (a.username || '').localeCompare(b.username || ''))
                     .map((u) => this._createModernUserCardHTML(u))
                     .join(''); 
@@ -2126,8 +2115,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const f4 = parseInt(fase4.value) || 0;
                 const f5 = parseInt(fase5.value) || 0;
 
-                const divisor = parseInt(App.state.cigarrinhaCalcMethod) || 10;
-                const media = (f1 + f2 + f3 + f4 + f5) / divisor;
+                // Corrected calculation: (sum of phases / 5) / 10
+                const media = ((f1 + f2 + f3 + f4 + f5) / 5) / 10;
                 resultado.textContent = `Resultado: ${media.toFixed(2).replace('.', ',')}`;
             },
 
@@ -2630,9 +2619,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (companyConfigEls.btnDeleteHistoricalData) {
                     companyConfigEls.btnDeleteHistoricalData.addEventListener('click', () => App.actions.deleteHistoricalData());
-                }
-                if (companyConfigEls.cigarrinhaCalcMethod) {
-                    companyConfigEls.cigarrinhaCalcMethod.addEventListener('change', (e) => App.actions.saveCigarrinhaCalcMethod(e.target.value));
                 }
                 if (companyConfigEls.historicalReportUploadArea) {
                     const uploadArea = companyConfigEls.historicalReportUploadArea;
@@ -3594,22 +3580,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async saveCigarrinhaCalcMethod(method) {
-                const companyId = App.state.currentUser.companyId;
-                if (!companyId) {
-                    App.ui.showAlert("Não foi possível identificar a empresa.", "error");
-                    return;
-                }
-                try {
-                    await App.data.setDocument('config', companyId, { cigarrinhaCalcMethod: method }, { merge: true });
-                    App.state.cigarrinhaCalcMethod = method; // Atualiza o estado local
-                    App.ui.showAlert("Método de cálculo atualizado com sucesso!", "success");
-                } catch (error) {
-                    App.ui.showAlert("Erro ao guardar a configuração.", "error");
-                    console.error("Erro ao guardar método de cálculo:", error);
-                }
-            },
-
             async _executeCascadeDelete(companyId) {
                 App.ui.setLoading(true, "A excluir dados da empresa...");
                 const collectionsToDelete = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'cigarrinha', 'planos', 'harvestPlans', 'armadilhas'];
@@ -4088,7 +4058,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const f3 = parseInt(els.fase3.value) || 0;
                         const f4 = parseInt(els.fase4.value) || 0;
                         const f5 = parseInt(els.fase5.value) || 0;
-                        const divisor = parseInt(App.state.cigarrinhaCalcMethod) || 10;
                         return {
                             data: els.data.value,
                             codigo: farm.code,
@@ -4097,7 +4066,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             variedade: talhao.variedade || '',
                             fase1: f1, fase2: f2, fase3: f3, fase4: f4, fase5: f5,
                             adulto: els.adulto.checked,
-                            resultado: (f1 + f2 + f3 + f4 + f5) / divisor,
+                            resultado: ((f1 + f2 + f3 + f4 + f5) / 5) / 10,
                             usuario: App.state.currentUser.username,
                             companyId: App.state.currentUser.companyId
                         };
