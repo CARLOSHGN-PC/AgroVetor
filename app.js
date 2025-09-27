@@ -1121,10 +1121,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.renderSubmenu(item);
                         });
                     } else {
-                        btn.addEventListener('click', () => {
-                            this.closeAllMenus();
-                            this.showTab(item.target);
-                        });
+                        const { companies } = App.state;
+                        const userCompany = currentUser.role !== 'super-admin' ? companies.find(c => c.id === currentUser.companyId) : null;
+                        const subscribedModules = currentUser.role === 'super-admin' ? null : new Set(userCompany?.subscribedModules || []);
+
+                        if (subscribedModules !== null && !subscribedModules.has(item.permission)) {
+                             btn.classList.add('disabled-module');
+                             btn.title = "Módulo não disponível na sua subscrição.";
+                             btn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa. Por favor, contate o suporte de TI.", "warning", 5000);
+                            });
+                        } else {
+                            btn.addEventListener('click', () => {
+                                this.closeAllMenus();
+                                this.showTab(item.target);
+                            });
+                        }
                     }
                     return btn;
                 };
@@ -1147,15 +1160,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 submenuContent.appendChild(backBtn);
                 
+                const { currentUser, companies } = App.state;
+                const userCompany = currentUser.role !== 'super-admin' ? companies.find(c => c.id === currentUser.companyId) : null;
+                const subscribedModules = currentUser.role === 'super-admin' ? null : new Set(userCompany?.subscribedModules || []);
+
                 parentItem.submenu.forEach(subItem => {
-                    if (App.state.currentUser.permissions[subItem.permission]) {
+                    if (currentUser.permissions[subItem.permission]) {
                         const subBtn = document.createElement('button');
                         subBtn.className = 'submenu-btn';
                         subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
-                        subBtn.addEventListener('click', () => {
-                            this.closeAllMenus();
-                            this.showTab(subItem.target);
-                        });
+
+                        const isSubscribed = subscribedModules === null || subscribedModules.has(subItem.permission);
+
+                        if (!isSubscribed) {
+                            subBtn.classList.add('disabled-module');
+                            subBtn.title = "Módulo não disponível na sua subscrição.";
+                            subBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa. Por favor, contate o suporte de TI.", "warning", 5000);
+                            });
+                        } else {
+                            subBtn.addEventListener('click', () => {
+                                this.closeAllMenus();
+                                this.showTab(subItem.target);
+                            });
+                        }
                         submenuContent.appendChild(subBtn);
                     }
                 });
@@ -1183,6 +1212,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
+                const { currentUser, companies } = App.state;
+
+                // Encontrar o item de menu correspondente para obter a permissão necessária
+                let requiredPermission = null;
+                App.config.menuConfig.forEach(item => {
+                    if (item.target === id) {
+                        requiredPermission = item.permission;
+                    } else if (item.submenu) {
+                        const subItem = item.submenu.find(sub => sub.target === id);
+                        if (subItem) {
+                            requiredPermission = subItem.permission;
+                        }
+                    }
+                });
+
+                // Se uma permissão é necessária, verificar a subscrição
+                if (requiredPermission && currentUser.role !== 'super-admin' && currentUser.role !== 'impersonating') {
+                    const userCompany = companies.find(c => c.id === currentUser.companyId);
+                    const subscribedModules = new Set(userCompany?.subscribedModules || []);
+
+                    if (!subscribedModules.has(requiredPermission)) {
+                        App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa. Por favor, contate o suporte de TI.", "warning", 5000);
+                        return; // Bloqueia a navegação
+                    }
+                }
+
                 const currentActiveTab = document.querySelector('.tab-content.active');
                 if (currentActiveTab && currentActiveTab.id === 'lancamentoCigarrinha' && currentActiveTab.id !== id) {
                     App.ui.clearForm(App.elements.cigarrinha.form);
