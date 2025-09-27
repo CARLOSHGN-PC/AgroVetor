@@ -796,47 +796,48 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
 
+                const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
-                const isImpersonating = App.state.isImpersonating;
-                const companyIdToListen = App.state.currentUser.companyId;
 
                 const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
 
-                // 1. Super-admin sempre precisa da lista de todas as empresas para a sua tela principal.
                 if (isSuperAdmin) {
+                    // Super Admin ouve TODOS os dados de todas as coleções relevantes
+                    companyScopedCollections.forEach(collectionName => {
+                        const q = collection(db, collectionName); // Sem filtro 'where'
+                        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                            const data = [];
+                            querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                            App.state[collectionName] = data;
+                            App.ui.renderSpecificContent(collectionName);
+                        }, (error) => {
+                            console.error(`Erro ao ouvir a coleção ${collectionName} como Super Admin: `, error);
+                        });
+                        App.state.unsubscribeListeners.push(unsubscribe);
+                    });
+
+                    // Super Admin também ouve a coleção de empresas
                     const qCompanies = collection(db, 'companies');
                     const unsubscribeCompanies = onSnapshot(qCompanies, (querySnapshot) => {
                         const data = [];
                         querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
                         App.state['companies'] = data;
-                        App.ui.renderSpecificContent('companies'); // Para a aba 'gerenciarEmpresas'
+                        App.ui.renderSpecificContent('companies');
                     }, (error) => console.error(`Erro ao ouvir a coleção companies: `, error));
                     App.state.unsubscribeListeners.push(unsubscribeCompanies);
-                }
 
-                // 2. Se for um super-admin e não estiver a personificar, é tudo o que ele precisa. Limpa outros dados.
-                if (isSuperAdmin && !isImpersonating) {
-                    companyScopedCollections.forEach(collectionName => {
-                        if (App.state[collectionName]?.length > 0) {
-                            App.state[collectionName] = [];
-                            App.ui.renderSpecificContent(collectionName);
-                        }
-                    });
                     App.state.companyLogo = null;
                     App.ui.renderLogoPreview();
-                    return; // Para aqui para o super-admin que não está a personificar
-                }
 
-                // 3. Para utilizadores normais OU super-admins a personificar, ouve os dados com base no ID da empresa.
-                if (companyIdToListen) {
+                } else if (companyId) {
+                    // Utilizador normal ouve apenas os dados da sua própria empresa
                     companyScopedCollections.forEach(collectionName => {
-                        const q = query(collection(db, collectionName), where("companyId", "==", companyIdToListen));
+                        const q = query(collection(db, collectionName), where("companyId", "==", companyId));
                         const unsubscribe = onSnapshot(q, (querySnapshot) => {
                             const data = [];
                             querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
                             App.state[collectionName] = data;
 
-                            // Atualizações de UI específicas após o carregamento dos dados
                             if (collectionName === 'armadilhas') {
                                 if (App.state.mapboxMap) App.mapModule.loadTraps();
                                 App.mapModule.checkTrapStatusAndNotify();
@@ -848,8 +849,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.unsubscribeListeners.push(unsubscribe);
                     });
 
-                    // Ouve as configurações específicas da empresa (como o logotipo)
-                    const configDocRef = doc(db, 'config', companyIdToListen);
+                    // Configurações específicas da empresa (logotipo, etc.)
+                    const configDocRef = doc(db, 'config', companyId);
                     const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
                         if (doc.exists()) {
                             const configData = doc.data();
@@ -863,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.renderLogoPreview();
                     });
                     App.state.unsubscribeListeners.push(unsubscribeConfig);
-                } else if (!isSuperAdmin) { // Um utilizador normal DEVE ter um companyId
+                } else {
                     console.error("Utilizador não é Super Admin e não tem companyId. Carregamento de dados bloqueado.");
                 }
             },
