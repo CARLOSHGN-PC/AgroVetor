@@ -855,8 +855,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (doc.exists()) {
                             const configData = doc.data();
                             App.state.companyLogo = configData.logoBase64 || null;
-                            if (configData.shapefileURL) {
-                                App.mapModule.loadAndCacheShapes(configData.shapefileURL);
+                            if (configData.shapefileBase64) {
+                                App.mapModule.loadAndCacheShapesFromBase64(configData.shapefileBase64);
                             }
                         } else {
                             App.state.companyLogo = null;
@@ -5289,6 +5289,41 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         mapModule: {
+            _base64ToArrayBuffer(base64) {
+                const binary_string = window.atob(base64);
+                const len = binary_string.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binary_string.charCodeAt(i);
+                }
+                return bytes.buffer;
+            },
+            async loadAndCacheShapesFromBase64(base64String) {
+                if (!base64String) {
+                    console.log("Nenhum shapefile em base64 encontrado na configuração para carregar.");
+                    return;
+                }
+                console.log("Iniciando o carregamento dos contornos do mapa a partir de base64...");
+                try {
+                    const buffer = this._base64ToArrayBuffer(base64String);
+
+                    // Cache the raw base64 string for offline use
+                    await OfflineDB.set('shapefile-cache', 'shapefile-base64', base64String);
+
+                    console.log("Processando e desenhando os talhões no mapa...");
+                    const geojson = await shp(buffer);
+
+                    App.state.geoJsonData = geojson;
+                    if (App.state.mapboxMap) {
+                        this.loadShapesOnMap();
+                    }
+                    console.log("Contornos do mapa carregados com sucesso a partir de base64.");
+                } catch(err) {
+                    console.error("Erro ao carregar shapefile a partir de base64:", err);
+                    App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
+                    this.loadOfflineShapes();
+                }
+            },
             initMap() {
                 if (App.state.mapboxMap) return; // Evita reinicialização
                 if (typeof mapboxgl === 'undefined') {
@@ -5374,82 +5409,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async handleShapefileUpload(e) {
                 const file = e.target.files[0];
+                const input = e.target;
                 if (!file) return;
 
                 if (!file.name.toLowerCase().endsWith('.zip')) {
                     App.ui.showAlert("Por favor, selecione um arquivo .zip", "error");
-                    e.target.value = '';
+                    input.value = '';
                     return;
                 }
 
-                App.ui.setLoading(true, "A processar arquivo...");
+                const MAX_SIZE_KB = 700;
+                if (file.size > MAX_SIZE_KB * 1024) {
+                    App.ui.showAlert(`O ficheiro é muito grande. O tamanho máximo é de ${MAX_SIZE_KB}KB.`, 'error');
+                    input.value = '';
+                    return;
+                }
+
+                App.ui.setLoading(true, "A processar e carregar o shapefile...");
 
                 const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = async () => {
-                    const base64String = reader.result.split(',')[1];
-
+                reader.onload = async (event) => {
+                    const base64String = event.target.result.split(',')[1];
                     try {
-                        App.ui.setLoading(true, "Enviando para o servidor...");
-                        const response = await fetch(`${App.config.backendUrl}/upload-shapefile`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            // Envia o companyId para o backend saber onde associar o shapefile
-                            body: JSON.stringify({ fileBase64: base64String, companyId: App.state.currentUser.companyId }),
-                        });
-
-                        const result = await response.json();
-
-                        if (!response.ok) {
-                            throw new Error(result.message || 'Erro no servidor');
-                        }
-
-                        App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado.", "success");
-                    } catch (err) {
-                        console.error("Erro ao enviar o shapefile:", err);
-                        App.ui.showAlert(`Erro ao enviar o arquivo: ${err.message}`, "error");
+                        await App.data.setDocument('config', App.state.currentUser.companyId, { shapefileBase64: base64String }, { merge: true });
+                        App.ui.showAlert('Shapefile carregado com sucesso!');
+                    } catch (error) {
+                        console.error("Erro ao carregar o shapefile para o Firestore:", error);
+                        App.ui.showAlert(`Erro ao carregar o shapefile: ${error.message}`, 'error');
                     } finally {
                         App.ui.setLoading(false);
-                        e.target.value = '';
+                        input.value = '';
                     }
                 };
-                reader.onerror = () => {
+                reader.onerror = (error) => {
                     App.ui.setLoading(false);
-                    App.ui.showAlert("Erro ao ler o arquivo localmente.", "error");
-                    e.target.value = '';
+                    App.ui.showAlert('Erro ao ler o ficheiro.', 'error');
+                    console.error("Erro FileReader:", error);
                 };
-            },
-
-            async loadAndCacheShapes(url) {
-                if (!url) return;
-                console.log("Iniciando o carregamento dos contornos do mapa em segundo plano...");
-                try {
-                    const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
-                    const response = await fetch(urlWithCacheBuster);
-                    if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
-                    const buffer = await response.arrayBuffer();
-                    
-                    await OfflineDB.set('shapefile-cache', 'shapefile-zip', buffer);
-                    
-                    console.log("Processando e desenhando os talhões no mapa...");
-                    const geojson = await shp(buffer);
-                    
-                    App.state.geoJsonData = geojson;
-                    if (App.state.mapboxMap) {
-                        this.loadShapesOnMap();
-                    }
-                    console.log("Contornos do mapa carregados com sucesso.");
-                } catch(err) {
-                    console.error("Erro ao carregar shapefile do Storage:", err);
-                    App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
-                    this.loadOfflineShapes();
-                }
+                reader.readAsDataURL(file);
             },
 
             async loadOfflineShapes() {
-                const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
+                let buffer;
+                // Prioritize the new base64 cache
+                const base64String = await OfflineDB.get('shapefile-cache', 'shapefile-base64');
+                if (base64String) {
+                    buffer = this._base64ToArrayBuffer(base64String);
+                } else {
+                    // Fallback to the old zip buffer for backward compatibility
+                    buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
+                }
+
                 if (buffer) {
                     App.ui.showAlert("A carregar mapa do cache offline.", "info");
                     try {
