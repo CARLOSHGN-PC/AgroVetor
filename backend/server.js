@@ -42,14 +42,19 @@ try {
     console.log('Firebase Admin SDK inicializado com sucesso e conectado ao bucket.');
 
     // --- INICIALIZAÇÃO DA IA (GEMINI) ---
-    const geminiApiKey = ""; // Chave de API removida a pedido do utilizador.
+    const geminiApiKey = process.env.GEMINI_API_KEY;
     let model;
     if (!geminiApiKey) {
-        console.warn("A funcionalidade de IA está desativada. Nenhuma chave de API foi fornecida.");
+        console.warn("A funcionalidade de IA está desativada. A variável de ambiente GEMINI_API_KEY não foi fornecida.");
     } else {
-        const genAI = new GoogleGenerativeAI(geminiApiKey);
-        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash"});
-        console.log('Gemini AI Model inicializado com sucesso.');
+        try {
+            const genAI = new GoogleGenerativeAI(geminiApiKey);
+            model = genAI.getGenerativeModel({ model: "gemini-1.5-flash"});
+            console.log('Gemini AI Model inicializado com sucesso.');
+        } catch (e) {
+            console.error("Erro ao inicializar o modelo Gemini AI. Verifique a chave de API.", e.message);
+            model = null; // Garante que o modelo não será usado se a inicialização falhar
+        }
     }
 
     app.get('/', (req, res) => {
