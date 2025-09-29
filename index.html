@@ -1248,6 +1248,64 @@
           border-color: var(--color-danger);
       }
 
+      .sync-items-container {
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+      }
+      .sync-item-card {
+          background-color: var(--color-bg);
+          border-radius: var(--border-radius);
+          border-left: 5px solid;
+          padding: 15px;
+          box-shadow: var(--shadow-sm);
+      }
+      .sync-item-card.success { border-left-color: var(--color-success); }
+      .sync-item-card.failure { border-left-color: var(--color-danger); }
+      .sync-item-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-weight: 600;
+          font-size: 16px;
+          margin-bottom: 10px;
+      }
+      .sync-item-card.success .sync-item-header { color: var(--color-success); }
+      .sync-item-card.failure .sync-item-header { color: var(--color-danger); }
+      .sync-item-body p {
+          margin: 0 0 5px 0;
+          font-size: 14px;
+          word-break: break-word;
+      }
+      .sync-item-body .error-message {
+          color: var(--color-danger);
+          font-size: 13px;
+          background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+          padding: 8px;
+          border-radius: 6px;
+          margin-top: 5px;
+      }
+      .sync-item-footer {
+          margin-top: 10px;
+          display: flex;
+          justify-content: flex-end;
+      }
+      .btn-retry-sync {
+          background-color: var(--color-warning);
+          color: white;
+          border: none;
+          padding: 6px 12px;
+          font-size: 13px;
+          font-weight: 500;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: var(--transition);
+      }
+      .btn-retry-sync:hover {
+          background-color: #f78c00;
+          transform: translateY(-1px);
+      }
+
       #splash-screen {
         position: fixed;
         top: 0;
@@ -2466,6 +2524,21 @@
             </div>
         </div>
 
+        <!-- NOVO: Modal para Detalhes do Histórico de Sincronização -->
+        <div id="syncHistoryDetailModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h2 id="syncHistoryDetailModalTitle">Detalhes da Sincronização</h2>
+                    <button id="syncHistoryDetailModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div id="syncHistoryDetailModalBody" class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                    <!-- O conteúdo será preenchido dinamicamente -->
+                </div>
+                <div class="modal-footer">
+                    <button id="syncHistoryDetailModalCancelBtn" class="btn-secondary">Fechar</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Bibliotecas Externas -->
