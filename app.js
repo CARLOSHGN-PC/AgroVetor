@@ -1128,28 +1128,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 menu.appendChild(menuContent);
 
                 const createMenuItem = (item) => {
+                    const { currentUser, companies } = App.state;
                     const isSuperAdmin = currentUser.role === 'super-admin';
-                    const isGloballyActive = App.isFeatureGloballyActive(item.permission) || (item.submenu && item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission)));
-
-                    // O item não deve ser renderizado se não estiver ativo globalmente E o utilizador não for super-admin
-                    if (!isGloballyActive && !isSuperAdmin) {
-                        return null;
-                    }
 
                     const hasPermission = isSuperAdmin || (item.submenu ?
-                                          item.submenu.some(sub => currentUser.permissions[sub.permission]) :
-                                          currentUser.permissions[item.permission]);
+                        item.submenu.some(sub => currentUser.permissions && currentUser.permissions[sub.permission]) :
+                        (currentUser.permissions && currentUser.permissions[item.permission]));
 
                     if (!hasPermission) return null;
+
+                    if (!isSuperAdmin) {
+                        const userCompany = companies.find(c => c.id === currentUser.companyId);
+                        const subscribedModules = new Set(userCompany?.subscribedModules || []);
+
+                        const isVisible = item.submenu ?
+                            item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission) && subscribedModules.has(sub.permission)) :
+                            (App.isFeatureGloballyActive(item.permission) && subscribedModules.has(item.permission));
+
+                        if (!isVisible) return null;
+                    }
                     
                     const btn = document.createElement('button');
                     btn.className = 'menu-btn';
                     btn.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span>`;
 
-                    // Lógica para Super Admin ver o estado do módulo
-                    if (isSuperAdmin && item.permission && !item.submenu) {
-                        const isActive = App.isFeatureGloballyActive(item.permission);
-                        if (!isActive) {
+                    if (isSuperAdmin) {
+                        const isAnySubItemHidden = item.submenu && item.submenu.some(sub => !App.isFeatureGloballyActive(sub.permission));
+                        const isDirectItemHidden = !item.submenu && item.permission && !App.isFeatureGloballyActive(item.permission);
+
+                        if (isAnySubItemHidden || isDirectItemHidden) {
                             btn.classList.add('globally-disabled-feature');
                             btn.innerHTML += '<span class="feature-status-badge">Oculto</span>';
                         }
@@ -1162,23 +1169,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.renderSubmenu(item);
                         });
                     } else {
-                        const { companies } = App.state;
-                        const userCompany = currentUser.role !== 'super-admin' ? companies.find(c => c.id === currentUser.companyId) : null;
-                        const subscribedModules = currentUser.role === 'super-admin' ? null : new Set(userCompany?.subscribedModules || []);
-
-                        if (subscribedModules !== null && !subscribedModules.has(item.permission)) {
-                             btn.classList.add('disabled-module');
-                             btn.title = "Módulo não disponível na sua subscrição.";
-                             btn.addEventListener('click', (e) => {
-                                e.stopPropagation();
-                                App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa. Por favor, contate o suporte de TI.", "warning", 5000);
-                            });
-                        } else {
-                            btn.addEventListener('click', () => {
-                                this.closeAllMenus();
-                                this.showTab(item.target);
-                            });
-                        }
+                        btn.addEventListener('click', () => {
+                            this.closeAllMenus();
+                            this.showTab(item.target);
+                        });
                     }
                     return btn;
                 };
@@ -1203,45 +1197,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const { currentUser, companies } = App.state;
                 const userCompany = currentUser.role !== 'super-admin' ? companies.find(c => c.id === currentUser.companyId) : null;
-                const subscribedModules = currentUser.role === 'super-admin' ? null : new Set(userCompany?.subscribedModules || []);
+                const subscribedModules = new Set(userCompany?.subscribedModules || []);
 
                 parentItem.submenu.forEach(subItem => {
                     const isSuperAdmin = currentUser.role === 'super-admin';
+                    const hasPermission = isSuperAdmin || (currentUser.permissions && currentUser.permissions[subItem.permission]);
+
+                    if (!hasPermission) return;
+
                     const isGloballyActive = App.isFeatureGloballyActive(subItem.permission);
+                    const isSubscribed = isSuperAdmin || subscribedModules.has(subItem.permission);
 
-                    // Não renderiza o item se não estiver globalmente ativo E o user não for super-admin
-                    if (!isGloballyActive && !isSuperAdmin) {
-                        return;
+                    if (!isSuperAdmin && (!isGloballyActive || !isSubscribed)) {
+                        return; // Não renderiza para utilizadores normais se não estiver globalmente ativo OU não estiver subscrito
                     }
 
-                    if (isSuperAdmin || currentUser.permissions[subItem.permission]) {
-                        const subBtn = document.createElement('button');
-                        subBtn.className = 'submenu-btn';
-                        subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
+                    const subBtn = document.createElement('button');
+                    subBtn.className = 'submenu-btn';
+                    subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
 
-                        // Adiciona badge para super-admin se a feature estiver oculta
-                        if (isSuperAdmin && !isGloballyActive) {
-                            subBtn.classList.add('globally-disabled-feature');
-                            subBtn.innerHTML += '<span class="feature-status-badge">Oculto</span>';
-                        }
-
-                        const isSubscribed = subscribedModules === null || subscribedModules.has(subItem.permission);
-
-                        if (!isSubscribed) {
-                            subBtn.classList.add('disabled-module');
-                            subBtn.title = "Módulo não disponível na sua subscrição.";
-                            subBtn.addEventListener('click', (e) => {
-                                e.stopPropagation();
-                                App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa. Por favor, contate o suporte de TI.", "warning", 5000);
-                            });
-                        } else {
-                            subBtn.addEventListener('click', () => {
-                                this.closeAllMenus();
-                                this.showTab(subItem.target);
-                            });
-                        }
-                        submenuContent.appendChild(subBtn);
+                    if (isSuperAdmin && !isGloballyActive) {
+                        subBtn.classList.add('globally-disabled-feature');
+                        subBtn.innerHTML += '<span class="feature-status-badge">Oculto</span>';
                     }
+
+                    if (!isSubscribed && !isSuperAdmin) {
+                        // Este caso não deveria acontecer por causa do filtro acima, mas é uma segurança.
+                        subBtn.classList.add('disabled-module');
+                        subBtn.title = "Módulo não disponível na sua subscrição.";
+                        subBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa.", "warning", 5000);
+                        });
+                    } else {
+                        subBtn.addEventListener('click', () => {
+                            this.closeAllMenus();
+                            this.showTab(subItem.target);
+                        });
+                    }
+                    submenuContent.appendChild(subBtn);
                 });
                 menu.appendChild(submenuContent);
                 requestAnimationFrame(() => submenuContent.classList.add('active'));
@@ -1282,21 +1276,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                // Se uma permissão é necessária, verificar a subscrição
+                // LÓGICA DE BLOQUEIO REFINADA
                 if (requiredPermission && currentUser.role !== 'super-admin' && !App.state.isImpersonating) {
+                    const isGloballyActive = App.isFeatureGloballyActive(requiredPermission);
+                    if (!isGloballyActive) {
+                        App.ui.showAlert("Esta funcionalidade não está ativa no momento.", "info", 5000);
+                        return; // Bloqueia a navegação
+                    }
+
                     const userCompany = companies.find(c => c.id === currentUser.companyId);
-                    // Se não encontrarmos a empresa (pode acontecer durante um instante enquanto os dados carregam), bloqueia por segurança
                     if (!userCompany) {
                         console.warn(`Tentativa de acesso ao módulo ${requiredPermission} sem dados da empresa carregados. A bloquear.`);
                         return;
                     }
                     const subscribedModules = new Set(userCompany?.subscribedModules || []);
-
                     if (!subscribedModules.has(requiredPermission)) {
                         App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa.", "warning", 5000);
                         return; // Bloqueia a navegação
                     }
                 }
+
 
                 const currentActiveTab = document.querySelector('.tab-content.active');
                 if (currentActiveTab && currentActiveTab.id === 'lancamentoCigarrinha' && currentActiveTab.id !== id) {
@@ -4852,6 +4851,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     await OfflineDB.add('sync-history', logEntry);
+                    // NOVO: Salvar histórico permanentemente no Firestore
+                    const permanentLogEntry = {
+                        ...logEntry,
+                        userId: App.state.currentUser.uid,
+                        username: App.state.currentUser.username || App.state.currentUser.email,
+                        companyId: App.state.currentUser.companyId
+                    };
+                    try {
+                        await this.addDocument('sync_history_store', permanentLogEntry);
+                    } catch (dbError) {
+                        console.error("Não foi possível salvar o log de sincronização no Firestore:", dbError);
+                        // A falha aqui não é crítica para a sincronização em si, então apenas registramos o erro.
+                    }
+
 
                 } catch (error) {
                     console.error("Ocorreu um erro inesperado durante a sincronização:", error);
@@ -4860,6 +4873,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     logEntry.status = 'critical_error';
                     logEntry.details = details;
                     await OfflineDB.add('sync-history', logEntry);
+
+                    // NOVO: Tenta salvar o log de erro crítico no Firestore também
+                    const permanentErrorLogEntry = {
+                        ...logEntry,
+                        userId: App.state.currentUser.uid,
+                        username: App.state.currentUser.username || App.state.currentUser.email,
+                        companyId: App.state.currentUser.companyId
+                    };
+                     try {
+                        await this.addDocument('sync_history_store', permanentErrorLogEntry);
+                    } catch (dbError) {
+                        console.error("Não foi possível salvar o log de erro de sincronização no Firestore:", dbError);
+                    }
+
                 } finally {
                     App.state.isSyncing = false;
                     console.log("Processo de sincronização finalizado.");
@@ -5231,20 +5258,100 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                // Salva o estado antigo para comparação
+                const oldGlobalConfigs = { ...App.state.globalConfigs };
+
                 const newGlobalConfigs = {};
                 grid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                     newGlobalConfigs[cb.dataset.feature] = cb.checked;
                 });
 
-                App.ui.setLoading(true, "A guardar configurações globais...");
+                App.ui.setLoading(true, "A guardar e notificar...");
                 try {
                     await App.data.setDocument('global_configs', 'main', newGlobalConfigs);
                     App.ui.showAlert("Configurações globais guardadas com sucesso!", "success");
+
+                    // Lógica de notificação
+                    await this.notifyAdminsOfNewFeatures(oldGlobalConfigs, newGlobalConfigs);
+
                 } catch (error) {
                     App.ui.showAlert("Erro ao guardar as configurações globais.", "error");
                     console.error("Erro ao guardar configurações globais:", error);
                 } finally {
                     App.ui.setLoading(false);
+                }
+            },
+
+            async notifyAdminsOfNewFeatures(oldConfigs, newConfigs) {
+                const newlyEnabledFeatures = Object.keys(newConfigs).filter(key => newConfigs[key] && !oldConfigs[key]);
+
+                if (newlyEnabledFeatures.length === 0) {
+                    console.log("Nenhuma nova feature ativada. Nenhuma notificação a ser enviada.");
+                    return;
+                }
+
+                console.log("Features recém-ativadas:", newlyEnabledFeatures);
+
+                try {
+                    // 1. Encontrar todas as empresas que subscrevem a estes módulos
+                    const companiesQuery = query(collection(db, 'companies'), where('subscribedModules', 'array-contains-any', newlyEnabledFeatures));
+                    const companiesSnapshot = await getDocs(companiesQuery);
+                    const relevantCompanies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                    if (relevantCompanies.length === 0) {
+                        console.log("Nenhuma empresa encontrada que subscreva aos módulos recém-ativados.");
+                        return;
+                    }
+
+                    const batch = writeBatch(db);
+                    let notificationCount = 0;
+
+                    // 2. Para cada empresa, encontrar os seus administradores
+                    for (const company of relevantCompanies) {
+                        const adminsQuery = query(collection(db, 'users'), where('companyId', '==', company.id), where('role', '==', 'admin'));
+                        const adminsSnapshot = await getDocs(adminsQuery);
+
+                        if (adminsSnapshot.empty) continue;
+
+                        // 3. Descobrir quais features são novas para esta empresa específica
+                        const newFeaturesForThisCompany = newlyEnabledFeatures.filter(feature =>
+                            company.subscribedModules.includes(feature)
+                        );
+
+                        if (newFeaturesForThisCompany.length === 0) continue;
+
+                        const featureLabels = newFeaturesForThisCompany.map(key => {
+                            const menuItem = App.config.menuConfig.flatMap(item => item.submenu || [item]).find(i => i.permission === key);
+                            return menuItem ? menuItem.label : key;
+                        }).join(', ');
+
+                        const message = `Novas funcionalidades estão disponíveis para a sua empresa: ${featureLabels}. Visite a secção correspondente para explorar.`;
+
+                        // 4. Criar uma notificação para cada administrador
+                        adminsSnapshot.forEach(adminDoc => {
+                            const notificationRef = doc(collection(db, 'notifications')); // Cria uma nova notificação com ID automático
+                            batch.set(notificationRef, {
+                                userId: adminDoc.id,
+                                companyId: company.id,
+                                title: "Nova Funcionalidade Ativada!",
+                                message: message,
+                                type: 'info',
+                                timestamp: serverTimestamp(),
+                                read: false
+                            });
+                            notificationCount++;
+                        });
+                    }
+
+                    if (notificationCount > 0) {
+                        await batch.commit();
+                        console.log(`${notificationCount} notificações enviadas para administradores.`);
+                        App.ui.showAlert(`${notificationCount} administradores de empresas foram notificados sobre as novas funcionalidades.`, "info", 5000);
+                    }
+
+                } catch (error) {
+                    console.error("Erro ao notificar administradores sobre novas features:", error);
+                    App.ui.showAlert("Ocorreu um erro ao tentar notificar os administradores.", "error");
                 }
             },
 
