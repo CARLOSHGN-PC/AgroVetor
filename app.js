@@ -111,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
                         { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
+                        { label: 'Ninfas por Ponto', icon: 'fas fa-map-marker-alt', target: 'lancamentoCigarrinhaPonto', permission: 'lancamentoCigarrinhaPonto' },
                     ]
                 },
                 {
@@ -119,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Relatório Cigarrinha', icon: 'fas fa-leaf', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
+                        { label: 'Relatório Ninfas (Ponto)', icon: 'fas fa-map-marker-alt', target: 'relatorioCigarrinhaPonto', permission: 'relatorioCigarrinhaPonto' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
@@ -142,9 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, relatorioCigarrinhaPonto: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, relatorioCigarrinhaPonto: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, relatorioCigarrinhaPonto: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
             }
@@ -164,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
             registros: [],
             perdas: [],
             cigarrinha: [],
+            cigarrinhaPonto: [], // NOVA COLEÇÃO
             planos: [],
             fazendas: [],
             personnel: [],
@@ -506,6 +509,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 filtroFim: document.getElementById('fimCigarrinha'),
                 btnPDF: document.getElementById('btnPDFCigarrinha'),
                 btnExcel: document.getElementById('btnExcelCigarrinha'),
+            },
+            cigarrinhaPonto: {
+                form: document.getElementById('lancamentoCigarrinhaPonto'),
+                data: document.getElementById('dataCigarrinhaPonto'),
+                codigo: document.getElementById('codigoCigarrinhaPonto'),
+                talhao: document.getElementById('talhaoCigarrinhaPonto'),
+                varietyDisplay: document.getElementById('varietyDisplayCigarrinhaPonto'),
+                pontosAmostraContainer: document.getElementById('pontosAmostraContainer'),
+                btnAddPontoAmostra: document.getElementById('btnAddPontoAmostra'),
+                resultado: document.getElementById('resultadoCigarrinhaPonto'),
+                btnSalvar: document.getElementById('btnSalvarCigarrinhaPonto'),
+                filtroFazenda: document.getElementById('fazendaFiltroCigarrinhaPonto'),
+                filtroInicio: document.getElementById('inicioCigarrinhaPonto'),
+                filtroFim: document.getElementById('fimCigarrinhaPonto'),
+                btnPDF: document.getElementById('btnPDFCigarrinhaPonto'),
+                btnExcel: document.getElementById('btnExcelCigarrinhaPonto'),
             },
             exclusao: {
                 lista: document.getElementById('listaExclusao')
@@ -860,7 +879,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaPonto'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1537,9 +1556,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.broca.data.value = today;
                 App.elements.perda.data.value = today;
                 App.elements.cigarrinha.data.value = today;
+                App.elements.cigarrinhaPonto.data.value = today;
                 App.elements.broca.data.max = today;
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
+                App.elements.cigarrinhaPonto.data.max = today;
             },
             setDefaultDatesForReportForms() {
                 const today = new Date();
@@ -1607,6 +1628,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.perda.codigo,
                     App.elements.cigarrinha.codigo,
                     App.elements.cigarrinha.filtroFazenda,
+                    App.elements.cigarrinhaPonto.codigo,
+                    App.elements.cigarrinhaPonto.filtroFazenda,
                     App.elements.relatorioMonitoramento.fazendaFiltro
                 ];
 
@@ -2242,6 +2265,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const media = (f1 + f2 + f3 + f4 + f5) / divisor;
                 resultado.textContent = `Resultado: ${media.toFixed(2).replace('.', ',')}`;
+            },
+
+            calculateCigarrinhaPonto() {
+                const { pontosAmostraContainer, resultado } = App.elements.cigarrinhaPonto;
+                const pontos = pontosAmostraContainer.querySelectorAll('.ponto-amostra-card');
+                let totalSomaFases = 0;
+                let totalPontos = pontos.length;
+
+                pontos.forEach(ponto => {
+                    const inputs = ponto.querySelectorAll('input[type="number"]');
+                    inputs.forEach(input => {
+                        totalSomaFases += parseInt(input.value) || 0;
+                    });
+                });
+
+                if (totalPontos > 0) {
+                    const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
+                    const media = totalSomaFases / (totalPontos * divisor);
+                    resultado.textContent = `Resultado: ${media.toFixed(2).replace('.', ',')}`;
+                } else {
+                    resultado.textContent = '';
+                }
             },
 
             showConfirmationModal(message, onConfirm, inputsConfig = false) {
@@ -3073,6 +3118,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.perda.btnExcel) App.elements.perda.btnExcel.addEventListener('click', () => App.reports.generatePerdaCSV());
                 if (App.elements.cigarrinha.btnPDF) App.elements.cigarrinha.btnPDF.addEventListener('click', () => App.reports.generateCigarrinhaPDF());
                 if (App.elements.cigarrinha.btnExcel) App.elements.cigarrinha.btnExcel.addEventListener('click', () => App.reports.generateCigarrinhaCSV());
+
+                // --- EVENT LISTENERS PARA O NOVO MÓDULO DE CIGARRINHA POR PONTO ---
+                const cigarrinhaPontoEls = App.elements.cigarrinhaPonto;
+                if (cigarrinhaPontoEls.btnAddPontoAmostra) cigarrinhaPontoEls.btnAddPontoAmostra.addEventListener('click', () => App.actions.addPontoAmostra());
+                if (cigarrinhaPontoEls.pontosAmostraContainer) {
+                    cigarrinhaPontoEls.pontosAmostraContainer.addEventListener('click', (e) => {
+                        if (e.target.classList.contains('remove-ponto-btn')) {
+                            const pontoCard = e.target.closest('.ponto-amostra-card');
+                            if (pontoCard) {
+                                pontoCard.remove();
+                                App.ui.calculateCigarrinhaPonto();
+                            }
+                        }
+                    });
+                    cigarrinhaPontoEls.pontosAmostraContainer.addEventListener('input', (e) => {
+                        if (e.target.type === 'number') {
+                            App.ui.calculateCigarrinhaPonto();
+                        }
+                    });
+                }
+                if (cigarrinhaPontoEls.btnSalvar) cigarrinhaPontoEls.btnSalvar.addEventListener('click', () => App.actions.saveCigarrinhaPonto());
+                if (cigarrinhaPontoEls.codigo) cigarrinhaPontoEls.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('cigarrinhaPonto'));
+                if (cigarrinhaPontoEls.talhao) cigarrinhaPontoEls.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('cigarrinhaPonto'));
+                if (cigarrinhaPontoEls.btnPDF) cigarrinhaPontoEls.btnPDF.addEventListener('click', () => App.reports.generateCigarrinhaPontoPDF());
+                if (cigarrinhaPontoEls.btnExcel) cigarrinhaPontoEls.btnExcel.addEventListener('click', () => App.reports.generateCigarrinhaPontoCSV());
+                // --- FIM DOS EVENT LISTENERS ---
+
                 if (App.elements.exclusao.lista) App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
                 
                 const customReportEls = App.elements.relatorioColheita;
@@ -4433,6 +4505,88 @@ document.addEventListener('DOMContentLoaded', () => {
                             fase1: f1, fase2: f2, fase3: f3, fase4: f4, fase5: f5,
                             adulto: els.adulto.checked,
                             resultado: ((f1 + f2 + f3 + f4 + f5) / 5) / 10,
+                            usuario: App.state.currentUser.username,
+                            companyId: App.state.currentUser.companyId
+                        };
+                    }
+                });
+            },
+
+            addPontoAmostra() {
+                const { pontosAmostraContainer } = App.elements.cigarrinhaPonto;
+                const pontoCount = pontosAmostraContainer.children.length + 1;
+
+                const card = document.createElement('div');
+                // Adicionando um estilo inline para o card de ponto de amostra para evitar a necessidade de alterar o CSS globalmente.
+                card.style.cssText = `
+                    background: var(--color-bg);
+                    border-radius: var(--border-radius);
+                    padding: 16px;
+                    margin-bottom: 16px;
+                    border-left: 5px solid var(--color-info);
+                    transition: var(--transition);
+                    box-shadow: var(--shadow-sm);
+                `;
+
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="color: var(--color-primary-dark); margin:0;">Ponto de Amostra ${pontoCount}</h4>
+                        <button type="button" class="btn-excluir remove-ponto-btn" title="Remover Ponto" style="margin-left: 0;"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label>Fase 1:</label><input type="number" min="0" placeholder="0" value="0" /></div>
+                        <div class="form-col"><label>Fase 2:</label><input type="number" min="0" placeholder="0" value="0" /></div>
+                        <div class="form-col"><label>Fase 3:</label><input type="number" min="0" placeholder="0" value="0" /></div>
+                        <div class="form-col"><label>Fase 4:</label><input type="number" min="0" placeholder="0" value="0" /></div>
+                        <div class="form-col"><label>Fase 5:</label><input type="number" min="0" placeholder="0" value="0" /></div>
+                    </div>
+                `;
+                // Adiciona a classe 'ponto-amostra-card' para fácil identificação
+                card.classList.add('ponto-amostra-card');
+                pontosAmostraContainer.appendChild(card);
+            },
+
+            saveCigarrinhaPonto() {
+                this._saveEntry({
+                    formType: 'cigarrinhaPonto',
+                    formFieldIds: ['dataCigarrinhaPonto', 'codigoCigarrinhaPonto', 'talhaoCigarrinhaPonto'],
+                    collectionName: 'cigarrinhaPonto',
+                    confirmationMessage: 'Tem a certeza que deseja guardar este monitoramento por ponto?',
+                    successMessage: 'Monitoramento por ponto guardado com sucesso!',
+                    entryBuilder: (els, farm, talhao) => {
+                        const pontosAmostra = [];
+                        const pontosCards = els.pontosAmostraContainer.querySelectorAll('.ponto-amostra-card');
+
+                        if (pontosCards.length === 0) {
+                            App.ui.showAlert("Adicione pelo menos um ponto de amostra.", "error");
+                            return null; // Interrompe o processo de salvamento
+                        }
+
+                        let totalSomaFases = 0;
+                        pontosCards.forEach((pontoCard, index) => {
+                            const inputs = pontoCard.querySelectorAll('input[type="number"]');
+                            const fases = {
+                                f1: parseInt(inputs[0].value) || 0,
+                                f2: parseInt(inputs[1].value) || 0,
+                                f3: parseInt(inputs[2].value) || 0,
+                                f4: parseInt(inputs[3].value) || 0,
+                                f5: parseInt(inputs[4].value) || 0,
+                            };
+                            pontosAmostra.push({ ponto: index + 1, ...fases });
+                            totalSomaFases += Object.values(fases).reduce((a, b) => a + b, 0);
+                        });
+
+                        const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
+                        const resultado = pontosCards.length > 0 ? totalSomaFases / (pontosCards.length * divisor) : 0;
+
+                        return {
+                            data: els.data.value,
+                            codigo: farm.code,
+                            fazenda: farm.name,
+                            talhao: els.talhao.value.trim(),
+                            variedade: talhao.variedade || '',
+                            pontos: pontosAmostra,
+                            resultado: resultado.toFixed(2),
                             usuario: App.state.currentUser.username,
                             companyId: App.state.currentUser.companyId
                         };
@@ -7412,6 +7566,151 @@ document.addEventListener('DOMContentLoaded', () => {
                     this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas_coletadas.csv');
                 } else {
                     this._fetchAndDownloadReport('armadilhas-ativas/csv', filters, 'relatorio_armadilhas_instaladas.csv');
+            },
+
+            async generateCigarrinhaPontoPDF() {
+                const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinhaPonto;
+                if (!filtroInicio.value || !filtroFim.value) {
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    return;
+                }
+
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const fazendaCodigo = farm ? farm.code : '';
+
+                const consolidatedData = await App.actions.getConsolidatedData('cigarrinhaPonto');
+                const filteredData = consolidatedData.filter(item => {
+                    const itemDate = new Date(item.data + 'T03:00:00Z');
+                    const startDate = new Date(filtroInicio.value + 'T03:00:00Z');
+                    const endDate = new Date(filtroFim.value + 'T03:00:00Z');
+                    const fazendaMatch = !fazendaCodigo || item.codigo === fazendaCodigo;
+                    return itemDate >= startDate && itemDate <= endDate && fazendaMatch;
+                }).sort((a, b) => new Date(a.data) - new Date(b.data));
+
+                if (filteredData.length === 0) {
+                    App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "info");
+                    return;
+                }
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const addHeaderFooter = (doc, title, pageNum, totalPages) => {
+                    if (App.state.companyLogo) {
+                        doc.addImage(App.state.companyLogo, 'PNG', 10, 5, 40, 20);
+                    }
+                    doc.setFontSize(16);
+                    doc.text(title, doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+                    doc.setFontSize(8);
+                    doc.text(`Página ${pageNum} de ${totalPages}`, doc.internal.pageSize.getWidth() - 10, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+                    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 10, doc.internal.pageSize.getHeight() - 10);
+                };
+
+                let finalY = 30;
+
+                filteredData.forEach((item, index) => {
+                    if (finalY > 250) { // Check for new page before starting new item
+                        doc.addPage();
+                        finalY = 30;
+                    }
+
+                    doc.setFontSize(12);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`Levantamento #${index + 1}`, 14, finalY);
+                    finalY += 7;
+
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    const infoText = `Data: ${new Date(item.data + 'T03:00:00Z').toLocaleDateString('pt-BR')} | Fazenda: ${item.fazenda} | Talhão: ${item.talhao} | Variedade: ${item.variedade || 'N/A'}`;
+                    doc.text(infoText, 14, finalY);
+                    finalY += 5;
+
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`Resultado Médio: ${item.resultado}`, 14, finalY);
+                    finalY += 7;
+
+                    const head = [['Ponto', 'Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5']];
+                    const body = item.pontos.map(p => [p.ponto, p.f1, p.f2, p.f3, p.f4, p.f5]);
+
+                    doc.autoTable({
+                        startY: finalY,
+                        head: head,
+                        body: body,
+                        theme: 'striped',
+                        headStyles: { fillColor: [46, 125, 50] },
+                        didDrawPage: (data) => {
+                            addHeaderFooter(doc, 'Relatório de Ninfas (por Ponto)', data.pageNumber, doc.internal.getNumberOfPages());
+                        }
+                    });
+
+                    finalY = doc.autoTable.previous.finalY + 10;
+                });
+
+                const totalPages = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= totalPages; i++) {
+                    doc.setPage(i);
+                    addHeaderFooter(doc, 'Relatório de Ninfas (por Ponto)', i, totalPages);
+                }
+
+                doc.save('relatorio_ninfas_ponto.pdf');
+            },
+
+            async generateCigarrinhaPontoCSV() {
+                const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinhaPonto;
+                if (!filtroInicio.value || !filtroFim.value) {
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    return;
+                }
+
+                const farmId = filtroFazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const fazendaCodigo = farm ? farm.code : '';
+
+                const consolidatedData = await App.actions.getConsolidatedData('cigarrinhaPonto');
+                const filteredData = consolidatedData.filter(item => {
+                    const itemDate = new Date(item.data + 'T03:00:00Z');
+                    const startDate = new Date(filtroInicio.value + 'T03:00:00Z');
+                    const endDate = new Date(filtroFim.value + 'T03:00:00Z');
+                    const fazendaMatch = !fazendaCodigo || item.codigo === fazendaCodigo;
+                    return itemDate >= startDate && itemDate <= endDate && fazendaMatch;
+                });
+
+                if (filteredData.length === 0) {
+                    App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "info");
+                    return;
+                }
+
+                let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+                const headers = ["Data", "Codigo_Fazenda", "Fazenda", "Talhao", "Variedade", "Resultado_Geral", "Ponto_Amostra", "Fase_1", "Fase_2", "Fase_3", "Fase_4", "Fase_5"];
+                csvContent += headers.join(';') + '\r\n';
+
+                filteredData.forEach(item => {
+                    item.pontos.forEach(ponto => {
+                        const row = [
+                            new Date(item.data + 'T03:00:00Z').toLocaleDateString('pt-BR'),
+                            item.codigo,
+                            item.fazenda,
+                            item.talhao,
+                            item.variedade || '',
+                            String(item.resultado).replace('.',','),
+                            ponto.ponto,
+                            ponto.f1,
+                            ponto.f2,
+                            ponto.f3,
+                            ponto.f4,
+                            ponto.f5
+                        ];
+                        csvContent += row.join(';') + '\r\n';
+                    });
+                });
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "relatorio_ninfas_ponto.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
                 }
             },
 

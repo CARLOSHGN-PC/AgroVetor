@@ -2052,6 +2052,56 @@
                 </div>
             </section>
 
+            <!-- NOVO MÓDULO: Lançamento de Ninfas por Ponto -->
+            <section id="lancamentoCigarrinhaPonto" class="tab-content card" aria-label="Lançamento Cigarrinha por Ponto" tabindex="0" hidden>
+                <h2><i class="fas fa-map-marker-alt"></i> Monitoramento de Ninfas (por Ponto)</h2>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="dataCigarrinhaPonto" class="required">Data do Levantamento:</label>
+                        <input type="date" id="dataCigarrinhaPonto" required />
+                    </div>
+                    <div class="form-col">
+                        <label for="codigoCigarrinhaPonto" class="required">Fazenda:</label>
+                        <select id="codigoCigarrinhaPonto" required></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="talhaoCigarrinhaPonto" class="required">Talhão:</label>
+                        <input type="text" id="talhaoCigarrinhaPonto" placeholder="Ex: T12, T15-A" required />
+                    </div>
+                    <div class="form-col">
+                        <label>Variedade:</label>
+                        <div id="varietyDisplayCigarrinhaPonto" class="info-display" style="margin-top: 8px; padding: 12px 14px; border-radius: var(--border-radius); border: 1px solid var(--color-border); background-color: var(--color-bg); min-height: 45px;"></div>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3><i class="fas fa-thumbtack"></i> Pontos de Amostra</h3>
+                    <button id="btnAddPontoAmostra" class="save" style="max-width: 200px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Ponto</button>
+                </div>
+                <div id="pontosAmostraContainer">
+                    <!-- Pontos de amostra serão adicionados aqui dinamicamente -->
+                </div>
+
+                <div class="resultado" id="resultadoCigarrinhaPonto"></div>
+                <button class="save" type="button" id="btnSalvarCigarrinhaPonto"><i class="fas fa-save"></i> Guardar Monitoramento</button>
+            </section>
+
+            <!-- NOVO MÓDULO: Relatório de Ninfas por Ponto -->
+            <section id="relatorioCigarrinhaPonto" class="tab-content card" aria-label="Relatório Cigarrinha por Ponto" tabindex="0" hidden>
+                <h2><i class="fas fa-map-marker-alt"></i> Relatório de Ninfas (por Ponto)</h2>
+                <div class="form-row">
+                    <div class="form-col"><label for="fazendaFiltroCigarrinhaPonto">Filtrar por Fazenda:</label><select id="fazendaFiltroCigarrinhaPonto"><option value="">Todas</option></select></div>
+                    <div class="form-col"><label for="inicioCigarrinhaPonto" class="required">Data Início:</label><input type="date" id="inicioCigarrinhaPonto" /></div>
+                    <div class="form-col"><label for="fimCigarrinhaPonto" class="required">Data Fim:</label><input type="date" id="fimCigarrinhaPonto" /></div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFCigarrinhaPonto" type="button" style="height: 40px;"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelCigarrinhaPonto" type="button" style="height: 40px;"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+            </section>
+
             <section id="excluirDados" class="tab-content card" aria-label="Excluir Lançamentos" tabindex="0" hidden>
                 <h2><i class="fas fa-trash"></i> Excluir Lançamentos</h2>
                 <p>Selecione um lançamento para excluir. Esta ação é irreversível.</p>
