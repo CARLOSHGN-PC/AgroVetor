@@ -103,5 +103,29 @@ service cloud.firestore {
       allow read: if request.auth.uid != null;
       allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super-admin';
     }
+
+    // sync_history_store: Logs detalhados de sincronização
+    match /sync_history_store/{docId} {
+      // Criação: Qualquer utilizador autenticado pode criar um log para si mesmo.
+      allow create: if request.auth.uid == request.resource.data.userId;
+
+      // Leitura: Admins e super-admins podem ler logs da sua empresa. Utilizadores normais podem ler os seus próprios logs.
+      allow read: if canAccessCompanyData(resource.data.companyId) || request.auth.uid == resource.data.userId;
+
+      // Atualização: O dono do log pode atualizar (para a lógica de retentativa), e o super-admin também.
+      allow update: if request.auth.uid == resource.data.userId || getUserRole() == 'super-admin';
+
+      // Exclusão: Apenas super-admins podem apagar para manter a trilha de auditoria.
+      allow delete: if getUserRole() == 'super-admin';
+    }
+
+    // notifications: Notificações para utilizadores (ex: novas features)
+    match /notifications/{docId} {
+      // Criação: Apenas super-admins podem criar notificações.
+      allow create: if getUserRole() == 'super-admin';
+
+      // Acesso (Leitura, Atualização, Exclusão): Utilizadores só podem aceder às suas próprias notificações.
+      allow read, update, delete: if request.auth.uid == resource.data.userId;
+    }
   }
 }

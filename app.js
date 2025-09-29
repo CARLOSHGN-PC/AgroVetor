@@ -283,6 +283,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 startDate: document.getElementById('historyStartDateModal'),
                 endDate: document.getElementById('historyEndDateModal'),
             },
+            syncHistoryDetailModal: {
+                overlay: document.getElementById('syncHistoryDetailModal'),
+                title: document.getElementById('syncHistoryDetailModalTitle'),
+                body: document.getElementById('syncHistoryDetailModalBody'),
+                closeBtn: document.getElementById('syncHistoryDetailModalCloseBtn'),
+                cancelBtn: document.getElementById('syncHistoryDetailModalCancelBtn'),
+            },
             companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
                 logoInput: document.getElementById('logoInput'),
@@ -1860,13 +1867,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const listEl = document.getElementById('syncHistoryList');
                 if (!listEl) return;
 
+                listEl.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
+
                 try {
-                    const history = await OfflineDB.getAll('sync-history');
-                    history.sort((a, b) => b.timestamp - a.timestamp); // Sort descending
+                    // Consulta o Firestore para obter o histórico da empresa atual
+                    const q = query(
+                        collection(db, 'sync_history_store'),
+                        where("companyId", "==", App.state.currentUser.companyId),
+                        orderBy("timestamp", "desc")
+                    );
+                    const querySnapshot = await getDocs(q);
 
                     listEl.innerHTML = '';
 
-                    if (history.length === 0) {
+                    if (querySnapshot.empty) {
                         listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum histórico de sincronização encontrado.</p>';
                         return;
                     }
@@ -1879,28 +1893,41 @@ document.addEventListener('DOMContentLoaded', () => {
                         critical_error: { icon: 'fa-bomb', color: 'var(--color-danger)', label: 'Erro Crítico' },
                     };
 
-                    history.forEach(log => {
+                    querySnapshot.forEach(doc => {
+                        const log = doc.data();
+                        const logId = doc.id;
+                        const logTimestamp = log.timestamp ? log.timestamp.toDate() : new Date(); // Lida com timestamps pendentes
+
                         const statusInfo = statusMap[log.status] || { icon: 'fa-question-circle', color: 'var(--color-text-light)', label: 'Desconhecido' };
                         const card = document.createElement('div');
-                        card.className = 'plano-card'; // Re-using existing style for consistency
+                        card.className = 'plano-card';
                         card.style.borderLeftColor = statusInfo.color;
+
+                        const detailsButton = (log.items && log.items.length > 0)
+                            ? `<button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="view-sync-details" data-id="${logId}">
+                                   <i class="fas fa-eye"></i> Ver Detalhes
+                               </button>`
+                            : '';
 
                         card.innerHTML = `
                             <div class="plano-header">
-                                <span class="plano-title"><i class="fas ${statusInfo.icon}" style="color: ${statusInfo.color};"></i> Sincronização: ${statusInfo.label}</span>
+                                <span class="plano-title"><i class="fas ${statusInfo.icon}" style="color: ${statusInfo.color};"></i> Sincronização por ${log.username || 'Sistema'}</span>
                                 <span class="plano-status" style="background-color: ${statusInfo.color}; font-size: 12px; text-transform: none;">
-                                    ${log.timestamp.toLocaleString('pt-BR')}
+                                    ${logTimestamp.toLocaleString('pt-BR')}
                                 </span>
                             </div>
                             <div class="plano-details" style="grid-template-columns: 1fr;">
                                 <div><i class="fas fa-comment-alt"></i> Detalhes: ${log.details}</div>
+                            </div>
+                            <div class="plano-actions">
+                                ${detailsButton}
                             </div>
                         `;
                         listEl.appendChild(card);
                     });
 
                 } catch (error) {
-                    console.error("Erro ao renderizar histórico de sincronização:", error);
+                    console.error("Erro ao renderizar histórico de sincronização do Firestore:", error);
                     listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-danger);">Erro ao carregar o histórico.</p>';
                 }
             },
@@ -2930,6 +2957,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (App.elements.monitoramentoAereo.btnHistory) {
                     // This listener is now attached in showTab
+                }
+
+                const syncHistoryModal = App.elements.syncHistoryDetailModal;
+                if (syncHistoryModal.overlay) syncHistoryModal.overlay.addEventListener('click', e => { if (e.target === syncHistoryModal.overlay) this.hideSyncHistoryDetailModal(); });
+                if (syncHistoryModal.closeBtn) syncHistoryModal.closeBtn.addEventListener('click', () => this.hideSyncHistoryDetailModal());
+                if (syncHistoryModal.cancelBtn) syncHistoryModal.cancelBtn.addEventListener('click', () => this.hideSyncHistoryDetailModal());
+
+                // Adiciona o event listener para o botão de retentativa dentro do modal
+                if (syncHistoryModal.body) {
+                    syncHistoryModal.body.addEventListener('click', e => {
+                        const button = e.target.closest('button[data-action="retry-sync-item"]');
+                        if (button) {
+                            const { logId, itemIndex } = button.dataset;
+                            this.retrySyncItem(logId, parseInt(itemIndex, 10));
+                        }
+                    });
+                }
+
+                const syncHistoryList = document.getElementById('syncHistoryList');
+                if (syncHistoryList) {
+                    syncHistoryList.addEventListener('click', e => {
+                        const button = e.target.closest('button[data-action="view-sync-details"]');
+                        if (button) {
+                            this.renderSyncHistoryDetails(button.dataset.id);
+                        }
+                    });
                 }
 
                 // Listeners para salvar rascunhos de formulários automaticamente
@@ -4778,7 +4831,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const logEntry = {
                     timestamp: new Date(),
                     status: '',
-                    details: ''
+                    details: '',
+                    items: [] // Adicionado para manter os detalhes dos itens
                 };
 
                 try {
@@ -4796,11 +4850,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (writesToSync.length === 0) {
-                        console.log("Nenhuma escrita offline para sincronizar.");
-                        App.ui.showSystemNotification("Sincronização", "Nenhum registo pendente para sincronizar.", "info");
                         logEntry.status = 'no_data';
                         logEntry.details = 'Nenhum registo pendente para sincronizar.';
+                        App.ui.showSystemNotification("Sincronização", logEntry.details, "info");
                         await OfflineDB.add('sync-history', logEntry);
+                        // Não precisa salvar no Firestore se não há nada para sincronizar.
                         App.state.isSyncing = false;
                         return;
                     }
@@ -4809,23 +4863,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const syncPromises = writesToSync.map(write =>
                         App.data.addDocument(write.value.collection, write.value.data)
-                            .then(() => ({ status: 'fulfilled', key: write.key }))
-                            .catch(error => ({ status: 'rejected', key: write.key, error, data: write.value.data }))
+                            .then(() => ({ status: 'fulfilled', key: write.key, originalWrite: write.value }))
+                            .catch(error => ({ status: 'rejected', key: write.key, error, originalWrite: write.value }))
                     );
 
-                    const results = await Promise.allSettled(syncPromises);
+                    const results = await Promise.all(syncPromises);
 
                     const syncedKeys = [];
                     let failureCount = 0;
 
-                    for (const result of results) {
-                        if (result.status === 'fulfilled' && result.value.status === 'fulfilled') {
-                            syncedKeys.push(result.value.key);
+                    for (const promiseResult of results) {
+                        if (promiseResult.status === 'fulfilled') {
+                            const syncResult = promiseResult.value;
+                            if (syncResult.status === 'fulfilled') {
+                                syncedKeys.push(syncResult.key);
+                                logEntry.items.push({
+                                    status: 'success',
+                                    collection: syncResult.originalWrite.collection,
+                                    data: syncResult.originalWrite.data
+                                });
+                            } else {
+                                failureCount++;
+                                logEntry.items.push({
+                                    status: 'failure',
+                                    collection: syncResult.originalWrite.collection,
+                                    data: syncResult.originalWrite.data,
+                                    error: syncResult.error.message || 'Unknown error'
+                                });
+                                console.error(`Falha ao sincronizar o registo offline com a chave ${syncResult.key}:`, syncResult.error, syncResult.originalWrite);
+                            }
                         } else {
                             failureCount++;
-                            console.error(`Falha ao sincronizar o registo offline com a chave ${result.value?.key}:`, result.reason || result.value.error, result.value?.data);
+                            console.error('Erro catastrófico na promessa de sincronização:', promiseResult.reason);
                         }
                     }
+
 
                     if (syncedKeys.length > 0) {
                         const deleteTx = db.transaction('offline-writes', 'readwrite');
@@ -4834,55 +4906,58 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (failureCount === 0 && syncedKeys.length > 0) {
-                        const details = `${syncedKeys.length} registos enviados com sucesso.`;
-                        App.ui.showSystemNotification("Sincronização Concluída", details, 'success');
                         logEntry.status = 'success';
-                        logEntry.details = details;
+                        logEntry.details = `${syncedKeys.length} registos enviados com sucesso.`;
+                        App.ui.showSystemNotification("Sincronização Concluída", logEntry.details, 'success');
                     } else if (syncedKeys.length > 0 && failureCount > 0) {
-                        const details = `${syncedKeys.length} registos enviados. ${failureCount} falharam.`;
-                        App.ui.showSystemNotification("Sincronização Parcial", details, 'warning');
                         logEntry.status = 'partial';
-                        logEntry.details = details;
+                        logEntry.details = `${syncedKeys.length} registos enviados. ${failureCount} falharam.`;
+                        App.ui.showSystemNotification("Sincronização Parcial", logEntry.details, 'warning');
                     } else if (failureCount > 0) {
-                        const details = `Não foi possível enviar ${failureCount} registos.`;
-                        App.ui.showSystemNotification("Falha na Sincronização", details, 'error');
                         logEntry.status = 'failure';
-                        logEntry.details = details;
+                        logEntry.details = `Não foi possível enviar ${failureCount} registos.`;
+                        App.ui.showSystemNotification("Falha na Sincronização", logEntry.details, 'error');
                     }
 
-                    await OfflineDB.add('sync-history', logEntry);
-                    // NOVO: Salvar histórico permanentemente no Firestore
+                    // Salva o log local e o log permanente no Firestore
+                    await OfflineDB.add('sync-history', { timestamp: logEntry.timestamp, status: logEntry.status, details: logEntry.details });
+
                     const permanentLogEntry = {
                         ...logEntry,
                         userId: App.state.currentUser.uid,
                         username: App.state.currentUser.username || App.state.currentUser.email,
-                        companyId: App.state.currentUser.companyId
+                        companyId: App.state.currentUser.companyId,
+                        timestamp: serverTimestamp() // Usa o timestamp do servidor para consistência
                     };
-                    try {
-                        await this.addDocument('sync_history_store', permanentLogEntry);
-                    } catch (dbError) {
-                        console.error("Não foi possível salvar o log de sincronização no Firestore:", dbError);
-                        // A falha aqui não é crítica para a sincronização em si, então apenas registramos o erro.
-                    }
 
+                    // Remove o timestamp local do objeto que será salvo no Firestore
+                    delete permanentLogEntry.timestamp;
+
+                    try {
+                        await App.data.addDocument('sync_history_store', permanentLogEntry);
+                    } catch (dbError) {
+                        console.error("Não foi possível salvar o log de sincronização detalhado no Firestore:", dbError);
+                    }
 
                 } catch (error) {
                     console.error("Ocorreu um erro inesperado durante a sincronização:", error);
-                    const details = `Erro: ${error.message}`;
-                    App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo.", "error");
                     logEntry.status = 'critical_error';
-                    logEntry.details = details;
-                    await OfflineDB.add('sync-history', logEntry);
+                    logEntry.details = `Erro: ${error.message}`;
+                    App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo.", "error");
 
-                    // NOVO: Tenta salvar o log de erro crítico no Firestore também
+                    await OfflineDB.add('sync-history', { timestamp: logEntry.timestamp, status: logEntry.status, details: logEntry.details });
+
                     const permanentErrorLogEntry = {
                         ...logEntry,
                         userId: App.state.currentUser.uid,
                         username: App.state.currentUser.username || App.state.currentUser.email,
-                        companyId: App.state.currentUser.companyId
+                        companyId: App.state.currentUser.companyId,
+                        timestamp: serverTimestamp()
                     };
+                    delete permanentErrorLogEntry.timestamp;
+
                      try {
-                        await this.addDocument('sync_history_store', permanentErrorLogEntry);
+                        await App.data.addDocument('sync_history_store', permanentErrorLogEntry);
                     } catch (dbError) {
                         console.error("Não foi possível salvar o log de erro de sincronização no Firestore:", dbError);
                     }
@@ -6388,6 +6463,128 @@ document.addEventListener('DOMContentLoaded', () => {
                 const modal = App.elements.historyFilterModal;
                 modal.overlay.classList.remove('show');
             },
+
+            showSyncHistoryDetailModal() {
+                App.elements.syncHistoryDetailModal.overlay.classList.add('show');
+            },
+
+            hideSyncHistoryDetailModal() {
+                App.elements.syncHistoryDetailModal.overlay.classList.remove('show');
+                App.elements.syncHistoryDetailModal.body.innerHTML = ''; // Limpa o conteúdo ao fechar
+            },
+
+            async renderSyncHistoryDetails(logId) {
+                const modal = App.elements.syncHistoryDetailModal;
+                modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
+                this.showSyncHistoryDetailModal();
+
+                try {
+                    const logDoc = await App.data.getDocument('sync_history_store', logId);
+
+                    if (!logDoc || !logDoc.items || logDoc.items.length === 0) {
+                        modal.body.innerHTML = '<p>Nenhum item detalhado encontrado para este registo de sincronização.</p>';
+                        return;
+                    }
+
+                    const logTimestamp = logDoc.timestamp ? logDoc.timestamp.toDate().toLocaleString('pt-BR') : 'Data não disponível';
+                    modal.title.textContent = `Detalhes da Sincronização de ${logTimestamp}`;
+
+                    let contentHTML = '<div class="sync-items-container">';
+
+                    logDoc.items.forEach((item, index) => {
+                        const itemStatus = item.status || 'unknown';
+                        const cardClass = itemStatus === 'success' ? 'success' : 'failure';
+                        const icon = itemStatus === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+                        const title = `Item ${index + 1}: ${item.collection}`;
+
+                        let dataDetails = '';
+                        if (item.data) {
+                            switch (item.collection) {
+                                case 'registros': // Broca
+                                    dataDetails = `<p><strong>Fazenda/Talhão:</strong> ${item.data.codigo} / ${item.data.talhao}</p><p><strong>Data:</strong> ${item.data.data}</p><p><strong>Índice:</strong> ${item.data.brocamento}%</p>`;
+                                    break;
+                                case 'perdas':
+                                    dataDetails = `<p><strong>Fazenda/Talhão:</strong> ${item.data.codigo} / ${item.data.talhao}</p><p><strong>Data:</strong> ${item.data.data}</p><p><strong>Total:</strong> ${item.data.total} kg</p>`;
+                                    break;
+                                default:
+                                    dataDetails = Object.entries(item.data)
+                                        .map(([key, value]) => `<p><strong>${key}:</strong> ${value}</p>`)
+                                        .join('');
+                                    break;
+                            }
+                        }
+
+                        const errorInfo = item.status === 'failure'
+                            ? `<div class="error-message"><strong>Erro:</strong> ${item.error || 'Desconhecido'}</div>`
+                            : '';
+
+                        const retryButton = item.status === 'failure'
+                            ? `<div class="sync-item-footer">
+                                   <button class="btn-retry-sync" data-action="retry-sync-item" data-item-index="${index}" data-log-id="${logId}">
+                                       <i class="fas fa-sync-alt"></i> Tentar Novamente
+                                   </button>
+                               </div>`
+                            : '';
+
+                        contentHTML += `
+                            <div class="sync-item-card ${cardClass}" id="sync-item-${index}">
+                                <div class="sync-item-header">
+                                    <i class="fas ${icon}"></i>
+                                    <span>${title}</span>
+                                </div>
+                                <div class="sync-item-body">
+                                    ${dataDetails}
+                                    ${errorInfo}
+                                </div>
+                                ${retryButton}
+                            </div>
+                        `;
+                    });
+
+                    contentHTML += '</div>';
+                    modal.body.innerHTML = contentHTML;
+
+                } catch (error) {
+                    console.error("Erro ao buscar detalhes do histórico de sincronização:", error);
+                    modal.body.innerHTML = '<p style="color: var(--color-danger);">Não foi possível carregar os detalhes.</p>';
+                }
+            },
+
+            async retrySyncItem(logId, itemIndex) {
+                App.ui.setLoading(true, "A tentar sincronizar novamente...");
+                try {
+                    const logDoc = await App.data.getDocument('sync_history_store', logId);
+                    if (!logDoc || !logDoc.items || !logDoc.items[itemIndex]) {
+                        throw new Error("Registo de log ou item não encontrado.");
+                    }
+
+                    const itemToRetry = logDoc.items[itemIndex];
+                    if (itemToRetry.status !== 'failure') {
+                        App.ui.showAlert("Este item não falhou, não há necessidade de tentar novamente.", "info");
+                        return;
+                    }
+
+                    // Tenta adicionar o documento novamente
+                    await App.data.addDocument(itemToRetry.collection, itemToRetry.data);
+
+                    // Se for bem-sucedido, atualiza o log no Firestore
+                    const updatedItems = [...logDoc.items];
+                    updatedItems[itemIndex].status = 'success';
+                    updatedItems[itemIndex].error = null; // Limpa a mensagem de erro anterior
+
+                    await App.data.updateDocument('sync_history_store', logId, { items: updatedItems });
+
+                    App.ui.showAlert("Item sincronizado com sucesso!", "success");
+                    // Re-renderiza os detalhes para refletir a mudança
+                    this.renderSyncHistoryDetails(logId);
+
+                } catch (error) {
+                    App.ui.showAlert(`Falha ao tentar novamente: ${error.message}`, "error");
+                    console.error("Erro ao tentar sincronizar item novamente:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            }
         },
 
         charts: {
