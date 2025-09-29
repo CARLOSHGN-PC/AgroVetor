@@ -111,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
                         { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
+                        { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
                     ]
                 },
                 {
@@ -119,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Relatório Cigarrinha', icon: 'fas fa-leaf', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
+                        { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
@@ -142,9 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
             }
@@ -507,6 +509,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnPDF: document.getElementById('btnPDFCigarrinha'),
                 btnExcel: document.getElementById('btnExcelCigarrinha'),
             },
+            cigarrinhaAmostragem: {
+                form: document.getElementById('formCigarrinhaAmostragem'),
+                data: document.getElementById('dataCigarrinhaAmostragem'),
+                codigo: document.getElementById('codigoCigarrinhaAmostragem'),
+                talhao: document.getElementById('talhaoCigarrinhaAmostragem'),
+                varietyDisplay: document.getElementById('varietyDisplayCigarrinhaAmostragem'),
+                addAmostraBtn: document.getElementById('addAmostraCigarrinhaAmostragem'),
+                amostrasContainer: document.getElementById('amostrasCigarrinhaAmostragemContainer'),
+                resultado: document.getElementById('resultadoCigarrinhaAmostragem'),
+                btnSalvar: document.getElementById('btnSalvarCigarrinhaAmostragem'),
+                filtroFazenda: document.getElementById('fazendaFiltroCigarrinhaAmostragem'),
+                filtroInicio: document.getElementById('inicioCigarrinhaAmostragem'),
+                filtroFim: document.getElementById('fimCigarrinhaAmostragem'),
+                btnPDF: document.getElementById('btnPDFCigarrinhaAmostragem'),
+                btnExcel: document.getElementById('btnExcelCigarrinhaAmostragem'),
+            },
             exclusao: {
                 lista: document.getElementById('listaExclusao')
             },
@@ -860,7 +878,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1537,9 +1555,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.broca.data.value = today;
                 App.elements.perda.data.value = today;
                 App.elements.cigarrinha.data.value = today;
+                App.elements.cigarrinhaAmostragem.data.value = today;
                 App.elements.broca.data.max = today;
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
+                App.elements.cigarrinhaAmostragem.data.max = today;
             },
             setDefaultDatesForReportForms() {
                 const today = new Date();
@@ -1606,7 +1626,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.broca.codigo,
                     App.elements.perda.codigo,
                     App.elements.cigarrinha.codigo,
+                    App.elements.cigarrinhaAmostragem.codigo,
                     App.elements.cigarrinha.filtroFazenda,
+                    App.elements.cigarrinhaAmostragem.filtroFazenda,
                     App.elements.relatorioMonitoramento.fazendaFiltro
                 ];
 
@@ -2244,6 +2266,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 resultado.textContent = `Resultado: ${media.toFixed(2).replace('.', ',')}`;
             },
 
+            calculateCigarrinhaAmostragem() {
+                const container = document.getElementById('amostrasCigarrinhaAmostragemContainer');
+                const resultadoEl = document.getElementById('resultadoCigarrinhaAmostragem');
+                if (!container || !resultadoEl) return;
+
+                const amostras = container.querySelectorAll('.amostra-card');
+                if (amostras.length === 0) {
+                    resultadoEl.textContent = '';
+                    return;
+                }
+
+                const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
+                let somaDasMedias = 0;
+
+                amostras.forEach(card => {
+                    let somaFasesDaAmostra = 0;
+                    card.querySelectorAll('.amostra-input').forEach(input => {
+                        somaFasesDaAmostra += parseInt(input.value) || 0;
+                    });
+                    somaDasMedias += (somaFasesDaAmostra / divisor);
+                });
+
+                const mediaFinal = somaDasMedias / amostras.length;
+
+                resultadoEl.textContent = `Resultado (Média das Amostras): ${mediaFinal.toFixed(2).replace('.', ',')}`;
+            },
+
             showConfirmationModal(message, onConfirm, inputsConfig = false) {
                 const { overlay, title, message: msgEl, confirmBtn, cancelBtn, closeBtn, inputContainer } = App.elements.confirmationModal;
                 title.textContent = "Confirmar Ação";
@@ -2464,6 +2513,38 @@ document.addEventListener('DOMContentLoaded', () => {
             closeEditFarmModal() {
                 App.elements.editFarmModal.overlay.classList.remove('show');
             },
+
+            addAmostraCard() {
+                const container = App.elements.cigarrinhaAmostragem.amostrasContainer;
+                if (!container) return;
+
+                const amostraId = Date.now();
+                const card = document.createElement('div');
+                card.className = 'amostra-card';
+                card.dataset.id = amostraId;
+
+                const amostraCount = container.children.length + 1;
+
+                card.innerHTML = `
+                    <div class="amostra-header">
+                        <h4>Amostra ${amostraCount}</h4>
+                        <button type="button" class="btn-remover-amostra" title="Remover Amostra">&times;</button>
+                    </div>
+                    <div class="form-row">
+                        ${[1, 2, 3, 4, 5].map(i => `
+                            <div class="form-col">
+                                <label for="fase${i}-amostra-${amostraId}">Fase ${i}:</label>
+                                <input type="number" id="fase${i}-amostra-${amostraId}" class="amostra-input" min="0" value="0">
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(card);
+                // Adiciona um foco suave ao primeiro input do novo card
+                card.querySelector('input').focus();
+                App.ui.calculateCigarrinhaAmostragem(); // Recalcula ao adicionar
+            },
+
             applyTheme(theme) {
                 document.body.className = theme;
                 App.elements.userMenu.themeButtons.forEach(btn => {
@@ -3073,6 +3154,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.perda.btnExcel) App.elements.perda.btnExcel.addEventListener('click', () => App.reports.generatePerdaCSV());
                 if (App.elements.cigarrinha.btnPDF) App.elements.cigarrinha.btnPDF.addEventListener('click', () => App.reports.generateCigarrinhaPDF());
                 if (App.elements.cigarrinha.btnExcel) App.elements.cigarrinha.btnExcel.addEventListener('click', () => App.reports.generateCigarrinhaCSV());
+
+                // Listeners para Cigarrinha Amostragem
+                const amostragemEls = App.elements.cigarrinhaAmostragem;
+                if (amostragemEls.addAmostraBtn) {
+                    amostragemEls.addAmostraBtn.addEventListener('click', () => App.ui.addAmostraCard());
+                }
+                if (amostragemEls.amostrasContainer) {
+                    amostragemEls.amostrasContainer.addEventListener('click', e => {
+                        const removeBtn = e.target.closest('.btn-remover-amostra');
+                        if (removeBtn) {
+                            removeBtn.closest('.amostra-card').remove();
+                            // Re-number the cards for better UX
+                            const allCards = amostragemEls.amostrasContainer.querySelectorAll('.amostra-card');
+                            allCards.forEach((card, index) => {
+                                card.querySelector('h4').textContent = `Amostra ${index + 1}`;
+                            });
+                            App.ui.calculateCigarrinhaAmostragem();
+                        }
+                    });
+                    amostragemEls.amostrasContainer.addEventListener('input', e => {
+                        if (e.target.classList.contains('amostra-input')) {
+                            App.ui.calculateCigarrinhaAmostragem();
+                        }
+                    });
+                }
+                if (amostragemEls.codigo) amostragemEls.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('cigarrinhaAmostragem'));
+                if (amostragemEls.talhao) amostragemEls.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('cigarrinhaAmostragem'));
+                if (amostragemEls.btnSalvar) amostragemEls.btnSalvar.addEventListener('click', () => App.actions.saveCigarrinhaAmostragem());
+                if (amostragemEls.btnPDF) amostragemEls.btnPDF.addEventListener('click', () => App.reports.generateCigarrinhaAmostragemPDF());
+                if (amostragemEls.btnExcel) amostragemEls.btnExcel.addEventListener('click', () => App.reports.generateCigarrinhaAmostragemCSV());
+
                 if (App.elements.exclusao.lista) App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
                 
                 const customReportEls = App.elements.relatorioColheita;
@@ -3136,7 +3248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
                 this.enableEnterKeyNavigation('#lancamentoCigarrinha');
-                this.enableEnterKeyNavigation('#lancamentoCigarrinha');
+                this.enableEnterKeyNavigation('#lancamentoCigarrinhaAmostragem');
                 this.enableEnterKeyNavigation('#changePasswordModal');
                 this.enableEnterKeyNavigation('#cadastros');
                 this.enableEnterKeyNavigation('#cadastrarPessoas');
@@ -4436,6 +4548,68 @@ document.addEventListener('DOMContentLoaded', () => {
                             usuario: App.state.currentUser.username,
                             companyId: App.state.currentUser.companyId
                         };
+                    }
+                });
+            },
+
+            saveCigarrinhaAmostragem() {
+                const els = App.elements.cigarrinhaAmostragem;
+                if (!App.ui.validateFields([els.data.id, els.codigo.id, els.talhao.id])) {
+                    App.ui.showAlert("Preencha todos os campos principais (Data, Fazenda, Talhão)!", "error");
+                    return;
+                }
+
+                const amostrasCards = els.amostrasContainer.querySelectorAll('.amostra-card');
+                if (amostrasCards.length === 0) {
+                    App.ui.showAlert("Adicione pelo menos uma sub-amostra antes de guardar.", "error");
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === els.codigo.value);
+                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === els.talhao.value.trim().toUpperCase());
+
+                const amostrasData = [];
+                amostrasCards.forEach(card => {
+                    const amostra = {};
+                    card.querySelectorAll('.amostra-input').forEach((input, index) => {
+                        amostra[`fase${index + 1}`] = parseInt(input.value) || 0;
+                    });
+                    amostrasData.push(amostra);
+                });
+
+                const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
+                const somaDasMedias = amostrasData.reduce((acc, amostra) => {
+                    const somaFases = Object.values(amostra).reduce((sum, val) => sum + val, 0);
+                    return acc + (somaFases / divisor);
+                }, 0);
+                const mediaFinal = somaDasMedias / amostrasData.length;
+
+                const newEntry = {
+                    data: els.data.value,
+                    codigo: farm.code,
+                    fazenda: farm.name,
+                    talhao: talhao.name,
+                    variedade: talhao.variedade || '',
+                    resultado: mediaFinal,
+                    amostras: amostrasData,
+                    divisor: divisor,
+                    usuario: App.state.currentUser.username,
+                    companyId: App.state.currentUser.companyId
+                };
+
+                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este lançamento?", async () => {
+                    App.ui.setLoading(true, "A guardar...");
+                    try {
+                        await App.data.addDocument('cigarrinhaAmostragem', newEntry);
+                        App.ui.showAlert("Lançamento de amostragem guardado com sucesso!");
+                        els.amostrasContainer.innerHTML = ''; // Limpa os cards
+                        App.ui.clearForm(els.form);
+                        App.ui.setDefaultDatesForEntryForms();
+                    } catch (e) {
+                        App.ui.showAlert("Erro ao guardar o lançamento.", "error");
+                        console.error("Erro ao guardar amostragem de cigarrinha:", e);
+                    } finally {
+                        App.ui.setLoading(false);
                     }
                 });
             },
@@ -7345,6 +7519,38 @@ document.addEventListener('DOMContentLoaded', () => {
                         fazendaCodigo: farm ? farm.code : ''
                     };
                     this._fetchAndDownloadReport('cigarrinha/csv', filters, 'relatorio_cigarrinha.csv');
+                },
+
+                generateCigarrinhaAmostragemPDF() {
+                    const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinhaAmostragem;
+                    if (!filtroInicio.value || !filtroFim.value) {
+                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        return;
+                    }
+                    const farmId = filtroFazenda.value;
+                    const farm = App.state.fazendas.find(f => f.id === farmId);
+                    const filters = {
+                        inicio: filtroInicio.value,
+                        fim: filtroFim.value,
+                        fazendaCodigo: farm ? farm.code : ''
+                    };
+                    this._fetchAndDownloadReport('cigarrinha-amostragem/pdf', filters, 'relatorio_cigarrinha_amostragem.pdf');
+                },
+
+                generateCigarrinhaAmostragemCSV() {
+                    const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinhaAmostragem;
+                    if (!filtroInicio.value || !filtroFim.value) {
+                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        return;
+                    }
+                    const farmId = filtroFazenda.value;
+                    const farm = App.state.fazendas.find(f => f.id === farmId);
+                    const filters = {
+                        inicio: filtroInicio.value,
+                        fim: filtroFim.value,
+                        fazendaCodigo: farm ? farm.code : ''
+                    };
+                    this._fetchAndDownloadReport('cigarrinha-amostragem/csv', filters, 'relatorio_cigarrinha_amostragem.csv');
                 },
 
                 generateCustomHarvestReport(format) {
