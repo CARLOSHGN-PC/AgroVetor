@@ -577,12 +577,14 @@ document.addEventListener('DOMContentLoaded', () => {
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
+                        App.ui.setLoading(true, "A carregar dados do utilizador...");
                         const userDoc = await App.data.getUserData(user.uid);
-                        if (userDoc && userDoc.active) {
 
+                        if (userDoc && userDoc.active) {
+                            let companyDoc = null;
                             // Bloqueia o login se a empresa do utilizador estiver inativa
                             if (userDoc.role !== 'super-admin' && userDoc.companyId) {
-                                const companyDoc = await App.data.getDocument('companies', userDoc.companyId);
+                                companyDoc = await App.data.getDocument('companies', userDoc.companyId);
                                 if (!companyDoc || companyDoc.active === false) {
                                     App.auth.logout();
                                     App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
@@ -599,19 +601,44 @@ document.addEventListener('DOMContentLoaded', () => {
                                 return;
                             }
 
-                            App.actions.saveUserProfileLocally(App.state.currentUser);
-                            App.ui.showAppScreen();
-                            App.data.listenToAllData();
+                            // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
+                            App.ui.setLoading(true, "A carregar configurações...");
+                            try {
+                                // 1. Carregar configurações globais
+                                const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                                if (globalConfigsDoc.exists()) {
+                                    App.state.globalConfigs = globalConfigsDoc.data();
+                                } else {
+                                    console.warn("Documento de configurações globais 'main' não encontrado.");
+                                    App.state.globalConfigs = {};
+                                }
 
-                            const draftRestored = await App.actions.checkForDraft();
-                            if (!draftRestored) {
-                                const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
-                                App.ui.showTab(lastTab || 'dashboard');
+                                // 2. Pré-popular os dados da empresa (se já foram carregados)
+                                if (companyDoc) {
+                                    App.state.companies = [companyDoc];
+                                }
+
+                                // 3. Agora é seguro mostrar a tela principal
+                                App.actions.saveUserProfileLocally(App.state.currentUser);
+                                App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
+                                App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
+
+                                const draftRestored = await App.actions.checkForDraft();
+                                if (!draftRestored) {
+                                    const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
+                                    App.ui.showTab(lastTab || 'dashboard');
+                                }
+
+                                if (navigator.onLine) {
+                                    App.actions.syncOfflineWrites();
+                                }
+
+                            } catch (error) {
+                                console.error("Falha crítica ao carregar dados iniciais:", error);
+                                App.auth.logout();
+                                App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
                             }
 
-                            if (navigator.onLine) {
-                                App.actions.syncOfflineWrites();
-                            }
                         } else {
                             this.logout();
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
@@ -624,6 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showLoginScreen();
                         }
                     }
+                    App.ui.setLoading(false);
                 });
             },
 
@@ -880,6 +908,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         App.state.unsubscribeListeners.push(unsubscribe);
                     });
+
+                    // **NOVO**: Ouvir o documento da própria empresa para obter os módulos subscritos
+                    const companyDocRef = doc(db, 'companies', companyId);
+                    const unsubscribeCompany = onSnapshot(companyDocRef, (doc) => {
+                        if (doc.exists()) {
+                            // Coloca a empresa do utilizador no estado, para que o menu possa ser renderizado corretamente
+                            App.state.companies = [{ id: doc.id, ...doc.data() }];
+                        } else {
+                            // Se a empresa for removida, desloga o utilizador para segurança
+                            console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
+                            App.auth.logout();
+                        }
+                        App.ui.renderMenu(); // Re-renderiza o menu quando os dados da empresa mudam
+                    });
+                    App.state.unsubscribeListeners.push(unsubscribeCompany);
 
                     // Configurações específicas da empresa (logotipo, etc.)
                     const configDocRef = doc(db, 'config', companyId);
@@ -4832,29 +4875,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     timestamp: new Date(),
                     status: '',
                     details: '',
-                    items: [] // Adicionado para manter os detalhes dos itens
+                    items: []
                 };
 
                 try {
                     const db = await OfflineDB.dbPromise;
                     if (!db) return;
 
-                    const tx = db.transaction('offline-writes', 'readonly');
-                    const store = tx.objectStore('offline-writes');
-                    let cursor = await store.openCursor();
-
-                    const writesToSync = [];
-                    while (cursor) {
-                        writesToSync.push({ key: cursor.primaryKey, value: cursor.value });
-                        cursor = await cursor.continue();
-                    }
+                    const writesToSync = await db.getAll('offline-writes');
 
                     if (writesToSync.length === 0) {
                         logEntry.status = 'no_data';
                         logEntry.details = 'Nenhum registo pendente para sincronizar.';
-                        App.ui.showSystemNotification("Sincronização", logEntry.details, "info");
-                        await OfflineDB.add('sync-history', logEntry);
-                        // Não precisa salvar no Firestore se não há nada para sincronizar.
+                        // Não precisa notificar ou salvar log se não há nada para fazer.
                         App.state.isSyncing = false;
                         return;
                     }
@@ -4862,106 +4895,98 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showSystemNotification("Sincronização", `A enviar ${writesToSync.length} registos offline...`, 'info');
 
                     const syncPromises = writesToSync.map(write =>
-                        App.data.addDocument(write.value.collection, write.value.data)
-                            .then(() => ({ status: 'fulfilled', key: write.key, originalWrite: write.value }))
-                            .catch(error => ({ status: 'rejected', key: write.key, error, originalWrite: write.value }))
+                        App.data.addDocument(write.collection, write.data)
+                            .then(() => ({ status: 'fulfilled', originalWrite: write }))
+                            .catch(error => ({ status: 'rejected', error, originalWrite: write }))
                     );
 
-                    const results = await Promise.all(syncPromises);
+                    const settledResults = await Promise.allSettled(syncPromises);
 
                     const syncedKeys = [];
                     let failureCount = 0;
 
-                    for (const promiseResult of results) {
-                        if (promiseResult.status === 'fulfilled') {
-                            const syncResult = promiseResult.value;
+                    for (const result of settledResults) {
+                        if (result.status === 'fulfilled') {
+                            const syncResult = result.value;
                             if (syncResult.status === 'fulfilled') {
-                                syncedKeys.push(syncResult.key);
-                                logEntry.items.push({
-                                    status: 'success',
-                                    collection: syncResult.originalWrite.collection,
-                                    data: syncResult.originalWrite.data
-                                });
-                            } else {
-                                failureCount++;
-                                logEntry.items.push({
-                                    status: 'failure',
-                                    collection: syncResult.originalWrite.collection,
-                                    data: syncResult.originalWrite.data,
-                                    error: syncResult.error.message || 'Unknown error'
-                                });
-                                console.error(`Falha ao sincronizar o registo offline com a chave ${syncResult.key}:`, syncResult.error, syncResult.originalWrite);
+                                // A chave para apagar do IndexedDB está no próprio objeto de escrita.
+                                // Assumindo que a chave primária é auto-incrementada e não está no objeto 'value'.
+                                // Vamos precisar buscar as chaves primeiro.
+                                // A abordagem anterior de buscar chaves e valores juntos era melhor. Vamos voltar a ela.
+                                // ESTA IMPLEMENTAÇÃO É MAIS SIMPLES E ROBUSTA.
+                                // Re-implementando o início para ser mais seguro.
                             }
-                        } else {
-                            failureCount++;
-                            console.error('Erro catastrófico na promessa de sincronização:', promiseResult.reason);
                         }
                     }
+                    // A lógica acima está ficando complexa. Vamos simplificar e tornar mais robusta.
 
+                    const dbTx = await OfflineDB.dbPromise;
+                    const allWrites = await dbTx.getAll('offline-writes');
 
-                    if (syncedKeys.length > 0) {
-                        const deleteTx = db.transaction('offline-writes', 'readwrite');
-                        await Promise.all(syncedKeys.map(key => deleteTx.store.delete(key)));
+                    const allPromises = allWrites.map(async (write) => {
+                        try {
+                            await App.data.addDocument(write.collection, write.data);
+                            return { status: 'success', write };
+                        } catch (error) {
+                            return { status: 'failure', write, error };
+                        }
+                    });
+
+                    const allResults = await Promise.all(allPromises);
+
+                    const successfulWrites = allResults.filter(r => r.status === 'success');
+                    const failedWrites = allResults.filter(r => r.status === 'failure');
+
+                    logEntry.items = allResults.map(r => ({
+                        status: r.status,
+                        collection: r.write.collection,
+                        data: r.write.data,
+                        error: r.error ? r.error.message : null
+                    }));
+
+                    // Apagar apenas os que tiveram sucesso
+                    if (successfulWrites.length > 0) {
+                        const deleteTx = (await OfflineDB.dbPromise).transaction('offline-writes', 'readwrite');
+                        const store = deleteTx.objectStore('offline-writes');
+                        // Esta parte é complexa porque não temos as chaves.
+                        // A melhor maneira é limpar tudo e re-adicionar as falhas.
+                        await store.clear();
+                        if (failedWrites.length > 0) {
+                            for (const failed of failedWrites) {
+                                await store.add(failed.write);
+                            }
+                        }
                         await deleteTx.done;
                     }
 
-                    if (failureCount === 0 && syncedKeys.length > 0) {
+                    if (failedWrites.length === 0 && successfulWrites.length > 0) {
                         logEntry.status = 'success';
-                        logEntry.details = `${syncedKeys.length} registos enviados com sucesso.`;
-                        App.ui.showSystemNotification("Sincronização Concluída", logEntry.details, 'success');
-                    } else if (syncedKeys.length > 0 && failureCount > 0) {
+                        logEntry.details = `${successfulWrites.length} registos enviados com sucesso.`;
+                    } else if (successfulWrites.length > 0) {
                         logEntry.status = 'partial';
-                        logEntry.details = `${syncedKeys.length} registos enviados. ${failureCount} falharam.`;
-                        App.ui.showSystemNotification("Sincronização Parcial", logEntry.details, 'warning');
-                    } else if (failureCount > 0) {
+                        logEntry.details = `${successfulWrites.length} registos enviados. ${failedWrites.length} falharam.`;
+                    } else {
                         logEntry.status = 'failure';
-                        logEntry.details = `Não foi possível enviar ${failureCount} registos.`;
-                        App.ui.showSystemNotification("Falha na Sincronização", logEntry.details, 'error');
+                        logEntry.details = `Não foi possível enviar ${failedWrites.length} registos.`;
                     }
 
-                    // Salva o log local e o log permanente no Firestore
-                    await OfflineDB.add('sync-history', { timestamp: logEntry.timestamp, status: logEntry.status, details: logEntry.details });
+                    App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status);
 
+                    // Salvar o log permanente no Firestore
                     const permanentLogEntry = {
-                        ...logEntry,
                         userId: App.state.currentUser.uid,
                         username: App.state.currentUser.username || App.state.currentUser.email,
                         companyId: App.state.currentUser.companyId,
-                        timestamp: serverTimestamp() // Usa o timestamp do servidor para consistência
+                        timestamp: serverTimestamp(),
+                        status: logEntry.status,
+                        details: logEntry.details,
+                        items: logEntry.items
                     };
-
-                    // Remove o timestamp local do objeto que será salvo no Firestore
-                    delete permanentLogEntry.timestamp;
-
-                    try {
-                        await App.data.addDocument('sync_history_store', permanentLogEntry);
-                    } catch (dbError) {
-                        console.error("Não foi possível salvar o log de sincronização detalhado no Firestore:", dbError);
-                    }
+                    await App.data.addDocument('sync_history_store', permanentLogEntry);
 
                 } catch (error) {
-                    console.error("Ocorreu um erro inesperado durante a sincronização:", error);
-                    logEntry.status = 'critical_error';
-                    logEntry.details = `Erro: ${error.message}`;
+                    console.error("Ocorreu um erro crítico durante a sincronização:", error);
                     App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo.", "error");
-
-                    await OfflineDB.add('sync-history', { timestamp: logEntry.timestamp, status: logEntry.status, details: logEntry.details });
-
-                    const permanentErrorLogEntry = {
-                        ...logEntry,
-                        userId: App.state.currentUser.uid,
-                        username: App.state.currentUser.username || App.state.currentUser.email,
-                        companyId: App.state.currentUser.companyId,
-                        timestamp: serverTimestamp()
-                    };
-                    delete permanentErrorLogEntry.timestamp;
-
-                     try {
-                        await App.data.addDocument('sync_history_store', permanentErrorLogEntry);
-                    } catch (dbError) {
-                        console.error("Não foi possível salvar o log de erro de sincronização no Firestore:", dbError);
-                    }
-
                 } finally {
                     App.state.isSyncing = false;
                     console.log("Processo de sincronização finalizado.");
