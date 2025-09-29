@@ -160,6 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
             users: [],
             companies: [],
             globalConfigs: {}, // NOVO: Para armazenar configurações globais como feature flags
+            companyConfig: {},
             registros: [],
             perdas: [],
             cigarrinha: [],
@@ -929,12 +930,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
                         if (doc.exists()) {
                             const configData = doc.data();
+                            App.state.companyConfig = configData; // Carrega todas as configurações da empresa
                             App.state.companyLogo = configData.logoBase64 || null;
+
+                            // Atualiza a UI com o valor carregado
+                            const cigarrinhaMethodSelect = document.getElementById('cigarrinhaCalcMethod');
+                            if (cigarrinhaMethodSelect) {
+                                cigarrinhaMethodSelect.value = configData.cigarrinhaCalcMethod || '5';
+                            }
+
                             if (configData.shapefileURL) {
                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
                             }
                         } else {
                             App.state.companyLogo = null;
+                            App.state.companyConfig = {};
                         }
                         App.ui.renderLogoPreview();
                     });
@@ -2227,8 +2237,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const f4 = parseInt(fase4.value) || 0;
                 const f5 = parseInt(fase5.value) || 0;
 
-                // Corrected calculation: (sum of phases / 5) / 10
-                const media = ((f1 + f2 + f3 + f4 + f5) / 5) / 10;
+                // Lê o método de cálculo do estado da aplicação, com '5' como padrão.
+                const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
+
+                const media = (f1 + f2 + f3 + f4 + f5) / divisor;
                 resultado.textContent = `Resultado: ${media.toFixed(2).replace('.', ',')}`;
             },
 
@@ -2586,6 +2598,147 @@ document.addEventListener('DOMContentLoaded', () => {
                     container.innerHTML += this._createPermissionItemHTML(perm, permissions);
                 });
             },
+            showHistoryFilterModal() {
+                const modal = App.elements.historyFilterModal;
+                this.populateUserSelects([modal.userSelect]); // Popula apenas o select do modal
+
+                // Set default dates
+                const today = new Date();
+                const sevenDaysAgo = new Date(today);
+                sevenDaysAgo.setDate(today.getDate() - 7);
+
+                modal.startDate.value = sevenDaysAgo.toISOString().split('T')[0];
+                modal.endDate.value = today.toISOString().split('T')[0];
+
+                modal.overlay.classList.add('show');
+            },
+            hideHistoryFilterModal() {
+                const modal = App.elements.historyFilterModal;
+                modal.overlay.classList.remove('show');
+            },
+
+            showSyncHistoryDetailModal() {
+                App.elements.syncHistoryDetailModal.overlay.classList.add('show');
+            },
+
+            hideSyncHistoryDetailModal() {
+                App.elements.syncHistoryDetailModal.overlay.classList.remove('show');
+                App.elements.syncHistoryDetailModal.body.innerHTML = ''; // Limpa o conteúdo ao fechar
+            },
+
+            async renderSyncHistoryDetails(logId) {
+                const modal = App.elements.syncHistoryDetailModal;
+                modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
+                this.showSyncHistoryDetailModal();
+
+                try {
+                    const logDoc = await App.data.getDocument('sync_history_store', logId);
+
+                    if (!logDoc || !logDoc.items || logDoc.items.length === 0) {
+                        modal.body.innerHTML = '<p>Nenhum item detalhado encontrado para este registo de sincronização.</p>';
+                        return;
+                    }
+
+                    const logTimestamp = logDoc.timestamp ? logDoc.timestamp.toDate().toLocaleString('pt-BR') : 'Data não disponível';
+                    modal.title.textContent = `Detalhes da Sincronização de ${logTimestamp}`;
+
+                    let contentHTML = '<div class="sync-items-container">';
+
+                    logDoc.items.forEach((item, index) => {
+                        const itemStatus = item.status || 'unknown';
+                        const cardClass = itemStatus === 'success' ? 'success' : 'failure';
+                        const icon = itemStatus === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+                        const title = `Item ${index + 1}: ${item.collection}`;
+
+                        let dataDetails = '';
+                        if (item.data) {
+                            switch (item.collection) {
+                                case 'registros': // Broca
+                                    dataDetails = `<p><strong>Fazenda/Talhão:</strong> ${item.data.codigo} / ${item.data.talhao}</p><p><strong>Data:</strong> ${item.data.data}</p><p><strong>Índice:</strong> ${item.data.brocamento}%</p>`;
+                                    break;
+                                case 'perdas':
+                                    dataDetails = `<p><strong>Fazenda/Talhão:</strong> ${item.data.codigo} / ${item.data.talhao}</p><p><strong>Data:</strong> ${item.data.data}</p><p><strong>Total:</strong> ${item.data.total} kg</p>`;
+                                    break;
+                                default:
+                                    dataDetails = Object.entries(item.data)
+                                        .map(([key, value]) => `<p><strong>${key}:</strong> ${value}</p>`)
+                                        .join('');
+                                    break;
+                            }
+                        }
+
+                        const errorInfo = item.status === 'failure'
+                            ? `<div class="error-message"><strong>Erro:</strong> ${item.error || 'Desconhecido'}</div>`
+                            : '';
+
+                        const retryButton = item.status === 'failure'
+                            ? `<div class="sync-item-footer">
+                                   <button class="btn-retry-sync" data-action="retry-sync-item" data-item-index="${index}" data-log-id="${logId}">
+                                       <i class="fas fa-sync-alt"></i> Tentar Novamente
+                                   </button>
+                               </div>`
+                            : '';
+
+                        contentHTML += `
+                            <div class="sync-item-card ${cardClass}" id="sync-item-${index}">
+                                <div class="sync-item-header">
+                                    <i class="fas ${icon}"></i>
+                                    <span>${title}</span>
+                                </div>
+                                <div class="sync-item-body">
+                                    ${dataDetails}
+                                    ${errorInfo}
+                                </div>
+                                ${retryButton}
+                            </div>
+                        `;
+                    });
+
+                    contentHTML += '</div>';
+                    modal.body.innerHTML = contentHTML;
+
+                } catch (error) {
+                    console.error("Erro ao buscar detalhes do histórico de sincronização:", error);
+                    modal.body.innerHTML = '<p style="color: var(--color-danger);">Não foi possível carregar os detalhes.</p>';
+                }
+            },
+
+            async retrySyncItem(logId, itemIndex) {
+                App.ui.setLoading(true, "A tentar sincronizar novamente...");
+                try {
+                    const logDoc = await App.data.getDocument('sync_history_store', logId);
+                    if (!logDoc || !logDoc.items || !logDoc.items[itemIndex]) {
+                        throw new Error("Registo de log ou item não encontrado.");
+                    }
+
+                    const itemToRetry = logDoc.items[itemIndex];
+                    if (itemToRetry.status !== 'failure') {
+                        App.ui.showAlert("Este item não falhou, não há necessidade de tentar novamente.", "info");
+                        return;
+                    }
+
+                    // Tenta adicionar o documento novamente
+                    await App.data.addDocument(itemToRetry.collection, itemToRetry.data);
+
+                    // Se for bem-sucedido, atualiza o log no Firestore
+                    const updatedItems = [...logDoc.items];
+                    updatedItems[itemIndex].status = 'success';
+                    updatedItems[itemIndex].error = null; // Limpa a mensagem de erro anterior
+
+                    await App.data.updateDocument('sync_history_store', logId, { items: updatedItems });
+
+                    App.ui.showAlert("Item sincronizado com sucesso!", "success");
+                    // Re-renderiza os detalhes para refletir a mudança
+                    this.renderSyncHistoryDetails(logId);
+
+                } catch (error) {
+                    App.ui.showAlert(`Falha ao tentar novamente: ${error.message}`, "error");
+                    console.error("Erro ao tentar sincronizar item novamente:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
             setupEventListeners() {
                 if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => App.auth.login());
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
@@ -3049,6 +3202,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const debouncedSaveCigarrinha = App.debounce(() => App.actions.saveFormDraft('cigarrinha'), 1000);
                 if (App.elements.cigarrinha.form) App.elements.cigarrinha.form.addEventListener('input', debouncedSaveCigarrinha);
+
+                const btnSaveCompanySettings = document.getElementById('btnSaveCompanySettings');
+                if (btnSaveCompanySettings) {
+                    btnSaveCompanySettings.addEventListener('click', () => App.actions.saveCompanySettings());
+                }
             }
         },
         
@@ -3508,6 +3666,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
+
+            async saveCompanySettings() {
+                const companyId = App.state.currentUser.companyId;
+                if (!companyId) {
+                    App.ui.showAlert("Não foi possível identificar a empresa para guardar as configurações.", "error");
+                    return;
+                }
+
+                const cigarrinhaCalcMethod = document.getElementById('cigarrinhaCalcMethod').value;
+                const settings = {
+                    cigarrinhaCalcMethod: cigarrinhaCalcMethod
+                };
+
+                App.ui.setLoading(true, "A guardar configurações...");
+                try {
+                    await App.data.setDocument('config', companyId, settings, { merge: true });
+                    // Atualiza o estado local para refletir a mudança imediatamente
+                    App.state.companyConfig.cigarrinhaCalcMethod = cigarrinhaCalcMethod;
+                    App.ui.showAlert("Configurações guardadas com sucesso!", "success");
+                } catch (error) {
+                    console.error("Erro ao guardar as configurações da empresa:", error);
+                    App.ui.showAlert("Ocorreu um erro ao guardar as configurações.", "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
             async agendarInspecao() {
                 const els = App.elements.planejamento;
                 const farmId = els.fazenda.value;
@@ -6507,146 +6692,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            showHistoryFilterModal() {
-                const modal = App.elements.historyFilterModal;
-                this.populateUserSelects([modal.userSelect]); // Popula apenas o select do modal
-
-                // Set default dates
-                const today = new Date();
-                const sevenDaysAgo = new Date(today);
-                sevenDaysAgo.setDate(today.getDate() - 7);
-
-                modal.startDate.value = sevenDaysAgo.toISOString().split('T')[0];
-                modal.endDate.value = today.toISOString().split('T')[0];
-
-                modal.overlay.classList.add('show');
-            },
-            hideHistoryFilterModal() {
-                const modal = App.elements.historyFilterModal;
-                modal.overlay.classList.remove('show');
-            },
-
-            showSyncHistoryDetailModal() {
-                App.elements.syncHistoryDetailModal.overlay.classList.add('show');
-            },
-
-            hideSyncHistoryDetailModal() {
-                App.elements.syncHistoryDetailModal.overlay.classList.remove('show');
-                App.elements.syncHistoryDetailModal.body.innerHTML = ''; // Limpa o conteúdo ao fechar
-            },
-
-            async renderSyncHistoryDetails(logId) {
-                const modal = App.elements.syncHistoryDetailModal;
-                modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
-                this.showSyncHistoryDetailModal();
-
-                try {
-                    const logDoc = await App.data.getDocument('sync_history_store', logId);
-
-                    if (!logDoc || !logDoc.items || logDoc.items.length === 0) {
-                        modal.body.innerHTML = '<p>Nenhum item detalhado encontrado para este registo de sincronização.</p>';
-                        return;
-                    }
-
-                    const logTimestamp = logDoc.timestamp ? logDoc.timestamp.toDate().toLocaleString('pt-BR') : 'Data não disponível';
-                    modal.title.textContent = `Detalhes da Sincronização de ${logTimestamp}`;
-
-                    let contentHTML = '<div class="sync-items-container">';
-
-                    logDoc.items.forEach((item, index) => {
-                        const itemStatus = item.status || 'unknown';
-                        const cardClass = itemStatus === 'success' ? 'success' : 'failure';
-                        const icon = itemStatus === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-                        const title = `Item ${index + 1}: ${item.collection}`;
-
-                        let dataDetails = '';
-                        if (item.data) {
-                            switch (item.collection) {
-                                case 'registros': // Broca
-                                    dataDetails = `<p><strong>Fazenda/Talhão:</strong> ${item.data.codigo} / ${item.data.talhao}</p><p><strong>Data:</strong> ${item.data.data}</p><p><strong>Índice:</strong> ${item.data.brocamento}%</p>`;
-                                    break;
-                                case 'perdas':
-                                    dataDetails = `<p><strong>Fazenda/Talhão:</strong> ${item.data.codigo} / ${item.data.talhao}</p><p><strong>Data:</strong> ${item.data.data}</p><p><strong>Total:</strong> ${item.data.total} kg</p>`;
-                                    break;
-                                default:
-                                    dataDetails = Object.entries(item.data)
-                                        .map(([key, value]) => `<p><strong>${key}:</strong> ${value}</p>`)
-                                        .join('');
-                                    break;
-                            }
-                        }
-
-                        const errorInfo = item.status === 'failure'
-                            ? `<div class="error-message"><strong>Erro:</strong> ${item.error || 'Desconhecido'}</div>`
-                            : '';
-
-                        const retryButton = item.status === 'failure'
-                            ? `<div class="sync-item-footer">
-                                   <button class="btn-retry-sync" data-action="retry-sync-item" data-item-index="${index}" data-log-id="${logId}">
-                                       <i class="fas fa-sync-alt"></i> Tentar Novamente
-                                   </button>
-                               </div>`
-                            : '';
-
-                        contentHTML += `
-                            <div class="sync-item-card ${cardClass}" id="sync-item-${index}">
-                                <div class="sync-item-header">
-                                    <i class="fas ${icon}"></i>
-                                    <span>${title}</span>
-                                </div>
-                                <div class="sync-item-body">
-                                    ${dataDetails}
-                                    ${errorInfo}
-                                </div>
-                                ${retryButton}
-                            </div>
-                        `;
-                    });
-
-                    contentHTML += '</div>';
-                    modal.body.innerHTML = contentHTML;
-
-                } catch (error) {
-                    console.error("Erro ao buscar detalhes do histórico de sincronização:", error);
-                    modal.body.innerHTML = '<p style="color: var(--color-danger);">Não foi possível carregar os detalhes.</p>';
-                }
-            },
-
-            async retrySyncItem(logId, itemIndex) {
-                App.ui.setLoading(true, "A tentar sincronizar novamente...");
-                try {
-                    const logDoc = await App.data.getDocument('sync_history_store', logId);
-                    if (!logDoc || !logDoc.items || !logDoc.items[itemIndex]) {
-                        throw new Error("Registo de log ou item não encontrado.");
-                    }
-
-                    const itemToRetry = logDoc.items[itemIndex];
-                    if (itemToRetry.status !== 'failure') {
-                        App.ui.showAlert("Este item não falhou, não há necessidade de tentar novamente.", "info");
-                        return;
-                    }
-
-                    // Tenta adicionar o documento novamente
-                    await App.data.addDocument(itemToRetry.collection, itemToRetry.data);
-
-                    // Se for bem-sucedido, atualiza o log no Firestore
-                    const updatedItems = [...logDoc.items];
-                    updatedItems[itemIndex].status = 'success';
-                    updatedItems[itemIndex].error = null; // Limpa a mensagem de erro anterior
-
-                    await App.data.updateDocument('sync_history_store', logId, { items: updatedItems });
-
-                    App.ui.showAlert("Item sincronizado com sucesso!", "success");
-                    // Re-renderiza os detalhes para refletir a mudança
-                    this.renderSyncHistoryDetails(logId);
-
-                } catch (error) {
-                    App.ui.showAlert(`Falha ao tentar novamente: ${error.message}`, "error");
-                    console.error("Erro ao tentar sincronizar item novamente:", error);
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            }
         },
 
         charts: {
