@@ -2535,31 +2535,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 const container = App.elements.cigarrinhaAmostragem.amostrasContainer;
                 if (!container) return;
 
+                // Recolhe todos os outros cartões antes de adicionar um novo
+                container.querySelectorAll('.amostra-card:not(.collapsed)').forEach(c => c.classList.add('collapsed'));
+
                 const amostraId = Date.now();
                 const card = document.createElement('div');
-                card.className = 'amostra-card';
+                card.className = 'amostra-card'; // Os novos cartões começam expandidos por padrão
                 card.dataset.id = amostraId;
 
                 const amostraCount = container.children.length + 1;
 
                 card.innerHTML = `
-                    <div class="amostra-header">
+                    <div class="amostra-header" style="cursor: pointer;">
+                        <i class="fas fa-chevron-down amostra-toggle-icon"></i>
                         <h4>Amostra ${amostraCount}</h4>
                         <button type="button" class="btn-remover-amostra" title="Remover Amostra">&times;</button>
                     </div>
-                    <div class="form-row">
-                        ${[1, 2, 3, 4, 5].map(i => `
-                            <div class="form-col">
-                                <label for="fase${i}-amostra-${amostraId}">Fase ${i}:</label>
-                                <input type="number" id="fase${i}-amostra-${amostraId}" class="amostra-input" min="0" placeholder="0">
-                            </div>
-                        `).join('')}
+                    <div class="amostra-body">
+                        <div class="form-row">
+                            ${[1, 2, 3, 4, 5].map(i => `
+                                <div class="form-col">
+                                    <label for="fase${i}-amostra-${amostraId}">Fase ${i}:</label>
+                                    <input type="number" id="fase${i}-amostra-${amostraId}" class="amostra-input" min="0" placeholder="0">
+                                </div>
+                            `).join('')}
+                        </div>
                     </div>
                 `;
                 container.appendChild(card);
-                // Adiciona um foco suave ao primeiro input do novo card
                 card.querySelector('input').focus();
-                App.ui.calculateCigarrinhaAmostragem(); // Recalcula ao adicionar
+                App.ui.calculateCigarrinhaAmostragem();
             },
 
             applyTheme(theme) {
@@ -3186,17 +3191,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (amostragemEls.amostrasContainer) {
                     amostragemEls.amostrasContainer.addEventListener('click', e => {
+                        const header = e.target.closest('.amostra-header');
                         const removeBtn = e.target.closest('.btn-remover-amostra');
+
                         if (removeBtn) {
+                            e.stopPropagation(); // Impede que o clique no botão de remover também acione o colapso
                             removeBtn.closest('.amostra-card').remove();
-                            // Re-number the cards for better UX
+                            // Renumera os cartões para uma melhor experiência do utilizador
                             const allCards = amostragemEls.amostrasContainer.querySelectorAll('.amostra-card');
                             allCards.forEach((card, index) => {
                                 card.querySelector('h4').textContent = `Amostra ${index + 1}`;
                             });
                             App.ui.calculateCigarrinhaAmostragem();
+                        } else if (header) {
+                            header.closest('.amostra-card').classList.toggle('collapsed');
                         }
                     });
+
                     amostragemEls.amostrasContainer.addEventListener('input', e => {
                         if (e.target.classList.contains('amostra-input')) {
                             App.ui.calculateCigarrinhaAmostragem();
