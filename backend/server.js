@@ -903,15 +903,17 @@ try {
 
     app.get('/reports/cigarrinha-amostragem/pdf', async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        const { tipoRelatorio = 'detalhado' } = req.query;
+        const filename = `relatorio_cigarrinha_amostragem_${tipoRelatorio}.pdf`;
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_cigarrinha_amostragem.pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
         doc.pipe(res);
 
         try {
             const filters = req.query;
             const data = await getFilteredData('cigarrinhaAmostragem', filters);
-            const title = 'Relatório de Monitoramento de Cigarrinha (Amostragem)';
+            const title = `Relatório de Cigarrinha (Amostragem) - ${tipoRelatorio.charAt(0).toUpperCase() + tipoRelatorio.slice(1)}`;
 
             if (data.length === 0) {
                 await generatePdfHeader(doc, title);
@@ -923,27 +925,60 @@ try {
 
             let currentY = await generatePdfHeader(doc, title);
 
-            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Resultado', 'Amostras (F1, F2, F3, F4, F5)'];
-            const columnWidths = [70, 150, 80, 100, 70, 292];
-            const headersConfig = headers.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+            if (tipoRelatorio === 'resumido') {
+                const groupedData = data.reduce((acc, r) => {
+                    const key = `${r.codigo}|${r.fazenda}|${r.talhao}`;
+                    if (!acc[key]) {
+                        acc[key] = {
+                            codigo: r.codigo,
+                            fazenda: r.fazenda,
+                            talhao: r.talhao,
+                            variedade: r.variedade,
+                            resultados: []
+                        };
+                    }
+                    acc[key].resultados.push(r.resultado);
+                    return acc;
+                }, {});
 
-            currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 18, headersConfig);
+                const headers = ['Fazenda', 'Talhão', 'Variedade', 'Resultado Médio'];
+                const columnWidths = [250, 150, 150, 212];
+                currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
-            for(const r of data) {
-                currentY = await checkPageBreak(doc, currentY, title);
-                const amostrasText = r.amostras.map((amostra, index) =>
-                    `A${index + 1}: (${Object.values(amostra).join(', ')})`
-                ).join(' | ');
+                for (const key in groupedData) {
+                    const group = groupedData[key];
+                    const mediaResultados = group.resultados.reduce((a, b) => a + b, 0) / group.resultados.length;
+                    const row = [
+                        `${group.codigo} - ${group.fazenda}`,
+                        group.talhao,
+                        group.variedade,
+                        mediaResultados.toFixed(2).replace('.', ',')
+                    ];
+                    currentY = await checkPageBreak(doc, currentY, title);
+                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                }
 
-                const row = [
-                    r.data,
-                    `${r.codigo} - ${r.fazenda}`,
-                    r.talhao,
-                    r.variedade,
-                    (r.resultado || 0).toFixed(2).replace('.', ','),
-                    amostrasText
-                ];
-                currentY = drawRow(doc, row, currentY, false, false, columnWidths, 5, 18, headersConfig);
+            } else { // Detalhado
+                const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Resultado', 'Amostras (F1, F2, F3, F4, F5)'];
+                const columnWidths = [70, 150, 80, 100, 70, 292];
+                currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+                for(const r of data) {
+                    currentY = await checkPageBreak(doc, currentY, title);
+                    const amostrasText = r.amostras.map((amostra, index) =>
+                        `A${index + 1}: (${Object.values(amostra).join(', ')})`
+                    ).join(' | ');
+
+                    const row = [
+                        r.data,
+                        `${r.codigo} - ${r.fazenda}`,
+                        r.talhao,
+                        r.variedade,
+                        (r.resultado || 0).toFixed(2).replace('.', ','),
+                        amostrasText
+                    ];
+                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                }
             }
 
             generatePdfFooter(doc, filters.generatedBy);
@@ -960,52 +995,65 @@ try {
 
     app.get('/reports/cigarrinha-amostragem/csv', async (req, res) => {
         try {
+            const { tipoRelatorio = 'detalhado' } = req.query;
             const data = await getFilteredData('cigarrinhaAmostragem', req.query);
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
 
-            const filePath = path.join(os.tmpdir(), `cigarrinha_amostragem_${Date.now()}.csv`);
+            const filename = `relatorio_cigarrinha_amostragem_${tipoRelatorio}_${Date.now()}.csv`;
+            const filePath = path.join(os.tmpdir(), filename);
 
-            const header = [
-                { id: 'data', title: 'Data' },
-                { id: 'fazenda', title: 'Fazenda' },
-                { id: 'talhao', title: 'Talhão' },
-                { id: 'variedade', title: 'Variedade' },
-                { id: 'resultadoGeral', title: 'Resultado Geral' },
-                { id: 'numeroAmostra', title: 'Nº Amostra' },
-                { id: 'fase1', title: 'Fase 1' },
-                { id: 'fase2', title: 'Fase 2' },
-                { id: 'fase3', title: 'Fase 3' },
-                { id: 'fase4', title: 'Fase 4' },
-                { id: 'fase5', title: 'Fase 5' }
-            ];
+            let header, records;
 
-            const csvWriter = createObjectCsvWriter({
-                path: filePath,
-                header: header,
-                fieldDelimiter: ';' // Use ponto e vírgula para compatibilidade com Excel em português
-            });
+            if (tipoRelatorio === 'resumido') {
+                header = [
+                    { id: 'fazenda', title: 'Fazenda' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'variedade', title: 'Variedade' },
+                    { id: 'resultadoMedio', title: 'Resultado Médio' }
+                ];
 
-            const records = [];
-            data.forEach(lancamento => {
-                if (lancamento.amostras && lancamento.amostras.length > 0) {
-                    lancamento.amostras.forEach((amostra, index) => {
-                        records.push({
-                            data: lancamento.data,
-                            fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`,
-                            talhao: lancamento.talhao,
-                            variedade: lancamento.variedade,
-                            resultadoGeral: (lancamento.resultado || 0).toFixed(2).replace('.', ','),
-                            numeroAmostra: index + 1,
-                            fase1: amostra.fase1 || 0,
-                            fase2: amostra.fase2 || 0,
-                            fase3: amostra.fase3 || 0,
-                            fase4: amostra.fase4 || 0,
-                            fase5: amostra.fase5 || 0
+                const groupedData = data.reduce((acc, r) => {
+                    const key = `${r.codigo}|${r.fazenda}|${r.talhao}`;
+                    if (!acc[key]) {
+                        acc[key] = { fazenda: `${r.codigo} - ${r.fazenda}`, talhao: r.talhao, variedade: r.variedade, resultados: [] };
+                    }
+                    acc[key].resultados.push(r.resultado);
+                    return acc;
+                }, {});
+
+                records = Object.values(groupedData).map(group => {
+                    const media = group.resultados.reduce((a, b) => a + b, 0) / group.resultados.length;
+                    return {
+                        fazenda: group.fazenda,
+                        talhao: group.talhao,
+                        variedade: group.variedade,
+                        resultadoMedio: media.toFixed(2).replace('.', ',')
+                    };
+                });
+
+            } else { // Detalhado
+                header = [
+                    { id: 'data', title: 'Data' }, { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' },
+                    { id: 'variedade', title: 'Variedade' }, { id: 'resultadoGeral', title: 'Resultado Lançamento' }, { id: 'numeroAmostra', title: 'Nº Amostra' },
+                    { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' }, { id: 'fase3', title: 'Fase 3' },
+                    { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' }
+                ];
+                records = [];
+                data.forEach(lancamento => {
+                    if (lancamento.amostras && lancamento.amostras.length > 0) {
+                        lancamento.amostras.forEach((amostra, index) => {
+                            records.push({
+                                data: lancamento.data, fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao,
+                                variedade: lancamento.variedade, resultadoGeral: (lancamento.resultado || 0).toFixed(2).replace('.', ','),
+                                numeroAmostra: index + 1, fase1: amostra.fase1 || 0, fase2: amostra.fase2 || 0,
+                                fase3: amostra.fase3 || 0, fase4: amostra.fase4 || 0, fase5: amostra.fase5 || 0
+                            });
                         });
-                    });
-                }
-            });
+                    }
+                });
+            }
 
+            const csvWriter = createObjectCsvWriter({ path: filePath, header: header, fieldDelimiter: ';' });
             await csvWriter.writeRecords(records);
             res.download(filePath);
         } catch (error) {
