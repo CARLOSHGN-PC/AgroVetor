@@ -178,6 +178,25 @@
       .menu-btn:hover, .submenu-btn:hover, .submenu-back-btn:hover { background: rgba(255,255,255,0.1); color: var(--color-white); }
       .menu-btn.active { background: rgba(255,255,255,0.2); }
       .menu-btn i, .submenu-btn i, .submenu-back-btn i { font-size: 20px; width: 24px; text-align: center; }
+
+      /* Estilos para features com flags globais */
+      .globally-disabled-feature {
+        opacity: 0.7;
+        position: relative;
+        overflow: hidden;
+      }
+      .feature-status-badge {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background-color: var(--color-warning);
+        color: white;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
       .menu-btn .arrow { margin-left: auto; transition: transform 0.3s ease; font-size: 14px; }
       .submenu-back-btn { font-weight: 600; }
       main.content { margin-top: 70px; padding: 20px; transition: filter 0.3s ease; height: calc(100vh - 70px); overflow-y: auto; }
@@ -2098,6 +2117,15 @@
                     <p>Use esta ferramenta para associar todos os dados antigos (criados antes do sistema de empresas) à primeira empresa da lista. Esta é uma operação de uso único.</p>
                     <button id="btnMigrateOldData" class="save" style="max-width: 300px; background: var(--color-warning);"><i class="fas fa-cogs"></i> Iniciar Migração de Dados</button>
                 </div>
+
+                <div id="globalFeatureFlagCard" class="card" style="margin-top: 30px; border-left-color: var(--color-ai);">
+                    <h3><i class="fas fa-cogs"></i> Controlo Global de Funcionalidades</h3>
+                    <p>Ative ou desative funcionalidades para **todos os utilizadores**. O Super Admin sempre terá acesso a todas as funcionalidades para testes.</p>
+                    <div id="globalFeaturesGrid" class="permission-grid">
+                        <!-- Feature flags globais serão injetadas aqui -->
+                    </div>
+                    <button id="btnSaveGlobalFeatures" class="save" style="max-width: 300px; margin-top: 25px; background: var(--color-ai);"><i class="fas fa-save"></i> Guardar Alterações Globais</button>
+                </div>
             </section>
 
             <section id="cadastrarPessoas" class="tab-content card" aria-label="Cadastrar Pessoas" tabindex="0" hidden>
@@ -2164,29 +2192,6 @@
                     </div>
                 </div>
 
-                <div class="card" style="border-left-color: var(--color-success); margin-top: 30px;">
-                    <h3><i class="fas fa-cogs"></i> Configurações de Módulos</h3>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="cigarrinhaCalcMethod">Método de Cálculo (Cigarrinha):</label>
-                            <select id="cigarrinhaCalcMethod">
-                                <option value="10">Dividir por 10 (Padrão)</option>
-                                <option value="5">Dividir por 5</option>
-                            </select>
-                            <p style="font-size: 12px; color: var(--color-text-light); margin-top: 5px;">Define o divisor para o cálculo do resultado no monitoramento de cigarrinha.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="featureManagementCard" class="card" style="border-left-color: var(--color-ai); margin-top: 30px; display: none;">
-                    <h3><i class="fas fa-toggle-on"></i> Gestão de Funcionalidades</h3>
-                    <p style="font-size: 14px; color: var(--color-text-light); margin-top: -15px; margin-bottom: 20px;">Ative ou desative as novas funcionalidades que foram disponibilizadas para a sua empresa.</p>
-                    <div id="companyFeaturesGrid" class="permission-grid">
-                        <!-- As funcionalidades ativáveis serão geradas aqui pelo app.js -->
-                    </div>
-                    <button id="btnSaveChangesCompanyFeatures" class="save" style="max-width: 300px; margin-top: 25px; background: var(--color-ai);"><i class="fas fa-save"></i> Guardar Alterações nas Funcionalidades</button>
-                </div>
-
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
                     <h3><i class="fas fa-sync-alt"></i> Sincronização Global dos Planos de Colheita</h3>
                     <p>Importe relatórios do seu sistema principal para manter <strong>todos os planos de colheita</strong> sempre atualizados com a operação real.</p>
@@ -2214,15 +2219,6 @@
                         <button id="btnDownloadClosedTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-success);"><i class="fas fa-download"></i> Baixar Modelo (Encerrados)</button>
                         <small class="csv-format-info">Formato: CodigoFazenda;Talhao</small>
                     </div>
-                </div>
-
-                <div id="featureManagementCard" class="card" style="border-left-color: var(--color-ai); margin-top: 30px; display: none;">
-                    <h3><i class="fas fa-toggle-on"></i> Gestão de Funcionalidades</h3>
-                    <p style="font-size: 14px; color: var(--color-text-light); margin-top: -15px; margin-bottom: 20px;">Ative ou desative as novas funcionalidades que foram disponibilizadas para a sua empresa.</p>
-                    <div id="companyFeaturesGrid" class="permission-grid">
-                        <!-- As funcionalidades ativáveis serão geradas aqui pelo app.js -->
-                    </div>
-                    <button id="btnSaveChangesCompanyFeatures" class="save" style="max-width: 300px; margin-top: 25px; background: var(--color-ai);"><i class="fas fa-save"></i> Guardar Alterações nas Funcionalidades</button>
                 </div>
 
             </section>
@@ -2432,14 +2428,6 @@
                     <label class="required" style="font-size: 15px; margin-bottom: 10px;">Módulos Subscritos:</label>
                     <div class="checkbox-group-grid" id="editCompanyModulesGrid">
                         <!-- Os módulos serão gerados aqui pelo app.js -->
-                    </div>
-                </div>
-
-                <div class="checkbox-group-container" style="margin-top: 20px;">
-                    <label style="font-size: 15px; margin-bottom: 10px;">Funcionalidades Disponíveis (Feature Flags):</label>
-                     <p style="font-size: 12px; color: var(--color-text-light); margin-top: -8px; margin-bottom: 10px;">Selecione as novas funcionalidades que esta empresa poderá ativar no seu próprio painel de configurações.</p>
-                    <div class="checkbox-group-grid" id="editCompanyFeaturesGrid">
-                        <!-- As funcionalidades disponíveis serão geradas aqui pelo app.js -->
                     </div>
                 </div>
 

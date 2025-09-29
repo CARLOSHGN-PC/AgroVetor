@@ -89,28 +89,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     const App = {
-        isFeatureActive(featureKey) {
-            const { currentUser, companies } = this.state;
-            if (currentUser.role === 'super-admin') return true;
-            const company = companies.find(c => c.id === currentUser.companyId);
-            if (!company) return false;
-            const isAvailable = company.availableFeatures?.includes(featureKey);
-            const isActivated = company.activatedFeatures?.includes(featureKey);
-            return isAvailable && isActivated;
-        },
-
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
             inactivityTimeout: 15 * 60 * 1000,
             inactivityWarningTime: 1 * 60 * 1000,
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
-            featureFlags: [
-                { key: 'relatorio-avancado-perdas', label: 'Relatório Avançado de Perdas' },
-                { key: 'dashboard-ia', label: 'Dashboard com Análises de IA' }
-            ],
             menuConfig: [
-                { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard', featureFlag: 'dashboard-ia' },
+                { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
@@ -133,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Relatório Cigarrinha', icon: 'fas fa-leaf', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
-                        { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita', featureFlag: 'relatorio-avancado-perdas' },
+                        { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
                 },
@@ -172,7 +158,8 @@ document.addEventListener('DOMContentLoaded', () => {
             connectionCheckInterval: null,
             currentUser: null,
             users: [],
-                companies: [],
+            companies: [],
+            globalConfigs: {}, // NOVO: Para armazenar configurações globais como feature flags
             registros: [],
             perdas: [],
             cigarrinha: [],
@@ -555,6 +542,12 @@ document.addEventListener('DOMContentLoaded', () => {
             installAppBtn: document.getElementById('installAppBtn'),
         },
 
+        isFeatureGloballyActive(featureKey) {
+            // A funcionalidade está ativa se a flag correspondente for explicitamente `true`.
+            // Se a flag não existir ou for `false`, a funcionalidade está desativada.
+            return App.state.globalConfigs[featureKey] === true;
+        },
+
         debounce(func, delay = 1000) {
             let timeout;
             return (...args) => {
@@ -810,10 +803,28 @@ document.addEventListener('DOMContentLoaded', () => {
             listenToAllData() {
                 this.cleanupListeners();
 
+                // Ouve as configurações globais para TODOS os utilizadores
+                const globalConfigsRef = doc(db, 'global_configs', 'main');
+                const unsubscribeGlobalConfigs = onSnapshot(globalConfigsRef, (doc) => {
+                    if (doc.exists()) {
+                        App.state.globalConfigs = doc.data();
+                    } else {
+                        console.warn("Documento de configurações globais 'main' não encontrado. Recursos podem estar desativados por padrão.");
+                        App.state.globalConfigs = {}; // Garante que é um objeto vazio
+                    }
+                    // Re-renderiza o menu sempre que as flags globais mudam
+                    App.ui.renderMenu();
+                }, (error) => {
+                    console.error("Erro ao ouvir as configurações globais: ", error);
+                    App.state.globalConfigs = {}; // Reseta em caso de erro
+                    App.ui.renderMenu(); // Re-renderiza o menu com flags desativadas
+                });
+                App.state.unsubscribeListeners.push(unsubscribeGlobalConfigs);
+
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'companies'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -844,7 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.renderLogoPreview();
 
                 } else if (companyId) {
-                    // Utilizador normal ouve os dados da sua própria empresa
+                    // Utilizador normal ouve apenas os dados da sua própria empresa
                     companyScopedCollections.forEach(collectionName => {
                         const q = query(collection(db, collectionName), where("companyId", "==", companyId));
                         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -862,24 +873,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         App.state.unsubscribeListeners.push(unsubscribe);
                     });
-
-                    // Adicionado: Listener para o documento da própria empresa para obter os módulos subscritos
-                    const companyDocRef = doc(db, 'companies', companyId);
-                    const unsubscribeCompany = onSnapshot(companyDocRef, (doc) => {
-                        if (doc.exists()) {
-                            // Coloca a empresa num array para manter a consistência da estrutura de dados
-                            App.state.companies = [{ id: doc.id, ...doc.data() }];
-                        } else {
-                            console.error("A empresa associada ao utilizador não foi encontrada. As permissões de módulo podem não funcionar.");
-                            App.state.companies = [];
-                        }
-                        // Renderiza o menu assim que os dados da empresa (e seus módulos) são carregados
-                        App.ui.renderMenu();
-                    }, (error) => {
-                        console.error(`Erro ao carregar os dados da empresa (${companyId}): `, error);
-                    });
-                    App.state.unsubscribeListeners.push(unsubscribeCompany);
-
 
                     // Configurações específicas da empresa (logotipo, etc.)
                     const configDocRef = doc(db, 'config', companyId);
@@ -1136,8 +1129,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const createMenuItem = (item) => {
                     const isSuperAdmin = currentUser.role === 'super-admin';
+                    const isGloballyActive = App.isFeatureGloballyActive(item.permission) || (item.submenu && item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission)));
 
-                    if (item.featureFlag && !App.isFeatureActive(item.featureFlag)) {
+                    // O item não deve ser renderizado se não estiver ativo globalmente E o utilizador não for super-admin
+                    if (!isGloballyActive && !isSuperAdmin) {
                         return null;
                     }
 
@@ -1150,6 +1145,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const btn = document.createElement('button');
                     btn.className = 'menu-btn';
                     btn.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span>`;
+
+                    // Lógica para Super Admin ver o estado do módulo
+                    if (isSuperAdmin && item.permission && !item.submenu) {
+                        const isActive = App.isFeatureGloballyActive(item.permission);
+                        if (!isActive) {
+                            btn.classList.add('globally-disabled-feature');
+                            btn.innerHTML += '<span class="feature-status-badge">Oculto</span>';
+                        }
+                    }
                     
                     if (item.submenu) {
                         btn.innerHTML += '<span class="arrow">&rsaquo;</span>';
@@ -1202,14 +1206,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const subscribedModules = currentUser.role === 'super-admin' ? null : new Set(userCompany?.subscribedModules || []);
 
                 parentItem.submenu.forEach(subItem => {
-                    if (subItem.featureFlag && !App.isFeatureActive(subItem.featureFlag)) {
-                        return; // Skip this item if feature is not active
-                    }
                     const isSuperAdmin = currentUser.role === 'super-admin';
+                    const isGloballyActive = App.isFeatureGloballyActive(subItem.permission);
+
+                    // Não renderiza o item se não estiver globalmente ativo E o user não for super-admin
+                    if (!isGloballyActive && !isSuperAdmin) {
+                        return;
+                    }
+
                     if (isSuperAdmin || currentUser.permissions[subItem.permission]) {
                         const subBtn = document.createElement('button');
                         subBtn.className = 'submenu-btn';
                         subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
+
+                        // Adiciona badge para super-admin se a feature estiver oculta
+                        if (isSuperAdmin && !isGloballyActive) {
+                            subBtn.classList.add('globally-disabled-feature');
+                            subBtn.innerHTML += '<span class="feature-status-badge">Oculto</span>';
+                        }
 
                         const isSubscribed = subscribedModules === null || subscribedModules.has(subItem.permission);
 
@@ -1255,26 +1269,18 @@ document.addEventListener('DOMContentLoaded', () => {
             showTab(id) {
                 const { currentUser, companies } = App.state;
 
-                // Find the item config to check for a feature flag
-                let itemConfig = null;
+                // Encontrar o item de menu correspondente para obter a permissão necessária
+                let requiredPermission = null;
                 App.config.menuConfig.forEach(item => {
                     if (item.target === id) {
-                        itemConfig = item;
+                        requiredPermission = item.permission;
                     } else if (item.submenu) {
                         const subItem = item.submenu.find(sub => sub.target === id);
                         if (subItem) {
-                            itemConfig = subItem;
+                            requiredPermission = subItem.permission;
                         }
                     }
                 });
-
-                if (itemConfig && itemConfig.featureFlag && !App.isFeatureActive(itemConfig.featureFlag)) {
-                    App.ui.showAlert("Esta funcionalidade não está ativa para a sua empresa.", "warning");
-                    return; // Block navigation
-                }
-
-                // Encontrar o item de menu correspondente para obter a permissão necessária
-                let requiredPermission = itemConfig ? itemConfig.permission : null;
 
                 // Se uma permissão é necessária, verificar a subscrição
                 if (requiredPermission && currentUser.role !== 'super-admin' && !App.state.isImpersonating) {
@@ -1347,6 +1353,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (id === 'gerenciarEmpresas') {
                     this.renderCompaniesList();
                     this.renderCompanyModules('newCompanyModules');
+                    this.renderGlobalFeatures(); // NOVO
                 }
                 if (id === 'cadastros') this.renderFarmSelect();
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
@@ -2451,6 +2458,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            renderGlobalFeatures() {
+                const grid = document.getElementById('globalFeaturesGrid');
+                if (!grid) return;
+
+                grid.innerHTML = ''; // Limpa para re-renderizar
+                const allPermissions = App.config.menuConfig.flatMap(item =>
+                    item.submenu ? item.submenu : [item]
+                ).filter(item => item.permission && item.permission !== 'superAdmin');
+
+                allPermissions.forEach(perm => {
+                    const isActive = App.isFeatureGloballyActive(perm.permission);
+                    const itemHTML = `
+                        <label class="permission-item">
+                            <input type="checkbox" data-feature="${perm.permission}" ${isActive ? 'checked' : ''}>
+                            <div class="permission-content">
+                                <i class="${perm.icon}"></i>
+                                <span>${perm.label}</span>
+                            </div>
+                            <div class="toggle-switch">
+                                <span class="slider"></span>
+                            </div>
+                        </label>
+                    `;
+                    grid.innerHTML += itemHTML;
+                });
+            },
+
             renderPermissionItems(container, permissions = {}, company = null) {
                 if (!container) return;
                 container.innerHTML = '';
@@ -2591,6 +2625,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const companyEls = App.elements.companyManagement;
                 if (companyEls.btnCreate) companyEls.btnCreate.addEventListener('click', () => App.actions.createCompany());
+
+                const btnSaveGlobalFeatures = document.getElementById('btnSaveGlobalFeatures');
+                if (btnSaveGlobalFeatures) {
+                    btnSaveGlobalFeatures.addEventListener('click', () => App.actions.saveGlobalFeatures());
+                }
+
                 if (companyEls.list) companyEls.list.addEventListener('click', e => {
                     const button = e.target.closest('button[data-action]');
                     if (!button) return;
@@ -5182,6 +5222,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.renderMenu();
                 App.ui.showTab('gerenciarEmpresas'); // Go back to a sensible super-admin tab
                 App.ui.hideImpersonationBanner();
+            },
+
+            async saveGlobalFeatures() {
+                const grid = document.getElementById('globalFeaturesGrid');
+                if (!grid) {
+                    App.ui.showAlert("Elemento de controlo de features não encontrado.", "error");
+                    return;
+                }
+
+                const newGlobalConfigs = {};
+                grid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    newGlobalConfigs[cb.dataset.feature] = cb.checked;
+                });
+
+                App.ui.setLoading(true, "A guardar configurações globais...");
+                try {
+                    await App.data.setDocument('global_configs', 'main', newGlobalConfigs);
+                    App.ui.showAlert("Configurações globais guardadas com sucesso!", "success");
+                } catch (error) {
+                    App.ui.showAlert("Erro ao guardar as configurações globais.", "error");
+                    console.error("Erro ao guardar configurações globais:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
             },
 
         },
