@@ -1469,6 +1469,49 @@
               width: auto;
               max-width: 100%;
           }
+
+          /* [NOVO] Estilos para Tabelas Responsivas */
+          .table-responsive {
+            border: none;
+          }
+          table.harvestPlanTable, table#companiesTable, table#personnelTable {
+              border: none;
+              width: 100%;
+          }
+          table.harvestPlanTable thead, table#companiesTable thead, table#personnelTable thead {
+              display: none;
+          }
+          table.harvestPlanTable tr, table#companiesTable tr, table#personnelTable tr {
+              display: block;
+              margin-bottom: 15px;
+              border-bottom: 3px solid var(--color-primary);
+              background: var(--color-surface);
+              border-radius: var(--border-radius);
+              padding: 10px;
+              box-shadow: var(--shadow-sm);
+          }
+          table.harvestPlanTable td, table#companiesTable td, table#personnelTable td {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 8px 5px;
+              text-align: right;
+              border-bottom: 1px solid var(--color-border);
+          }
+          table.harvestPlanTable td:last-child, table#companiesTable td:last-child, table#personnelTable td:last-child {
+              border-bottom: none;
+          }
+          table.harvestPlanTable td::before, table#companiesTable td::before, table#personnelTable td::before {
+              content: attr(data-label);
+              font-weight: bold;
+              text-align: left;
+              margin-right: 10px;
+              color: var(--color-primary);
+          }
+          table.harvestPlanTable td[data-label="Ações"] div, table#companiesTable td[data-label="Ações"] div, table#personnelTable td[data-label="Ações"] div {
+              justify-content: flex-end;
+              width: 100%;
+          }
       }
     </style>
 </head>
@@ -2254,7 +2297,7 @@
                     <button class="save" id="btnCreateCompany" style="max-width: 300px; margin-top: 25px; background: var(--color-danger);"><i class="fas fa-plus-circle"></i> Criar Empresa</button>
                 </div>
                 <h3><i class="fas fa-building"></i> Empresas Cadastradas</h3>
-                <div id="companiesList"></div>
+                <div id="companiesList" class="table-responsive"></div>
 
                 <div class="card" style="margin-top: 30px; border-left-color: var(--color-warning);">
                     <h3><i class="fas fa-database"></i> Ferramentas de Dados</h3>
