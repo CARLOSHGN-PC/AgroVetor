@@ -1153,14 +1153,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.saveNotification(notification);
             },
 
-            showSystemNotification(title, message, type = 'info') {
+            showSystemNotification(title, message, type = 'info', options = {}) {
                 const { list, count, noNotifications } = App.elements.notificationBell;
+                const { logId = null } = options;
 
                 const newNotification = {
                     title: title,
                     type: type,
                     message: message,
-                    timestamp: new Date()
+                    timestamp: new Date(),
+                    logId: logId // Adiciona o ID do log, se disponível
                 };
 
                 // Adiciona a nova notificação ao início da lista
@@ -1168,6 +1170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.unreadNotificationCount++;
 
                 this.updateNotificationBell();
+                App.actions.saveNotification(newNotification); // Salva a notificação completa
             },
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
             renderMenu() {
@@ -1446,6 +1449,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (notif.type === 'danger') iconClass = 'fa-exclamation-circle';
                         } else if (lowerCaseTitle.includes('sincroniza')) {
                             iconClass = 'fa-sync-alt';
+                            if (notif.logId) {
+                                item.dataset.logId = notif.logId; // Adiciona o ID do log para o clique
+                            }
                             if (notif.type === 'success') iconClass = 'fa-check-circle';
                             if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
                             if (notif.type === 'error') iconClass = 'fa-exclamation-circle';
@@ -2632,10 +2638,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (App.elements.notificationBell.list) App.elements.notificationBell.list.addEventListener('click', (e) => {
                     const item = e.target.closest('.notification-item');
-                    if (item && item.dataset.trapId) {
-                        const trapId = item.dataset.trapId;
+                    if (!item) return;
+
+                    const { trapId, logId } = item.dataset;
+
+                    if (trapId) {
                         App.ui.showTab('monitoramentoAereo');
                         App.mapModule.centerOnTrap(trapId);
+                        App.elements.notificationBell.dropdown.classList.remove('show');
+                    } else if (logId) {
+                        App.ui.renderSyncHistoryDetails(logId); // CORREÇÃO FINAL: Chamada para a função no módulo ui
                         App.elements.notificationBell.dropdown.classList.remove('show');
                     }
                 });
@@ -3013,7 +3025,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const button = e.target.closest('button[data-action="retry-sync-item"]');
                         if (button) {
                             const { logId, itemIndex } = button.dataset;
-                            this.retrySyncItem(logId, parseInt(itemIndex, 10));
+                            App.ui.retrySyncItem(logId, parseInt(itemIndex, 10)); // CORREÇÃO: Chamada para a função no módulo correto (ui)
                         }
                     });
                 }
@@ -4970,8 +4982,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         logEntry.details = `Não foi possível enviar ${failedWrites.length} registos.`;
                     }
 
-                    App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status);
-
                     // Salvar o log permanente no Firestore
                     const permanentLogEntry = {
                         userId: App.state.currentUser.uid,
@@ -4982,7 +4992,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         details: logEntry.details,
                         items: logEntry.items
                     };
-                    await App.data.addDocument('sync_history_store', permanentLogEntry);
+                    const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
+
+                    // Notifica o utilizador, passando o ID do log para que a notificação seja clicável
+                    App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
 
                 } catch (error) {
                     console.error("Ocorreu um erro crítico durante a sincronização:", error);
