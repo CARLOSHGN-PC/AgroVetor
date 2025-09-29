@@ -678,6 +678,25 @@
       .amostra-header h4 {
           color: var(--color-primary-dark);
           margin: 0;
+          flex-grow: 1;
+      }
+      .amostra-header .amostra-toggle-icon {
+          font-size: 16px;
+          margin-right: 10px;
+          transition: transform 0.3s;
+      }
+      .amostra-card.collapsed .amostra-toggle-icon {
+          transform: rotate(-90deg);
+      }
+      .amostra-body {
+          max-height: 500px; /* Altura suficiente para o conteúdo */
+          overflow: hidden;
+          transition: max-height 0.4s ease-in-out, padding-top 0.4s ease-in-out;
+          padding-top: 15px;
+      }
+      .amostra-card.collapsed .amostra-body {
+          max-height: 0;
+          padding-top: 0;
       }
       .btn-remover-amostra {
           background: none;
