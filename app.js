@@ -293,6 +293,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeBtn: document.getElementById('syncHistoryDetailModalCloseBtn'),
                 cancelBtn: document.getElementById('syncHistoryDetailModalCancelBtn'),
             },
+            configHistoryModal: {
+                overlay: document.getElementById('configHistoryModal'),
+                title: document.getElementById('configHistoryModalTitle'),
+                body: document.getElementById('configHistoryModalBody'),
+                closeBtn: document.getElementById('configHistoryModalCloseBtn'),
+                cancelBtn: document.getElementById('configHistoryModalCancelBtn'),
+            },
             companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
                 logoInput: document.getElementById('logoInput'),
@@ -2717,6 +2724,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.syncHistoryDetailModal.body.innerHTML = ''; // Limpa o conteúdo ao fechar
             },
 
+            hideConfigHistoryModal() {
+                const modal = App.elements.configHistoryModal;
+                if (modal && modal.overlay) {
+                    modal.overlay.classList.remove('show');
+                }
+            },
+
             async renderSyncHistoryDetails(logId) {
                 const modal = App.elements.syncHistoryDetailModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
@@ -3332,13 +3346,71 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const cigarrinhaCalcMethodSelect = document.getElementById('cigarrinhaCalcMethod');
-                if (cigarrinhaCalcMethodSelect) {
-                    cigarrinhaCalcMethodSelect.addEventListener('change', () => App.actions.saveCompanySettings());
+                // O listener de 'change' foi removido e substituído por um botão explícito de salvar
+                const btnSaveCalcMethod = document.getElementById('btnSaveCalcMethod');
+                if (btnSaveCalcMethod) {
+                    btnSaveCalcMethod.addEventListener('click', () => App.actions.saveCalcMethodWithAudit());
                 }
+                const btnViewCalcHistory = document.getElementById('btnViewCalcHistory');
+                if (btnViewCalcHistory) {
+                    btnViewCalcHistory.addEventListener('click', () => App.actions.viewConfigHistory());
+                }
+                const configModal = App.elements.configHistoryModal;
+                if (configModal.overlay) configModal.overlay.addEventListener('click', e => { if (e.target === configModal.overlay) App.ui.hideConfigHistoryModal(); });
+                if (configModal.closeBtn) configModal.closeBtn.addEventListener('click', () => App.ui.hideConfigHistoryModal());
+                if (configModal.cancelBtn) configModal.cancelBtn.addEventListener('click', () => App.ui.hideConfigHistoryModal());
             }
         },
         
         actions: {
+            async viewConfigHistory() {
+                const modal = App.elements.configHistoryModal;
+                modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
+                modal.overlay.classList.add('show');
+
+                try {
+                    const q = query(
+                        collection(db, 'configChangeHistory'),
+                        where("companyId", "==", App.state.currentUser.companyId),
+                        orderBy("timestamp", "desc")
+                    );
+                    const querySnapshot = await getDocs(q);
+
+                    if (querySnapshot.empty) {
+                        modal.body.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum histórico de alterações encontrado.</p>';
+                        return;
+                    }
+
+                    let contentHTML = '';
+                    querySnapshot.forEach(doc => {
+                        const log = doc.data();
+                        const logTimestamp = log.timestamp ? log.timestamp.toDate().toLocaleString('pt-BR') : 'Data não disponível';
+
+                        contentHTML += `
+                            <div class="plano-card" style="border-left-color: var(--color-purple);">
+                                <div class="plano-header">
+                                    <span class="plano-title"><i class="fas fa-user-edit"></i> Alterado por: ${log.username || 'Sistema'}</span>
+                                    <span class="plano-status" style="background-color: var(--color-text-light); font-size: 12px; text-transform: none;">
+                                        ${logTimestamp}
+                                    </span>
+                                </div>
+                                <div class="plano-details" style="grid-template-columns: 1fr;">
+                                    <div><strong>Alteração:</strong> ${log.alteracao}</div>
+                                    <div><strong>De:</strong> ${log.valorAntigo}</div>
+                                    <div><strong>Para:</strong> ${log.valorNovo}</div>
+                                    <div style="margin-top: 8px;"><strong>Motivo:</strong> ${log.motivo}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    modal.body.innerHTML = contentHTML;
+
+                } catch (error) {
+                    console.error("Erro ao carregar histórico de configurações:", error);
+                    modal.body.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-danger);">Erro ao carregar o histórico.</p>';
+                }
+            },
+
             async checkActiveConnection() {
                 if (App.state.isCheckingConnection || !navigator.onLine) return;
                 App.state.isCheckingConnection = true;
@@ -3795,28 +3867,66 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            async saveCompanySettings() {
+            async saveCalcMethodWithAudit() {
                 const companyId = App.state.currentUser.companyId;
-                if (!companyId) {
-                    // Silently return if company isn't loaded yet, to avoid errors on initial page setup.
+                if (!companyId) return;
+
+                const selectEl = document.getElementById('cigarrinhaCalcMethod');
+                const newValue = selectEl.value;
+                const oldValue = App.state.companyConfig?.cigarrinhaCalcMethod || '5';
+
+                if (newValue === oldValue) {
+                    App.ui.showAlert("Nenhuma alteração detectada.", "info");
                     return;
                 }
 
-                const cigarrinhaCalcMethod = document.getElementById('cigarrinhaCalcMethod').value;
-                const settings = {
-                    cigarrinhaCalcMethod: cigarrinhaCalcMethod
-                };
+                App.ui.showConfirmationModal(
+                    `Tem a certeza que deseja alterar o método de cálculo de ÷${oldValue} para ÷${newValue}? Por favor, forneça um motivo para esta alteração.`,
+                    async (input) => {
+                        const motivo = input.motivoAlteracao;
+                        if (!motivo || motivo.trim() === '') {
+                            App.ui.showAlert("O motivo é obrigatório para registar a alteração.", "error");
+                            return;
+                        }
 
-                // No full-screen loading for a quick background save.
-                try {
-                    await App.data.setDocument('config', companyId, settings, { merge: true });
-                    // Update local state to reflect the change immediately
-                    App.state.companyConfig.cigarrinhaCalcMethod = cigarrinhaCalcMethod;
-                    App.ui.showAlert("Método de cálculo guardado!", "success", 2000); // Use a more specific and transient message
-                } catch (error) {
-                    console.error("Erro ao guardar as configurações da empresa:", error);
-                    App.ui.showAlert("Ocorreu um erro ao guardar a configuração.", "error");
-                }
+                        App.ui.setLoading(true, "A guardar alteração e a registar auditoria...");
+
+                        const logEntry = {
+                            companyId: companyId,
+                            userId: App.state.currentUser.uid,
+                            username: App.state.currentUser.username,
+                            timestamp: serverTimestamp(),
+                            alteracao: `Método de cálculo de cigarrinha (amostragem)`,
+                            valorAntigo: oldValue,
+                            valorNovo: newValue,
+                            motivo: motivo.trim()
+                        };
+
+                        try {
+                            const batch = writeBatch(db);
+                            const configRef = doc(db, 'config', companyId);
+                            batch.set(configRef, { cigarrinhaCalcMethod: newValue }, { merge: true });
+                            const logRef = doc(collection(db, 'configChangeHistory'));
+                            batch.set(logRef, logEntry);
+                            await batch.commit();
+
+                            App.state.companyConfig.cigarrinhaCalcMethod = newValue;
+                            App.ui.showAlert("Método de cálculo alterado e auditoria registada com sucesso!", "success");
+
+                        } catch (error) {
+                            console.error("Erro ao guardar método de cálculo com auditoria:", error);
+                            App.ui.showAlert("Ocorreu um erro ao guardar a alteração.", "error");
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    },
+                    [{
+                        type: 'textarea',
+                        id: 'motivoAlteracao',
+                        placeholder: 'Ex: Ajuste para o padrão da nova safra.',
+                        required: true
+                    }]
+                );
             },
 
             async agendarInspecao() {
