@@ -656,6 +656,38 @@
       .plano-details { font-size: 14px; color: var(--color-text-light); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
       .plano-details > div { display: flex; align-items: center; gap: 8px; } .plano-details i { color: var(--color-accent); width: 16px; text-align: center; }
       .plano-actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+      .pontos-container {
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+          margin-top: 10px;
+      }
+      .amostra-card {
+          background-color: var(--color-bg);
+          border: 1px solid var(--color-border);
+          border-radius: var(--border-radius);
+          padding: 15px;
+          animation: fadeIn 0.3s;
+      }
+      .amostra-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 10px;
+      }
+      .amostra-header h4 {
+          color: var(--color-primary-dark);
+          margin: 0;
+      }
+      .btn-remover-amostra {
+          background: none;
+          border: none;
+          color: var(--color-danger);
+          cursor: pointer;
+          font-size: 18px;
+          padding: 5px;
+          line-height: 1;
+      }
       #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8); z-index: 2000; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 20px; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
       body.theme-dark #loading-overlay { background: rgba(0,0,0,0.7); }
       .spinner { border: 8px solid #f3f3f3; border-top: 8px solid var(--color-ai); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
@@ -1968,6 +2000,38 @@
                 <button class="save" type="button" id="btnSalvarPerda"><i class="fas fa-save"></i> Guardar Perda de Cana</button>
             </section>
 
+            <section id="lancamentoCigarrinhaAmostragem" class="tab-content card" aria-label="Lançamento Cigarrinha por Amostragem" tabindex="0" hidden>
+                <h2><i class="fas fa-vial"></i> Monitoramento de Cigarrinha (Amostragem)</h2>
+                <form id="formCigarrinhaAmostragem">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="dataCigarrinhaAmostragem" class="required">Data:</label>
+                            <input type="date" id="dataCigarrinhaAmostragem" required>
+                        </div>
+                        <div class="form-col">
+                            <label for="codigoCigarrinhaAmostragem" class="required">Fazenda:</label>
+                            <select id="codigoCigarrinhaAmostragem" required></select>
+                        </div>
+                        <div class="form-col">
+                            <label for="talhaoCigarrinhaAmostragem" class="required">Talhão:</label>
+                            <input type="text" id="talhaoCigarrinhaAmostragem" list="talhaoList" required>
+                            <div id="varietyDisplayCigarrinhaAmostragem" class="info-display"></div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 10px;">
+                        <h3><i class="fas fa-plus-circle"></i> Sub-Amostras</h3>
+                        <button type="button" id="addAmostraCigarrinhaAmostragem" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Amostra</button>
+                    </div>
+                    <div id="amostrasCigarrinhaAmostragemContainer" class="pontos-container">
+                        <!-- Cards de amostras serão inseridos aqui -->
+                    </div>
+
+                    <div id="resultadoCigarrinhaAmostragem" class="resultado" style="margin-top: 20px;"></div>
+                    <button type="button" id="btnSalvarCigarrinhaAmostragem" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Lançamento</button>
+                </form>
+            </section>
+
             <section id="lancamentoCigarrinha" class="tab-content card" aria-label="Lançamento Cigarrinha" tabindex="0" hidden>
                 <h2><i class="fas fa-leaf"></i> Lançamento Monitoramento de Cigarrinha</h2>
                 <div class="form-row">
@@ -2051,6 +2115,19 @@
                     <button id="btnExcelCigarrinha" type="button" style="height: 40px;"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
+
+<section id="relatorioCigarrinhaAmostragem" class="tab-content card" aria-label="Relatório de Cigarrinha de Amostragem" tabindex="0" hidden>
+    <h2><i class="fas fa-file-invoice"></i> Relatório de Monitoramento de Cigarrinha (Amostragem)</h2>
+    <div class="form-row">
+        <div class="form-col"><label for="fazendaFiltroCigarrinhaAmostragem">Filtrar por Fazenda:</label><select id="fazendaFiltroCigarrinhaAmostragem"><option value="">Todas</option></select></div>
+        <div class="form-col"><label for="inicioCigarrinhaAmostragem" class="required">Data Início:</label><input type="date" id="inicioCigarrinhaAmostragem" /></div>
+        <div class="form-col"><label for="fimCigarrinhaAmostragem" class="required">Data Fim:</label><input type="date" id="fimCigarrinhaAmostragem" /></div>
+    </div>
+    <div class="botoes-relatorio">
+        <button id="btnPDFCigarrinhaAmostragem" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+        <button id="btnExcelCigarrinhaAmostragem" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+    </div>
+</section>
 
             <section id="excluirDados" class="tab-content card" aria-label="Excluir Lançamentos" tabindex="0" hidden>
                 <h2><i class="fas fa-trash"></i> Excluir Lançamentos</h2>

@@ -901,6 +901,119 @@ try {
         }
     });
 
+    app.get('/reports/cigarrinha-amostragem/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_cigarrinha_amostragem.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getFilteredData('cigarrinhaAmostragem', filters);
+            const title = 'Relatório de Monitoramento de Cigarrinha (Amostragem)';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title);
+
+            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Resultado', 'Amostras (F1, F2, F3, F4, F5)'];
+            const columnWidths = [70, 150, 80, 100, 70, 292];
+            const headersConfig = headers.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 18, headersConfig);
+
+            for(const r of data) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                const amostrasText = r.amostras.map((amostra, index) =>
+                    `A${index + 1}: (${Object.values(amostra).join(', ')})`
+                ).join(' | ');
+
+                const row = [
+                    r.data,
+                    `${r.codigo} - ${r.fazenda}`,
+                    r.talhao,
+                    r.variedade,
+                    (r.resultado || 0).toFixed(2).replace('.', ','),
+                    amostrasText
+                ];
+                currentY = drawRow(doc, row, currentY, false, false, columnWidths, 5, 18, headersConfig);
+            }
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Cigarrinha (Amostragem):", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/cigarrinha-amostragem/csv', async (req, res) => {
+        try {
+            const data = await getFilteredData('cigarrinhaAmostragem', req.query);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
+
+            const filePath = path.join(os.tmpdir(), `cigarrinha_amostragem_${Date.now()}.csv`);
+
+            const header = [
+                { id: 'data', title: 'Data' },
+                { id: 'fazenda', title: 'Fazenda' },
+                { id: 'talhao', title: 'Talhão' },
+                { id: 'variedade', title: 'Variedade' },
+                { id: 'resultadoGeral', title: 'Resultado Geral' },
+                { id: 'numeroAmostra', title: 'Nº Amostra' },
+                { id: 'fase1', title: 'Fase 1' },
+                { id: 'fase2', title: 'Fase 2' },
+                { id: 'fase3', title: 'Fase 3' },
+                { id: 'fase4', title: 'Fase 4' },
+                { id: 'fase5', title: 'Fase 5' }
+            ];
+
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: header,
+                fieldDelimiter: ';' // Use ponto e vírgula para compatibilidade com Excel em português
+            });
+
+            const records = [];
+            data.forEach(lancamento => {
+                if (lancamento.amostras && lancamento.amostras.length > 0) {
+                    lancamento.amostras.forEach((amostra, index) => {
+                        records.push({
+                            data: lancamento.data,
+                            fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`,
+                            talhao: lancamento.talhao,
+                            variedade: lancamento.variedade,
+                            resultadoGeral: (lancamento.resultado || 0).toFixed(2).replace('.', ','),
+                            numeroAmostra: index + 1,
+                            fase1: amostra.fase1 || 0,
+                            fase2: amostra.fase2 || 0,
+                            fase3: amostra.fase3 || 0,
+                            fase4: amostra.fase4 || 0,
+                            fase5: amostra.fase5 || 0
+                        });
+                    });
+                }
+            });
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Cigarrinha (Amostragem):", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
     app.get('/reports/cigarrinha/csv', async (req, res) => {
         try {
             const data = await getFilteredData('cigarrinha', req.query);
