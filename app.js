@@ -89,14 +89,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     const App = {
+        isFeatureActive(featureKey) {
+            const { currentUser, companies } = this.state;
+            if (currentUser.role === 'super-admin') return true;
+            const company = companies.find(c => c.id === currentUser.companyId);
+            if (!company) return false;
+            const isAvailable = company.availableFeatures?.includes(featureKey);
+            const isActivated = company.activatedFeatures?.includes(featureKey);
+            return isAvailable && isActivated;
+        },
+
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
             inactivityTimeout: 15 * 60 * 1000,
             inactivityWarningTime: 1 * 60 * 1000,
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
+            featureFlags: [
+                { key: 'relatorio-avancado-perdas', label: 'Relatório Avançado de Perdas' },
+                { key: 'dashboard-ia', label: 'Dashboard com Análises de IA' }
+            ],
             menuConfig: [
-                { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
+                { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard', featureFlag: 'dashboard-ia' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
@@ -119,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Relatório Cigarrinha', icon: 'fas fa-leaf', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
-                        { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
+                        { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita', featureFlag: 'relatorio-avancado-perdas' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
                 },
@@ -1122,6 +1136,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const createMenuItem = (item) => {
                     const isSuperAdmin = currentUser.role === 'super-admin';
+
+                    if (item.featureFlag && !App.isFeatureActive(item.featureFlag)) {
+                        return null;
+                    }
+
                     const hasPermission = isSuperAdmin || (item.submenu ?
                                           item.submenu.some(sub => currentUser.permissions[sub.permission]) :
                                           currentUser.permissions[item.permission]);
@@ -1183,6 +1202,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const subscribedModules = currentUser.role === 'super-admin' ? null : new Set(userCompany?.subscribedModules || []);
 
                 parentItem.submenu.forEach(subItem => {
+                    if (subItem.featureFlag && !App.isFeatureActive(subItem.featureFlag)) {
+                        return; // Skip this item if feature is not active
+                    }
                     const isSuperAdmin = currentUser.role === 'super-admin';
                     if (isSuperAdmin || currentUser.permissions[subItem.permission]) {
                         const subBtn = document.createElement('button');
@@ -1233,18 +1255,26 @@ document.addEventListener('DOMContentLoaded', () => {
             showTab(id) {
                 const { currentUser, companies } = App.state;
 
-                // Encontrar o item de menu correspondente para obter a permissão necessária
-                let requiredPermission = null;
+                // Find the item config to check for a feature flag
+                let itemConfig = null;
                 App.config.menuConfig.forEach(item => {
                     if (item.target === id) {
-                        requiredPermission = item.permission;
+                        itemConfig = item;
                     } else if (item.submenu) {
                         const subItem = item.submenu.find(sub => sub.target === id);
                         if (subItem) {
-                            requiredPermission = subItem.permission;
+                            itemConfig = subItem;
                         }
                     }
                 });
+
+                if (itemConfig && itemConfig.featureFlag && !App.isFeatureActive(itemConfig.featureFlag)) {
+                    App.ui.showAlert("Esta funcionalidade não está ativa para a sua empresa.", "warning");
+                    return; // Block navigation
+                }
+
+                // Encontrar o item de menu correspondente para obter a permissão necessária
+                let requiredPermission = itemConfig ? itemConfig.permission : null;
 
                 // Se uma permissão é necessária, verificar a subscrição
                 if (requiredPermission && currentUser.role !== 'super-admin' && !App.state.isImpersonating) {
