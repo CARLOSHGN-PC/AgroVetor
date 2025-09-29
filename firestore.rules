@@ -123,6 +123,23 @@ service cloud.firestore {
       allow delete: if getUserRole() == 'super-admin';
     }
 
+    // configChangeHistory: Logs de auditoria para alterações de configurações.
+    match /configChangeHistory/{docId} {
+      // Criação: Apenas admins ou super-admins podem criar logs de auditoria para a sua própria empresa.
+      allow create: if (getUserRole() == 'admin' || getUserRole() == 'super-admin') && canAccessCompanyData(request.resource.data.companyId);
+
+      // Leitura: Apenas admins ou super-admins podem ler o histórico. A filtragem por empresa é feita no cliente.
+      allow list: if getUserRole() == 'admin' || getUserRole() == 'super-admin';
+
+      // Get: Apenas admins ou super-admins da empresa correspondente podem ler um documento específico.
+      allow get: if (getUserRole() == 'admin' || getUserRole() == 'super-admin') && canAccessCompanyData(resource.data.companyId);
+
+      // Ninguém pode alterar um log de auditoria para garantir a integridade.
+      allow update: if false;
+      // Apenas super-admins podem apagar para manutenção.
+      allow delete: if getUserRole() == 'super-admin';
+    }
+
     // notifications: Notificações para utilizadores (ex: novas features)
     match /notifications/{docId} {
       // Criação: Apenas super-admins podem criar notificações.

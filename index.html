@@ -2316,13 +2316,17 @@
                     <h3><i class="fas fa-calculator"></i> Configurações de Cálculo</h3>
                     <div class="form-row">
                         <div class="form-col">
-                            <label for="cigarrinhaCalcMethod">Método de Cálculo (Cigarrinha):</label>
+                            <label for="cigarrinhaCalcMethod">Método de Cálculo (Cigarrinha Amostragem):</label>
                             <select id="cigarrinhaCalcMethod">
-                                <option value="5">Soma das fases / 5 (Novo Padrão)</option>
-                                <option value="10">Soma das fases / 10 (Método Antigo)</option>
+                                <option value="5">Soma das Fases ÷ 5</option>
+                                <option value="10">Soma das Fases ÷ 10</option>
                             </select>
-                            <small>Define o divisor usado no cálculo do resultado do monitoramento de cigarrinha.</small>
+                            <small>Define o divisor usado no cálculo do resultado do monitoramento.</small>
                         </div>
+                    </div>
+                    <div class="button-group" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                         <button id="btnSaveCalcMethod" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-save"></i> Guardar Alteração</button>
+                         <button id="btnViewCalcHistory" class="btn-secondary" style="max-width: 250px; margin-top: 0;"><i class="fas fa-history"></i> Ver Histórico</button>
                     </div>
                 </div>
 
@@ -2639,6 +2643,21 @@
                 </div>
                 <div class="modal-footer">
                     <button id="syncHistoryDetailModalCancelBtn" class="btn-secondary">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="configHistoryModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h2 id="configHistoryModalTitle">Histórico de Alterações de Configuração</h2>
+                    <button id="configHistoryModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div id="configHistoryModalBody" class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                    <!-- Histórico será renderizado aqui -->
+                </div>
+                <div class="modal-footer">
+                    <button id="configHistoryModalCancelBtn" class="btn-secondary">Fechar</button>
                 </div>
             </div>
         </div>

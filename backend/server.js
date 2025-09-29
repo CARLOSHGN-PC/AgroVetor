@@ -934,50 +934,63 @@ try {
                             fazenda: r.fazenda,
                             talhao: r.talhao,
                             variedade: r.variedade,
-                            resultados: []
+                            fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
                         };
                     }
-                    acc[key].resultados.push(r.resultado);
+                    r.amostras.forEach(amostra => {
+                        acc[key].fase1 += amostra.fase1 || 0;
+                        acc[key].fase2 += amostra.fase2 || 0;
+                        acc[key].fase3 += amostra.fase3 || 0;
+                        acc[key].fase4 += amostra.fase4 || 0;
+                        acc[key].fase5 += amostra.fase5 || 0;
+                    });
                     return acc;
                 }, {});
 
-                const headers = ['Fazenda', 'Talhão', 'Variedade', 'Resultado Médio'];
-                const columnWidths = [250, 150, 150, 212];
+                const headers = ['Fazenda', 'Talhão', 'Variedade', 'Fase 1 (Soma)', 'Fase 2 (Soma)', 'Fase 3 (Soma)', 'Fase 4 (Soma)', 'Fase 5 (Soma)'];
+                const columnWidths = [180, 100, 100, 70, 70, 70, 70, 72];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
                 for (const key in groupedData) {
                     const group = groupedData[key];
-                    const mediaResultados = group.resultados.reduce((a, b) => a + b, 0) / group.resultados.length;
                     const row = [
                         `${group.codigo} - ${group.fazenda}`,
                         group.talhao,
                         group.variedade,
-                        mediaResultados.toFixed(2).replace('.', ',')
+                        group.fase1, group.fase2, group.fase3, group.fase4, group.fase5
                     ];
                     currentY = await checkPageBreak(doc, currentY, title);
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                 }
 
             } else { // Detalhado
-                const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Resultado', 'Amostras (F1, F2, F3, F4, F5)'];
-                const columnWidths = [70, 150, 80, 100, 70, 292];
+                const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Nº Amostra', 'Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5'];
+                const columnWidths = [180, 100, 70, 100, 70, 50, 50, 50, 50, 52];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
                 for(const r of data) {
-                    currentY = await checkPageBreak(doc, currentY, title);
-                    const amostrasText = r.amostras.map((amostra, index) =>
-                        `A${index + 1}: (${Object.values(amostra).join(', ')})`
-                    ).join(' | ');
+                    if (r.amostras && r.amostras.length > 0) {
+                        for (let i = 0; i < r.amostras.length; i++) {
+                            const amostra = r.amostras[i];
+                            const date = new Date(r.data + 'T03:00:00Z');
+                            const formattedDate = date.toLocaleDateString('pt-BR');
 
-                    const row = [
-                        r.data,
-                        `${r.codigo} - ${r.fazenda}`,
-                        r.talhao,
-                        r.variedade,
-                        (r.resultado || 0).toFixed(2).replace('.', ','),
-                        amostrasText
-                    ];
-                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                            const row = [
+                                `${r.codigo} - ${r.fazenda}`,
+                                r.talhao,
+                                formattedDate,
+                                r.variedade,
+                                i + 1,
+                                amostra.fase1 || 0,
+                                amostra.fase2 || 0,
+                                amostra.fase3 || 0,
+                                amostra.fase4 || 0,
+                                amostra.fase5 || 0
+                            ];
+                            currentY = await checkPageBreak(doc, currentY, title);
+                            currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                        }
+                    }
                 }
             }
 
@@ -1006,47 +1019,47 @@ try {
 
             if (tipoRelatorio === 'resumido') {
                 header = [
-                    { id: 'fazenda', title: 'Fazenda' },
-                    { id: 'talhao', title: 'Talhão' },
-                    { id: 'variedade', title: 'Variedade' },
-                    { id: 'resultadoMedio', title: 'Resultado Médio' }
+                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
+                    { id: 'fase1', title: 'Fase 1 (Soma)' }, { id: 'fase2', title: 'Fase 2 (Soma)' }, { id: 'fase3', title: 'Fase 3 (Soma)' },
+                    { id: 'fase4', title: 'Fase 4 (Soma)' }, { id: 'fase5', title: 'Fase 5 (Soma)' }
                 ];
 
                 const groupedData = data.reduce((acc, r) => {
                     const key = `${r.codigo}|${r.fazenda}|${r.talhao}`;
                     if (!acc[key]) {
-                        acc[key] = { fazenda: `${r.codigo} - ${r.fazenda}`, talhao: r.talhao, variedade: r.variedade, resultados: [] };
+                        acc[key] = {
+                            fazenda: `${r.codigo} - ${r.fazenda}`, talhao: r.talhao, variedade: r.variedade,
+                            fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
+                        };
                     }
-                    acc[key].resultados.push(r.resultado);
+                    r.amostras.forEach(amostra => {
+                        acc[key].fase1 += amostra.fase1 || 0;
+                        acc[key].fase2 += amostra.fase2 || 0;
+                        acc[key].fase3 += amostra.fase3 || 0;
+                        acc[key].fase4 += amostra.fase4 || 0;
+                        acc[key].fase5 += amostra.fase5 || 0;
+                    });
                     return acc;
                 }, {});
 
-                records = Object.values(groupedData).map(group => {
-                    const media = group.resultados.reduce((a, b) => a + b, 0) / group.resultados.length;
-                    return {
-                        fazenda: group.fazenda,
-                        talhao: group.talhao,
-                        variedade: group.variedade,
-                        resultadoMedio: media.toFixed(2).replace('.', ',')
-                    };
-                });
+                records = Object.values(groupedData);
 
             } else { // Detalhado
                 header = [
-                    { id: 'data', title: 'Data' }, { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' },
-                    { id: 'variedade', title: 'Variedade' }, { id: 'resultadoGeral', title: 'Resultado Lançamento' }, { id: 'numeroAmostra', title: 'Nº Amostra' },
-                    { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' }, { id: 'fase3', title: 'Fase 3' },
-                    { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' }
+                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
+                    { id: 'numeroAmostra', title: 'Nº Amostra' }, { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' },
+                    { id: 'fase3', title: 'Fase 3' }, { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' }
                 ];
                 records = [];
                 data.forEach(lancamento => {
                     if (lancamento.amostras && lancamento.amostras.length > 0) {
                         lancamento.amostras.forEach((amostra, index) => {
+                            const date = new Date(lancamento.data + 'T03:00:00Z');
+                            const formattedDate = date.toLocaleDateString('pt-BR');
                             records.push({
-                                data: lancamento.data, fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao,
-                                variedade: lancamento.variedade, resultadoGeral: (lancamento.resultado || 0).toFixed(2).replace('.', ','),
-                                numeroAmostra: index + 1, fase1: amostra.fase1 || 0, fase2: amostra.fase2 || 0,
-                                fase3: amostra.fase3 || 0, fase4: amostra.fase4 || 0, fase5: amostra.fase5 || 0
+                                fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao, data: formattedDate,
+                                variedade: lancamento.variedade, numeroAmostra: index + 1, fase1: amostra.fase1 || 0,
+                                fase2: amostra.fase2 || 0, fase3: amostra.fase3 || 0, fase4: amostra.fase4 || 0, fase5: amostra.fase5 || 0
                             });
                         });
                     }
