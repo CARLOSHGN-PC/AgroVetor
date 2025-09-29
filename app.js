@@ -2278,19 +2278,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
-                let somaDasMedias = 0;
+                let somaTotalDeFases = 0;
 
                 amostras.forEach(card => {
-                    let somaFasesDaAmostra = 0;
                     card.querySelectorAll('.amostra-input').forEach(input => {
-                        somaFasesDaAmostra += parseInt(input.value) || 0;
+                        somaTotalDeFases += parseInt(input.value) || 0;
                     });
-                    somaDasMedias += (somaFasesDaAmostra / divisor);
                 });
 
-                const mediaFinal = somaDasMedias / amostras.length;
+                const resultadoFinal = somaTotalDeFases / divisor;
 
-                resultadoEl.textContent = `Resultado (Média das Amostras): ${mediaFinal.toFixed(2).replace('.', ',')}`;
+                resultadoEl.textContent = `Resultado: ${resultadoFinal.toFixed(2).replace('.', ',')}`;
             },
 
             showConfirmationModal(message, onConfirm, inputsConfig = false) {
@@ -2534,7 +2532,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${[1, 2, 3, 4, 5].map(i => `
                             <div class="form-col">
                                 <label for="fase${i}-amostra-${amostraId}">Fase ${i}:</label>
-                                <input type="number" id="fase${i}-amostra-${amostraId}" class="amostra-input" min="0" value="0">
+                                <input type="number" id="fase${i}-amostra-${amostraId}" class="amostra-input" min="0" placeholder="0">
                             </div>
                         `).join('')}
                     </div>
