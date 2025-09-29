@@ -934,17 +934,21 @@ try {
                             fazenda: r.fazenda,
                             talhao: r.talhao,
                             variedade: r.variedade,
-                            somaTotalFases: 0,
+                            fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
                         };
                     }
                     r.amostras.forEach(amostra => {
-                        acc[key].somaTotalFases += (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
+                        acc[key].fase1 += amostra.fase1 || 0;
+                        acc[key].fase2 += amostra.fase2 || 0;
+                        acc[key].fase3 += amostra.fase3 || 0;
+                        acc[key].fase4 += amostra.fase4 || 0;
+                        acc[key].fase5 += amostra.fase5 || 0;
                     });
                     return acc;
                 }, {});
 
-                const headers = ['Fazenda', 'Talhão', 'Variedade', 'Soma Total de Fases'];
-                const columnWidths = [250, 150, 150, 212];
+                const headers = ['Fazenda', 'Talhão', 'Variedade', 'Fase 1 (Soma)', 'Fase 2 (Soma)', 'Fase 3 (Soma)', 'Fase 4 (Soma)', 'Fase 5 (Soma)'];
+                const columnWidths = [180, 100, 100, 70, 70, 70, 70, 72];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
                 for (const key in groupedData) {
@@ -953,7 +957,7 @@ try {
                         `${group.codigo} - ${group.fazenda}`,
                         group.talhao,
                         group.variedade,
-                        group.somaTotalFases
+                        group.fase1, group.fase2, group.fase3, group.fase4, group.fase5
                     ];
                     currentY = await checkPageBreak(doc, currentY, title);
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
@@ -1021,7 +1025,8 @@ try {
             if (tipoRelatorio === 'resumido') {
                 header = [
                     { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
-                    { id: 'somaTotalFases', title: 'Soma Total de Fases' }
+                    { id: 'fase1', title: 'Fase 1 (Soma)' }, { id: 'fase2', title: 'Fase 2 (Soma)' }, { id: 'fase3', title: 'Fase 3 (Soma)' },
+                    { id: 'fase4', title: 'Fase 4 (Soma)' }, { id: 'fase5', title: 'Fase 5 (Soma)' }
                 ];
 
                 const groupedData = data.reduce((acc, r) => {
@@ -1029,11 +1034,15 @@ try {
                     if (!acc[key]) {
                         acc[key] = {
                             fazenda: `${r.codigo} - ${r.fazenda}`, talhao: r.talhao, variedade: r.variedade,
-                            somaTotalFases: 0,
+                            fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
                         };
                     }
                     r.amostras.forEach(amostra => {
-                        acc[key].somaTotalFases += (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
+                        acc[key].fase1 += amostra.fase1 || 0;
+                        acc[key].fase2 += amostra.fase2 || 0;
+                        acc[key].fase3 += amostra.fase3 || 0;
+                        acc[key].fase4 += amostra.fase4 || 0;
+                        acc[key].fase5 += amostra.fase5 || 0;
                     });
                     return acc;
                 }, {});
