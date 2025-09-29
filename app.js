@@ -5368,10 +5368,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Features recém-ativadas:", newlyEnabledFeatures);
 
                 try {
-                    // 1. Encontrar todas as empresas que subscrevem a estes módulos
-                    const companiesQuery = query(collection(db, 'companies'), where('subscribedModules', 'array-contains-any', newlyEnabledFeatures));
-                    const companiesSnapshot = await getDocs(companiesQuery);
-                    const relevantCompanies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    // 1. Lidar com a limitação de 10 elementos do Firestore para 'array-contains-any'
+                    const chunkArray = (array, size) => {
+                        const chunks = [];
+                        for (let i = 0; i < array.length; i += size) {
+                            chunks.push(array.slice(i, i + size));
+                        }
+                        return chunks;
+                    };
+
+                    const featureChunks = chunkArray(newlyEnabledFeatures, 10);
+                    const queryPromises = featureChunks.map(chunk => {
+                        const q = query(collection(db, 'companies'), where('subscribedModules', 'array-contains-any', chunk));
+                        return getDocs(q);
+                    });
+
+                    const allSnapshots = await Promise.all(queryPromises);
+
+                    // Consolidar e remover duplicatas
+                    const companyMap = new Map();
+                    allSnapshots.forEach(snapshot => {
+                        snapshot.docs.forEach(doc => {
+                            if (!companyMap.has(doc.id)) {
+                                companyMap.set(doc.id, { id: doc.id, ...doc.data() });
+                            }
+                        });
+                    });
+                    const relevantCompanies = Array.from(companyMap.values());
+
 
                     if (relevantCompanies.length === 0) {
                         console.log("Nenhuma empresa encontrada que subscreva aos módulos recém-ativados.");
@@ -5390,7 +5414,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         // 3. Descobrir quais features são novas para esta empresa específica
                         const newFeaturesForThisCompany = newlyEnabledFeatures.filter(feature =>
-                            company.subscribedModules.includes(feature)
+                            (company.subscribedModules || []).includes(feature)
                         );
 
                         if (newFeaturesForThisCompany.length === 0) continue;
