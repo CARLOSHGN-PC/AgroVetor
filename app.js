@@ -1379,8 +1379,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
                 const currentActiveTab = document.querySelector('.tab-content.active');
-                if (currentActiveTab && currentActiveTab.id === 'lancamentoCigarrinha' && currentActiveTab.id !== id) {
-                    App.ui.clearForm(App.elements.cigarrinha.form);
+                if (currentActiveTab && currentActiveTab.id !== id) { // Check if we are actually switching tabs
+                    if (currentActiveTab.id === 'lancamentoCigarrinha') {
+                        App.ui.clearForm(App.elements.cigarrinha.form);
+                    }
+                    if (currentActiveTab.id === 'lancamentoCigarrinhaAmostragem') {
+                        const amostragemEls = App.elements.cigarrinhaAmostragem;
+                        App.ui.clearForm(amostragemEls.form);
+                        if (amostragemEls.amostrasContainer) {
+                            amostragemEls.amostrasContainer.innerHTML = '';
+                        }
+                        if (amostragemEls.resultado) {
+                            amostragemEls.resultado.textContent = '';
+                        }
+                    }
                 }
 
                 const mapContainer = App.elements.monitoramentoAereo.container;
