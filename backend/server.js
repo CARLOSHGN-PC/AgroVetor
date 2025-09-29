@@ -964,9 +964,10 @@ try {
                 }
 
             } else { // Detalhado
-                const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Nº Amostra', 'Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5'];
-                const columnWidths = [180, 100, 70, 100, 70, 50, 50, 50, 50, 52];
+                const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
+                const columnWidths = [170, 90, 65, 90, 60, 40, 40, 40, 40, 40, 87];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+                const divisor = parseInt(filters.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
 
                 for(const r of data) {
                     if (r.amostras && r.amostras.length > 0) {
@@ -974,6 +975,9 @@ try {
                             const amostra = r.amostras[i];
                             const date = new Date(r.data + 'T03:00:00Z');
                             const formattedDate = date.toLocaleDateString('pt-BR');
+
+                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
+                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
 
                             const row = [
                                 `${r.codigo} - ${r.fazenda}`,
@@ -985,7 +989,8 @@ try {
                                 amostra.fase2 || 0,
                                 amostra.fase3 || 0,
                                 amostra.fase4 || 0,
-                                amostra.fase5 || 0
+                                amostra.fase5 || 0,
+                                resultadoAmostra
                             ];
                             currentY = await checkPageBreak(doc, currentY, title);
                             currentY = drawRow(doc, row, currentY, false, false, columnWidths);
@@ -1048,18 +1053,25 @@ try {
                 header = [
                     { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
                     { id: 'numeroAmostra', title: 'Nº Amostra' }, { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' },
-                    { id: 'fase3', title: 'Fase 3' }, { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' }
+                    { id: 'fase3', title: 'Fase 3' }, { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' },
+                    { id: 'resultadoAmostra', title: 'Resultado Amostra'}
                 ];
                 records = [];
+                const divisor = parseInt(req.query.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
+
                 data.forEach(lancamento => {
                     if (lancamento.amostras && lancamento.amostras.length > 0) {
                         lancamento.amostras.forEach((amostra, index) => {
                             const date = new Date(lancamento.data + 'T03:00:00Z');
                             const formattedDate = date.toLocaleDateString('pt-BR');
+                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
+                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
+
                             records.push({
                                 fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao, data: formattedDate,
                                 variedade: lancamento.variedade, numeroAmostra: index + 1, fase1: amostra.fase1 || 0,
-                                fase2: amostra.fase2 || 0, fase3: amostra.fase3 || 0, fase4: amostra.fase4 || 0, fase5: amostra.fase5 || 0
+                                fase2: amostra.fase2 || 0, fase3: amostra.fase3 || 0, fase4: amostra.fase4 || 0, fase5: amostra.fase5 || 0,
+                                resultadoAmostra: resultadoAmostra
                             });
                         });
                     }
