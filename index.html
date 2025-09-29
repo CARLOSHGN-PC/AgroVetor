@@ -2119,7 +2119,16 @@
 <section id="relatorioCigarrinhaAmostragem" class="tab-content card" aria-label="Relatório de Cigarrinha de Amostragem" tabindex="0" hidden>
     <h2><i class="fas fa-file-invoice"></i> Relatório de Monitoramento de Cigarrinha (Amostragem)</h2>
     <div class="form-row">
+        <div class="form-col">
+            <label for="tipoRelatorioCigarrinhaAmostragem">Tipo de Relatório:</label>
+            <select id="tipoRelatorioCigarrinhaAmostragem">
+                <option value="detalhado">Detalhado (por amostra)</option>
+                <option value="resumido">Resumido (por talhão)</option>
+            </select>
+        </div>
         <div class="form-col"><label for="fazendaFiltroCigarrinhaAmostragem">Filtrar por Fazenda:</label><select id="fazendaFiltroCigarrinhaAmostragem"><option value="">Todas</option></select></div>
+    </div>
+    <div class="form-row">
         <div class="form-col"><label for="inicioCigarrinhaAmostragem" class="required">Data Início:</label><input type="date" id="inicioCigarrinhaAmostragem" /></div>
         <div class="form-col"><label for="fimCigarrinhaAmostragem" class="required">Data Fim:</label><input type="date" id="fimCigarrinhaAmostragem" /></div>
     </div>
