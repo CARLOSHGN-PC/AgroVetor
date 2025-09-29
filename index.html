@@ -2216,6 +2216,15 @@
                     </div>
                 </div>
 
+                <div id="featureManagementCard" class="card" style="border-left-color: var(--color-ai); margin-top: 30px; display: none;">
+                    <h3><i class="fas fa-toggle-on"></i> Gestão de Funcionalidades</h3>
+                    <p style="font-size: 14px; color: var(--color-text-light); margin-top: -15px; margin-bottom: 20px;">Ative ou desative as novas funcionalidades que foram disponibilizadas para a sua empresa.</p>
+                    <div id="companyFeaturesGrid" class="permission-grid">
+                        <!-- As funcionalidades ativáveis serão geradas aqui pelo app.js -->
+                    </div>
+                    <button id="btnSaveChangesCompanyFeatures" class="save" style="max-width: 300px; margin-top: 25px; background: var(--color-ai);"><i class="fas fa-save"></i> Guardar Alterações nas Funcionalidades</button>
+                </div>
+
             </section>
 
             <section id="syncHistory" class="tab-content card" aria-label="Histórico de Sincronização" tabindex="0" hidden>
@@ -2427,7 +2436,7 @@
                 </div>
 
                 <div class="checkbox-group-container" style="margin-top: 20px;">
-                    <label style="font-size: 15px; margin-bottom: 10px;">Funcionalidades Disponíveis:</label>
+                    <label style="font-size: 15px; margin-bottom: 10px;">Funcionalidades Disponíveis (Feature Flags):</label>
                      <p style="font-size: 12px; color: var(--color-text-light); margin-top: -8px; margin-bottom: 10px;">Selecione as novas funcionalidades que esta empresa poderá ativar no seu próprio painel de configurações.</p>
                     <div class="checkbox-group-grid" id="editCompanyFeaturesGrid">
                         <!-- As funcionalidades disponíveis serão geradas aqui pelo app.js -->

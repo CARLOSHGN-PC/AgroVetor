@@ -16,11 +16,20 @@ service cloud.firestore {
     // --- REGRAS GERAIS ---
 
     // Coleção de Empresas (companies)
-    // Apenas super-admins podem ler a lista completa e escrever (criar/editar/apagar).
     match /companies/{companyId} {
+      // Super-admin pode ler e escrever tudo.
       allow read, write: if getUserRole() == 'super-admin';
-      // Um utilizador pode obter (get) os dados da sua própria empresa para validações.
+
+      // Qualquer utilizador autenticado pode obter os dados da sua própria empresa.
       allow get: if request.auth.uid != null && getUserCompanyId() == companyId;
+
+      // Um admin de empresa pode ATUALIZAR o documento da sua própria empresa,
+      // mas APENAS se a única alteração for no campo 'activatedFeatures'.
+      // Isto permite que eles ativem/desativem funcionalidades sem poderem alterar
+      // o nome da empresa, os módulos subscritos, etc.
+      allow update: if getUserRole() == 'admin'
+                    && getUserCompanyId() == companyId
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activatedFeatures']);
     }
 
     // Coleção de Utilizadores (users)
