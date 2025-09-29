@@ -3205,7 +3205,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const btnSaveCompanySettings = document.getElementById('btnSaveCompanySettings');
                 if (btnSaveCompanySettings) {
-                    btnSaveCompanySettings.addEventListener('click', () => App.actions.saveCompanySettings());
+                    // This button is now only for the logo, shapefile, etc.
+                    // The calculation method will save on change.
+                }
+
+                const cigarrinhaCalcMethodSelect = document.getElementById('cigarrinhaCalcMethod');
+                if (cigarrinhaCalcMethodSelect) {
+                    cigarrinhaCalcMethodSelect.addEventListener('change', () => App.actions.saveCompanySettings());
                 }
             }
         },
@@ -3670,7 +3676,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async saveCompanySettings() {
                 const companyId = App.state.currentUser.companyId;
                 if (!companyId) {
-                    App.ui.showAlert("Não foi possível identificar a empresa para guardar as configurações.", "error");
+                    // Silently return if company isn't loaded yet, to avoid errors on initial page setup.
                     return;
                 }
 
@@ -3679,17 +3685,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     cigarrinhaCalcMethod: cigarrinhaCalcMethod
                 };
 
-                App.ui.setLoading(true, "A guardar configurações...");
+                // No full-screen loading for a quick background save.
                 try {
                     await App.data.setDocument('config', companyId, settings, { merge: true });
-                    // Atualiza o estado local para refletir a mudança imediatamente
+                    // Update local state to reflect the change immediately
                     App.state.companyConfig.cigarrinhaCalcMethod = cigarrinhaCalcMethod;
-                    App.ui.showAlert("Configurações guardadas com sucesso!", "success");
+                    App.ui.showAlert("Método de cálculo guardado!", "success", 2000); // Use a more specific and transient message
                 } catch (error) {
                     console.error("Erro ao guardar as configurações da empresa:", error);
-                    App.ui.showAlert("Ocorreu um erro ao guardar as configurações.", "error");
-                } finally {
-                    App.ui.setLoading(false);
+                    App.ui.showAlert("Ocorreu um erro ao guardar a configuração.", "error");
                 }
             },
 
