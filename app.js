@@ -3853,10 +3853,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 reader.onload = async (event) => {
                     const base64String = event.target.result;
                     try {
-                        await App.data.setDocument('config', App.state.currentUser.companyId, { logoBase64: base64String }, { merge: true });
-                        App.ui.showAlert('Logo carregado com sucesso!');
+                        // A rota do backend agora espera o companyId no corpo da requisição
+                        const response = await fetch(`${App.config.backendUrl}/upload-logo`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                logoBase64: base64String,
+                                companyId: App.state.currentUser.companyId
+                            }),
+                        });
+                        const result = await response.json();
+                        if (!response.ok) {
+                            throw new Error(result.message || 'Erro no servidor');
+                        }
+                        App.ui.showAlert(result.message, 'success');
                     } catch (error) {
-                        console.error("Erro ao carregar o logo para o Firestore:", error);
+                        console.error("Erro ao carregar o logo via backend:", error);
                         App.ui.showAlert(`Erro ao carregar o logo: ${error.message}`, 'error');
                     } finally {
                         App.ui.setLoading(false);
@@ -5053,7 +5065,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const response = await fetch(`${App.config.backendUrl}/api/upload/historical-report`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ reportData }),
+                            body: JSON.stringify({
+                                reportData,
+                                companyId: App.state.currentUser.companyId
+                            }),
                         });
                         const result = await response.json();
                         if (!response.ok) {
@@ -5085,6 +5100,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const response = await fetch(`${App.config.backendUrl}/api/delete/historical-data`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ companyId: App.state.currentUser.companyId }),
                             });
                             const result = await response.json();
                             if (!response.ok) {
@@ -5626,12 +5642,14 @@ document.addEventListener('DOMContentLoaded', () => {
             sendLocationUpdate() {
                 if (App.state.lastKnownPosition && App.state.currentUser) {
                     const { latitude, longitude } = App.state.lastKnownPosition;
-                    const { uid } = App.state.currentUser;
+                    const { uid, companyId } = App.state.currentUser;
+
+                    if (!companyId) return; // Não rastreia se não houver ID de empresa (ex: super admin)
 
                     fetch(`${App.config.backendUrl}/api/track`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: uid, latitude, longitude }),
+                        body: JSON.stringify({ userId: uid, latitude, longitude, companyId }),
                     })
                     .then(response => {
                         if(response.ok) {
@@ -5662,9 +5680,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userId = userSelect.value;
                 const start = startDate.value;
                 const end = endDate.value;
+                const companyId = App.state.currentUser.companyId;
 
                 if (!userId || !start || !end) {
                     App.ui.showAlert("Por favor, selecione um utilizador e um intervalo de datas.", "warning");
+                    return;
+                }
+                 if (!companyId) {
+                    App.ui.showAlert("ID da empresa não encontrado. Não é possível buscar o histórico.", "error");
                     return;
                 }
 
@@ -5679,7 +5702,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A buscar histórico...");
 
                 try {
-                    const response = await fetch(`${App.config.backendUrl}/api/history?userId=${userId}&startDate=${start}&endDate=${end}`);
+                    const params = new URLSearchParams({ userId, startDate: start, endDate: end, companyId });
+                    const response = await fetch(`${App.config.backendUrl}/api/history?${params.toString()}`);
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
@@ -5779,9 +5803,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 atrInput.placeholder = 'Calculando...';
 
                 const farmId = fazendaSelect.value;
+                const companyId = App.state.currentUser.companyId;
 
                 if (!farmId) {
                     atrInput.placeholder = 'ATR Previsto';
+                    atrInput.readOnly = false;
+                    return;
+                }
+                 if (!companyId) {
+                    App.ui.showAlert("ID da empresa não encontrado.", "error");
                     atrInput.readOnly = false;
                     return;
                 }
@@ -5798,7 +5828,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch(`${App.config.backendUrl}/api/calculate-atr`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ codigoFazenda: farm.code }),
+                        body: JSON.stringify({ codigoFazenda: farm.code, companyId: companyId }),
                     });
 
                     if (!response.ok) {
@@ -7533,6 +7563,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 _fetchAndDownloadReport(endpoint, filters, filename) {
                     const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                     cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
+
+                    // Adiciona o companyId a todos os relatórios para garantir o isolamento dos dados no backend
+                    if (App.state.currentUser && App.state.currentUser.companyId) {
+                        cleanFilters.companyId = App.state.currentUser.companyId;
+                    } else if (App.state.currentUser.role !== 'super-admin') {
+                        // Para utilizadores não-super-admin, o companyId é obrigatório.
+                        App.ui.showAlert("A sua conta não está associada a uma empresa. Não é possível gerar relatórios.", "error");
+                        return;
+                    }
 
                     const params = new URLSearchParams(cleanFilters);
                     const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
