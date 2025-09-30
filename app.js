@@ -1583,16 +1583,24 @@ document.addEventListener('DOMContentLoaded', () => {
             setDefaultDatesForReportForms() {
                 const today = new Date();
                 const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-                const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+                const todayDate = today.toISOString().split('T')[0];
 
-                App.elements.broca.filtroInicio.value = firstDayOfMonth;
-                App.elements.broca.filtroFim.value = lastDayOfMonth;
-                App.elements.perda.filtroInicio.value = firstDayOfMonth;
-                App.elements.perda.filtroFim.value = lastDayOfMonth;
-                if (App.elements.relatorioMonitoramento.inicio) {
-                    App.elements.relatorioMonitoramento.inicio.value = firstDayOfMonth;
-                    App.elements.relatorioMonitoramento.fim.value = lastDayOfMonth;
-                }
+                const reportSections = ['broca', 'perda', 'cigarrinha', 'cigarrinhaAmostragem', 'relatorioMonitoramento'];
+
+                reportSections.forEach(section => {
+                    const els = App.elements[section];
+                    if (els) {
+                        const inicioEl = els.filtroInicio || els.inicio;
+                        const fimEl = els.filtroFim || els.fim;
+
+                        if (inicioEl) {
+                            inicioEl.value = firstDayOfMonth;
+                        }
+                        if (fimEl) {
+                            fimEl.value = todayDate;
+                        }
+                    }
+                });
             },
             setDefaultDatesForDashboard(type) {
                 const today = new Date();
@@ -7653,7 +7661,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
 
                 generateCigarrinhaAmostragemPDF() {
-                    const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinhaAmostragem;
+                    const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.cigarrinhaAmostragem;
                     if (!filtroInicio.value || !filtroFim.value) {
                         App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                         return;
@@ -7663,13 +7671,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const filters = {
                         inicio: filtroInicio.value,
                         fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : ''
+                        fazendaCodigo: farm ? farm.code : '',
+                        tipoRelatorio: document.getElementById('tipoRelatorioCigarrinhaAmostragem').value
                     };
                     this._fetchAndDownloadReport('cigarrinha-amostragem/pdf', filters, 'relatorio_cigarrinha_amostragem.pdf');
                 },
 
                 generateCigarrinhaAmostragemCSV() {
-                    const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinhaAmostragem;
+                    const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.cigarrinhaAmostragem;
                     if (!filtroInicio.value || !filtroFim.value) {
                         App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                         return;
@@ -7679,7 +7688,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const filters = {
                         inicio: filtroInicio.value,
                         fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : ''
+                        fazendaCodigo: farm ? farm.code : '',
+                        tipoRelatorio: document.getElementById('tipoRelatorioCigarrinhaAmostragem').value
                     };
                     this._fetchAndDownloadReport('cigarrinha-amostragem/csv', filters, 'relatorio_cigarrinha_amostragem.csv');
                 },
