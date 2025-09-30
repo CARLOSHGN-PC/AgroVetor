@@ -937,8 +937,8 @@ try {
                             talhao: r.talhao,
                             variedade: r.variedade,
                             fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
+                            somaResultados: 0,
                             latestDate: new Date(0),
-                            totalAmostras: 0,
                         };
                     }
 
@@ -947,14 +947,21 @@ try {
                         acc[key].latestDate = recordDate;
                     }
 
-                    acc[key].totalAmostras += r.amostras.length;
-
                     r.amostras.forEach(amostra => {
-                        acc[key].fase1 += amostra.fase1 || 0;
-                        acc[key].fase2 += amostra.fase2 || 0;
-                        acc[key].fase3 += amostra.fase3 || 0;
-                        acc[key].fase4 += amostra.fase4 || 0;
-                        acc[key].fase5 += amostra.fase5 || 0;
+                        const f1 = amostra.fase1 || 0;
+                        const f2 = amostra.fase2 || 0;
+                        const f3 = amostra.fase3 || 0;
+                        const f4 = amostra.fase4 || 0;
+                        const f5 = amostra.fase5 || 0;
+
+                        acc[key].fase1 += f1;
+                        acc[key].fase2 += f2;
+                        acc[key].fase3 += f3;
+                        acc[key].fase4 += f4;
+                        acc[key].fase5 += f5;
+
+                        const resultadoAmostra = (f1 + f2 + f3 + f4 + f5) / divisor;
+                        acc[key].somaResultados += resultadoAmostra;
                     });
                     return acc;
                 }, {});
@@ -965,8 +972,6 @@ try {
 
                 for (const key in groupedData) {
                     const group = groupedData[key];
-                    const somaFases = group.fase1 + group.fase2 + group.fase3 + group.fase4 + group.fase5;
-                    const resultadoFinal = group.totalAmostras > 0 ? (somaFases / (group.totalAmostras * divisor)).toFixed(2).replace('.', ',') : '0,00';
                     const formattedDate = group.latestDate.toLocaleDateString('pt-BR');
 
                     const row = [
@@ -974,8 +979,12 @@ try {
                         group.talhao,
                         formattedDate,
                         group.variedade,
-                        group.fase1, group.fase2, group.fase3, group.fase4, group.fase5,
-                        resultadoFinal
+                        group.fase1,
+                        group.fase2,
+                        group.fase3,
+                        group.fase4,
+                        group.fase5,
+                        group.somaResultados.toFixed(2).replace('.', ',')
                     ];
                     currentY = await checkPageBreak(doc, currentY, title);
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
@@ -1058,8 +1067,8 @@ try {
                             talhao: r.talhao,
                             variedade: r.variedade,
                             fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
+                            somaResultados: 0,
                             latestDate: new Date(0),
-                            totalAmostras: 0,
                         };
                     }
 
@@ -1068,34 +1077,37 @@ try {
                         acc[key].latestDate = recordDate;
                     }
 
-                    acc[key].totalAmostras += r.amostras.length;
-
                     r.amostras.forEach(amostra => {
-                        acc[key].fase1 += amostra.fase1 || 0;
-                        acc[key].fase2 += amostra.fase2 || 0;
-                        acc[key].fase3 += amostra.fase3 || 0;
-                        acc[key].fase4 += amostra.fase4 || 0;
-                        acc[key].fase5 += amostra.fase5 || 0;
+                        const f1 = amostra.fase1 || 0;
+                        const f2 = amostra.fase2 || 0;
+                        const f3 = amostra.fase3 || 0;
+                        const f4 = amostra.fase4 || 0;
+                        const f5 = amostra.fase5 || 0;
+
+                        acc[key].fase1 += f1;
+                        acc[key].fase2 += f2;
+                        acc[key].fase3 += f3;
+                        acc[key].fase4 += f4;
+                        acc[key].fase5 += f5;
+
+                        const resultadoAmostra = (f1 + f2 + f3 + f4 + f5) / divisor;
+                        acc[key].somaResultados += resultadoAmostra;
                     });
                     return acc;
                 }, {});
 
-                records = Object.values(groupedData).map(group => {
-                    const somaFases = group.fase1 + group.fase2 + group.fase3 + group.fase4 + group.fase5;
-                    const resultadoFinal = group.totalAmostras > 0 ? (somaFases / (group.totalAmostras * divisor)).toFixed(2).replace('.', ',') : '0,00';
-                    return {
-                        fazenda: `${group.codigo} - ${group.fazenda}`,
-                        talhao: group.talhao,
-                        data: group.latestDate.toLocaleDateString('pt-BR'),
-                        variedade: group.variedade,
-                        fase1: group.fase1,
-                        fase2: group.fase2,
-                        fase3: group.fase3,
-                        fase4: group.fase4,
-                        fase5: group.fase5,
-                        resultadoFinal: resultadoFinal
-                    };
-                });
+                records = Object.values(groupedData).map(group => ({
+                    fazenda: `${group.codigo} - ${group.fazenda}`,
+                    talhao: group.talhao,
+                    data: group.latestDate.toLocaleDateString('pt-BR'),
+                    variedade: group.variedade,
+                    fase1: group.fase1,
+                    fase2: group.fase2,
+                    fase3: group.fase3,
+                    fase4: group.fase4,
+                    fase5: group.fase5,
+                    resultadoFinal: group.somaResultados.toFixed(2).replace('.', ',')
+                }));
 
             } else { // Detalhado
                 header = [
