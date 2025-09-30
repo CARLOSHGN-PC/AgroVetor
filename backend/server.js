@@ -58,15 +58,12 @@ try {
 
     // ROTA PARA UPLOAD DO LOGO
     app.post('/upload-logo', async (req, res) => {
-        const { logoBase64, companyId } = req.body;
+        const { logoBase64 } = req.body;
         if (!logoBase64) {
             return res.status(400).send({ message: 'Nenhum dado de imagem Base64 enviado.' });
         }
-        if (!companyId) {
-            return res.status(400).send({ message: 'O ID da empresa é obrigatório.' });
-        }
         try {
-            await db.collection('config').doc(companyId).set({ logoBase64: logoBase64 }, { merge: true });
+            await db.collection('config').doc('company').set({ logoBase64: logoBase64 }, { merge: true });
             res.status(200).send({ message: 'Logo carregado com sucesso!' });
         } catch (error) {
             console.error("Erro ao salvar logo Base64 no Firestore:", error);
@@ -76,17 +73,14 @@ try {
  
     // ROTA PARA UPLOAD DO SHAPEFILE
     app.post('/upload-shapefile', async (req, res) => {
-        const { fileBase64, companyId } = req.body;
+        const { fileBase64 } = req.body;
         if (!fileBase64) {
             return res.status(400).send({ message: 'Nenhum dado de arquivo Base64 foi enviado.' });
-        }
-        if (!companyId) {
-            return res.status(400).send({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
             const buffer = Buffer.from(fileBase64, 'base64');
-            const filePath = `shapefiles/${companyId}/talhoes.zip`;
+            const filePath = `shapefiles/talhoes.zip`;
             const file = bucket.file(filePath);
 
             await file.save(buffer, {
@@ -98,10 +92,10 @@ try {
             await file.makePublic();
             const downloadURL = file.publicUrl();
 
-            await db.collection('config').doc(companyId).set({
+            await db.collection('config').doc('shapefile').set({
                 shapefileURL: downloadURL,
                 lastUpdated: new Date()
-            }, { merge: true });
+            });
 
             res.status(200).send({ message: 'Shapefile enviado com sucesso!', url: downloadURL });
 
@@ -113,12 +107,9 @@ try {
 
     // ROTA PARA INGESTÃO DE RELATÓRIO HISTÓRICO (SEM IA)
     app.post('/api/upload/historical-report', async (req, res) => {
-        const { reportData: originalReportData, companyId } = req.body;
+        const { reportData: originalReportData } = req.body;
         if (!originalReportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
-        }
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
@@ -224,18 +215,14 @@ try {
 
     // ROTA PARA CÁLCULO DE ATR PONDERADO
     app.post('/api/calculate-atr', async (req, res) => {
-        const { codigoFazenda, companyId } = req.body; // Adicionado companyId
+        const { codigoFazenda } = req.body;
         if (!codigoFazenda) {
             return res.status(400).json({ message: 'O código da fazenda é obrigatório.' });
-        }
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
             const farmCodeStr = String(codigoFazenda || '').trim();
             const historyQuery = await db.collection('historicalHarvests')
-                .where('companyId', '==', companyId) // Filtra pela empresa
                 .where('codigoFazenda', '==', farmCodeStr)
                 .get();
 
@@ -267,10 +254,9 @@ try {
         }
     });
 
-    async function deleteDocumentsByCompany(db, collectionPath, companyId, batchSize) {
+    async function deleteCollection(db, collectionPath, batchSize) {
         const collectionRef = db.collection(collectionPath);
-        // Cria uma query para selecionar documentos da empresa específica
-        const query = collectionRef.where('companyId', '==', companyId).limit(batchSize);
+        const query = collectionRef.orderBy('__name__').limit(batchSize);
 
         return new Promise((resolve, reject) => {
             deleteQueryBatch(db, query, resolve, reject);
@@ -302,15 +288,11 @@ try {
     }
 
     app.post('/api/delete/historical-data', async (req, res) => {
-        const { companyId } = req.body;
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
-        }
         try {
-            console.log(`Iniciando a exclusão de 'historicalHarvests' para a empresa ${companyId}...`);
-            await deleteDocumentsByCompany(db, 'historicalHarvests', companyId, 400);
-            console.log(`Histórico da empresa ${companyId} excluído com sucesso.`);
-            res.status(200).json({ message: 'Todos os dados do histórico da IA para esta empresa foram excluídos com sucesso.' });
+            console.log("Iniciando a exclusão da coleção 'historicalHarvests'...");
+            await deleteCollection(db, 'historicalHarvests', 400);
+            console.log("Coleção 'historicalHarvests' excluída com sucesso.");
+            res.status(200).json({ message: 'Todos os dados do histórico da IA foram excluídos com sucesso.' });
         } catch (error) {
             console.error("Erro ao excluir o histórico da IA:", error);
             res.status(500).json({ message: 'Ocorreu um erro no servidor ao tentar excluir o histórico.' });
@@ -318,19 +300,15 @@ try {
     });
 
     app.post('/api/track', async (req, res) => {
-        const { userId, latitude, longitude, companyId } = req.body; // companyId é enviado pelo frontend
+        const { userId, latitude, longitude } = req.body;
 
         if (!userId || latitude === undefined || longitude === undefined) {
             return res.status(400).json({ message: 'userId, latitude e longitude são obrigatórios.' });
-        }
-         if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa (companyId) é obrigatório.' });
         }
 
         try {
             await db.collection('locationHistory').add({
                 userId: userId,
-                companyId: companyId, // Garante que o histórico de localização também é segregado
                 location: new admin.firestore.GeoPoint(parseFloat(latitude), parseFloat(longitude)),
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
             });
@@ -342,18 +320,14 @@ try {
     });
 
     app.get('/api/history', async (req, res) => {
-        const { userId, startDate, endDate, companyId } = req.query;
+        const { userId, startDate, endDate } = req.query;
 
         if (!userId || !startDate || !endDate) {
             return res.status(400).json({ message: 'userId, startDate e endDate são obrigatórios.' });
         }
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa (companyId) é obrigatório.' });
-        }
 
         try {
             const query = db.collection('locationHistory')
-                .where('companyId', '==', companyId)
                 .where('userId', '==', userId)
                 .where('timestamp', '>=', new Date(startDate + 'T00:00:00Z'))
                 .where('timestamp', '<=', new Date(endDate + 'T23:59:59Z'))
@@ -396,15 +370,7 @@ try {
     };
 
     const getFilteredData = async (collectionName, filters) => {
-        // PONTO CRÍTICO DE SEGURANÇA: Adicionar filtro de companyId
-        if (!filters.companyId) {
-            // Lança um erro ou retorna um array vazio se o companyId não for fornecido.
-            // Lançar um erro é mais seguro para evitar vazamento acidental de dados.
-            throw new Error("A companyId é obrigatória para filtrar os dados.");
-        }
-
-        let query = db.collection(collectionName).where('companyId', '==', filters.companyId);
-
+        let query = db.collection(collectionName);
         if (filters.inicio) {
             query = query.where('data', '>=', filters.inicio);
         }
@@ -424,10 +390,7 @@ try {
         else if (filters.tipos) {
             const selectedTypes = filters.tipos.split(',').filter(t => t);
             if (selectedTypes.length > 0) {
-                // Adiciona o filtro de companyId aqui também
-                const farmsQuery = db.collection('fazendas')
-                                     .where('companyId', '==', filters.companyId)
-                                     .where('types', 'array-contains-any', selectedTypes);
+                const farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
                 const farmsSnapshot = await farmsQuery.get();
                 
                 const matchingFarmCodes = [];
@@ -462,15 +425,12 @@ try {
         return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
     };
 
-    const generatePdfHeader = async (doc, title, companyId) => {
+    const generatePdfHeader = async (doc, title) => {
         try {
-            // Busca o logo da empresa específica
-            if (companyId) {
-                const configDoc = await db.collection('config').doc(companyId).get();
-                if (configDoc.exists && configDoc.data().logoBase64) {
-                    const logoBase64 = configDoc.data().logoBase64;
-                    doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
-                }
+            const configDoc = await db.collection('config').doc('company').get();
+            if (configDoc.exists && configDoc.data().logoBase64) {
+                const logoBase64 = configDoc.data().logoBase64;
+                doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
             }
         } catch (error) {
             console.error("Não foi possível carregar o logotipo Base64:", error.message);
@@ -551,32 +511,24 @@ try {
     let cachedShapefile = null;
     let lastFetchTime = null;
 
-    const getShapefileData = async (companyId) => {
+    const getShapefileData = async () => {
         const now = new Date();
-        // O cache em memória agora precisa ser específico da empresa
-        const cacheKey = companyId || 'default';
-        if (cachedShapefile && cachedShapefile[cacheKey] && lastFetchTime && (now - lastFetchTime[cacheKey] < 5 * 60 * 1000)) {
-            return cachedShapefile[cacheKey];
+        // Cache em memória por 5 minutos para evitar downloads repetidos
+        if (cachedShapefile && lastFetchTime && (now - lastFetchTime < 5 * 60 * 1000)) {
+            return cachedShapefile;
         }
 
-        if (!companyId) {
-            throw new Error('O ID da empresa é necessário para buscar o shapefile.');
-        }
-
-        const shapefileDoc = await db.collection('config').doc(companyId).get();
+        const shapefileDoc = await db.collection('config').doc('shapefile').get();
         if (!shapefileDoc.exists || !shapefileDoc.data().shapefileURL) {
-            throw new Error(`URL do Shapefile não encontrada para a empresa ${companyId}.`);
+            throw new Error('URL do Shapefile não encontrada no Firestore.');
         }
         const url = shapefileDoc.data().shapefileURL;
         
         const response = await axios({ url, responseType: 'arraybuffer' });
         const geojson = await shp(response.data);
         
-        if (!cachedShapefile) cachedShapefile = {};
-        if (!lastFetchTime) lastFetchTime = {};
-
-        cachedShapefile[cacheKey] = geojson;
-        lastFetchTime[cacheKey] = now;
+        cachedShapefile = geojson;
+        lastFetchTime = now;
         return geojson;
     };
 
@@ -617,14 +569,14 @@ try {
             const title = 'Relatório de Inspeção de Broca';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, filters.companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
             
-            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
+            const fazendasSnapshot = await db.collection('fazendas').get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
@@ -754,14 +706,14 @@ try {
             const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, filters.companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
             
-            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+            let currentY = await generatePdfHeader(doc, title);
 
             const headersA = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
             const columnWidthsA = [80, 160, 80, 100, 60, 120, 80];
@@ -892,14 +844,14 @@ try {
             const title = 'Relatório de Monitoramento de Cigarrinha';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, filters.companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
 
-            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
+            const fazendasSnapshot = await db.collection('fazendas').get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
@@ -964,14 +916,14 @@ try {
             const title = `Relatório de Cigarrinha (Amostragem) - ${tipoRelatorio.charAt(0).toUpperCase() + tipoRelatorio.slice(1)}`;
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, filters.companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
 
-            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+            let currentY = await generatePdfHeader(doc, title);
 
             if (tipoRelatorio === 'resumido') {
                 const groupedData = data.reduce((acc, r) => {
@@ -1270,7 +1222,7 @@ try {
             }
 
             const harvestPlan = harvestPlanDoc.data();
-            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
+            const fazendasSnapshot = await db.collection('fazendas').get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 const data = docSnap.data();
@@ -1278,7 +1230,7 @@ try {
             });
 
             const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
-            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+            let currentY = await generatePdfHeader(doc, title);
 
             const allPossibleHeadersConfig = [
                 { id: 'seq', title: 'Seq.', minWidth: 35 },
