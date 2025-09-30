@@ -370,7 +370,13 @@ try {
     };
 
     const getFilteredData = async (collectionName, filters) => {
-        let query = db.collection(collectionName);
+        // Validação de Segurança Essencial
+        if (!filters.companyId) {
+            throw new Error("A companyId é obrigatória para filtrar os dados.");
+        }
+
+        let query = db.collection(collectionName).where('companyId', '==', filters.companyId);
+
         if (filters.inicio) {
             query = query.where('data', '>=', filters.inicio);
         }
@@ -386,11 +392,13 @@ try {
 
         if (filters.fazendaCodigo && filters.fazendaCodigo !== '') {
             farmCodesToFilter = [filters.fazendaCodigo];
-        }
-        else if (filters.tipos) {
+        } else if (filters.tipos) {
             const selectedTypes = filters.tipos.split(',').filter(t => t);
             if (selectedTypes.length > 0) {
-                const farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
+                // Query de Fazendas também precisa ser segura
+                const farmsQuery = db.collection('fazendas')
+                                     .where('companyId', '==', filters.companyId)
+                                     .where('types', 'array-contains-any', selectedTypes);
                 const farmsSnapshot = await farmsQuery.get();
                 
                 const matchingFarmCodes = [];
@@ -401,6 +409,7 @@ try {
                 if (matchingFarmCodes.length > 0) {
                     farmCodesToFilter = matchingFarmCodes;
                 } else {
+                    // Se não encontrar fazendas com os tipos selecionados, retorna um array vazio
                     return [];
                 }
             }
@@ -408,10 +417,13 @@ try {
 
         let filteredData = data;
 
+        // A filtragem por código de fazenda agora é um refinamento dos dados já seguros
         if (farmCodesToFilter) {
-            filteredData = filteredData.filter(d => farmCodesToFilter.includes(d.codigo));
+            const farmCodesSet = new Set(farmCodesToFilter);
+            filteredData = filteredData.filter(d => farmCodesSet.has(d.codigo));
         }
         
+        // Filtros adicionais de refinamento
         if (filters.matricula) {
             filteredData = filteredData.filter(d => d.matricula === filters.matricula);
         }
