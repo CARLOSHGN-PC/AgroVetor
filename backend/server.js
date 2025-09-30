@@ -926,8 +926,6 @@ try {
             let currentY = await generatePdfHeader(doc, title);
 
             if (tipoRelatorio === 'resumido') {
-                const divisor = parseInt(filters.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
-
                 const groupedData = data.reduce((acc, r) => {
                     const key = `${r.codigo}|${r.fazenda}|${r.talhao}`;
                     if (!acc[key]) {
@@ -937,18 +935,8 @@ try {
                             talhao: r.talhao,
                             variedade: r.variedade,
                             fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
-                            latestDate: new Date(0),
-                            totalAmostras: 0,
                         };
                     }
-
-                    const recordDate = new Date(r.data + 'T03:00:00Z');
-                    if (recordDate > acc[key].latestDate) {
-                        acc[key].latestDate = recordDate;
-                    }
-
-                    acc[key].totalAmostras += r.amostras.length;
-
                     r.amostras.forEach(amostra => {
                         acc[key].fase1 += amostra.fase1 || 0;
                         acc[key].fase2 += amostra.fase2 || 0;
@@ -959,23 +947,17 @@ try {
                     return acc;
                 }, {});
 
-                const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Final'];
-                const columnWidths = [150, 80, 65, 100, 40, 40, 40, 40, 40, 97];
+                const headers = ['Fazenda', 'Talhão', 'Variedade', 'Fase 1 (Soma)', 'Fase 2 (Soma)', 'Fase 3 (Soma)', 'Fase 4 (Soma)', 'Fase 5 (Soma)'];
+                const columnWidths = [180, 100, 100, 70, 70, 70, 70, 72];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
                 for (const key in groupedData) {
                     const group = groupedData[key];
-                    const somaFases = group.fase1 + group.fase2 + group.fase3 + group.fase4 + group.fase5;
-                    const resultadoFinal = group.totalAmostras > 0 ? (somaFases / (group.totalAmostras * divisor)).toFixed(2).replace('.', ',') : '0,00';
-                    const formattedDate = group.latestDate.toLocaleDateString('pt-BR');
-
                     const row = [
                         `${group.codigo} - ${group.fazenda}`,
                         group.talhao,
-                        formattedDate,
                         group.variedade,
-                        group.fase1, group.fase2, group.fase3, group.fase4, group.fase5,
-                        resultadoFinal
+                        group.fase1, group.fase2, group.fase3, group.fase4, group.fase5
                     ];
                     currentY = await checkPageBreak(doc, currentY, title);
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
@@ -1041,35 +1023,20 @@ try {
             let header, records;
 
             if (tipoRelatorio === 'resumido') {
-                const divisor = parseInt(req.query.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
                 header = [
-                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' },
-                    { id: 'variedade', title: 'Variedade' }, { id: 'fase1', title: 'F1' }, { id: 'fase2', title: 'F2' },
-                    { id: 'fase3', title: 'F3' }, { id: 'fase4', title: 'F4' }, { id: 'fase5', title: 'F5' },
-                    { id: 'resultadoFinal', title: 'Resultado Final' }
+                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
+                    { id: 'fase1', title: 'Fase 1 (Soma)' }, { id: 'fase2', title: 'Fase 2 (Soma)' }, { id: 'fase3', title: 'Fase 3 (Soma)' },
+                    { id: 'fase4', title: 'Fase 4 (Soma)' }, { id: 'fase5', title: 'Fase 5 (Soma)' }
                 ];
 
                 const groupedData = data.reduce((acc, r) => {
                     const key = `${r.codigo}|${r.fazenda}|${r.talhao}`;
                     if (!acc[key]) {
                         acc[key] = {
-                            codigo: r.codigo,
-                            fazenda: r.fazenda,
-                            talhao: r.talhao,
-                            variedade: r.variedade,
+                            fazenda: `${r.codigo} - ${r.fazenda}`, talhao: r.talhao, variedade: r.variedade,
                             fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
-                            latestDate: new Date(0),
-                            totalAmostras: 0,
                         };
                     }
-
-                    const recordDate = new Date(r.data + 'T03:00:00Z');
-                    if (recordDate > acc[key].latestDate) {
-                        acc[key].latestDate = recordDate;
-                    }
-
-                    acc[key].totalAmostras += r.amostras.length;
-
                     r.amostras.forEach(amostra => {
                         acc[key].fase1 += amostra.fase1 || 0;
                         acc[key].fase2 += amostra.fase2 || 0;
@@ -1080,22 +1047,7 @@ try {
                     return acc;
                 }, {});
 
-                records = Object.values(groupedData).map(group => {
-                    const somaFases = group.fase1 + group.fase2 + group.fase3 + group.fase4 + group.fase5;
-                    const resultadoFinal = group.totalAmostras > 0 ? (somaFases / (group.totalAmostras * divisor)).toFixed(2).replace('.', ',') : '0,00';
-                    return {
-                        fazenda: `${group.codigo} - ${group.fazenda}`,
-                        talhao: group.talhao,
-                        data: group.latestDate.toLocaleDateString('pt-BR'),
-                        variedade: group.variedade,
-                        fase1: group.fase1,
-                        fase2: group.fase2,
-                        fase3: group.fase3,
-                        fase4: group.fase4,
-                        fase5: group.fase5,
-                        resultadoFinal: resultadoFinal
-                    };
-                });
+                records = Object.values(groupedData);
 
             } else { // Detalhado
                 header = [
