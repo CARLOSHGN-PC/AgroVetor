@@ -963,6 +963,38 @@ try {
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                 }
 
+            } else if (tipoRelatorio === 'final') {
+                const headers = ['Fazenda', 'Data', 'Variedade', 'Fase1', 'Fase2', 'Fase3', 'Fase4', 'Fase5', 'Resultado Final'];
+                const columnWidths = [200, 80, 120, 50, 50, 50, 50, 50, 82];
+                currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+                for (const r of data) {
+                    const date = new Date(r.data + 'T03:00:00Z');
+                    const formattedDate = date.toLocaleDateString('pt-BR');
+
+                    const totalFases = r.amostras.reduce((acc, amostra) => {
+                        acc.f1 += amostra.fase1 || 0;
+                        acc.f2 += amostra.fase2 || 0;
+                        acc.f3 += amostra.fase3 || 0;
+                        acc.f4 += amostra.fase4 || 0;
+                        acc.f5 += amostra.fase5 || 0;
+                        return acc;
+                    }, { f1: 0, f2: 0, f3: 0, f4: 0, f5: 0 });
+
+                    const row = [
+                        `${r.codigo} - ${r.fazenda}`,
+                        formattedDate,
+                        r.variedade,
+                        totalFases.f1,
+                        totalFases.f2,
+                        totalFases.f3,
+                        totalFases.f4,
+                        totalFases.f5,
+                        (r.resultado || 0).toFixed(2).replace('.', ',')
+                    ];
+                    currentY = await checkPageBreak(doc, currentY, title);
+                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                }
             } else { // Detalhado
                 const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
                 const columnWidths = [170, 90, 65, 90, 60, 40, 40, 40, 40, 40, 87];
@@ -1048,6 +1080,39 @@ try {
                 }, {});
 
                 records = Object.values(groupedData);
+
+            } else if (tipoRelatorio === 'final') {
+                header = [
+                    { id: 'fazenda', title: 'Fazenda' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
+                    { id: 'fase1', title: 'Fase1' }, { id: 'fase2', title: 'Fase2' }, { id: 'fase3', title: 'Fase3' },
+                    { id: 'fase4', title: 'Fase4' }, { id: 'fase5', title: 'Fase5' }, { id: 'resultadoFinal', title: 'Resultado Final' }
+                ];
+
+                records = data.map(r => {
+                    const date = new Date(r.data + 'T03:00:00Z');
+                    const formattedDate = date.toLocaleDateString('pt-BR');
+
+                    const totalFases = r.amostras.reduce((acc, amostra) => {
+                        acc.f1 += amostra.fase1 || 0;
+                        acc.f2 += amostra.fase2 || 0;
+                        acc.f3 += amostra.fase3 || 0;
+                        acc.f4 += amostra.fase4 || 0;
+                        acc.f5 += amostra.fase5 || 0;
+                        return acc;
+                    }, { f1: 0, f2: 0, f3: 0, f4: 0, f5: 0 });
+
+                    return {
+                        fazenda: `${r.codigo} - ${r.fazenda}`,
+                        data: formattedDate,
+                        variedade: r.variedade,
+                        fase1: totalFases.f1,
+                        fase2: totalFases.f2,
+                        fase3: totalFases.f3,
+                        fase4: totalFases.f4,
+                        fase5: totalFases.f5,
+                        resultadoFinal: (r.resultado || 0).toFixed(2).replace('.', ',')
+                    };
+                });
 
             } else { // Detalhado
                 header = [
