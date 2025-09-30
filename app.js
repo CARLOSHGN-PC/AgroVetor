@@ -4736,20 +4736,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     companyId: App.state.currentUser.companyId
                 };
 
-                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este lançamento?", async () => {
+                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este lançamento?", () => {
+                    App.ui.clearForm(els.form);
+                    els.amostrasContainer.innerHTML = '';
+                    App.ui.setDefaultDatesForEntryForms();
                     App.ui.setLoading(true, "A guardar...");
-                    try {
-                        await App.data.addDocument('cigarrinhaAmostragem', newEntry);
-                        App.ui.showAlert("Lançamento de amostragem guardado com sucesso!");
-                        els.amostrasContainer.innerHTML = ''; // Limpa os cards
-                        App.ui.clearForm(els.form);
-                        App.ui.setDefaultDatesForEntryForms();
-                    } catch (e) {
-                        App.ui.showAlert("Erro ao guardar o lançamento.", "error");
-                        console.error("Erro ao guardar amostragem de cigarrinha:", e);
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
+
+                    (async () => {
+                        try {
+                            if (navigator.onLine) {
+                                await App.data.addDocument('cigarrinhaAmostragem', newEntry);
+                                App.ui.showAlert("Lançamento de amostragem guardado com sucesso!");
+                            } else {
+                                await OfflineDB.add('offline-writes', { collection: 'cigarrinhaAmostragem', data: newEntry });
+                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                            }
+                        } catch (e) {
+                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
+                            console.error(`Erro ao salvar cigarrinhaAmostragem, salvando offline:`, e);
+                            await OfflineDB.add('offline-writes', { collection: 'cigarrinhaAmostragem', data: newEntry });
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    })();
                 });
             },
 
