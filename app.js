@@ -7533,9 +7533,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 _fetchAndDownloadReport(endpoint, filters, filename) {
                     const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                     cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
-                    if (App.state.currentUser && App.state.currentUser.companyId) {
-                        cleanFilters.companyId = App.state.currentUser.companyId;
-                    }
 
                     const params = new URLSearchParams(cleanFilters);
                     const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
