@@ -58,12 +58,15 @@ try {
 
     // ROTA PARA UPLOAD DO LOGO
     app.post('/upload-logo', async (req, res) => {
-        const { logoBase64 } = req.body;
+        const { logoBase64, companyId } = req.body; // **FIX DE SEGURANÇA**
         if (!logoBase64) {
             return res.status(400).send({ message: 'Nenhum dado de imagem Base64 enviado.' });
         }
+        if (!companyId) { // **FIX DE SEGURANÇA**
+            return res.status(400).send({ message: 'O ID da empresa é obrigatório.' });
+        }
         try {
-            await db.collection('config').doc('company').set({ logoBase64: logoBase64 }, { merge: true });
+            await db.collection('config').doc(companyId).set({ logoBase64: logoBase64 }, { merge: true }); // **FIX DE SEGURANÇA**
             res.status(200).send({ message: 'Logo carregado com sucesso!' });
         } catch (error) {
             console.error("Erro ao salvar logo Base64 no Firestore:", error);
@@ -73,14 +76,17 @@ try {
  
     // ROTA PARA UPLOAD DO SHAPEFILE
     app.post('/upload-shapefile', async (req, res) => {
-        const { fileBase64 } = req.body;
+        const { fileBase64, companyId } = req.body; // **FIX DE SEGURANÇA**
         if (!fileBase64) {
             return res.status(400).send({ message: 'Nenhum dado de arquivo Base64 foi enviado.' });
+        }
+        if (!companyId) { // **FIX DE SEGURANÇA**
+            return res.status(400).send({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
             const buffer = Buffer.from(fileBase64, 'base64');
-            const filePath = `shapefiles/talhoes.zip`;
+            const filePath = `shapefiles/${companyId}/talhoes.zip`; // **FIX DE SEGURANÇA**
             const file = bucket.file(filePath);
 
             await file.save(buffer, {
@@ -92,10 +98,10 @@ try {
             await file.makePublic();
             const downloadURL = file.publicUrl();
 
-            await db.collection('config').doc('shapefile').set({
+            await db.collection('config').doc(companyId).set({ // **FIX DE SEGURANÇA**
                 shapefileURL: downloadURL,
                 lastUpdated: new Date()
-            });
+            }, { merge: true });
 
             res.status(200).send({ message: 'Shapefile enviado com sucesso!', url: downloadURL });
 
@@ -107,9 +113,12 @@ try {
 
     // ROTA PARA INGESTÃO DE RELATÓRIO HISTÓRICO (SEM IA)
     app.post('/api/upload/historical-report', async (req, res) => {
-        const { reportData: originalReportData } = req.body;
+        const { reportData: originalReportData, companyId } = req.body; // **FIX DE SEGURANÇA**
         if (!originalReportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
+        }
+        if (!companyId) { // **FIX DE SEGURANÇA**
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
@@ -168,6 +177,7 @@ try {
                             toneladas: parseFloat(String(record.toneladas || '0').replace(',', '.')) || 0,
                             atrRealizado: parseFloat(String(record.atr || '0').replace(',', '.')) || 0,
                             importedAt: new Date(),
+                            companyId: companyId // **FIX DE SEGURANÇA**
                         };
 
                         // Não salva mais campos opcionais como talhao, safra, variedade
@@ -215,14 +225,18 @@ try {
 
     // ROTA PARA CÁLCULO DE ATR PONDERADO
     app.post('/api/calculate-atr', async (req, res) => {
-        const { codigoFazenda } = req.body;
+        const { codigoFazenda, companyId } = req.body; // **FIX DE SEGURANÇA**
         if (!codigoFazenda) {
             return res.status(400).json({ message: 'O código da fazenda é obrigatório.' });
+        }
+        if (!companyId) { // **FIX DE SEGURANÇA**
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
             const farmCodeStr = String(codigoFazenda || '').trim();
             const historyQuery = await db.collection('historicalHarvests')
+                .where('companyId', '==', companyId) // **FIX DE SEGURANÇA**
                 .where('codigoFazenda', '==', farmCodeStr)
                 .get();
 
@@ -254,47 +268,40 @@ try {
         }
     });
 
-    async function deleteCollection(db, collectionPath, batchSize) {
-        const collectionRef = db.collection(collectionPath);
-        const query = collectionRef.orderBy('__name__').limit(batchSize);
-
-        return new Promise((resolve, reject) => {
-            deleteQueryBatch(db, query, resolve, reject);
-        });
-    }
-
-    async function deleteQueryBatch(db, query, resolve, reject) {
+    // ROTA PARA DELETAR DADOS HISTÓRICOS
+    app.post('/api/delete/historical-data', async (req, res) => {
+        const { companyId } = req.body;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório para esta operação.' });
+        }
         try {
-            const snapshot = await query.get();
+            console.log(`Iniciando a exclusão de dados históricos para a empresa: ${companyId}`);
+            const collectionRef = db.collection('historicalHarvests');
+            const query = collectionRef.where('companyId', '==', companyId);
 
-            const batchSize = snapshot.size;
-            if (batchSize === 0) {
-                resolve();
-                return;
+            const snapshot = await query.get();
+            if (snapshot.empty) {
+                return res.status(200).json({ message: 'Nenhum dado histórico encontrado para esta empresa.' });
             }
 
-            const batch = db.batch();
-            snapshot.docs.forEach((doc) => {
-                batch.delete(doc.ref);
-            });
-            await batch.commit();
+            const batchSize = 400;
+            const chunks = [];
+            for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+                chunks.push(snapshot.docs.slice(i, i + batchSize));
+            }
 
-            process.nextTick(() => {
-                deleteQueryBatch(db, query, resolve, reject);
-            });
-        } catch(err) {
-            reject(err);
-        }
-    }
+            for (const chunk of chunks) {
+                const batch = db.batch();
+                chunk.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+            }
 
-    app.post('/api/delete/historical-data', async (req, res) => {
-        try {
-            console.log("Iniciando a exclusão da coleção 'historicalHarvests'...");
-            await deleteCollection(db, 'historicalHarvests', 400);
-            console.log("Coleção 'historicalHarvests' excluída com sucesso.");
-            res.status(200).json({ message: 'Todos os dados do histórico da IA foram excluídos com sucesso.' });
+            console.log(`${snapshot.size} registros históricos da empresa ${companyId} excluídos com sucesso.`);
+            res.status(200).json({ message: 'Os dados do histórico da sua empresa foram excluídos com sucesso.' });
         } catch (error) {
-            console.error("Erro ao excluir o histórico da IA:", error);
+            console.error(`Erro ao excluir o histórico da IA para a empresa ${companyId}:`, error);
             res.status(500).json({ message: 'Ocorreu um erro no servidor ao tentar excluir o histórico.' });
         }
     });
@@ -370,7 +377,13 @@ try {
     };
 
     const getFilteredData = async (collectionName, filters) => {
-        let query = db.collection(collectionName);
+        // **FIX DE SEGURANÇA**: Garante que o companyId é usado em todas as queries
+        if (!filters.companyId) {
+            throw new Error("Acesso não autorizado: O ID da empresa é obrigatório.");
+        }
+
+        let query = db.collection(collectionName).where('companyId', '==', filters.companyId);
+
         if (filters.inicio) {
             query = query.where('data', '>=', filters.inicio);
         }
@@ -384,13 +397,15 @@ try {
 
         let farmCodesToFilter = null;
 
+        // O filtro por tipo de fazenda agora também precisa ser segregado por empresa
         if (filters.fazendaCodigo && filters.fazendaCodigo !== '') {
             farmCodesToFilter = [filters.fazendaCodigo];
-        }
-        else if (filters.tipos) {
+        } else if (filters.tipos) {
             const selectedTypes = filters.tipos.split(',').filter(t => t);
             if (selectedTypes.length > 0) {
-                const farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
+                const farmsQuery = db.collection('fazendas')
+                                     .where('companyId', '==', filters.companyId) // **FIX DE SEGURANÇA**
+                                     .where('types', 'array-contains-any', selectedTypes);
                 const farmsSnapshot = await farmsQuery.get();
                 
                 const matchingFarmCodes = [];
@@ -401,6 +416,7 @@ try {
                 if (matchingFarmCodes.length > 0) {
                     farmCodesToFilter = matchingFarmCodes;
                 } else {
+                    // Se o filtro de tipo não retornou nenhuma fazenda, então não há dados para mostrar
                     return [];
                 }
             }
@@ -425,12 +441,15 @@ try {
         return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
     };
 
-    const generatePdfHeader = async (doc, title) => {
+    const generatePdfHeader = async (doc, title, filters = {}) => { // **FIX DE SEGURANÇA**
         try {
-            const configDoc = await db.collection('config').doc('company').get();
-            if (configDoc.exists && configDoc.data().logoBase64) {
-                const logoBase64 = configDoc.data().logoBase64;
-                doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
+            // **FIX DE SEGURANÇA**: Carrega o logo da empresa correta
+            if (filters.companyId) {
+                const configDoc = await db.collection('config').doc(filters.companyId).get();
+                if (configDoc.exists && configDoc.data().logoBase64) {
+                    const logoBase64 = configDoc.data().logoBase64;
+                    doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
+                }
             }
         } catch (error) {
             console.error("Não foi possível carregar o logotipo Base64:", error.message);
@@ -499,10 +518,10 @@ try {
         return y + maxRowHeight;
     };
 
-    const checkPageBreak = async (doc, y, title, neededSpace = 40) => {
+    const checkPageBreak = async (doc, y, title, filters, neededSpace = 40) => {
         if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
             doc.addPage();
-            return await generatePdfHeader(doc, title);
+            return await generatePdfHeader(doc, title, filters);
         }
         return y;
     };
@@ -569,14 +588,14 @@ try {
             const title = 'Relatório de Inspeção de Broca';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title);
+                await generatePdfHeader(doc, title, filters);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
             
-            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
@@ -590,7 +609,7 @@ try {
 
             const isModelB = filters.tipoRelatorio === 'B';
             
-            let currentY = await generatePdfHeader(doc, title);
+            let currentY = await generatePdfHeader(doc, title, filters);
 
             const headersA = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
             const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62];
@@ -604,7 +623,7 @@ try {
             if (!isModelB) { // Modelo A
                 currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, 5, 18, headersAConfig);
                 for(const r of enrichedData) {
-                    currentY = await checkPageBreak(doc, currentY, title);
+                    currentY = await checkPageBreak(doc, currentY, title, filters);
                     currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA, 5, 18, headersAConfig);
                 }
             } else { // Modelo B
@@ -616,17 +635,17 @@ try {
                 }, {});
 
                 for (const fazendaKey of Object.keys(groupedData).sort()) {
-                    currentY = await checkPageBreak(doc, currentY, title, 40);
+                    currentY = await checkPageBreak(doc, currentY, title, filters, 40);
                     doc.y = currentY;
                     doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
                     currentY = doc.y + 5;
 
-                    currentY = await checkPageBreak(doc, currentY, title);
+                    currentY = await checkPageBreak(doc, currentY, title, filters);
                     currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, 5, 18, headersBConfig);
 
                     const farmData = groupedData[fazendaKey];
                     for(const r of farmData) {
-                        currentY = await checkPageBreak(doc, currentY, title);
+                        currentY = await checkPageBreak(doc, currentY, title, filters);
                         currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB, 5, 18, headersBConfig);
                     }
                     
@@ -650,7 +669,7 @@ try {
             const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
             const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
 
-            currentY = await checkPageBreak(doc, currentY, title, 40);
+            currentY = await checkPageBreak(doc, currentY, title, filters, 40);
             doc.y = currentY;
             
             if (!isModelB) {
@@ -706,14 +725,14 @@ try {
             const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title);
+                await generatePdfHeader(doc, title, filters);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
             
-            let currentY = await generatePdfHeader(doc, title);
+            let currentY = await generatePdfHeader(doc, title, filters);
 
             const headersA = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
             const columnWidthsA = [80, 160, 80, 100, 60, 120, 80];
@@ -729,7 +748,7 @@ try {
             if (!isDetailed) { // Modelo A - Resumido
                 currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
                 for(const p of data) {
-                    currentY = await checkPageBreak(doc, currentY, title);
+                    currentY = await checkPageBreak(doc, currentY, title, filters);
                     currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.total)], currentY, false, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
                 }
             } else { // Modelo B - Detalhado
@@ -741,17 +760,17 @@ try {
                 }, {});
 
                 for (const fazendaKey of Object.keys(groupedData).sort()) {
-                    currentY = await checkPageBreak(doc, currentY, title, 40);
+                    currentY = await checkPageBreak(doc, currentY, title, filters, 40);
                     doc.y = currentY;
                     doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
                     currentY = doc.y + 5;
 
-                    currentY = await checkPageBreak(doc, currentY, title);
+                    currentY = await checkPageBreak(doc, currentY, title, filters);
                     currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
 
                     const farmData = groupedData[fazendaKey];
                     for(const p of farmData) {
-                        currentY = await checkPageBreak(doc, currentY, title);
+                        currentY = await checkPageBreak(doc, currentY, title, filters);
                         currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco), formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)], currentY, false, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
                     }
                     
@@ -777,7 +796,7 @@ try {
             const grandTotalPedaco = data.reduce((sum, p) => sum + p.pedaco, 0);
             const grandTotal = data.reduce((sum, p) => sum + p.total, 0);
 
-            currentY = await checkPageBreak(doc, currentY, title, 40);
+            currentY = await checkPageBreak(doc, currentY, title, filters, 40);
             doc.y = currentY;
 
             if (!isDetailed) {
@@ -844,14 +863,14 @@ try {
             const title = 'Relatório de Monitoramento de Cigarrinha';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title);
+                await generatePdfHeader(doc, title, filters);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
 
-            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
@@ -863,7 +882,7 @@ try {
                 return { ...reg, variedade: talhao?.variedade || 'N/A' };
             });
 
-            let currentY = await generatePdfHeader(doc, title);
+            let currentY = await generatePdfHeader(doc, title, filters);
 
             const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado'];
             const columnWidths = [80, 180, 80, 100, 40, 40, 40, 40, 40, 50, 72];
@@ -872,7 +891,7 @@ try {
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 18, headersConfig);
 
             for(const r of enrichedData) {
-                currentY = await checkPageBreak(doc, currentY, title);
+                currentY = await checkPageBreak(doc, currentY, title, filters);
                 const row = [
                     r.data,
                     `${r.codigo} - ${r.fazenda}`,
@@ -916,14 +935,14 @@ try {
             const title = `Relatório de Cigarrinha (Amostragem) - ${tipoRelatorio.charAt(0).toUpperCase() + tipoRelatorio.slice(1)}`;
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title);
+                await generatePdfHeader(doc, title, filters);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
 
-            let currentY = await generatePdfHeader(doc, title);
+            let currentY = await generatePdfHeader(doc, title, filters);
 
             if (tipoRelatorio === 'resumido') {
                 const groupedData = data.reduce((acc, r) => {
