@@ -531,7 +531,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 filtroFim: document.getElementById('fimCigarrinhaAmostragem'),
                 btnPDF: document.getElementById('btnPDFCigarrinhaAmostragem'),
                 btnExcel: document.getElementById('btnExcelCigarrinhaAmostragem'),
-                tipoRelatorio: document.getElementById('tipoRelatorioCigarrinhaAmostragem'),
             },
             exclusao: {
                 lista: document.getElementById('listaExclusao')
@@ -7669,153 +7668,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     this._fetchAndDownloadReport('cigarrinha-amostragem/pdf', filters, 'relatorio_cigarrinha_amostragem.pdf');
                 },
 
-            _prepareCigarrinhaAmostragemData(reportType) {
+                generateCigarrinhaAmostragemCSV() {
                     const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinhaAmostragem;
-                const data = App.state.cigarrinhaAmostragem.filter(item => {
-                    const itemDate = new Date(item.data + 'T03:00:00Z');
-                    const startDate = new Date(filtroInicio.value + 'T03:00:00Z');
-                    const endDate = new Date(filtroFim.value + 'T03:00:00Z');
-                    const farm = App.state.fazendas.find(f => f.id === filtroFazenda.value);
-                    const farmCode = farm ? farm.code : null;
-                    return itemDate >= startDate && itemDate <= endDate && (!farmCode || item.codigo === farmCode);
-                });
-
-                if (reportType === 'resumido') {
-                    const resumido = {};
-                    data.forEach(item => {
-                        const key = `${item.codigo}-${item.talhao}`;
-                        if (!resumido[key]) {
-                            resumido[key] = {
-                                fazenda: item.fazenda,
-                                data: item.data,
-                                variedade: item.variedade,
-                                fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
-                                totalPontos: 0,
-                                divisor: item.divisor || App.state.companyConfig?.cigarrinhaCalcMethod || 5
-                            };
-                        }
-                        item.amostras.forEach(amostra => {
-                            resumido[key].fase1 += amostra.fase1 || 0;
-                            resumido[key].fase2 += amostra.fase2 || 0;
-                            resumido[key].fase3 += amostra.fase3 || 0;
-                            resumido[key].fase4 += amostra.fase4 || 0;
-                            resumido[key].fase5 += amostra.fase5 || 0;
-                        });
-                    });
-
-                    return Object.values(resumido).map(d => {
-                        const somaFases = d.fase1 + d.fase2 + d.fase3 + d.fase4 + d.fase5;
-                        const resultadoFinal = somaFases / d.divisor;
-                        return { ...d, resultadoFinal: resultadoFinal.toFixed(2) };
-                    });
-                }
-
-                // Default to detailed report if not 'resumido'
-                return data;
-            },
-
-            generateCigarrinhaAmostragemPDF() {
-                const { tipoRelatorio, filtroInicio, filtroFim } = App.elements.cigarrinhaAmostragem;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-
-                const reportType = tipoRelatorio.value;
-                const data = this._prepareCigarrinhaAmostragemData(reportType);
-
-                if (data.length === 0) {
-                    App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "info");
+                    if (!filtroInicio.value || !filtroFim.value) {
+                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                         return;
                     }
-
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                const logo = App.state.companyLogo;
-                if (logo) {
-                    doc.addImage(logo, 'PNG', 10, 5, 40, 20);
-                }
-
-                doc.setFontSize(16);
-                doc.text(`Relatório de Monitoramento de Cigarrinha (Amostragem) - ${reportType === 'resumido' ? 'Resumido' : 'Detalhado'}`, 105, 15, { align: 'center' });
-                doc.setFontSize(10);
-                doc.text(`Período: ${App.actions.formatDateForDisplay(filtroInicio.value)} a ${App.actions.formatDateForDisplay(filtroFim.value)}`, 105, 22, { align: 'center' });
-
-                let head, body;
-
-                if (reportType === 'resumido') {
-                    head = [['Fazenda', 'Data', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado']];
-                    body = data.map(item => [
-                        item.fazenda,
-                        App.actions.formatDateForDisplay(item.data),
-                        item.variedade,
-                        item.fase1, item.fase2, item.fase3, item.fase4, item.fase5,
-                        item.resultadoFinal
-                    ]);
-                } else { // Detalhado
-                    head = [['Fazenda', 'Talhão', 'Data', 'Variedade', 'Resultado', 'Amostras']];
-                    body = data.map(item => [
-                        item.fazenda,
-                        item.talhao,
-                        App.actions.formatDateForDisplay(item.data),
-                        item.variedade,
-                        item.resultado.toFixed(2),
-                        item.amostras.length
-                    ]);
-                }
-
-                doc.autoTable({
-                    startY: 30,
-                    head: head,
-                    body: body,
-                    theme: 'striped',
-                    styles: { fontSize: 8 },
-                    headStyles: { fillColor: App.ui._getThemeColors().primary },
-                });
-
-                doc.save(`relatorio_cigarrinha_amostragem_${reportType}.pdf`);
-            },
-
-            generateCigarrinhaAmostragemCSV() {
-                const { tipoRelatorio, filtroInicio, filtroFim } = App.elements.cigarrinhaAmostragem;
-                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-
-                const reportType = tipoRelatorio.value;
-                const data = this._prepareCigarrinhaAmostragemData(reportType);
-
-                if (data.length === 0) {
-                    App.ui.showAlert("Nenhum dado encontrado para os filtros selecionados.", "info");
-                    return;
-                }
-
-                let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-                let headers, rows;
-
-                if (reportType === 'resumido') {
-                    headers = ['Fazenda', 'Data', 'Variedade', 'Fase1', 'Fase2', 'Fase3', 'Fase4', 'Fase5', 'Resultado_Final'];
-                    rows = data.map(d => [
-                        d.fazenda, d.data, d.variedade,
-                        d.fase1, d.fase2, d.fase3, d.fase4, d.fase5,
-                        d.resultadoFinal
-                    ]);
-                } else { // Detalhado
-                    headers = ['Fazenda', 'Talhao', 'Data', 'Variedade', 'Resultado_Final', 'Numero_Amostras', 'Divisor_Calculo'];
-                     rows = data.map(d => [
-                        d.fazenda, d.talhao, d.data, d.variedade,
-                        d.resultado.toFixed(2), d.amostras.length, d.divisor
-                    ]);
-                }
-
-                csvContent += headers.join(';') + '\r\n';
-                rows.forEach(rowArray => {
-                    let row = rowArray.join(';');
-                    csvContent += row + '\r\n';
-                });
-
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", `relatorio_cigarrinha_amostragem_${reportType}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                    const farmId = filtroFazenda.value;
+                    const farm = App.state.fazendas.find(f => f.id === farmId);
+                    const filters = {
+                        inicio: filtroInicio.value,
+                        fim: filtroFim.value,
+                        fazendaCodigo: farm ? farm.code : ''
+                    };
+                    this._fetchAndDownloadReport('cigarrinha-amostragem/csv', filters, 'relatorio_cigarrinha_amostragem.csv');
                 },
 
                 generateCustomHarvestReport(format) {
