@@ -964,72 +964,39 @@ try {
                 }
 
             } else { // Detalhado
-                const headers = ['Talhão', 'Data', 'Variedade', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
-                const columnWidths = [100, 75, 120, 70, 50, 50, 50, 50, 50, 97];
+                const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
+                const columnWidths = [170, 90, 65, 90, 60, 40, 40, 40, 40, 40, 87];
+                currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
                 const divisor = parseInt(filters.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
 
-                const groupedData = data.reduce((acc, r) => {
-                    const key = `${r.codigo} - ${r.fazenda}`;
-                    if (!acc[key]) acc[key] = [];
-                    acc[key].push(r);
-                    return acc;
-                }, {});
+                for(const r of data) {
+                    if (r.amostras && r.amostras.length > 0) {
+                        for (let i = 0; i < r.amostras.length; i++) {
+                            const amostra = r.amostras[i];
+                            const date = new Date(r.data + 'T03:00:00Z');
+                            const formattedDate = date.toLocaleDateString('pt-BR');
 
-                let grandTotalF1 = 0, grandTotalF2 = 0, grandTotalF3 = 0, grandTotalF4 = 0, grandTotalF5 = 0;
+                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
+                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
 
-                for (const fazendaKey of Object.keys(groupedData).sort()) {
-                    currentY = await checkPageBreak(doc, currentY, title, 40);
-                    doc.y = currentY;
-                    doc.fontSize(12).font('Helvetica-Bold').text(fazendaKey, doc.page.margins.left, currentY, { align: 'left' });
-                    currentY = doc.y + 5;
-
-                    currentY = await checkPageBreak(doc, currentY, title);
-                    currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
-
-                    const farmData = groupedData[fazendaKey];
-                    let subTotalF1 = 0, subTotalF2 = 0, subTotalF3 = 0, subTotalF4 = 0, subTotalF5 = 0;
-
-                    for(const r of farmData) {
-                        if (r.amostras && r.amostras.length > 0) {
-                            for (let i = 0; i < r.amostras.length; i++) {
-                                const amostra = r.amostras[i];
-                                const date = new Date(r.data + 'T03:00:00Z');
-                                const formattedDate = date.toLocaleDateString('pt-BR');
-
-                                const f1 = amostra.fase1 || 0;
-                                const f2 = amostra.fase2 || 0;
-                                const f3 = amostra.fase3 || 0;
-                                const f4 = amostra.fase4 || 0;
-                                const f5 = amostra.fase5 || 0;
-
-                                subTotalF1 += f1; subTotalF2 += f2; subTotalF3 += f3; subTotalF4 += f4; subTotalF5 += f5;
-                                grandTotalF1 += f1; grandTotalF2 += f2; grandTotalF3 += f3; grandTotalF4 += f4; grandTotalF5 += f5;
-
-                                const somaFases = f1 + f2 + f3 + f4 + f5;
-                                const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
-
-                                const row = [
-                                    r.talhao,
-                                    formattedDate,
-                                    r.variedade,
-                                    i + 1,
-                                    f1, f2, f3, f4, f5,
-                                    resultadoAmostra
-                                ];
-                                currentY = await checkPageBreak(doc, currentY, title);
-                                currentY = drawRow(doc, row, currentY, false, false, columnWidths);
-                            }
+                            const row = [
+                                `${r.codigo} - ${r.fazenda}`,
+                                r.talhao,
+                                formattedDate,
+                                r.variedade,
+                                i + 1,
+                                amostra.fase1 || 0,
+                                amostra.fase2 || 0,
+                                amostra.fase3 || 0,
+                                amostra.fase4 || 0,
+                                amostra.fase5 || 0,
+                                resultadoAmostra
+                            ];
+                            currentY = await checkPageBreak(doc, currentY, title);
+                            currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                         }
                     }
-
-                    const subtotalRow = ['','', '', 'Sub Total', subTotalF1, subTotalF2, subTotalF3, subTotalF4, subTotalF5, ''];
-                    currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
-                    currentY += 10;
                 }
-
-                currentY = await checkPageBreak(doc, currentY, title, 40);
-                const totalRowData = ['', '', '', 'Total Geral', grandTotalF1, grandTotalF2, grandTotalF3, grandTotalF4, grandTotalF5, ''];
-                drawRow(doc, totalRowData, currentY, false, true, columnWidths);
             }
 
             generatePdfFooter(doc, filters.generatedBy);
@@ -1084,7 +1051,7 @@ try {
 
             } else { // Detalhado
                 header = [
-                    { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
+                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
                     { id: 'numeroAmostra', title: 'Nº Amostra' }, { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' },
                     { id: 'fase3', title: 'Fase 3' }, { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' },
                     { id: 'resultadoAmostra', title: 'Resultado Amostra'}
@@ -1092,51 +1059,22 @@ try {
                 records = [];
                 const divisor = parseInt(req.query.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
 
-                const groupedData = data.reduce((acc, r) => {
-                    const key = `${r.codigo} - ${r.fazenda}`;
-                    if (!acc[key]) acc[key] = [];
-                    acc[key].push(r);
-                    return acc;
-                }, {});
+                data.forEach(lancamento => {
+                    if (lancamento.amostras && lancamento.amostras.length > 0) {
+                        lancamento.amostras.forEach((amostra, index) => {
+                            const date = new Date(lancamento.data + 'T03:00:00Z');
+                            const formattedDate = date.toLocaleDateString('pt-BR');
+                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
+                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
 
-                let grandTotalF1 = 0, grandTotalF2 = 0, grandTotalF3 = 0, grandTotalF4 = 0, grandTotalF5 = 0;
-
-                for (const fazendaKey of Object.keys(groupedData).sort()) {
-                    records.push({ talhao: fazendaKey });
-
-                    const farmData = groupedData[fazendaKey];
-                    let subTotalF1 = 0, subTotalF2 = 0, subTotalF3 = 0, subTotalF4 = 0, subTotalF5 = 0;
-
-                    farmData.forEach(lancamento => {
-                        if (lancamento.amostras && lancamento.amostras.length > 0) {
-                            lancamento.amostras.forEach((amostra, index) => {
-                                const date = new Date(lancamento.data + 'T03:00:00Z');
-                                const formattedDate = date.toLocaleDateString('pt-BR');
-
-                                const f1 = amostra.fase1 || 0, f2 = amostra.fase2 || 0, f3 = amostra.fase3 || 0, f4 = amostra.fase4 || 0, f5 = amostra.fase5 || 0;
-                                subTotalF1 += f1; subTotalF2 += f2; subTotalF3 += f3; subTotalF4 += f4; subTotalF5 += f5;
-                                grandTotalF1 += f1; grandTotalF2 += f2; grandTotalF3 += f3; grandTotalF4 += f4; grandTotalF5 += f5;
-
-                                const somaFases = f1 + f2 + f3 + f4 + f5;
-                                const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
-
-                                records.push({
-                                    talhao: lancamento.talhao, data: formattedDate, variedade: lancamento.variedade,
-                                    numeroAmostra: index + 1, fase1: f1, fase2: f2, fase3: f3, fase4: f4, fase5: f5,
-                                    resultadoAmostra: resultadoAmostra
-                                });
+                            records.push({
+                                fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao, data: formattedDate,
+                                variedade: lancamento.variedade, numeroAmostra: index + 1, fase1: amostra.fase1 || 0,
+                                fase2: amostra.fase2 || 0, fase3: amostra.fase3 || 0, fase4: amostra.fase4 || 0, fase5: amostra.fase5 || 0,
+                                resultadoAmostra: resultadoAmostra
                             });
-                        }
-                    });
-
-                    records.push({
-                        talhao: 'Sub Total', fase1: subTotalF1, fase2: subTotalF2, fase3: subTotalF3, fase4: subTotalF4, fase5: subTotalF5
-                    });
-                    records.push({});
-                }
-
-                records.push({
-                    talhao: 'Total Geral', fase1: grandTotalF1, fase2: grandTotalF2, fase3: grandTotalF3, fase4: grandTotalF4, fase5: grandTotalF5
+                        });
+                    }
                 });
             }
 
