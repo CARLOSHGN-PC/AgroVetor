@@ -5053,10 +5053,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const response = await fetch(`${App.config.backendUrl}/api/upload/historical-report`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                reportData,
-                                companyId: App.state.currentUser.companyId
-                            }),
+                            body: JSON.stringify({ reportData }),
                         });
                         const result = await response.json();
                         if (!response.ok) {
@@ -5088,7 +5085,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             const response = await fetch(`${App.config.backendUrl}/api/delete/historical-data`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ companyId: App.state.currentUser.companyId })
                             });
                             const result = await response.json();
                             if (!response.ok) {
@@ -5350,11 +5346,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 2. Get pending writes from IndexedDB
                 const pendingWrites = await OfflineDB.getAll('offline-writes');
-                const currentUserCompanyId = App.state.currentUser?.companyId;
 
-                // 3. Filter for the specific collection and extract the data, ensuring multi-tenancy for offline data
+                // 3. Filter for the specific collection and extract the data
                 const pendingData = pendingWrites
-                    .filter(write => write.collection === collectionName && write.data.companyId === currentUserCompanyId)
+                    .filter(write => write.collection === collectionName)
                     .map(write => ({
                         // Simulate a Firestore document by adding a temporary ID and the data
                         id: `offline_${Date.now()}_${Math.random()}`,
@@ -5636,12 +5631,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetch(`${App.config.backendUrl}/api/track`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userId: uid,
-                            latitude,
-                            longitude,
-                            companyId: App.state.currentUser.companyId
-                        }),
+                        body: JSON.stringify({ userId: uid, latitude, longitude }),
                     })
                     .then(response => {
                         if(response.ok) {
@@ -5689,8 +5679,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A buscar histórico...");
 
                 try {
-                    const companyId = App.state.currentUser.companyId;
-                    const response = await fetch(`${App.config.backendUrl}/api/history?userId=${userId}&startDate=${start}&endDate=${end}&companyId=${companyId}`);
+                    const response = await fetch(`${App.config.backendUrl}/api/history?userId=${userId}&startDate=${start}&endDate=${end}`);
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
@@ -5809,10 +5798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch(`${App.config.backendUrl}/api/calculate-atr`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            codigoFazenda: farm.code,
-                            companyId: App.state.currentUser.companyId
-                        }),
+                        body: JSON.stringify({ codigoFazenda: farm.code }),
                     });
 
                     if (!response.ok) {
@@ -6025,11 +6011,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch(`${App.config.backendUrl}/api/gemini/generate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            prompt,
-                            contextData,
-                            companyId: App.state.currentUser.companyId
-                        }),
+                        body: JSON.stringify({ prompt, contextData, task }),
                     });
 
                     if (!response.ok) {
@@ -7551,16 +7533,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 _fetchAndDownloadReport(endpoint, filters, filename) {
                     const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                     cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
-                    if (App.state.currentUser && App.state.currentUser.companyId) {
-                        cleanFilters.companyId = App.state.currentUser.companyId;
-                    }
-
-                    // Security check: Abort if companyId is missing, preventing cross-tenant data leakage.
-                    if (!cleanFilters.companyId) {
-                        App.ui.showAlert("Erro de segurança: ID da empresa não especificado. Não é possível gerar o relatório.", "error");
-                        console.error("Aborted report generation due to missing companyId.");
-                        return;
-                    }
 
                     const params = new URLSearchParams(cleanFilters);
                     const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
