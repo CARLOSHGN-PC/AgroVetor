@@ -7698,7 +7698,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
 
                 generateCigarrinhaAmostragemPDF() {
-                    const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.cigarrinhaAmostragem;
+                    const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinhaAmostragem;
                     if (!filtroInicio.value || !filtroFim.value) {
                         App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                         return;
@@ -7708,14 +7708,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const filters = {
                         inicio: filtroInicio.value,
                         fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : '',
-                        tipoRelatorio: document.getElementById('tipoRelatorioCigarrinhaAmostragem').value
+                        fazendaCodigo: farm ? farm.code : ''
                     };
                     this._fetchAndDownloadReport('cigarrinha-amostragem/pdf', filters, 'relatorio_cigarrinha_amostragem.pdf');
                 },
 
                 generateCigarrinhaAmostragemCSV() {
-                    const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.cigarrinhaAmostragem;
+                    const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinhaAmostragem;
                     if (!filtroInicio.value || !filtroFim.value) {
                         App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                         return;
@@ -7725,8 +7724,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const filters = {
                         inicio: filtroInicio.value,
                         fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : '',
-                        tipoRelatorio: document.getElementById('tipoRelatorioCigarrinhaAmostragem').value
+                        fazendaCodigo: farm ? farm.code : ''
                     };
                     this._fetchAndDownloadReport('cigarrinha-amostragem/csv', filters, 'relatorio_cigarrinha_amostragem.csv');
                 },
