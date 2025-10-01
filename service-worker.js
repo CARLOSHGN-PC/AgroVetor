@@ -39,9 +39,8 @@ const urlsToCache = [
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js'
 ];
 
-// Install event: force the new service worker to become active
+// Install event: cache assets, but wait for activation
 self.addEventListener('install', event => {
-  self.skipWaiting(); 
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -49,6 +48,14 @@ self.addEventListener('install', event => {
         return cache.addAll(urlsToCache);
       })
   );
+});
+
+// Listen for a message from the client to activate the new service worker
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        console.log('SKIP_WAITING message received. Activating new service worker.');
+        self.skipWaiting();
+    }
 });
 
 // Activate event: clean up old caches and take control

@@ -984,15 +984,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             async addDocument(collectionName, data) {
+                if (App.state.isImpersonating) {
+                    App.ui.showAlert("Operações de escrita estão desativadas no modo de suporte.", "warning");
+                    throw new Error("MODO DE SUPORTE ATIVO");
+                }
                 return await addDoc(collection(db, collectionName), { ...data, createdAt: serverTimestamp() });
             },
             async setDocument(collectionName, docId, data) {
+                if (App.state.isImpersonating) {
+                    App.ui.showAlert("Operações de escrita estão desativadas no modo de suporte.", "warning");
+                    throw new Error("MODO DE SUPORTE ATIVO");
+                }
                 return await setDoc(doc(db, collectionName, docId), data, { merge: true });
             },
             async updateDocument(collectionName, docId, data) {
+                if (App.state.isImpersonating) {
+                    App.ui.showAlert("Operações de escrita estão desativadas no modo de suporte.", "warning");
+                    throw new Error("MODO DE SUPORTE ATIVO");
+                }
                 return await updateDoc(doc(db, collectionName, docId), data);
             },
             async deleteDocument(collectionName, docId) {
+                if (App.state.isImpersonating) {
+                    App.ui.showAlert("Operações de escrita estão desativadas no modo de suporte.", "warning");
+                    throw new Error("MODO DE SUPORTE ATIVO");
+                }
                 return await deleteDoc(doc(db, collectionName, docId));
             },
             async getUserData(uid, options = {}) {
@@ -5856,6 +5872,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Store original user
                 App.state.originalUser = { ...App.state.currentUser };
                 App.state.isImpersonating = true;
+                document.body.classList.add('support-mode');
+
 
                 // Create a fake admin user for the target company
                 const adminPermissions = App.config.roles['admin'];
@@ -5882,6 +5900,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.currentUser = { ...App.state.originalUser };
                 App.state.originalUser = null;
                 App.state.isImpersonating = false;
+                document.body.classList.remove('support-mode');
 
                 // Re-initialize the app view
                 App.data.listenToAllData(); // This will go back to super-admin view
@@ -7834,14 +7853,40 @@ document.addEventListener('DOMContentLoaded', () => {
         pwa: {
             registerServiceWorker() {
                 if ('serviceWorker' in navigator) {
-                    window.addEventListener('load', () => {
-                        navigator.serviceWorker.register('./service-worker.js')
-                            .then(registration => {
-                                console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                            })
-                            .catch(error => {
-                                console.log('ServiceWorker registration failed: ', error);
-                            });
+                    navigator.serviceWorker.register('./service-worker.js').then(registration => {
+                        console.log('ServiceWorker registration successful');
+
+                        registration.onupdatefound = () => {
+                            const installingWorker = registration.installing;
+                            if (installingWorker) {
+                                installingWorker.onstatechange = () => {
+                                    if (installingWorker.state === 'installed') {
+                                        if (navigator.serviceWorker.controller) {
+                                            // Nova versão disponível
+                                            console.log('New content is available and will be used when all tabs for this scope are closed.');
+                                            const updateBanner = document.getElementById('update-notification');
+                                            const updateBtn = document.getElementById('update-now-btn');
+                                            if (updateBanner) updateBanner.style.display = 'block';
+                                            if (updateBtn) {
+                                                updateBtn.onclick = () => {
+                                                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                                                };
+                                            }
+                                        }
+                                    }
+                                };
+                            }
+                        };
+
+                        let refreshing;
+                        navigator.serviceWorker.addEventListener('controllerchange', () => {
+                            if (refreshing) return;
+                            window.location.reload();
+                            refreshing = true;
+                        });
+
+                    }).catch(error => {
+                        console.log('ServiceWorker registration failed: ', error);
                     });
 
                     window.addEventListener('beforeinstallprompt', (e) => {
