@@ -4675,6 +4675,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const f3 = parseInt(els.fase3.value) || 0;
                         const f4 = parseInt(els.fase4.value) || 0;
                         const f5 = parseInt(els.fase5.value) || 0;
+                        const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
                         return {
                             data: els.data.value,
                             codigo: farm.code,
@@ -4683,7 +4684,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             variedade: talhao.variedade || '',
                             fase1: f1, fase2: f2, fase3: f3, fase4: f4, fase5: f5,
                             adulto: els.adulto.checked,
-                            resultado: ((f1 + f2 + f3 + f4 + f5) / 5) / 10,
+                            resultado: (f1 + f2 + f3 + f4 + f5) / divisor,
                             usuario: App.state.currentUser.username,
                             companyId: App.state.currentUser.companyId
                         };
