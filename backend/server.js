@@ -712,35 +712,8 @@ try {
                         currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB, 5, 18, headersBConfig);
                     }
                     
-                    const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
-                    const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);
-                    const subTotalBase = farmData.reduce((sum, r) => sum + r.base, 0);
-                    const subTotalMeio = farmData.reduce((sum, r) => sum + r.meio, 0);
-                    const subTotalTopo = farmData.reduce((sum, r) => sum + r.topo, 0);
-                    const subTotalPercent = subTotalEntrenos > 0 ? ((subTotalBrocado / subTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
-                    
-                    const subtotalRow = ['', '', '', 'Sub Total', subTotalEntrenos, subTotalBase, subTotalMeio, subTotalTopo, subTotalBrocado, subTotalPercent];
-                    currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, 5, 18, headersBConfig);
                     currentY += 10;
                 }
-            }
-            
-            const grandTotalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
-            const grandTotalBrocado = enrichedData.reduce((sum, r) => sum + r.brocado, 0);
-            const grandTotalBase = enrichedData.reduce((sum, r) => sum + r.base, 0);
-            const grandTotalMeio = enrichedData.reduce((sum, r) => sum + r.meio, 0);
-            const grandTotalTopo = enrichedData.reduce((sum, r) => sum + r.topo, 0);
-            const totalPercent = grandTotalEntrenos > 0 ? ((grandTotalBrocado / grandTotalEntrenos) * 100).toFixed(2).replace('.', ',') + '%' : '0,00%';
-
-            currentY = await checkPageBreak(doc, currentY, title, 40);
-            doc.y = currentY;
-            
-            if (!isModelB) {
-                const totalRowData = ['', '', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-                drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, 5, 18, headersAConfig);
-            } else {
-                const totalRowDataB = ['', '', '', 'Total Geral', grandTotalEntrenos, grandTotalBase, grandTotalMeio, grandTotalTopo, grandTotalBrocado, totalPercent];
-                drawRow(doc, totalRowDataB, currentY, false, true, columnWidthsB, 5, 18, headersBConfig);
             }
 
             generatePdfFooter(doc, filters.generatedBy);
@@ -837,37 +810,8 @@ try {
                         currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco), formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)], currentY, false, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
                     }
                     
-                    const subTotalCanaInteira = farmData.reduce((sum, p) => sum + p.canaInteira, 0);
-                    const subTotalTolete = farmData.reduce((sum, p) => sum + p.tolete, 0);
-                    const subTotalToco = farmData.reduce((sum, p) => sum + p.toco, 0);
-                    const subTotalPonta = farmData.reduce((sum, p) => sum + p.ponta, 0);
-                    const subTotalEstilhaco = farmData.reduce((sum, p) => sum + p.estilhaco, 0);
-                    const subTotalPedaco = farmData.reduce((sum, p) => sum + p.pedaco, 0);
-                    const subTotal = farmData.reduce((sum, p) => sum + p.total, 0);
-
-                    const subtotalRow = ['', '', '', '', '', 'Sub Total', formatNumber(subTotalCanaInteira), formatNumber(subTotalTolete), formatNumber(subTotalToco), formatNumber(subTotalPonta), formatNumber(subTotalEstilhaco), formatNumber(subTotalPedaco), formatNumber(subTotal)];
-                    currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidthsB, textPadding, rowHeight, headersBConfig);
                     currentY += 10;
                 }
-            }
-            
-            const grandTotalCanaInteira = data.reduce((sum, p) => sum + p.canaInteira, 0);
-            const grandTotalTolete = data.reduce((sum, p) => sum + p.tolete, 0);
-            const grandTotalToco = data.reduce((sum, p) => sum + p.toco, 0);
-            const grandTotalPonta = data.reduce((sum, p) => sum + p.ponta, 0);
-            const grandTotalEstilhaco = data.reduce((sum, p) => sum + p.estilhaco, 0);
-            const grandTotalPedaco = data.reduce((sum, p) => sum + p.pedaco, 0);
-            const grandTotal = data.reduce((sum, p) => sum + p.total, 0);
-
-            currentY = await checkPageBreak(doc, currentY, title, 40);
-            doc.y = currentY;
-
-            if (!isDetailed) {
-                const totalRowData = ['', '', '', '', '', 'Total Geral', formatNumber(grandTotal)];
-                drawRow(doc, totalRowData, currentY, false, true, columnWidthsA, textPadding, rowHeight, headersAConfig);
-            } else {
-                const totalRowData = ['', '', '', '', '', 'Total Geral', formatNumber(grandTotalCanaInteira), formatNumber(grandTotalTolete), formatNumber(grandTotalToco), formatNumber(grandTotalPonta), formatNumber(grandTotalEstilhaco), formatNumber(grandTotalPedaco), formatNumber(grandTotal)];
-                drawRow(doc, totalRowData, currentY, false, true, columnWidthsB, textPadding, rowHeight, headersBConfig);
             }
 
             generatePdfFooter(doc, filters.generatedBy);
@@ -985,8 +929,7 @@ try {
 
     app.get('/reports/cigarrinha-amostragem/pdf', async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
-        const { tipoRelatorio = 'detalhado' } = req.query;
-        const filename = `relatorio_cigarrinha_amostragem_${tipoRelatorio}.pdf`;
+        const filename = `relatorio_cigarrinha_amostragem.pdf`;
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
@@ -995,7 +938,7 @@ try {
         try {
             const filters = req.query;
             const data = await getFilteredData('cigarrinhaAmostragem', filters);
-            const title = `Relatório de Cigarrinha (Amostragem) - ${tipoRelatorio.charAt(0).toUpperCase() + tipoRelatorio.slice(1)}`;
+            const title = `Relatório de Cigarrinha (Amostragem)`;
 
             if (data.length === 0) {
                 await generatePdfHeader(doc, title);
@@ -1007,108 +950,35 @@ try {
 
             let currentY = await generatePdfHeader(doc, title);
 
-            if (tipoRelatorio === 'resumido') {
-                const groupedData = data.reduce((acc, r) => {
-                    const key = `${r.codigo}|${r.fazenda}|${r.talhao}`;
-                    if (!acc[key]) {
-                        acc[key] = {
-                            codigo: r.codigo,
-                            fazenda: r.fazenda,
-                            talhao: r.talhao,
-                            variedade: r.variedade,
-                            fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
-                        };
-                    }
-                    r.amostras.forEach(amostra => {
-                        acc[key].fase1 += amostra.fase1 || 0;
-                        acc[key].fase2 += amostra.fase2 || 0;
-                        acc[key].fase3 += amostra.fase3 || 0;
-                        acc[key].fase4 += amostra.fase4 || 0;
-                        acc[key].fase5 += amostra.fase5 || 0;
-                    });
-                    return acc;
-                }, {});
+            const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Final'];
+            const columnWidths = [170, 90, 65, 90, 60, 40, 40, 40, 40, 40, 87];
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
-                const headers = ['Fazenda', 'Talhão', 'Variedade', 'Fase 1 (Soma)', 'Fase 2 (Soma)', 'Fase 3 (Soma)', 'Fase 4 (Soma)', 'Fase 5 (Soma)'];
-                const columnWidths = [180, 100, 100, 70, 70, 70, 70, 72];
-                currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+            for(const r of data) {
+                if (r.amostras && r.amostras.length > 0) {
+                    for (let i = 0; i < r.amostras.length; i++) {
+                        const amostra = r.amostras[i];
+                        const date = new Date(r.data + 'T03:00:00Z');
+                        const formattedDate = date.toLocaleDateString('pt-BR');
 
-                for (const key in groupedData) {
-                    const group = groupedData[key];
-                    const row = [
-                        `${group.codigo} - ${group.fazenda}`,
-                        group.talhao,
-                        group.variedade,
-                        group.fase1, group.fase2, group.fase3, group.fase4, group.fase5
-                    ];
-                    currentY = await checkPageBreak(doc, currentY, title);
-                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
-                }
+                        // O resultado final é mostrado apenas na primeira linha de amostra para cada lançamento
+                        const finalResult = i === 0 ? (r.resultado || 0).toFixed(2).replace('.', ',') : '';
 
-            } else if (tipoRelatorio === 'final') {
-                const headers = ['Fazenda', 'Data', 'Variedade', 'Fase1', 'Fase2', 'Fase3', 'Fase4', 'Fase5', 'Resultado Final'];
-                const columnWidths = [200, 80, 120, 50, 50, 50, 50, 50, 82];
-                currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
-
-                for (const r of data) {
-                    const date = new Date(r.data + 'T03:00:00Z');
-                    const formattedDate = date.toLocaleDateString('pt-BR');
-
-                    const totalFases = r.amostras.reduce((acc, amostra) => {
-                        acc.f1 += amostra.fase1 || 0;
-                        acc.f2 += amostra.fase2 || 0;
-                        acc.f3 += amostra.fase3 || 0;
-                        acc.f4 += amostra.fase4 || 0;
-                        acc.f5 += amostra.fase5 || 0;
-                        return acc;
-                    }, { f1: 0, f2: 0, f3: 0, f4: 0, f5: 0 });
-
-                    const row = [
-                        `${r.codigo} - ${r.fazenda}`,
-                        formattedDate,
-                        r.variedade,
-                        totalFases.f1,
-                        totalFases.f2,
-                        totalFases.f3,
-                        totalFases.f4,
-                        totalFases.f5,
-                        (r.resultado || 0).toFixed(2).replace('.', ',')
-                    ];
-                    currentY = await checkPageBreak(doc, currentY, title);
-                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
-                }
-            } else { // Detalhado
-                const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
-                const columnWidths = [170, 90, 65, 90, 60, 40, 40, 40, 40, 40, 87];
-                currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
-                const divisor = parseInt(filters.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
-
-                for(const r of data) {
-                    if (r.amostras && r.amostras.length > 0) {
-                        for (let i = 0; i < r.amostras.length; i++) {
-                            const amostra = r.amostras[i];
-                            const date = new Date(r.data + 'T03:00:00Z');
-                            const formattedDate = date.toLocaleDateString('pt-BR');
-
-                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
-                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
-
-                            const row = [
-                                `${r.codigo} - ${r.fazenda}`,
-                                r.talhao,
-                                formattedDate,
-                                r.variedade,
-                                i + 1,
-                                amostra.fase1 || 0,
-                                amostra.fase2 || 0,
-                                amostra.fase3 || 0,
-                                amostra.fase4 || 0,
-                                amostra.fase5 || 0,
-                                resultadoAmostra
-                            ];
-                            currentY = await checkPageBreak(doc, currentY, title);
-                            currentY = drawRow(doc, row, currentY, false, false, columnWidths);
-                        }
+                        const row = [
+                            `${r.codigo} - ${r.fazenda}`,
+                            r.talhao,
+                            formattedDate,
+                            r.variedade,
+                            i + 1,
+                            amostra.fase1 || 0,
+                            amostra.fase2 || 0,
+                            amostra.fase3 || 0,
+                            amostra.fase4 || 0,
+                            amostra.fase5 || 0,
+                            finalResult
+                        ];
+                        currentY = await checkPageBreak(doc, currentY, title);
+                        currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                     }
                 }
             }
@@ -1127,103 +997,38 @@ try {
 
     app.get('/reports/cigarrinha-amostragem/csv', async (req, res) => {
         try {
-            const { tipoRelatorio = 'detalhado' } = req.query;
             const data = await getFilteredData('cigarrinhaAmostragem', req.query);
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
 
-            const filename = `relatorio_cigarrinha_amostragem_${tipoRelatorio}_${Date.now()}.csv`;
+            const filename = `relatorio_cigarrinha_amostragem_${Date.now()}.csv`;
             const filePath = path.join(os.tmpdir(), filename);
 
             let header, records;
 
-            if (tipoRelatorio === 'resumido') {
-                header = [
-                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
-                    { id: 'fase1', title: 'Fase 1 (Soma)' }, { id: 'fase2', title: 'Fase 2 (Soma)' }, { id: 'fase3', title: 'Fase 3 (Soma)' },
-                    { id: 'fase4', title: 'Fase 4 (Soma)' }, { id: 'fase5', title: 'Fase 5 (Soma)' }
-                ];
+            header = [
+                { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
+                { id: 'numeroAmostra', title: 'Nº Amostra' }, { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' },
+                { id: 'fase3', title: 'Fase 3' }, { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' },
+                { id: 'resultadoFinal', title: 'Resultado Final'}
+            ];
+            records = [];
 
-                const groupedData = data.reduce((acc, r) => {
-                    const key = `${r.codigo}|${r.fazenda}|${r.talhao}`;
-                    if (!acc[key]) {
-                        acc[key] = {
-                            fazenda: `${r.codigo} - ${r.fazenda}`, talhao: r.talhao, variedade: r.variedade,
-                            fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
-                        };
-                    }
-                    r.amostras.forEach(amostra => {
-                        acc[key].fase1 += amostra.fase1 || 0;
-                        acc[key].fase2 += amostra.fase2 || 0;
-                        acc[key].fase3 += amostra.fase3 || 0;
-                        acc[key].fase4 += amostra.fase4 || 0;
-                        acc[key].fase5 += amostra.fase5 || 0;
-                    });
-                    return acc;
-                }, {});
+            data.forEach(lancamento => {
+                if (lancamento.amostras && lancamento.amostras.length > 0) {
+                    lancamento.amostras.forEach((amostra, index) => {
+                        const date = new Date(lancamento.data + 'T03:00:00Z');
+                        const formattedDate = date.toLocaleDateString('pt-BR');
+                        const finalResult = index === 0 ? (lancamento.resultado || 0).toFixed(2).replace('.', ',') : '';
 
-                records = Object.values(groupedData);
-
-            } else if (tipoRelatorio === 'final') {
-                header = [
-                    { id: 'fazenda', title: 'Fazenda' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
-                    { id: 'fase1', title: 'Fase1' }, { id: 'fase2', title: 'Fase2' }, { id: 'fase3', title: 'Fase3' },
-                    { id: 'fase4', title: 'Fase4' }, { id: 'fase5', title: 'Fase5' }, { id: 'resultadoFinal', title: 'Resultado Final' }
-                ];
-
-                records = data.map(r => {
-                    const date = new Date(r.data + 'T03:00:00Z');
-                    const formattedDate = date.toLocaleDateString('pt-BR');
-
-                    const totalFases = r.amostras.reduce((acc, amostra) => {
-                        acc.f1 += amostra.fase1 || 0;
-                        acc.f2 += amostra.fase2 || 0;
-                        acc.f3 += amostra.fase3 || 0;
-                        acc.f4 += amostra.fase4 || 0;
-                        acc.f5 += amostra.fase5 || 0;
-                        return acc;
-                    }, { f1: 0, f2: 0, f3: 0, f4: 0, f5: 0 });
-
-                    return {
-                        fazenda: `${r.codigo} - ${r.fazenda}`,
-                        data: formattedDate,
-                        variedade: r.variedade,
-                        fase1: totalFases.f1,
-                        fase2: totalFases.f2,
-                        fase3: totalFases.f3,
-                        fase4: totalFases.f4,
-                        fase5: totalFases.f5,
-                        resultadoFinal: (r.resultado || 0).toFixed(2).replace('.', ',')
-                    };
-                });
-
-            } else { // Detalhado
-                header = [
-                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
-                    { id: 'numeroAmostra', title: 'Nº Amostra' }, { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' },
-                    { id: 'fase3', title: 'Fase 3' }, { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' },
-                    { id: 'resultadoAmostra', title: 'Resultado Amostra'}
-                ];
-                records = [];
-                const divisor = parseInt(req.query.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
-
-                data.forEach(lancamento => {
-                    if (lancamento.amostras && lancamento.amostras.length > 0) {
-                        lancamento.amostras.forEach((amostra, index) => {
-                            const date = new Date(lancamento.data + 'T03:00:00Z');
-                            const formattedDate = date.toLocaleDateString('pt-BR');
-                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
-                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
-
-                            records.push({
-                                fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao, data: formattedDate,
-                                variedade: lancamento.variedade, numeroAmostra: index + 1, fase1: amostra.fase1 || 0,
-                                fase2: amostra.fase2 || 0, fase3: amostra.fase3 || 0, fase4: amostra.fase4 || 0, fase5: amostra.fase5 || 0,
-                                resultadoAmostra: resultadoAmostra
-                            });
+                        records.push({
+                            fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao, data: formattedDate,
+                            variedade: lancamento.variedade, numeroAmostra: index + 1, fase1: amostra.fase1 || 0,
+                            fase2: amostra.fase2 || 0, fase3: amostra.fase3 || 0, fase4: amostra.fase4 || 0, fase5: amostra.fase5 || 0,
+                            resultadoFinal: finalResult
                         });
-                    }
-                });
-            }
+                    });
+                }
+            });
 
             const csvWriter = createObjectCsvWriter({ path: filePath, header: header, fieldDelimiter: ';' });
             await csvWriter.writeRecords(records);
