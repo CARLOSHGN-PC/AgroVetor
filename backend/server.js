@@ -483,16 +483,34 @@ try {
 
     const generatePdfHeader = async (doc, title, companyId) => {
         try {
-            // Apenas tenta carregar o logo se um companyId for fornecido.
+            let logoBase64 = null;
+            // 1. Tenta carregar o logo da empresa específica.
             if (companyId) {
                 const configDoc = await db.collection('config').doc(companyId).get();
                 if (configDoc.exists && configDoc.data().logoBase64) {
-                    const logoBase64 = configDoc.data().logoBase64;
-                    doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
+                    logoBase64 = configDoc.data().logoBase64;
                 }
             }
+
+            // 2. Se não houver logo específico, busca o da empresa mais antiga (principal).
+            if (!logoBase64) {
+                const oldestCompanyQuery = await db.collection('companies').orderBy('createdAt', 'asc').limit(1).get();
+                if (!oldestCompanyQuery.empty) {
+                    const oldestCompanyId = oldestCompanyQuery.docs[0].id;
+                    const defaultConfigDoc = await db.collection('config').doc(oldestCompanyId).get();
+                    if (defaultConfigDoc.exists && defaultConfigDoc.data().logoBase64) {
+                        logoBase64 = defaultConfigDoc.data().logoBase64;
+                    }
+                }
+            }
+
+            // 3. Se um logo foi encontrado (específico ou padrão), desenha-o.
+            if (logoBase64) {
+                doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
+            }
+
         } catch (error) {
-            console.error("Não foi possível carregar o logotipo Base64:", error.message);
+            console.error("Não foi possível carregar o logotipo:", error.message);
         }
         
         doc.fontSize(18).font('Helvetica-Bold').text(title, { align: 'center' });
