@@ -408,41 +408,56 @@ try {
             return []; // Retorna vazio para evitar qualquer vazamento de dados.
         }
 
-        let query = db.collection(collectionName).where('companyId', '==', filters.companyId);
+        // Construir as duas consultas em paralelo
+        const companyQuery = db.collection(collectionName).where('companyId', '==', filters.companyId);
+        const legacyQuery = db.collection(collectionName).where('companyId', '==', null);
 
+        const [companySnapshot, legacySnapshot] = await Promise.all([
+            companyQuery.get(),
+            legacyQuery.get()
+        ]);
+
+        let combinedData = [];
+        companySnapshot.forEach(doc => combinedData.push({ id: doc.id, ...doc.data() }));
+        legacySnapshot.forEach(doc => combinedData.push({ id: doc.id, ...doc.data() }));
+
+        // Aplicar filtros de data à lista combinada
+        let data = combinedData;
         if (filters.inicio) {
-            query = query.where('data', '>=', filters.inicio);
+            data = data.filter(d => d.data >= filters.inicio);
         }
         if (filters.fim) {
-            query = query.where('data', '<=', filters.fim);
+            data = data.filter(d => d.data <= filters.fim);
         }
-        
-        const snapshot = await query.get();
-        let data = [];
-        snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
 
         let farmCodesToFilter = null;
 
         if (filters.fazendaCodigo && filters.fazendaCodigo !== '') {
             farmCodesToFilter = [filters.fazendaCodigo];
-        }
-        else if (filters.tipos) {
+        } else if (filters.tipos) {
             const selectedTypes = filters.tipos.split(',').filter(t => t);
             if (selectedTypes.length > 0) {
-                const farmsQuery = db.collection('fazendas')
-                    .where('companyId', '==', filters.companyId) // FILTRO DE EMPRESA ADICIONADO
-                    .where('types', 'array-contains-any', selectedTypes);
-                const farmsSnapshot = await farmsQuery.get();
+                // Para fazendas, também precisamos considerar as antigas sem companyId
+                const companyFarmsQuery = db.collection('fazendas').where('companyId', '==', filters.companyId);
+                const legacyFarmsQuery = db.collection('fazendas').where('companyId', '==', null);
                 
-                const matchingFarmCodes = [];
-                farmsSnapshot.forEach(doc => {
-                    matchingFarmCodes.push(doc.data().code);
-                });
+                const [companyFarmsSnapshot, legacyFarmsSnapshot] = await Promise.all([
+                    companyFarmsQuery.get(),
+                    legacyFarmsQuery.get()
+                ]);
+
+                let allFarms = [];
+                companyFarmsSnapshot.forEach(doc => allFarms.push(doc.data()));
+                legacyFarmsSnapshot.forEach(doc => allFarms.push(doc.data()));
+
+                const matchingFarmCodes = allFarms
+                    .filter(farm => farm.types && farm.types.some(t => selectedTypes.includes(t)))
+                    .map(farm => farm.code);
 
                 if (matchingFarmCodes.length > 0) {
                     farmCodesToFilter = matchingFarmCodes;
                 } else {
-                    return [];
+                    return []; // Se o filtro de tipo não retornar nenhuma fazenda, não há dados a serem mostrados.
                 }
             }
         }
