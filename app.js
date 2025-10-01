@@ -448,6 +448,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnOptimize: document.getElementById('btnOptimizeHarvest'),
                 tableBody: document.querySelector('#harvestPlanTable tbody'),
                 summary: document.getElementById('harvestSummary'),
+                superAdminHarvestCreation: document.getElementById('superAdminHarvestCreation'),
+                adminTargetCompanyHarvest: document.getElementById('adminTargetCompanyHarvest'),
             },
             broca: {
                 form: document.getElementById('lancamentoBroca'),
@@ -1500,7 +1502,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
-                if (id === 'planejamentoColheita') this.showHarvestPlanList();
+                if (id === 'planejamentoColheita') {
+                    this.showHarvestPlanList();
+                    if (App.state.currentUser.role === 'super-admin') {
+                        const { superAdminHarvestCreation, adminTargetCompanyHarvest } = App.elements.harvest;
+                        superAdminHarvestCreation.style.display = 'block';
+                        adminTargetCompanyHarvest.innerHTML = '<option value="">Selecione uma empresa...</option>';
+                        App.state.companies.sort((a, b) => a.name.localeCompare(b.name)).forEach(c => {
+                            adminTargetCompanyHarvest.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+                        });
+                    } else {
+                        const superAdminHarvestCreationEl = document.getElementById('superAdminHarvestCreation');
+                        if (superAdminHarvestCreationEl) {
+                           superAdminHarvestCreationEl.style.display = 'none';
+                        }
+                    }
+                }
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (id === 'lancamentoBroca' || id === 'lancamentoPerda' || id === 'lancamentoCigarrinha') this.setDefaultDatesForEntryForms();
@@ -4390,13 +4407,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     const planToEdit = App.state.harvestPlans.find(p => p.id == planId);
                     App.state.activeHarvestPlan = JSON.parse(JSON.stringify(planToEdit));
                 } else {
+                    let targetCompanyId = App.state.currentUser.companyId;
+                    if (App.state.currentUser.role === 'super-admin') {
+                        targetCompanyId = App.elements.harvest.adminTargetCompanyHarvest.value;
+                        if (!targetCompanyId) {
+                            App.ui.showAlert("Como Super Admin, você deve selecionar uma empresa alvo para criar um novo plano.", "error");
+                            App.ui.showHarvestPlanList(); // Volta para a lista
+                            return;
+                        }
+                    }
                     App.state.activeHarvestPlan = {
                         frontName: '',
                         startDate: new Date().toISOString().split('T')[0],
                         dailyRate: 750,
                         sequence: [],
                         closedTalhaoIds: [],
-                        companyId: App.state.currentUser.companyId
+                        companyId: targetCompanyId
                     };
                 }
 
