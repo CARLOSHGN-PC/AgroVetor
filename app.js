@@ -2289,8 +2289,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Lê o método de cálculo do estado da aplicação, com '5' como padrão.
                 const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
 
-                const resultadoFinal = (f1 + f2 + f3 + f4 + f5) / divisor;
-                resultado.textContent = `Resultado: ${resultadoFinal.toFixed(2).replace('.', ',')}`;
+                const media = (f1 + f2 + f3 + f4 + f5) / divisor;
+                resultado.textContent = `Resultado: ${media.toFixed(2).replace('.', ',')}`;
             },
 
             calculateCigarrinhaAmostragem() {
@@ -4675,9 +4675,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const f3 = parseInt(els.fase3.value) || 0;
                         const f4 = parseInt(els.fase4.value) || 0;
                         const f5 = parseInt(els.fase5.value) || 0;
-                        const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
-                        const resultadoFinal = (f1 + f2 + f3 + f4 + f5) / divisor;
-
                         return {
                             data: els.data.value,
                             codigo: farm.code,
@@ -4686,7 +4683,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             variedade: talhao.variedade || '',
                             fase1: f1, fase2: f2, fase3: f3, fase4: f4, fase5: f5,
                             adulto: els.adulto.checked,
-                            resultado: resultadoFinal,
+                            resultado: ((f1 + f2 + f3 + f4 + f5) / 5) / 10,
                             usuario: App.state.currentUser.username,
                             companyId: App.state.currentUser.companyId
                         };
@@ -4710,24 +4707,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farm = App.state.fazendas.find(f => f.id === els.codigo.value);
                 const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === els.talhao.value.trim().toUpperCase());
 
-                const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
                 const amostrasData = [];
-
                 amostrasCards.forEach(card => {
                     const amostra = {};
-                    let somaFases = 0;
                     card.querySelectorAll('.amostra-input').forEach((input, index) => {
-                        const valor = parseInt(input.value) || 0;
-                        amostra[`fase${index + 1}`] = valor;
-                        somaFases += valor;
+                        amostra[`fase${index + 1}`] = parseInt(input.value) || 0;
                     });
-                    amostra.resultado = somaFases / divisor; // Store result for each sample
                     amostrasData.push(amostra);
                 });
 
-                const mediaFinal = amostrasData.length > 0
-                    ? amostrasData.reduce((acc, amostra) => acc + amostra.resultado, 0) / amostrasData.length
-                    : 0;
+                const divisor = parseInt(App.state.companyConfig?.cigarrinhaCalcMethod || '5', 10);
+                const somaDasMedias = amostrasData.reduce((acc, amostra) => {
+                    const somaFases = Object.values(amostra).reduce((sum, val) => sum + val, 0);
+                    return acc + (somaFases / divisor);
+                }, 0);
+                const mediaFinal = somaDasMedias / amostrasData.length;
 
                 const newEntry = {
                     data: els.data.value,
@@ -7539,10 +7533,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 _fetchAndDownloadReport(endpoint, filters, filename) {
                     const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                     cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
-                    // **FIX DE SEGURANÇA**: Adiciona o ID da empresa a todos os pedidos de relatório.
-                    if (App.state.currentUser && App.state.currentUser.companyId) {
-                        cleanFilters.companyId = App.state.currentUser.companyId;
-                    }
 
                     const params = new URLSearchParams(cleanFilters);
                     const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
