@@ -408,21 +408,14 @@ try {
             return []; // Retorna vazio para evitar qualquer vazamento de dados.
         }
 
-        // Construir as duas consultas em paralelo
-        const companyQuery = db.collection(collectionName).where('companyId', '==', filters.companyId);
-        const legacyQuery = db.collection(collectionName).where('companyId', '==', null);
+        // A consulta agora busca APENAS os dados da empresa especificada.
+        let query = db.collection(collectionName).where('companyId', '==', filters.companyId);
 
-        const [companySnapshot, legacySnapshot] = await Promise.all([
-            companyQuery.get(),
-            legacyQuery.get()
-        ]);
-
-        let combinedData = [];
-        companySnapshot.forEach(doc => combinedData.push({ id: doc.id, ...doc.data() }));
-        legacySnapshot.forEach(doc => combinedData.push({ id: doc.id, ...doc.data() }));
-
-        // Aplicar filtros de data à lista combinada
-        let data = combinedData;
+        const snapshot = await query.get();
+        let data = [];
+        snapshot.forEach(doc => {
+            data.push({ id: doc.id, ...doc.data() });
+        });
         if (filters.inicio) {
             data = data.filter(d => d.data >= filters.inicio);
         }
@@ -1078,8 +1071,8 @@ try {
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                 }
             } else { // Detalhado
-                const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
-                const columnWidths = [170, 90, 65, 90, 60, 40, 40, 40, 40, 40, 87];
+                const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Adulto', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
+                const columnWidths = [150, 80, 65, 80, 50, 60, 40, 40, 40, 40, 40, 87];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
                 const divisor = parseInt(filters.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
 
@@ -1098,6 +1091,7 @@ try {
                                 r.talhao,
                                 formattedDate,
                                 r.variedade,
+                                r.adulto ? 'Sim' : 'Não',
                                 i + 1,
                                 amostra.fase1 || 0,
                                 amostra.fase2 || 0,
@@ -1199,7 +1193,7 @@ try {
             } else { // Detalhado
                 header = [
                     { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
-                    { id: 'numeroAmostra', title: 'Nº Amostra' }, { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' },
+                    { id: 'adulto', title: 'Adulto Presente'}, { id: 'numeroAmostra', title: 'Nº Amostra' }, { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' },
                     { id: 'fase3', title: 'Fase 3' }, { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' },
                     { id: 'resultadoAmostra', title: 'Resultado Amostra'}
                 ];
@@ -1216,7 +1210,7 @@ try {
 
                             records.push({
                                 fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao, data: formattedDate,
-                                variedade: lancamento.variedade, numeroAmostra: index + 1, fase1: amostra.fase1 || 0,
+                                variedade: lancamento.variedade, adulto: lancamento.adulto ? 'Sim' : 'Não', numeroAmostra: index + 1, fase1: amostra.fase1 || 0,
                                 fase2: amostra.fase2 || 0, fase3: amostra.fase3 || 0, fase4: amostra.fase4 || 0, fase5: amostra.fase5 || 0,
                                 resultadoAmostra: resultadoAmostra
                             });
