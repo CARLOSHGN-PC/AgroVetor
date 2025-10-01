@@ -1039,8 +1039,8 @@ try {
                 }
 
             } else if (tipoRelatorio === 'final') {
-                const headers = ['Fazenda', 'Data', 'Variedade', 'Fase1', 'Fase2', 'Fase3', 'Fase4', 'Fase5', 'Resultado Final'];
-                const columnWidths = [200, 80, 120, 50, 50, 50, 50, 50, 82];
+                const headers = ['Fazenda', 'Data', 'Variedade', 'Adulto', 'Fase1', 'Fase2', 'Fase3', 'Fase4', 'Fase5', 'Resultado Final'];
+                const columnWidths = [190, 70, 120, 50, 45, 45, 45, 45, 45, 82];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
                 for (const r of data) {
@@ -1060,6 +1060,7 @@ try {
                         `${r.codigo} - ${r.fazenda}`,
                         formattedDate,
                         r.variedade,
+                        r.adulto ? 'Sim' : 'Não',
                         totalFases.f1,
                         totalFases.f2,
                         totalFases.f3,
@@ -1072,7 +1073,7 @@ try {
                 }
             } else { // Detalhado
                 const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Adulto', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
-                const columnWidths = [150, 80, 65, 80, 50, 60, 40, 40, 40, 40, 40, 87];
+                const columnWidths = [160, 80, 65, 100, 50, 60, 40, 40, 40, 40, 40, 67];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
                 const divisor = parseInt(filters.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
 
