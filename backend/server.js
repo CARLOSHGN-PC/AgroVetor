@@ -58,12 +58,15 @@ try {
 
     // ROTA PARA UPLOAD DO LOGO
     app.post('/upload-logo', async (req, res) => {
-        const { logoBase64 } = req.body;
+        const { logoBase64, companyId } = req.body;
         if (!logoBase64) {
             return res.status(400).send({ message: 'Nenhum dado de imagem Base64 enviado.' });
         }
+        if (!companyId) {
+            return res.status(400).send({ message: 'O ID da empresa é obrigatório.' });
+        }
         try {
-            await db.collection('config').doc('company').set({ logoBase64: logoBase64 }, { merge: true });
+            await db.collection('config').doc(companyId).set({ logoBase64: logoBase64 }, { merge: true });
             res.status(200).send({ message: 'Logo carregado com sucesso!' });
         } catch (error) {
             console.error("Erro ao salvar logo Base64 no Firestore:", error);
@@ -73,14 +76,17 @@ try {
  
     // ROTA PARA UPLOAD DO SHAPEFILE
     app.post('/upload-shapefile', async (req, res) => {
-        const { fileBase64 } = req.body;
+        const { fileBase64, companyId } = req.body;
         if (!fileBase64) {
             return res.status(400).send({ message: 'Nenhum dado de arquivo Base64 foi enviado.' });
+        }
+        if (!companyId) {
+            return res.status(400).send({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
             const buffer = Buffer.from(fileBase64, 'base64');
-            const filePath = `shapefiles/talhoes.zip`;
+            const filePath = `shapefiles/${companyId}/talhoes.zip`;
             const file = bucket.file(filePath);
 
             await file.save(buffer, {
@@ -92,10 +98,10 @@ try {
             await file.makePublic();
             const downloadURL = file.publicUrl();
 
-            await db.collection('config').doc('shapefile').set({
+            await db.collection('config').doc(companyId).set({
                 shapefileURL: downloadURL,
                 lastUpdated: new Date()
-            });
+            }, { merge: true });
 
             res.status(200).send({ message: 'Shapefile enviado com sucesso!', url: downloadURL });
 
@@ -107,9 +113,12 @@ try {
 
     // ROTA PARA INGESTÃO DE RELATÓRIO HISTÓRICO (SEM IA)
     app.post('/api/upload/historical-report', async (req, res) => {
-        const { reportData: originalReportData } = req.body;
+        const { reportData: originalReportData, companyId } = req.body;
         if (!originalReportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
+        }
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
@@ -168,6 +177,7 @@ try {
                             toneladas: parseFloat(String(record.toneladas || '0').replace(',', '.')) || 0,
                             atrRealizado: parseFloat(String(record.atr || '0').replace(',', '.')) || 0,
                             importedAt: new Date(),
+                            companyId: companyId // Adiciona o ID da empresa ao registo
                         };
 
                         // Não salva mais campos opcionais como talhao, safra, variedade
@@ -215,14 +225,18 @@ try {
 
     // ROTA PARA CÁLCULO DE ATR PONDERADO
     app.post('/api/calculate-atr', async (req, res) => {
-        const { codigoFazenda } = req.body;
+        const { codigoFazenda, companyId } = req.body;
         if (!codigoFazenda) {
             return res.status(400).json({ message: 'O código da fazenda é obrigatório.' });
+        }
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
             const farmCodeStr = String(codigoFazenda || '').trim();
             const historyQuery = await db.collection('historicalHarvests')
+                .where('companyId', '==', companyId)
                 .where('codigoFazenda', '==', farmCodeStr)
                 .get();
 
@@ -288,27 +302,41 @@ try {
     }
 
     app.post('/api/delete/historical-data', async (req, res) => {
+        const { companyId } = req.body;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
         try {
-            console.log("Iniciando a exclusão da coleção 'historicalHarvests'...");
-            await deleteCollection(db, 'historicalHarvests', 400);
-            console.log("Coleção 'historicalHarvests' excluída com sucesso.");
-            res.status(200).json({ message: 'Todos os dados do histórico da IA foram excluídos com sucesso.' });
+            console.log(`Iniciando a exclusão do histórico para a empresa: ${companyId}`);
+            const collectionRef = db.collection('historicalHarvests');
+            const query = collectionRef.where('companyId', '==', companyId).limit(400);
+
+            await new Promise((resolve, reject) => {
+                deleteQueryBatch(db, query, resolve, reject);
+            });
+
+            console.log(`Histórico da empresa ${companyId} excluído com sucesso.`);
+            res.status(200).json({ message: 'Todos os dados do histórico da IA para esta empresa foram excluídos com sucesso.' });
         } catch (error) {
-            console.error("Erro ao excluir o histórico da IA:", error);
+            console.error(`Erro ao excluir o histórico da IA para a empresa ${companyId}:`, error);
             res.status(500).json({ message: 'Ocorreu um erro no servidor ao tentar excluir o histórico.' });
         }
     });
 
     app.post('/api/track', async (req, res) => {
-        const { userId, latitude, longitude } = req.body;
+        const { userId, latitude, longitude, companyId } = req.body;
 
         if (!userId || latitude === undefined || longitude === undefined) {
             return res.status(400).json({ message: 'userId, latitude e longitude são obrigatórios.' });
+        }
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório para rastreamento.' });
         }
 
         try {
             await db.collection('locationHistory').add({
                 userId: userId,
+                companyId: companyId, // Adiciona o ID da empresa
                 location: new admin.firestore.GeoPoint(parseFloat(latitude), parseFloat(longitude)),
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
             });
@@ -320,14 +348,18 @@ try {
     });
 
     app.get('/api/history', async (req, res) => {
-        const { userId, startDate, endDate } = req.query;
+        const { userId, startDate, endDate, companyId } = req.query;
 
         if (!userId || !startDate || !endDate) {
             return res.status(400).json({ message: 'userId, startDate e endDate são obrigatórios.' });
         }
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
 
         try {
             const query = db.collection('locationHistory')
+                .where('companyId', '==', companyId) // Adiciona filtro de empresa
                 .where('userId', '==', userId)
                 .where('timestamp', '>=', new Date(startDate + 'T00:00:00Z'))
                 .where('timestamp', '<=', new Date(endDate + 'T23:59:59Z'))
@@ -370,7 +402,14 @@ try {
     };
 
     const getFilteredData = async (collectionName, filters) => {
-        let query = db.collection(collectionName);
+        // Validação de Segurança: Garante que o companyId foi fornecido.
+        if (!filters.companyId) {
+            console.error("Tentativa de acesso a getFilteredData sem companyId.");
+            return []; // Retorna vazio para evitar qualquer vazamento de dados.
+        }
+
+        let query = db.collection(collectionName).where('companyId', '==', filters.companyId);
+
         if (filters.inicio) {
             query = query.where('data', '>=', filters.inicio);
         }
@@ -390,7 +429,9 @@ try {
         else if (filters.tipos) {
             const selectedTypes = filters.tipos.split(',').filter(t => t);
             if (selectedTypes.length > 0) {
-                const farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
+                const farmsQuery = db.collection('fazendas')
+                    .where('companyId', '==', filters.companyId) // FILTRO DE EMPRESA ADICIONADO
+                    .where('types', 'array-contains-any', selectedTypes);
                 const farmsSnapshot = await farmsQuery.get();
                 
                 const matchingFarmCodes = [];
@@ -425,12 +466,15 @@ try {
         return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
     };
 
-    const generatePdfHeader = async (doc, title) => {
+    const generatePdfHeader = async (doc, title, companyId) => {
         try {
-            const configDoc = await db.collection('config').doc('company').get();
-            if (configDoc.exists && configDoc.data().logoBase64) {
-                const logoBase64 = configDoc.data().logoBase64;
-                doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
+            // Apenas tenta carregar o logo se um companyId for fornecido.
+            if (companyId) {
+                const configDoc = await db.collection('config').doc(companyId).get();
+                if (configDoc.exists && configDoc.data().logoBase64) {
+                    const logoBase64 = configDoc.data().logoBase64;
+                    doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
+                }
             }
         } catch (error) {
             console.error("Não foi possível carregar o logotipo Base64:", error.message);
@@ -508,27 +552,32 @@ try {
     };
 
     // --- [NOVO] FUNÇÕES AUXILIARES PARA MONITORAMENTO ---
-    let cachedShapefile = null;
-    let lastFetchTime = null;
+    let cachedShapefiles = {}; // Alterado para um objeto para cache por empresa
+    let lastFetchTimes = {};   // Alterado para um objeto para cache por empresa
 
-    const getShapefileData = async () => {
+    const getShapefileData = async (companyId) => {
+        if (!companyId) {
+            throw new Error('O ID da empresa é obrigatório para obter dados do shapefile.');
+        }
         const now = new Date();
-        // Cache em memória por 5 minutos para evitar downloads repetidos
-        if (cachedShapefile && lastFetchTime && (now - lastFetchTime < 5 * 60 * 1000)) {
-            return cachedShapefile;
+        // Cache em memória por 5 minutos para evitar downloads repetidos por empresa
+        if (cachedShapefiles[companyId] && lastFetchTimes[companyId] && (now - lastFetchTimes[companyId] < 5 * 60 * 1000)) {
+            return cachedShapefiles[companyId];
         }
 
-        const shapefileDoc = await db.collection('config').doc('shapefile').get();
+        const shapefileDoc = await db.collection('config').doc(companyId).get();
         if (!shapefileDoc.exists || !shapefileDoc.data().shapefileURL) {
-            throw new Error('URL do Shapefile não encontrada no Firestore.');
+            // Não lança um erro, apenas retorna nulo para que o relatório não quebre se o shapefile não existir.
+            console.warn(`Shapefile não encontrado para a empresa ${companyId}.`);
+            return null;
         }
         const url = shapefileDoc.data().shapefileURL;
         
         const response = await axios({ url, responseType: 'arraybuffer' });
         const geojson = await shp(response.data);
         
-        cachedShapefile = geojson;
-        lastFetchTime = now;
+        cachedShapefiles[companyId] = geojson;
+        lastFetchTimes[companyId] = now;
         return geojson;
     };
 
@@ -576,7 +625,7 @@ try {
                 return;
             }
             
-            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
@@ -851,7 +900,7 @@ try {
                 return;
             }
 
-            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
@@ -1168,7 +1217,7 @@ try {
                 ]
             });
 
-            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', req.query.companyId).get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
@@ -1201,7 +1250,7 @@ try {
         doc.pipe(res);
 
         try {
-            const { planId, selectedColumns, generatedBy } = req.query;
+            const { planId, selectedColumns, generatedBy, companyId } = req.query;
             const selectedCols = JSON.parse(selectedColumns || '{}');
 
             if (!planId) {
@@ -1211,18 +1260,25 @@ try {
                 doc.end();
                 return;
             }
+             if (!companyId) {
+                await generatePdfHeader(doc, 'Relatório Customizado de Colheita');
+                doc.text('ID da empresa não fornecido.');
+                generatePdfFooter(doc, generatedBy);
+                doc.end();
+                return;
+            }
 
             const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
-            if (!harvestPlanDoc.exists) {
+            if (!harvestPlanDoc.exists || harvestPlanDoc.data().companyId !== companyId) {
                 await generatePdfHeader(doc, 'Relatório Customizado de Colheita');
-                doc.text('Plano de colheita não encontrado.');
+                doc.text('Plano de colheita não encontrado ou não pertence a esta empresa.');
                 generatePdfFooter(doc, generatedBy);
                 doc.end();
                 return;
             }
 
             const harvestPlan = harvestPlanDoc.data();
-            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', companyId).get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 const data = docSnap.data();
@@ -1436,11 +1492,14 @@ try {
 
     app.get('/reports/colheita/mensal/csv', async (req, res) => {
         try {
-            const { planId } = req.query;
+            const { planId, companyId } = req.query;
             if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
+            if (!companyId) return res.status(400).send('O ID da empresa é obrigatório.');
 
             const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
-            if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
+            if (!harvestPlanDoc.exists || harvestPlanDoc.data().companyId !== companyId) {
+                return res.status(404).send('Plano de colheita não encontrado ou não pertence a esta empresa.');
+            }
 
             const harvestPlan = harvestPlanDoc.data();
             const monthlyTotals = {};
@@ -1492,15 +1551,18 @@ try {
 
     app.get('/reports/colheita/csv', async (req, res) => {
         try {
-            const { planId, selectedColumns } = req.query;
+            const { planId, selectedColumns, companyId } = req.query;
             const selectedCols = JSON.parse(selectedColumns || '{}');
             if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
+            if (!companyId) return res.status(400).send('O ID da empresa é obrigatório.');
 
             const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
-            if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
+            if (!harvestPlanDoc.exists || harvestPlanDoc.data().companyId !== companyId) {
+                return res.status(404).send('Plano de colheita não encontrado ou não pertence a esta empresa.');
+            }
 
             const harvestPlan = harvestPlanDoc.data();
-            const fazendasSnapshot = await db.collection('fazendas').get();
+            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', companyId).get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 const data = docSnap.data();
@@ -1600,11 +1662,14 @@ try {
         doc.pipe(res);
 
         try {
-            const { planId, generatedBy } = req.query;
+            const { planId, generatedBy, companyId } = req.query;
             if (!planId) throw new Error('Nenhum plano de colheita selecionado.');
+            if (!companyId) throw new Error('O ID da empresa é obrigatório.');
 
             const harvestPlanDoc = await db.collection('harvestPlans').doc(planId).get();
-            if (!harvestPlanDoc.exists) throw new Error('Plano de colheita não encontrado.');
+            if (!harvestPlanDoc.exists || harvestPlanDoc.data().companyId !== companyId) {
+                 throw new Error('Plano de colheita não encontrado ou não pertence a esta empresa.');
+            }
 
             const harvestPlan = harvestPlanDoc.data();
             const monthlyTotals = {};
@@ -1662,8 +1727,15 @@ try {
         doc.pipe(res);
 
         try {
-            const { inicio, fim, fazendaCodigo, generatedBy } = req.query;
-            let query = db.collection('armadilhas').where('status', '==', 'Coletada');
+            const { inicio, fim, fazendaCodigo, generatedBy, companyId } = req.query;
+            if (!companyId) {
+                // Renderiza um PDF de erro se o companyId não for fornecido
+                await generatePdfHeader(doc, 'Erro');
+                doc.text('O ID da empresa não foi fornecido.');
+                doc.end();
+                return;
+            }
+            let query = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
 
             if (inicio) query = query.where('dataColeta', '>=', new Date(inicio));
             if (fim) query = query.where('dataColeta', '<=', new Date(fim));
@@ -1673,7 +1745,7 @@ try {
             snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
 
             const title = 'Relatório de Monitoramento de Armadilhas';
-            let currentY = await generatePdfHeader(doc, title);
+            let currentY = await generatePdfHeader(doc, title, companyId);
 
             if (data.length === 0) {
                 doc.text('Nenhuma armadilha coletada encontrada para os filtros selecionados.');
@@ -1681,7 +1753,7 @@ try {
                 return doc.end();
             }
 
-            const geojsonData = await getShapefileData();
+            const geojsonData = await getShapefileData(companyId);
             
             const enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
@@ -1733,8 +1805,14 @@ try {
         doc.pipe(res);
 
         try {
-            const { inicio, fim, fazendaCodigo, generatedBy } = req.query;
-            let query = db.collection('armadilhas').where('status', '==', 'Coletada');
+            const { inicio, fim, fazendaCodigo, generatedBy, companyId } = req.query;
+            if (!companyId) {
+                await generatePdfHeader(doc, 'Erro');
+                doc.text('O ID da empresa não foi fornecido.');
+                doc.end();
+                return;
+            }
+            let query = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
             
             if (inicio) query = query.where('dataColeta', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
             if (fim) query = query.where('dataColeta', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
@@ -1746,19 +1824,19 @@ try {
             const title = 'Relatório de Armadilhas Coletadas';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title);
+                await generatePdfHeader(doc, title, companyId);
                 doc.text('Nenhuma armadilha coletada encontrada para os filtros selecionados.');
                 generatePdfFooter(doc, generatedBy);
                 return doc.end();
             }
 
-            const usersSnapshot = await db.collection('users').get();
+            const usersSnapshot = await db.collection('users').where('companyId', '==', companyId).get();
             const usersMap = {};
             usersSnapshot.forEach(doc => {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
 
-            const geojsonData = await getShapefileData();
+            const geojsonData = await getShapefileData(companyId);
             
             let enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
@@ -1781,7 +1859,8 @@ try {
             });
 
             if (fazendaCodigo) {
-                const farm = await db.collection('fazendas').where('code', '==', fazendaCodigo).limit(1).get();
+                const farmQuery = db.collection('fazendas').where('companyId', '==', companyId).where('code', '==', fazendaCodigo).limit(1);
+                const farm = await farmQuery.get();
                 if (!farm.empty) {
                     const farmName = farm.docs[0].data().name;
                     enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
@@ -1828,8 +1907,11 @@ try {
 
     app.get('/reports/armadilhas/csv', async (req, res) => {
         try {
-            const { inicio, fim, fazendaCodigo } = req.query;
-            let query = db.collection('armadilhas').where('status', '==', 'Coletada');
+            const { inicio, fim, fazendaCodigo, companyId } = req.query;
+            if (!companyId) {
+                return res.status(400).send('O ID da empresa é obrigatório.');
+            }
+            let query = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
             
             if (inicio) query = query.where('dataColeta', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
             if (fim) query = query.where('dataColeta', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
@@ -1840,13 +1922,13 @@ try {
 
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
 
-            const usersSnapshot = await db.collection('users').get();
+            const usersSnapshot = await db.collection('users').where('companyId', '==', companyId).get();
             const usersMap = {};
             usersSnapshot.forEach(doc => {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
 
-            const geojsonData = await getShapefileData();
+            const geojsonData = await getShapefileData(companyId);
 
             let enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
@@ -1870,7 +1952,8 @@ try {
             });
             
             if (fazendaCodigo) {
-                const farm = await db.collection('fazendas').where('code', '==', fazendaCodigo).limit(1).get();
+                const farmQuery = db.collection('fazendas').where('companyId', '==', companyId).where('code', '==', fazendaCodigo).limit(1);
+                const farm = await farmQuery.get();
                 if (!farm.empty) {
                     const farmName = farm.docs[0].data().name;
                     enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
@@ -1913,8 +1996,14 @@ try {
         doc.pipe(res);
 
         try {
-            const { inicio, fim, fazendaCodigo, generatedBy } = req.query;
-            let query = db.collection('armadilhas').where('status', '==', 'Ativa');
+            const { inicio, fim, fazendaCodigo, generatedBy, companyId } = req.query;
+            if (!companyId) {
+                await generatePdfHeader(doc, 'Erro');
+                doc.text('O ID da empresa não foi fornecido.');
+                doc.end();
+                return;
+            }
+            let query = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Ativa');
             
             if (inicio) query = query.where('dataInstalacao', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
             if (fim) query = query.where('dataInstalacao', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
@@ -1926,19 +2015,19 @@ try {
             const title = 'Relatório de Armadilhas Instaladas (Ativas)';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title);
+                await generatePdfHeader(doc, title, companyId);
                 doc.text('Nenhuma armadilha ativa encontrada para os filtros selecionados.');
                 generatePdfFooter(doc, generatedBy);
                 return doc.end();
             }
 
-            const usersSnapshot = await db.collection('users').get();
+            const usersSnapshot = await db.collection('users').where('companyId', '==', companyId).get();
             const usersMap = {};
             usersSnapshot.forEach(doc => {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
             
-            const geojsonData = await getShapefileData();
+            const geojsonData = await getShapefileData(companyId);
 
             let enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
@@ -1962,7 +2051,8 @@ try {
             });
 
             if (fazendaCodigo) {
-                const farm = await db.collection('fazendas').where('code', '==', fazendaCodigo).limit(1).get();
+                const farmQuery = db.collection('fazendas').where('companyId', '==', companyId).where('code', '==', fazendaCodigo).limit(1);
+                const farm = await farmQuery.get();
                 if (!farm.empty) {
                     const farmName = farm.docs[0].data().name;
                     enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
@@ -1971,7 +2061,7 @@ try {
                 }
             }
 
-            let currentY = await generatePdfHeader(doc, title);
+            let currentY = await generatePdfHeader(doc, title, companyId);
 
             const headers = ['Fundo Agrícola', 'Fazenda', 'Talhão', 'Data Inst.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
             const columnWidths = [90, 140, 80, 80, 80, 65, 90, 157];
@@ -2007,8 +2097,11 @@ try {
 
     app.get('/reports/armadilhas-ativas/csv', async (req, res) => {
         try {
-            const { inicio, fim, fazendaCodigo } = req.query;
-            let query = db.collection('armadilhas').where('status', '==', 'Ativa');
+            const { inicio, fim, fazendaCodigo, companyId } = req.query;
+            if (!companyId) {
+                return res.status(400).send('O ID da empresa é obrigatório.');
+            }
+            let query = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Ativa');
             
             if (inicio) query = query.where('dataInstalacao', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
             if (fim) query = query.where('dataInstalacao', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
@@ -2019,13 +2112,13 @@ try {
 
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
 
-            const usersSnapshot = await db.collection('users').get();
+            const usersSnapshot = await db.collection('users').where('companyId', '==', companyId).get();
             const usersMap = {};
             usersSnapshot.forEach(doc => {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
 
-            const geojsonData = await getShapefileData();
+            const geojsonData = await getShapefileData(companyId);
 
             let enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
@@ -2049,7 +2142,8 @@ try {
             });
             
             if (fazendaCodigo) {
-                const farm = await db.collection('fazendas').where('code', '==', fazendaCodigo).limit(1).get();
+                const farmQuery = db.collection('fazendas').where('companyId', '==', companyId).where('code', '==', fazendaCodigo).limit(1);
+                const farm = await farmQuery.get();
                 if (!farm.empty) {
                     const farmName = farm.docs[0].data().name;
                     enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
