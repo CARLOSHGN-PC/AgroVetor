@@ -1023,8 +1023,7 @@ try {
                             const date = new Date(r.data + 'T03:00:00Z');
                             const formattedDate = date.toLocaleDateString('pt-BR');
 
-                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
-                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
+                            const resultadoAmostra = (amostra.resultado || 0).toFixed(2).replace('.', ',');
 
                             const row = [
                                 `${r.codigo} - ${r.fazenda}`,
@@ -1144,8 +1143,7 @@ try {
                         lancamento.amostras.forEach((amostra, index) => {
                             const date = new Date(lancamento.data + 'T03:00:00Z');
                             const formattedDate = date.toLocaleDateString('pt-BR');
-                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
-                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
+                            const resultadoAmostra = (amostra.resultado || 0).toFixed(2).replace('.', ',');
 
                             records.push({
                                 fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao, data: formattedDate,
