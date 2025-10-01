@@ -1543,6 +1543,11 @@
     <div id="alertContainer"></div>
     <div id="notification-container"></div>
 
+    <div id="update-notification" style="display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background-color: var(--color-info); color: white; padding: 15px 25px; border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 3000; display: flex; align-items: center; gap: 20px;">
+        <span>Uma nova versão está disponível!</span>
+        <button id="update-now-btn" style="background: white; color: var(--color-info); border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">Atualizar</button>
+    </div>
+
     <div id="loading-overlay">
         <div class="spinner"></div>
         <p id="loading-progress-text" style="color: var(--color-ai); font-weight: 500;">A processar...</p>
