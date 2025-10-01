@@ -370,15 +370,7 @@ try {
     };
 
     const getFilteredData = async (collectionName, filters) => {
-        // **FIX DE SEGURANÇA**: Garante que os dados sejam filtrados por empresa.
-        if (!filters.companyId) {
-            // Se nenhum ID de empresa for fornecido, retorna um array vazio para evitar vazamento de dados.
-            console.warn(`Tentativa de acesso a dados filtrados sem companyId na coleção: ${collectionName}`);
-            return [];
-        }
-
-        let query = db.collection(collectionName).where('companyId', '==', filters.companyId);
-
+        let query = db.collection(collectionName);
         if (filters.inicio) {
             query = query.where('data', '>=', filters.inicio);
         }
@@ -398,10 +390,7 @@ try {
         else if (filters.tipos) {
             const selectedTypes = filters.tipos.split(',').filter(t => t);
             if (selectedTypes.length > 0) {
-                // **FIX DE SEGURANÇA**: Filtra as fazendas pela empresa atual.
-                const farmsQuery = db.collection('fazendas')
-                                     .where('companyId', '==', filters.companyId)
-                                     .where('types', 'array-contains-any', selectedTypes);
+                const farmsQuery = db.collection('fazendas').where('types', 'array-contains-any', selectedTypes);
                 const farmsSnapshot = await farmsQuery.get();
                 
                 const matchingFarmCodes = [];
@@ -412,7 +401,6 @@ try {
                 if (matchingFarmCodes.length > 0) {
                     farmCodesToFilter = matchingFarmCodes;
                 } else {
-                    // Se a filtragem por tipo não retornar nenhuma fazenda, então não há dados a serem mostrados.
                     return [];
                 }
             }
@@ -437,15 +425,12 @@ try {
         return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
     };
 
-    const generatePdfHeader = async (doc, title, companyId) => {
+    const generatePdfHeader = async (doc, title) => {
         try {
-            // **FIX DE SEGURANÇA**: Carrega o logo da empresa específica.
-            if (companyId) {
-                const configDoc = await db.collection('config').doc(companyId).get();
-                if (configDoc.exists && configDoc.data().logoBase64) {
-                    const logoBase64 = configDoc.data().logoBase64;
-                    doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
-                }
+            const configDoc = await db.collection('config').doc('company').get();
+            if (configDoc.exists && configDoc.data().logoBase64) {
+                const logoBase64 = configDoc.data().logoBase64;
+                doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
             }
         } catch (error) {
             console.error("Não foi possível carregar o logotipo Base64:", error.message);
@@ -584,14 +569,14 @@ try {
             const title = 'Relatório de Inspeção de Broca';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, filters.companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
             
-            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
+            const fazendasSnapshot = await db.collection('fazendas').get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
@@ -721,14 +706,14 @@ try {
             const title = isDetailed ? 'Relatório de Perda Detalhado' : 'Relatório de Perda Resumido';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, filters.companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
             
-            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+            let currentY = await generatePdfHeader(doc, title);
 
             const headersA = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
             const columnWidthsA = [80, 160, 80, 100, 60, 120, 80];
@@ -859,14 +844,14 @@ try {
             const title = 'Relatório de Monitoramento de Cigarrinha';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, filters.companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
 
-            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
+            const fazendasSnapshot = await db.collection('fazendas').get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
@@ -931,14 +916,14 @@ try {
             const title = `Relatório de Cigarrinha (Amostragem) - ${tipoRelatorio.charAt(0).toUpperCase() + tipoRelatorio.slice(1)}`;
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, filters.companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhum dado encontrado para os filtros selecionados.');
                 generatePdfFooter(doc, filters.generatedBy);
                 doc.end();
                 return;
             }
 
-            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+            let currentY = await generatePdfHeader(doc, title);
 
             if (tipoRelatorio === 'resumido') {
                 const groupedData = data.reduce((acc, r) => {
@@ -1023,7 +1008,8 @@ try {
                             const date = new Date(r.data + 'T03:00:00Z');
                             const formattedDate = date.toLocaleDateString('pt-BR');
 
-                            const resultadoAmostra = (amostra.resultado || 0).toFixed(2).replace('.', ',');
+                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
+                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
 
                             const row = [
                                 `${r.codigo} - ${r.fazenda}`,
@@ -1143,7 +1129,8 @@ try {
                         lancamento.amostras.forEach((amostra, index) => {
                             const date = new Date(lancamento.data + 'T03:00:00Z');
                             const formattedDate = date.toLocaleDateString('pt-BR');
-                            const resultadoAmostra = (amostra.resultado || 0).toFixed(2).replace('.', ',');
+                            const somaFases = (amostra.fase1 || 0) + (amostra.fase2 || 0) + (amostra.fase3 || 0) + (amostra.fase4 || 0) + (amostra.fase5 || 0);
+                            const resultadoAmostra = (somaFases / divisor).toFixed(2).replace('.', ',');
 
                             records.push({
                                 fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`, talhao: lancamento.talhao, data: formattedDate,
@@ -1235,15 +1222,7 @@ try {
             }
 
             const harvestPlan = harvestPlanDoc.data();
-            if (harvestPlan.companyId !== req.query.companyId) {
-                return res.status(403).send("Acesso negado a este plano de colheita.");
-            }
-            // **FIX DE SEGURANÇA**: Garante que o plano de colheita pertence à empresa que o solicita.
-            if (harvestPlan.companyId !== req.query.companyId) {
-                throw new Error("Acesso negado a este plano de colheita.");
-            }
-
-            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', req.query.companyId).get();
+            const fazendasSnapshot = await db.collection('fazendas').get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 const data = docSnap.data();
@@ -1251,7 +1230,7 @@ try {
             });
 
             const title = `Relatório de Colheita - ${harvestPlan.frontName}`;
-            let currentY = await generatePdfHeader(doc, title, req.query.companyId);
+            let currentY = await generatePdfHeader(doc, title);
 
             const allPossibleHeadersConfig = [
                 { id: 'seq', title: 'Seq.', minWidth: 35 },
@@ -1464,9 +1443,6 @@ try {
             if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
 
             const harvestPlan = harvestPlanDoc.data();
-            if (harvestPlan.companyId !== req.query.companyId) {
-                throw new Error("Acesso negado a este plano de colheita.");
-            }
             const monthlyTotals = {};
             let currentDate = new Date(harvestPlan.startDate + 'T03:00:00Z');
             const dailyTon = parseFloat(harvestPlan.dailyRate) || 1;
@@ -1524,10 +1500,7 @@ try {
             if (!harvestPlanDoc.exists) return res.status(404).send('Plano de colheita não encontrado.');
 
             const harvestPlan = harvestPlanDoc.data();
-            if (harvestPlan.companyId !== req.query.companyId) {
-                return res.status(403).send("Acesso negado a este plano de colheita.");
-            }
-            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', req.query.companyId).get();
+            const fazendasSnapshot = await db.collection('fazendas').get();
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 const data = docSnap.data();
@@ -1654,7 +1627,7 @@ try {
             });
 
             const title = `Previsão Mensal de Colheita - ${harvestPlan.frontName}`;
-            let currentY = await generatePdfHeader(doc, title, req.query.companyId);
+            let currentY = await generatePdfHeader(doc, title);
 
             const headers = ['Mês/Ano', 'Produção Total (ton)'];
             const columnWidths = [250, 250];
@@ -1762,9 +1735,6 @@ try {
         try {
             const { inicio, fim, fazendaCodigo, generatedBy } = req.query;
             let query = db.collection('armadilhas').where('status', '==', 'Coletada');
-            if (req.query.companyId) {
-                query = query.where('companyId', '==', req.query.companyId);
-            }
             
             if (inicio) query = query.where('dataColeta', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
             if (fim) query = query.where('dataColeta', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
@@ -1776,13 +1746,13 @@ try {
             const title = 'Relatório de Armadilhas Coletadas';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, req.query.companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhuma armadilha coletada encontrada para os filtros selecionados.');
                 generatePdfFooter(doc, generatedBy);
                 return doc.end();
             }
 
-            const usersSnapshot = await db.collection('users').where('companyId', '==', req.query.companyId).get();
+            const usersSnapshot = await db.collection('users').get();
             const usersMap = {};
             usersSnapshot.forEach(doc => {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
@@ -1858,11 +1828,8 @@ try {
 
     app.get('/reports/armadilhas/csv', async (req, res) => {
         try {
-            const { inicio, fim, fazendaCodigo, companyId } = req.query;
+            const { inicio, fim, fazendaCodigo } = req.query;
             let query = db.collection('armadilhas').where('status', '==', 'Coletada');
-            if (companyId) {
-                query = query.where('companyId', '==', companyId);
-            }
             
             if (inicio) query = query.where('dataColeta', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
             if (fim) query = query.where('dataColeta', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
@@ -1873,7 +1840,7 @@ try {
 
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
 
-            const usersSnapshot = await db.collection('users').where('companyId', '==', companyId).get();
+            const usersSnapshot = await db.collection('users').get();
             const usersMap = {};
             usersSnapshot.forEach(doc => {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
@@ -1946,11 +1913,8 @@ try {
         doc.pipe(res);
 
         try {
-            const { inicio, fim, fazendaCodigo, generatedBy, companyId } = req.query;
+            const { inicio, fim, fazendaCodigo, generatedBy } = req.query;
             let query = db.collection('armadilhas').where('status', '==', 'Ativa');
-            if (companyId) {
-                query = query.where('companyId', '==', companyId);
-            }
             
             if (inicio) query = query.where('dataInstalacao', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
             if (fim) query = query.where('dataInstalacao', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
@@ -1962,13 +1926,13 @@ try {
             const title = 'Relatório de Armadilhas Instaladas (Ativas)';
 
             if (data.length === 0) {
-                await generatePdfHeader(doc, title, companyId);
+                await generatePdfHeader(doc, title);
                 doc.text('Nenhuma armadilha ativa encontrada para os filtros selecionados.');
                 generatePdfFooter(doc, generatedBy);
                 return doc.end();
             }
 
-            const usersSnapshot = await db.collection('users').where('companyId', '==', companyId).get();
+            const usersSnapshot = await db.collection('users').get();
             const usersMap = {};
             usersSnapshot.forEach(doc => {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
@@ -2043,11 +2007,8 @@ try {
 
     app.get('/reports/armadilhas-ativas/csv', async (req, res) => {
         try {
-            const { inicio, fim, fazendaCodigo, companyId } = req.query;
+            const { inicio, fim, fazendaCodigo } = req.query;
             let query = db.collection('armadilhas').where('status', '==', 'Ativa');
-            if (companyId) {
-                query = query.where('companyId', '==', companyId);
-            }
             
             if (inicio) query = query.where('dataInstalacao', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
             if (fim) query = query.where('dataInstalacao', '<=', admin.firestore.Timestamp.fromDate(new Date(fim + 'T23:59:59')));
@@ -2058,7 +2019,7 @@ try {
 
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
 
-            const usersSnapshot = await db.collection('users').where('companyId', '==', companyId).get();
+            const usersSnapshot = await db.collection('users').get();
             const usersMap = {};
             usersSnapshot.forEach(doc => {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
