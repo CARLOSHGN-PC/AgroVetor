@@ -5053,10 +5053,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const response = await fetch(`${App.config.backendUrl}/api/upload/historical-report`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                reportData,
-                                companyId: App.state.currentUser.companyId // **FIX DE SEGURANÇA**
-                            }),
+                            body: JSON.stringify({ reportData }),
                         });
                         const result = await response.json();
                         if (!response.ok) {
@@ -5088,7 +5085,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             const response = await fetch(`${App.config.backendUrl}/api/delete/historical-data`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ companyId: App.state.currentUser.companyId }) // **FIX DE SEGURANÇA**
                             });
                             const result = await response.json();
                             if (!response.ok) {
@@ -5802,10 +5798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch(`${App.config.backendUrl}/api/calculate-atr`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            codigoFazenda: farm.code,
-                            companyId: App.state.currentUser.companyId // **FIX DE SEGURANÇA**
-                        }),
+                        body: JSON.stringify({ codigoFazenda: farm.code }),
                     });
 
                     if (!response.ok) {
@@ -6018,12 +6011,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch(`${App.config.backendUrl}/api/gemini/generate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            prompt,
-                            contextData,
-                            task,
-                            companyId: App.state.currentUser.companyId // **FIX DE SEGURANÇA**
-                        }),
+                        body: JSON.stringify({ prompt, contextData, task }),
                     });
 
                     if (!response.ok) {
@@ -7545,11 +7533,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 _fetchAndDownloadReport(endpoint, filters, filename) {
                     const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                     cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
-
-                    // **FIX DE SEGURANÇA**: Adiciona o ID da empresa a todos os pedidos de relatório.
-                    if (App.state.currentUser && App.state.currentUser.companyId) {
-                        cleanFilters.companyId = App.state.currentUser.companyId;
-                    }
 
                     const params = new URLSearchParams(cleanFilters);
                     const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
