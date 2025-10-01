@@ -158,7 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
             isSyncing: false,
             isCheckingConnection: false,
             connectionCheckInterval: null,
-            isSWUpdateLoading: false,
             currentUser: null,
             users: [],
             companies: [],
@@ -2435,16 +2434,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Estilos do banner
                 Object.assign(banner.style, {
                     position: 'fixed', top: '0', left: '0', width: '100%', height: `${bannerHeight}px`,
-                    backgroundColor: 'var(--color-warning)', color: 'white', textAlign: 'center',
+                    backgroundColor: 'var(--color-purple)', color: 'white', textAlign: 'center',
                     display: 'flex', justifyContent: 'center', alignItems: 'center',
                     fontSize: '14px', zIndex: '10001', boxSizing: 'border-box'
                 });
 
                 // Conteúdo do banner
                 banner.innerHTML = `
-                    <i class="fas fa-user-shield" style="margin-right: 10px;"></i>
-                    <span><b>Modo Suporte:</b> A visualizar como <strong>${companyName}</strong>. A gravação de dados está desativada.</span>
-                    <button id="stop-impersonating-btn" style="background: white; color: var(--color-warning); border: none; padding: 5px 10px; border-radius: 5px; margin-left: 20px; cursor: pointer; font-weight: bold;">Sair do Suporte</button>
+                    <i class="fas fa-eye" style="margin-right: 10px;"></i>
+                    <span>A visualizar como <strong>${companyName}</strong>.</span>
+                    <button id="stop-impersonating-btn" style="background: white; color: var(--color-purple); border: none; padding: 5px 10px; border-radius: 5px; margin-left: 20px; cursor: pointer; font-weight: bold;">Sair da Visualização</button>
                 `;
 
                 // Adiciona o banner ao corpo e ajusta o padding
@@ -3627,10 +3626,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return unavailableIds;
             },
             async saveFarm() {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A gravação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 const { farmCode, farmName, farmTypeCheckboxes } = App.elements.cadastros;
                 const code = farmCode.value.trim();
                 const name = farmName.value.trim().toUpperCase();
@@ -3723,10 +3718,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 talhaoProducao.value = (area * tch).toFixed(2);
             },
             async saveTalhao() {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A gravação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoTCH, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
                 const farmId = farmSelect.value;
                 if (!farmId) { App.ui.showAlert("Selecione uma fazenda.", "error"); return; }
@@ -3800,10 +3791,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             async savePersonnel() {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A gravação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 const { id, matricula, name } = App.elements.personnel;
                 const matriculaValue = matricula.value.trim();
                 const nameValue = name.value.trim();
@@ -3843,11 +3830,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             async handleLogoUpload(e) {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A alteração de configurações está desativada no Modo de Suporte.", "warning", 4000);
-                    e.target.value = ''; // Clear the file input
-                    return;
-                }
                 const file = e.target.files[0];
                 const input = e.target;
                 if (!file) return;
@@ -3889,10 +3871,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 reader.readAsDataURL(file);
             },
             removeLogo() {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A alteração de configurações está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 App.ui.showConfirmationModal("Tem a certeza que deseja remover o logotipo?", async () => {
                     App.ui.setLoading(true, "A remover logo...");
                     try {
@@ -3909,10 +3887,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async saveCalcMethodWithAudit() {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A alteração de configurações está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 const companyId = App.state.currentUser.companyId;
                 if (!companyId) return;
 
@@ -3975,10 +3949,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async agendarInspecao() {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A gravação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 const els = App.elements.planejamento;
                 const farmId = els.fazenda.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -4404,10 +4374,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.renderHarvestSequence();
             },
             async saveHarvestPlan() {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A gravação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 if (!App.state.activeHarvestPlan) return;
                 
                 App.ui.showConfirmationModal("Tem a certeza que deseja guardar este plano de colheita?", async () => {
@@ -4601,12 +4567,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             async _saveEntry(config) {
-                // BLOQUEIA A GRAVAÇÃO EM MODO DE SUPORTE
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A gravação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
-
                 const {
                     formType,
                     formFieldIds,
@@ -4733,10 +4693,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             saveCigarrinhaAmostragem() {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A gravação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 const els = App.elements.cigarrinhaAmostragem;
                 if (!App.ui.validateFields([els.data.id, els.codigo.id, els.talhao.id])) {
                     App.ui.showAlert("Preencha todos os campos principais (Data, Fazenda, Talhão)!", "error");
@@ -5089,11 +5045,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.removeChild(link);
             },
             async uploadHistoricalReport(file) {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A importação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    App.elements.companyConfig.historicalReportInput.value = '';
-                    return;
-                }
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = async (event) => {
@@ -5124,10 +5075,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async deleteHistoricalData() {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A exclusão de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 const confirmationText = "EXCLUIR HISTORICO";
                 App.ui.showConfirmationModal(
                     `Esta ação é irreversível e irá apagar TODOS os dados históricos de colheita que a IA usa para previsões. Para confirmar, digite "${confirmationText}" no campo abaixo.`,
@@ -5160,12 +5107,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async importHarvestReport(file, type) {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A importação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    const inputToClear = type === 'progress' ? App.elements.companyConfig.progressInput : App.elements.companyConfig.closedInput;
-                    if (inputToClear) inputToClear.value = '';
-                    return;
-                }
                 if (!file) return;
         
                 const reader = new FileReader();
@@ -6318,11 +6259,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async handleShapefileUpload(e) {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A importação de dados está desativada no Modo de Suporte.", "warning", 4000);
-                    e.target.value = '';
-                    return;
-                }
                 const file = e.target.files[0];
                 const input = e.target;
                 if (!file) return;
@@ -6785,10 +6721,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async installTrap(lat, lng, feature = null) { // feature is a GeoJSON feature
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A instalação de armadilhas está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 const findProp = (keys) => {
                     if (!feature || !feature.properties) return null;
                     for (const key of keys) {
@@ -6847,10 +6779,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async collectTrap(trapId, count, observations) {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A coleta de armadilhas está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 const updateData = {
                     status: "Coletada",
                     dataColeta: Timestamp.fromDate(new Date()),
@@ -6870,10 +6798,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async deleteTrap(trapId) {
-                if (App.state.isImpersonating) {
-                    App.ui.showAlert("A exclusão de armadilhas está desativada no Modo de Suporte.", "warning", 4000);
-                    return;
-                }
                 App.ui.showConfirmationModal(
                     "Tem a certeza que deseja excluir esta armadilha? Esta ação é irreversível.",
                     async () => {
@@ -7910,43 +7834,15 @@ document.addEventListener('DOMContentLoaded', () => {
         pwa: {
             registerServiceWorker() {
                 if ('serviceWorker' in navigator) {
-                    let newWorker;
-
-                    const showUpdateBar = () => {
-                        const updateNotification = document.getElementById('update-notification');
-                        const updateButton = document.getElementById('update-now-btn');
-                        if (updateNotification && updateButton) {
-                            updateNotification.style.display = 'flex';
-                            updateButton.addEventListener('click', () => {
-                                newWorker.postMessage({ type: 'SKIP_WAITING' });
-                            });
-                        }
-                    };
-
                     window.addEventListener('load', () => {
                         navigator.serviceWorker.register('./service-worker.js')
                             .then(registration => {
                                 console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                                registration.addEventListener('updatefound', () => {
-                                    newWorker = registration.installing;
-                                    newWorker.addEventListener('statechange', () => {
-                                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                            showUpdateBar();
-                                        }
-                                    });
-                                });
                             })
                             .catch(error => {
                                 console.log('ServiceWorker registration failed: ', error);
                             });
                     });
-
-                    navigator.serviceWorker.addEventListener('controllerchange', () => {
-                        if (!App.state.isSWUpdateLoading) {
-                            App.state.isSWUpdateLoading = true;
-                            window.location.reload();
-                        }
-                    });
 
                     window.addEventListener('beforeinstallprompt', (e) => {
                         e.preventDefault();
