@@ -966,7 +966,7 @@ try {
                     r.fase4,
                     r.fase5,
                     r.adulto ? 'Sim' : 'Não',
-                    (r.resultado || 0).toFixed(2).replace('.', ',')
+                    r.resultado
                 ];
                 currentY = drawRow(doc, row, currentY, false, false, columnWidths, 5, 18, headersConfig);
             }
@@ -1264,7 +1264,7 @@ try {
                     fazenda: `${r.codigo} - ${r.fazenda}`,
                     variedade: talhao?.variedade || 'N/A',
                     adulto: r.adulto ? 'Sim' : 'Não',
-                    resultado: (r.resultado || 0).toFixed(2).replace('.', ',')
+                    resultado: r.resultado
                 };
             });
 
