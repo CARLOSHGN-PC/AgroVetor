@@ -343,7 +343,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 permissionsContainer: document.querySelector('#gerenciarUsuarios .permission-grid'),
                 permissionCheckboxes: document.querySelectorAll('#gerenciarUsuarios .permission-grid input[type="checkbox"]'),
                 btnCreate: document.getElementById('btnCreateUser'),
-                list: document.getElementById('usersList')
+                list: document.getElementById('usersList'),
+                superAdminUserCreation: document.getElementById('superAdminUserCreation'),
+                adminTargetCompanyUsers: document.getElementById('adminTargetCompanyUsers'),
             },
             userEditModal: {
                 overlay: document.getElementById('userEditModal'),
@@ -408,6 +410,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 csvUploadArea: document.getElementById('csvUploadArea'),
                 csvFileInput: document.getElementById('csvFileInput'),
                 btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
+                superAdminFarmCreation: document.getElementById('superAdminFarmCreation'),
+                adminTargetCompanyFarms: document.getElementById('adminTargetCompanyFarms'),
             },
             planejamento: {
                 tipo: document.getElementById('planoTipo'),
@@ -524,6 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 varietyDisplay: document.getElementById('varietyDisplayCigarrinhaAmostragem'),
                 addAmostraBtn: document.getElementById('addAmostraCigarrinhaAmostragem'),
                 amostrasContainer: document.getElementById('amostrasCigarrinhaAmostragemContainer'),
+                adulto: document.getElementById('adultoPresenteCigarrinhaAmostragem'),
                 resultado: document.getElementById('resultadoCigarrinhaAmostragem'),
                 btnSalvar: document.getElementById('btnSalvarCigarrinhaAmostragem'),
                 filtroFazenda: document.getElementById('fazendaFiltroCigarrinhaAmostragem'),
@@ -772,13 +777,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     await signOut(secondaryAuth);
 
+                    let targetCompanyId = App.state.currentUser.companyId;
+                    if (App.state.currentUser.role === 'super-admin') {
+                        targetCompanyId = App.elements.users.adminTargetCompanyUsers.value;
+                        if (!targetCompanyId) {
+                            App.ui.showAlert("Como Super Admin, você deve selecionar uma empresa alvo para criar o utilizador.", "error");
+                            App.ui.setLoading(false);
+                            return;
+                        }
+                    }
+
                     const userData = {
                         username: email.split('@')[0],
                         email: email,
                         role: role,
                         active: true,
                         permissions: permissions,
-                        companyId: App.state.currentUser.companyId // <-- Vincular à empresa do admin
+                        companyId: targetCompanyId
                     };
                     await App.data.createUserData(newUser.uid, userData);
                     
@@ -1448,13 +1463,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'gerenciarUsuarios') {
                     this.renderUsersList();
                     this.renderPermissionItems(App.elements.users.permissionsContainer);
+                    if (App.state.currentUser.role === 'super-admin') {
+                        const { superAdminUserCreation, adminTargetCompanyUsers } = App.elements.users;
+                        superAdminUserCreation.style.display = 'block';
+                        adminTargetCompanyUsers.innerHTML = '<option value="">Selecione uma empresa...</option>';
+                        App.state.companies.sort((a,b) => a.name.localeCompare(b.name)).forEach(c => {
+                            adminTargetCompanyUsers.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+                        });
+                    } else {
+                        const superAdminUserCreationEl = document.getElementById('superAdminUserCreation');
+                        if (superAdminUserCreationEl) {
+                           superAdminUserCreationEl.style.display = 'none';
+                        }
+                    }
                 }
                  if (id === 'gerenciarEmpresas') {
                     this.renderCompaniesList();
                     this.renderCompanyModules('newCompanyModules');
                     this.renderGlobalFeatures(); // NOVO
                 }
-                if (id === 'cadastros') this.renderFarmSelect();
+                if (id === 'cadastros') {
+                    this.renderFarmSelect();
+                    if (App.state.currentUser.role === 'super-admin') {
+                        const { superAdminFarmCreation, adminTargetCompanyFarms } = App.elements.cadastros;
+                        superAdminFarmCreation.style.display = 'block';
+                        adminTargetCompanyFarms.innerHTML = '<option value="">Selecione uma empresa...</option>';
+                        App.state.companies.sort((a,b) => a.name.localeCompare(b.name)).forEach(c => {
+                            adminTargetCompanyFarms.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+                        });
+                    } else {
+                        const superAdminFarmCreationEl = document.getElementById('superAdminFarmCreation');
+                        if (superAdminFarmCreationEl) {
+                            superAdminFarmCreationEl.style.display = 'none';
+                        }
+                    }
+                }
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') this.showHarvestPlanList();
@@ -3640,8 +3683,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.ui.showConfirmationModal(`Tem a certeza que deseja guardar a fazenda ${name}?`, async () => {
+                    let targetCompanyId = App.state.currentUser.companyId;
+                    if (App.state.currentUser.role === 'super-admin') {
+                        targetCompanyId = App.elements.cadastros.adminTargetCompanyFarms.value;
+                        if (!targetCompanyId) {
+                            App.ui.showAlert("Como Super Admin, você deve selecionar uma empresa alvo para criar a fazenda.", "error");
+                            return;
+                        }
+                    }
                     try {
-                        await App.data.addDocument('fazendas', { code, name, types, talhoes: [], companyId: App.state.currentUser.companyId });
+                        await App.data.addDocument('fazendas', { code, name, types, talhoes: [], companyId: targetCompanyId });
                         App.ui.showAlert("Fazenda adicionada com sucesso!");
                         farmCode.value = ''; 
                         farmName.value = '';
@@ -4272,7 +4323,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         App.ui.setLoading(true, "A iniciar migração de dados...");
 
-                        const collectionsToMigrate = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha'];
+                        const collectionsToMigrate = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem'];
                         let totalMigratedCount = 0;
                         const errors = [];
 
@@ -4730,6 +4781,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazenda: farm.name,
                     talhao: talhao.name,
                     variedade: talhao.variedade || '',
+                    adulto: els.adulto.checked,
                     resultado: mediaFinal,
                     amostras: amostrasData,
                     divisor: divisor,
@@ -4847,12 +4899,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                              if (!fazendasToUpdate[farmCode]) {
                                  let existingFarm = App.state.fazendas.find(f => f.code === farmCode);
+                                 let targetCompanyId = App.state.currentUser.companyId;
+                                 if(App.state.currentUser.role === 'super-admin') {
+                                    targetCompanyId = App.elements.cadastros.adminTargetCompanyFarms.value;
+                                    if(!targetCompanyId) {
+                                         App.ui.showAlert("Como Super Admin, você deve selecionar uma empresa alvo para importar os dados.", "error");
+                                         App.ui.setLoading(false);
+                                         throw new Error("Empresa alvo não selecionada pelo Super Admin.");
+                                    }
+                                 }
+
                                  fazendasToUpdate[farmCode] = existingFarm ? JSON.parse(JSON.stringify(existingFarm)) : {
                                      code: farmCode,
                                      name: data[headerIndexes.farm_name]?.trim().toUpperCase() || `FAZENDA ${farmCode}`,
                                      types: data[headerIndexes.farm_type]?.trim().split(',').map(t => t.trim()) || [],
                                      talhoes: [],
-                                     companyId: App.state.currentUser.companyId // FIX: Adicionar companyId a novas fazendas
+                                     companyId: targetCompanyId
                                  };
                              }
 

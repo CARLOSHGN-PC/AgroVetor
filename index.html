@@ -2089,6 +2089,14 @@
                         <!-- Cards de amostras serão inseridos aqui -->
                     </div>
 
+                    <div class="form-row">
+                        <div class="form-col" style="display: flex; align-items: center; justify-content: flex-start;">
+                            <label for="adultoPresenteCigarrinhaAmostragem" style="display: flex; align-items: center; gap: 10px; margin-top: 20px;">
+                                <input type="checkbox" id="adultoPresenteCigarrinhaAmostragem" style="width: auto; transform: scale(1.4);">
+                                <span>Presença de Adulto?</span>
+                            </label>
+                        </div>
+                    </div>
                     <div id="resultadoCigarrinhaAmostragem" class="resultado" style="margin-top: 20px;"></div>
                     <button type="button" id="btnSalvarCigarrinhaAmostragem" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Lançamento</button>
                 </form>
@@ -2210,6 +2218,13 @@
             <section id="cadastros" class="tab-content card" aria-label="Cadastros" tabindex="0" hidden>
                 <h2><i class="fas fa-book"></i> Cadastros Gerais</h2>
 
+                <div id="superAdminFarmCreation" class="card" style="display: none; border-left-color: var(--color-purple); margin-bottom: 20px;">
+                    <h4><i class="fas fa-user-shield"></i> Ação como Super Admin</h4>
+                    <p>Para criar ou importar novas fazendas, por favor, selecione a empresa de destino.</p>
+                    <label for="adminTargetCompanyFarms" class="required">Empresa Alvo:</label>
+                    <select id="adminTargetCompanyFarms" required></select>
+                </div>
+
                 <div class="card" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-upload"></i> Importar Cadastros via CSV</h3>
                     <p>Faça o upload de um ficheiro CSV com todos os dados de fazendas e talhões. O sistema irá <strong>atualizar</strong> os cadastros existentes e <strong>adicionar</strong> novos, sem criar duplicatas.</p>
@@ -2271,6 +2286,12 @@
 
             <section id="gerenciarUsuarios" class="tab-content card" aria-label="Gerir Utilizadores" tabindex="0" hidden>
                 <h2><i class="fas fa-users-cog"></i> Gerir Utilizadores</h2>
+                <div id="superAdminUserCreation" class="card" style="display: none; border-left-color: var(--color-purple); margin-bottom: 20px;">
+                    <h4><i class="fas fa-user-shield"></i> Ação como Super Admin</h4>
+                    <p>Para criar um novo utilizador, por favor, selecione a empresa à qual ele pertencerá.</p>
+                    <label for="adminTargetCompanyUsers" class="required">Empresa Alvo:</label>
+                    <select id="adminTargetCompanyUsers" required></select>
+                </div>
                 <h3><i class="fas fa-user-plus"></i> Criar Novo Utilizador</h3>
                 <div class="form-row">
                     <div class="form-col"><label for="newUserUsername" class="required">Email do Utilizador:</label><input id="newUserUsername" type="email" required /></div>
@@ -2321,7 +2342,7 @@
 
                 <div class="card" style="margin-top: 30px; border-left-color: var(--color-warning);">
                     <h3><i class="fas fa-database"></i> Ferramentas de Dados</h3>
-                    <p>Use esta ferramenta para associar todos os dados antigos (criados antes do sistema de empresas) à primeira empresa da lista. Esta é uma operação de uso único.</p>
+                    <p>Use esta ferramenta para associar todos os dados antigos (criados antes do sistema de empresas) a uma empresa específica. Esta é uma operação de uso único e deve ser usada com cuidado.</p>
                     <button id="btnMigrateOldData" class="save" style="max-width: 300px; background: var(--color-warning);"><i class="fas fa-cogs"></i> Iniciar Migração de Dados</button>
                 </div>
 
