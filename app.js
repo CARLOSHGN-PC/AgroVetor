@@ -7564,7 +7564,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     const params = new URLSearchParams(cleanFilters);
-                    const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}`;
+                    const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}&_cacheBust=${Date.now()}`;
 
                     App.ui.setLoading(true, "A gerar relatório no servidor...");
 
