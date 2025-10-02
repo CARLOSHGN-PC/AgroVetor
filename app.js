@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 4 for the new notifications store
-            this.dbPromise = openDB('agrovetor-offline-storage', 4, {
+            // Version 5 for the new sync queue
+            this.dbPromise = openDB('agrovetor-offline-storage', 5, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -66,6 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (oldVersion < 4) {
                         db.createObjectStore('notifications', { autoIncrement: true });
+                    }
+                    if (oldVersion < 5) {
+                        // 'id' will be a unique string for each entry (e.g., using UUID)
+                        db.createObjectStore('sync-queue', { keyPath: 'id' });
                     }
                 },
             });
@@ -132,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
+                        { label: 'Fila de Sincronização', icon: 'fas fa-tasks', target: 'syncQueue', permission: 'syncQueue' },
                         { label: 'Histórico de Sincronização', icon: 'fas fa-history', target: 'syncHistory', permission: 'syncHistory' },
                         { label: 'Excluir Lançamentos', icon: 'fas fa-trash', target: 'excluirDados', permission: 'excluir' },
                     ]
@@ -144,10 +149,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, syncQueue: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, syncQueue: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, syncQueue: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, syncQueue: true },
                 user: { dashboard: true }
             }
         },
@@ -194,6 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
+            editingQueueItemId: null,
         },
         
         elements: {
@@ -292,6 +298,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: document.getElementById('syncHistoryDetailModalBody'),
                 closeBtn: document.getElementById('syncHistoryDetailModalCloseBtn'),
                 cancelBtn: document.getElementById('syncHistoryDetailModalCancelBtn'),
+            },
+            syncQueue: {
+                list: document.getElementById('syncQueueList'),
+                empty: document.getElementById('syncQueueEmpty'),
+                btnSync: document.getElementById('btnSyncNow'),
             },
             configHistoryModal: {
                 overlay: document.getElementById('configHistoryModal'),
@@ -1461,6 +1472,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 if (id === 'syncHistory') this.renderSyncHistory();
+                if (id === 'syncQueue') this.renderSyncQueue();
                 if (id === 'excluirDados') this.renderExclusao();
                 if (id === 'gerenciarUsuarios') {
                     this.renderUsersList();
@@ -1899,6 +1911,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                const syncQueueEls = App.elements.syncQueue;
+                if (syncQueueEls.btnSync) {
+                    syncQueueEls.btnSync.addEventListener('click', () => App.actions.syncQueueNow());
+                }
+                if (syncQueueEls.list) {
+                    syncQueueEls.list.addEventListener('click', e => {
+                        const button = e.target.closest('button[data-action]');
+                        if (!button) return;
+                        const { action, id } = button.dataset;
+                        if (action === 'edit-queue') App.actions.editQueueItem(id);
+                        if (action === 'delete-queue') App.actions.deleteQueueItem(id);
+                    });
+                }
         
                 if (talhoesToShow.length === 0) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
@@ -2105,6 +2131,87 @@ document.addEventListener('DOMContentLoaded', () => {
                     .sort((a,b) => (a.username || '').localeCompare(b.username || ''))
                     .map((u) => this._createModernUserCardHTML(u))
                     .join(''); 
+            },
+
+            async renderSyncQueue() {
+                const { list, empty } = App.elements.syncQueue;
+                if (!list || !empty) return;
+
+                list.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
+
+                try {
+                    const queueItems = await OfflineDB.getAll('sync-queue');
+                    queueItems.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+
+                    if (queueItems.length === 0) {
+                        list.innerHTML = '';
+                        empty.style.display = 'flex';
+                        return;
+                    }
+
+                    empty.style.display = 'none';
+                    list.innerHTML = '';
+
+                    const statusMap = {
+                        'Pendente': { icon: 'fa-clock', color: 'var(--color-info)', label: 'Pendente' },
+                        'Sincronizado': { icon: 'fa-check-circle', color: 'var(--color-success)', label: 'Sincronizado' },
+                        'Falha': { icon: 'fa-exclamation-circle', color: 'var(--color-danger)', label: 'Falha' },
+                    };
+
+                    const typeMap = {
+                        'broca': { icon: 'fa-bug', label: 'Lançamento Broca' },
+                        'perda': { icon: 'fa-dollar-sign', label: 'Lançamento Perda' },
+                        'cigarrinha': { icon: 'fa-leaf', label: 'Monitoramento Cigarrinha' },
+                        'cigarrinhaAmostragem': { icon: 'fa-vial', label: 'Cigarrinha (Amostragem)' },
+                    };
+
+                    queueItems.forEach(item => {
+                        const statusInfo = statusMap[item.status] || { icon: 'fa-question-circle', color: 'gray', label: 'Desconhecido' };
+                        const typeInfo = typeMap[item.type] || { icon: 'fa-question-circle', label: 'Lançamento' };
+                        const itemDate = new Date(item.addedAt).toLocaleString('pt-BR');
+
+                        const actionsHTML = item.status === 'Pendente' ? `
+                            <button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="edit-queue" data-id="${item.id}">
+                                <i class="fas fa-edit"></i> Editar
+                            </button>
+                            <button class="btn-excluir" data-action="delete-queue" data-id="${item.id}">
+                                <i class="fas fa-trash"></i> Excluir
+                            </button>
+                        ` : '';
+
+                        const errorHTML = item.status === 'Falha' && item.error ? `
+                            <div style="margin-top: 8px; font-size: 13px; color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 10%, transparent); padding: 8px; border-radius: 6px;">
+                                <i class="fas fa-exclamation-triangle"></i> <strong>Erro:</strong> ${item.error}
+                            </div>
+                        ` : '';
+
+                        const card = document.createElement('div');
+                        card.className = 'plano-card';
+                        card.style.borderLeftColor = statusInfo.color;
+                        card.innerHTML = `
+                            <div class="plano-header">
+                                <span class="plano-title"><i class="fas ${typeInfo.icon}"></i> ${typeInfo.label}</span>
+                                <span class="plano-status" style="background-color: ${statusInfo.color}; font-size: 12px;">
+                                    ${statusInfo.label}
+                                </span>
+                            </div>
+                            <div class="plano-details" style="grid-template-columns: 1fr;">
+                                <div><i class="fas fa-calendar-plus"></i> Salvo em: ${itemDate}</div>
+                                <div><i class="fas fa-tractor"></i> Fazenda: ${item.data.fazenda} (${item.data.codigo})</div>
+                                <div><i class="fas fa-th-large"></i> Talhão: ${item.data.talhao}</div>
+                            </div>
+                            ${errorHTML}
+                            <div class="plano-actions">
+                                ${actionsHTML}
+                            </div>
+                        `;
+                        list.appendChild(card);
+                    });
+                } catch (error) {
+                    console.error("Erro ao renderizar fila de sincronização:", error);
+                    list.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-danger);">Erro ao carregar a fila.</p>';
+                    empty.style.display = 'none';
+                }
             },
             renderPersonnelList() {
                 const { list } = App.elements.personnel;
@@ -4650,7 +4757,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     entryBuilder,
                     collectionName,
                     confirmationMessage,
-                    successMessage,
                     requiresOperatorValidation = false
                 } = config;
 
@@ -4662,10 +4768,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const formElements = App.elements[formType];
                 const farm = App.state.fazendas.find(f => f.id === formElements.codigo.value);
-                if (!farm) {
-                    App.ui.showAlert("Fazenda não encontrada.", "error");
-                    return;
-                }
+                if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
 
                 const talhaoName = formElements.talhao.value.trim().toUpperCase();
                 const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName);
@@ -4683,36 +4786,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // 2. Build entry
-                const newEntry = entryBuilder(formElements, farm, talhao, operator);
+                // 2. Build entry data
+                const newEntryData = entryBuilder(formElements, farm, talhao, operator);
 
-                // 3. Confirmation and Save
-                App.ui.showConfirmationModal(confirmationMessage, () => {
-                    App.ui.clearForm(formElements.form);
-                    this.clearFormDraft(formType); // Limpa o rascunho após a confirmação
-                    App.ui.setDefaultDatesForEntryForms();
-                    App.ui.setLoading(true, "A guardar...");
+                // 3. Confirmation and Save/Update Local Queue
+                const isEditing = App.state.editingQueueItemId !== null;
+                const finalConfirmationMsg = isEditing ? "Tem a certeza que deseja atualizar este item na fila?" : confirmationMessage;
 
-                    (async () => {
-                        try {
-                            if (navigator.onLine) {
-                                await App.data.addDocument(collectionName, newEntry);
-                                App.ui.showAlert(successMessage);
-                                if (formType === 'broca' || formType === 'perda') {
-                                    this.verificarEAtualizarPlano(formType, newEntry.codigo, newEntry.talhao);
-                                }
-                            } else {
-                                await OfflineDB.add('offline-writes', { collection: collectionName, data: newEntry });
-                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
-                            }
-                        } catch (e) {
-                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
-                            console.error(`Erro ao salvar ${formType}, salvando offline:`, e);
-                            await OfflineDB.add('offline-writes', { collection: collectionName, data: newEntry });
-                        } finally {
-                            App.ui.setLoading(false);
+                App.ui.showConfirmationModal(finalConfirmationMsg, async () => {
+                    App.ui.setLoading(true, "A guardar na fila local...");
+                    try {
+                        let queueItem;
+                        if (isEditing) {
+                            queueItem = await OfflineDB.get('sync-queue', App.state.editingQueueItemId);
+                            queueItem.data = newEntryData;
+                            queueItem.status = 'Pendente'; // Reset status on edit
+                            queueItem.error = null;
+                        } else {
+                            const uniqueId = `${Date.now().toString(36)}-${Math.random().toString(36).substr(2)}`;
+                            queueItem = {
+                                id: uniqueId,
+                                type: formType,
+                                status: 'Pendente',
+                                collection: collectionName,
+                                data: newEntryData,
+                                addedAt: new Date().toISOString(),
+                                lastAttempt: null,
+                                error: null
+                            };
                         }
-                    })();
+
+                        await OfflineDB.set('sync-queue', queueItem.id, queueItem);
+
+                        App.ui.clearForm(formElements.form);
+                        this.clearFormDraft(formType);
+                        App.ui.setDefaultDatesForEntryForms();
+
+                        const successMessage = isEditing ? 'Item atualizado com sucesso na fila!' : 'Lançamento guardado na fila para sincronização!';
+                        App.ui.showAlert(successMessage, 'success');
+
+                        App.state.editingQueueItemId = null; // Limpa o ID de edição
+                        App.ui.showTab('syncQueue');
+
+                    } catch (e) {
+                        App.ui.showAlert('Erro ao guardar o lançamento na fila local.', "error");
+                        console.error(`Erro ao salvar na sync-queue:`, e);
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
                 });
             },
 
@@ -4722,7 +4843,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     formFieldIds: ['codigo', 'data', 'talhao', 'entrenos', 'brocaBase', 'brocaMeio', 'brocaTopo'],
                     collectionName: 'registros',
                     confirmationMessage: 'Tem a certeza que deseja guardar esta inspeção de broca?',
-                    successMessage: 'Inspeção guardada com sucesso!',
                     entryBuilder: (els, farm, talhao) => ({
                         codigo: farm.code, fazenda: farm.name, data: els.data.value,
                         talhao: els.talhao.value.trim(),
@@ -4745,7 +4865,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     formFieldIds: ['dataCigarrinha', 'codigoCigarrinha', 'talhaoCigarrinha'],
                     collectionName: 'cigarrinha',
                     confirmationMessage: 'Tem a certeza que deseja guardar este monitoramento?',
-                    successMessage: 'Monitoramento guardado com sucesso!',
                     entryBuilder: (els, farm, talhao) => {
                         const f1 = parseInt(els.fase1.value) || 0;
                         const f2 = parseInt(els.fase2.value) || 0;
@@ -4799,9 +4918,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const somaFases = Object.values(amostra).reduce((sum, val) => sum + val, 0);
                     return acc + (somaFases / divisor);
                 }, 0);
-                const mediaFinal = somaDasMedias / amostrasData.length;
+                const mediaFinal = amostrasData.length > 0 ? somaDasMedias / amostrasData.length : 0;
 
-                const newEntry = {
+                const newEntryData = {
                     data: els.data.value,
                     codigo: farm.code,
                     fazenda: farm.name,
@@ -4815,29 +4934,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     companyId: App.state.currentUser.companyId
                 };
 
-                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este lançamento?", () => {
-                    App.ui.clearForm(els.form);
-                    els.amostrasContainer.innerHTML = '';
-                    App.ui.setDefaultDatesForEntryForms();
-                    App.ui.setLoading(true, "A guardar...");
+                const isEditing = App.state.editingQueueItemId !== null;
+                const finalConfirmationMsg = isEditing ? "Tem a certeza que deseja atualizar este item na fila?" : "Tem a certeza que deseja guardar este lançamento?";
 
-                    (async () => {
-                        try {
-                            if (navigator.onLine) {
-                                await App.data.addDocument('cigarrinhaAmostragem', newEntry);
-                                App.ui.showAlert("Lançamento de amostragem guardado com sucesso!");
-                            } else {
-                                await OfflineDB.add('offline-writes', { collection: 'cigarrinhaAmostragem', data: newEntry });
-                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
-                            }
-                        } catch (e) {
-                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
-                            console.error(`Erro ao salvar cigarrinhaAmostragem, salvando offline:`, e);
-                            await OfflineDB.add('offline-writes', { collection: 'cigarrinhaAmostragem', data: newEntry });
-                        } finally {
-                            App.ui.setLoading(false);
+                App.ui.showConfirmationModal(finalConfirmationMsg, async () => {
+                    App.ui.setLoading(true, "A guardar na fila local...");
+                    try {
+                        let queueItem;
+                        if (isEditing) {
+                            queueItem = await OfflineDB.get('sync-queue', App.state.editingQueueItemId);
+                            queueItem.data = newEntryData;
+                            queueItem.status = 'Pendente';
+                            queueItem.error = null;
+                        } else {
+                            const uniqueId = `${Date.now().toString(36)}-${Math.random().toString(36).substr(2)}`;
+                            queueItem = {
+                                id: uniqueId,
+                                type: 'cigarrinhaAmostragem',
+                                status: 'Pendente',
+                                collection: 'cigarrinhaAmostragem',
+                                data: newEntryData,
+                                addedAt: new Date().toISOString(),
+                                lastAttempt: null,
+                                error: null
+                            };
                         }
-                    })();
+
+                        await OfflineDB.set('sync-queue', queueItem.id, queueItem);
+
+                        App.ui.clearForm(els.form);
+                        els.amostrasContainer.innerHTML = '';
+                        App.ui.setDefaultDatesForEntryForms();
+
+                        const successMessage = isEditing ? 'Item atualizado com sucesso na fila!' : 'Lançamento guardado na fila para sincronização!';
+                        App.ui.showAlert(successMessage, 'success');
+
+                        App.state.editingQueueItemId = null;
+                        App.ui.showTab('syncQueue');
+
+                    } catch (e) {
+                        App.ui.showAlert('Erro ao guardar o lançamento na fila local.', "error");
+                        console.error(`Erro ao salvar na sync-queue:`, e);
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
                 });
             },
 
@@ -4847,7 +4987,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     formFieldIds: ['dataPerda', 'codigoPerda', 'frenteServico', 'talhaoPerda', 'frotaEquipamento', 'matriculaOperador'],
                     collectionName: 'perdas',
                     confirmationMessage: 'Tem a certeza que deseja guardar este lançamento de perda?',
-                    successMessage: 'Lançamento de perda guardado com sucesso!',
                     requiresOperatorValidation: true,
                     entryBuilder: (els, farm, talhao, operator) => {
                         const fields = { canaInteira: parseFloat(els.canaInteira.value) || 0, tolete: parseFloat(els.tolete.value) || 0, toco: parseFloat(els.toco.value) || 0, ponta: parseFloat(els.ponta.value) || 0, estilhaco: parseFloat(els.estilhaco.value) || 0, pedaco: parseFloat(els.pedaco.value) || 0 };
@@ -6104,6 +6243,154 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Erro ao notificar administradores sobre novas features:", error);
                     App.ui.showAlert("Ocorreu um erro ao tentar notificar os administradores.", "error");
                 }
+            },
+
+            async syncQueueNow() {
+                if (!navigator.onLine) {
+                    App.ui.showAlert("Você está offline. Não é possível sincronizar.", "warning");
+                    return;
+                }
+                if (App.state.isSyncing) {
+                    App.ui.showAlert("A sincronização já está em andamento.", "info");
+                    return;
+                }
+
+                App.state.isSyncing = true;
+                App.ui.setLoading(true, "A sincronizar dados...");
+
+                const queueItems = await OfflineDB.getAll('sync-queue');
+                const pendingItems = queueItems.filter(item => item.status === 'Pendente' || item.status === 'Falha');
+
+                if (pendingItems.length === 0) {
+                    App.ui.showAlert("Não há itens pendentes para sincronizar.", "info");
+                    App.ui.setLoading(false);
+                    App.state.isSyncing = false;
+                    App.ui.renderSyncQueue(); // Re-render to be sure
+                    return;
+                }
+
+                App.ui.setLoading(true, `Sincronizando ${pendingItems.length} itens...`);
+                let successCount = 0;
+                let failureCount = 0;
+
+                for (const item of pendingItems) {
+                    try {
+                        await App.data.addDocument(item.collection, item.data);
+                        item.status = 'Sincronizado';
+                        item.error = null;
+                        await OfflineDB.set('sync-queue', item.id, item);
+                        successCount++;
+                    } catch (error) {
+                        item.status = 'Falha';
+                        item.error = error.message || 'Erro desconhecido';
+                        item.lastAttempt = new Date().toISOString();
+                        await OfflineDB.set('sync-queue', item.id, item);
+                        failureCount++;
+                        console.error(`Falha ao sincronizar item ${item.id}:`, error);
+                    }
+                }
+
+                App.state.isSyncing = false;
+                App.ui.setLoading(false);
+                await App.ui.renderSyncQueue();
+
+                if (failureCount > 0) {
+                    App.ui.showAlert(`${successCount} itens sincronizados, ${failureCount} falharam. Verifique a fila para detalhes.`, "warning", 5000);
+                } else {
+                    App.ui.showAlert(`Sincronização concluída! ${successCount} itens enviados com sucesso.`, "success");
+                }
+            },
+
+            async deleteQueueItem(itemId) {
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este item da fila? Esta ação não pode ser desfeita.", async () => {
+                    try {
+                        await OfflineDB.delete('sync-queue', itemId);
+                        App.ui.showAlert("Item removido da fila.", "info");
+                        await App.ui.renderSyncQueue();
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao remover o item.", "error");
+                        console.error("Erro ao deletar item da fila:", error);
+                    }
+                });
+            },
+
+            async editQueueItem(itemId) {
+                const item = await OfflineDB.get('sync-queue', itemId);
+                if (!item) {
+                    App.ui.showAlert("Item não encontrado na fila.", "error");
+                    return;
+                }
+
+                App.state.editingQueueItemId = itemId;
+
+                const formType = item.type;
+                const formElements = App.elements[formType];
+                const data = item.data;
+
+                // Navega para a aba correta
+                App.ui.showTab(`lancamento${formType.charAt(0).toUpperCase() + formType.slice(1)}`);
+
+                // Preenche os campos comuns
+                formElements.data.value = data.data;
+                const farm = App.state.fazendas.find(f => f.code === data.codigo);
+                if (farm) {
+                    formElements.codigo.value = farm.id;
+                    // Dispara o evento change para carregar os talhões e a variedade
+                    formElements.codigo.dispatchEvent(new Event('change'));
+                }
+                formElements.talhao.value = data.talhao;
+                 formElements.talhao.dispatchEvent(new Event('input'));
+
+
+                // Preenche campos específicos de cada formulário
+                switch(formType) {
+                    case 'broca':
+                        formElements.entrenos.value = data.entrenos;
+                        formElements.base.value = data.base;
+                        formElements.meio.value = data.meio;
+                        formElements.topo.value = data.topo;
+                        App.ui.updateBrocadoTotal();
+                        App.ui.calculateBrocamento();
+                        break;
+                    case 'perda':
+                        formElements.frente.value = data.frenteServico;
+                        formElements.turno.value = data.turno;
+                        formElements.frota.value = data.frota;
+                        formElements.matricula.value = data.matricula;
+                        formElements.canaInteira.value = data.canaInteira;
+                        formElements.tolete.value = data.tolete;
+                        formElements.toco.value = data.toco;
+                        formElements.ponta.value = data.ponta;
+                        formElements.estilhaco.value = data.estilhaco;
+                        formElements.pedaco.value = data.pedaco;
+                        App.actions.findOperatorName();
+                        App.ui.calculatePerda();
+                        break;
+                    case 'cigarrinha':
+                        formElements.fase1.value = data.fase1;
+                        formElements.fase2.value = data.fase2;
+                        formElements.fase3.value = data.fase3;
+                        formElements.fase4.value = data.fase4;
+                        formElements.fase5.value = data.fase5;
+                        formElements.adulto.checked = data.adulto;
+                        App.ui.calculateCigarrinha();
+                        break;
+                    case 'cigarrinhaAmostragem':
+                        formElements.adulto.checked = data.adulto;
+                        formElements.amostrasContainer.innerHTML = ''; // Limpa amostras existentes
+                        data.amostras.forEach(amostra => {
+                            App.ui.addAmostraCard();
+                            const newCard = formElements.amostrasContainer.lastChild;
+                            Object.keys(amostra).forEach((key, index) => {
+                                const input = newCard.querySelector(`#fase${index + 1}-amostra-${newCard.dataset.id}`);
+                                if(input) input.value = amostra[key];
+                            });
+                        });
+                        App.ui.calculateCigarrinhaAmostragem();
+                        break;
+                }
+
+                App.ui.showAlert("Editando lançamento. Salve para atualizar na fila.", "info");
             },
 
         },
