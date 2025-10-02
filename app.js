@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 4 for the new notifications store
-            this.dbPromise = openDB('agrovetor-offline-storage', 4, {
+            // Version 5 for the new sync-queue store
+            this.dbPromise = openDB('agrovetor-offline-storage', 5, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -66,6 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (oldVersion < 4) {
                         db.createObjectStore('notifications', { autoIncrement: true });
+                    }
+                    if (oldVersion < 5) {
+                        // Novo object store para a fila de sincronização persistente
+                        db.createObjectStore('sync-queue', { keyPath: 'id', autoIncrement: true });
                     }
                 },
             });
@@ -128,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
+                        { label: 'Fila de Sincronização', icon: 'fas fa-sync-alt', target: 'fila-sincronizacao', permission: 'configuracoes' },
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
@@ -188,12 +193,12 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedMapFeature: null, // NOVO: Armazena a feature do talhão selecionado no mapa
             trapNotifications: [],
             unreadNotificationCount: 0,
-            notifiedTrapIds: new Set(JSON.parse(sessionStorage.getItem('notifiedTrapIds')) || []),
             trapPlacementMode: null,
             trapPlacementData: null,
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
+            editingQueueItemId: null, // ID do item da fila de sincronização que está a ser editado
         },
         
         elements: {
@@ -216,7 +221,6 @@ document.addEventListener('DOMContentLoaded', () => {
             menu: document.getElementById('menu'),
             content: document.getElementById('content'),
             alertContainer: document.getElementById('alertContainer'),
-            notificationContainer: document.getElementById('notification-container'),
             notificationBell: {
                 container: document.getElementById('notification-bell-container'),
                 toggle: document.getElementById('notification-bell-toggle'),
@@ -1207,14 +1211,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showSystemNotification(title, message, type = 'info', options = {}) {
                 const { list, count, noNotifications } = App.elements.notificationBell;
-                const { logId = null } = options;
+                const { logId = null, trapId = null } = options;
 
                 const newNotification = {
                     title: title,
                     type: type,
                     message: message,
                     timestamp: new Date(),
-                    logId: logId // Adiciona o ID do log, se disponível
+                    logId: logId,
+                    trapId: trapId
                 };
 
                 // Adiciona a nova notificação ao início da lista
@@ -1461,6 +1466,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 if (id === 'syncHistory') this.renderSyncHistory();
+                if (id === 'fila-sincronizacao') this.renderSyncQueue();
                 if (id === 'excluirDados') this.renderExclusao();
                 if (id === 'gerenciarUsuarios') {
                     this.renderUsersList();
@@ -1899,6 +1905,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                const syncQueueList = document.getElementById('sync-queue-list');
+                if (syncQueueList) {
+                    syncQueueList.addEventListener('click', e => {
+                        const button = e.target.closest('button[data-action="edit-queue-item"]');
+                        if (button) {
+                            App.actions.editQueueItem(button.dataset.id);
+                        }
+                    });
+                }
         
                 if (talhoesToShow.length === 0) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
@@ -2097,6 +2113,78 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     console.error("Erro ao renderizar histórico de sincronização do Firestore:", error);
                     listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-danger);">Erro ao carregar o histórico.</p>';
+                }
+            },
+            async renderSyncQueue() {
+                const listEl = document.getElementById('sync-queue-list');
+                if (!listEl) return;
+
+                listEl.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
+
+                try {
+                    const queueItems = await OfflineDB.getAll('sync-queue');
+                    // Ordena para mostrar os mais recentes primeiro
+                    queueItems.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                    listEl.innerHTML = '';
+
+                    if (queueItems.length === 0) {
+                        listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum lançamento na fila.</p>';
+                        return;
+                    }
+
+                    const statusMap = {
+                        'Pendente': { icon: 'fa-clock', color: 'var(--color-info)', label: 'Pendente' },
+                        'Sincronizado': { icon: 'fa-check-circle', color: 'var(--color-success)', label: 'Sincronizado' },
+                        'Erro': { icon: 'fa-exclamation-circle', color: 'var(--color-danger)', label: 'Erro' },
+                    };
+
+                    const collectionNameMap = {
+                        'registros': { name: 'Lançamento Broca', icon: 'fa-bug' },
+                        'perdas': { name: 'Lançamento Perda', icon: 'fa-dollar-sign' },
+                        'cigarrinha': { name: 'Monitoramento Cigarrinha', icon: 'fa-leaf' },
+                        'cigarrinhaAmostragem': { name: 'Monitoramento Cigarrinha (Amostragem)', icon: 'fa-vial' },
+                    };
+
+                    queueItems.forEach(item => {
+                        const statusInfo = statusMap[item.status] || { icon: 'fa-question-circle', color: 'var(--color-text-light)', label: item.status };
+                        const collectionInfo = collectionNameMap[item.collection] || { name: item.collection, icon: 'fa-pen-to-square' };
+
+                        const card = document.createElement('div');
+                        card.className = 'plano-card'; // Reutilizando o estilo de card
+                        card.style.borderLeftColor = statusInfo.color;
+
+                        const editButton = item.status === 'Pendente'
+                            ? `<button class="btn-excluir" style="background-color: var(--color-warning); margin-left: 0;" data-action="edit-queue-item" data-id="${item.id}">
+                                   <i class="fas fa-edit"></i> Editar
+                               </button>`
+                            : '';
+
+                        const itemDate = item.data.data ? new Date(item.data.data + 'T03:00:00Z').toLocaleDateString('pt-BR') : 'Data não disponível';
+
+                        card.innerHTML = `
+                            <div class="plano-header">
+                                <span class="plano-title"><i class="fas ${collectionInfo.icon}"></i> ${collectionInfo.name}</span>
+                                <span class="plano-status" style="background-color: ${statusInfo.color};">
+                                    <i class="fas ${statusInfo.icon}" style="margin-right: 5px;"></i>${statusInfo.label}
+                                </span>
+                            </div>
+                            <div class="plano-details">
+                                <div><i class="fas fa-tractor"></i> Faz.: ${item.data.fazenda}</div>
+                                <div><i class="fas fa-th-large"></i> Talhão: ${item.data.talhao}</div>
+                                <div><i class="fas fa-calendar-day"></i> Data: ${itemDate}</div>
+                                <div><i class="fas fa-user"></i> Criado por: ${item.createdBy || 'N/A'}</div>
+                            </div>
+                            <div class="plano-actions">
+                                ${editButton}
+                            </div>
+                        `;
+                        listEl.appendChild(card);
+                    });
+
+                } catch (error) {
+                    console.error("Erro ao renderizar a fila de sincronização:", error);
+                    listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-danger);">Erro ao carregar a fila.</p>';
                 }
             },
             renderUsersList() { 
@@ -3340,12 +3428,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (relatorioMonitoramentoEls.btnPDF) relatorioMonitoramentoEls.btnPDF.addEventListener('click', () => App.reports.generateArmadilhaPDF());
                 if (relatorioMonitoramentoEls.btnExcel) relatorioMonitoramentoEls.btnExcel.addEventListener('click', () => App.reports.generateArmadilhaCSV());
                 
-                if (App.elements.notificationContainer) App.elements.notificationContainer.addEventListener('click', (e) => {
-                    const notification = e.target.closest('.trap-notification');
-                    if (notification && notification.dataset.trapId) {
-                        App.mapModule.centerOnTrap(notification.dataset.trapId);
-                    }
-                });
 
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
@@ -4659,60 +4741,75 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
                     return;
                 }
-
                 const formElements = App.elements[formType];
                 const farm = App.state.fazendas.find(f => f.id === formElements.codigo.value);
-                if (!farm) {
-                    App.ui.showAlert("Fazenda não encontrada.", "error");
-                    return;
-                }
-
+                if (!farm) { App.ui.showAlert("Fazenda não encontrada.", "error"); return; }
                 const talhaoName = formElements.talhao.value.trim().toUpperCase();
                 const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName);
-                if (!talhao) {
-                    App.ui.showAlert(`Talhão "${formElements.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error");
-                    return;
-                }
-
+                if (!talhao) { App.ui.showAlert(`Talhão "${formElements.talhao.value}" não encontrado na fazenda "${farm.name}". Verifique o cadastro.`, "error"); return; }
                 let operator = null;
                 if (requiresOperatorValidation) {
                     operator = App.state.personnel.find(p => p.matricula === formElements.matricula.value.trim());
-                    if (!operator) {
-                        App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error");
-                        return;
-                    }
+                    if (!operator) { App.ui.showAlert("Matrícula do operador não encontrada. Verifique o cadastro.", "error"); return; }
                 }
 
-                // 2. Build entry
-                const newEntry = entryBuilder(formElements, farm, talhao, operator);
+                // 2. Build entry data
+                const entryData = entryBuilder(formElements, farm, talhao, operator);
 
-                // 3. Confirmation and Save
-                App.ui.showConfirmationModal(confirmationMessage, () => {
-                    App.ui.clearForm(formElements.form);
-                    this.clearFormDraft(formType); // Limpa o rascunho após a confirmação
-                    App.ui.setDefaultDatesForEntryForms();
-                    App.ui.setLoading(true, "A guardar...");
+                // 3. Confirmation and Save to Local Queue
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A guardar localmente...");
 
-                    (async () => {
-                        try {
-                            if (navigator.onLine) {
-                                await App.data.addDocument(collectionName, newEntry);
-                                App.ui.showAlert(successMessage);
-                                if (formType === 'broca' || formType === 'perda') {
-                                    this.verificarEAtualizarPlano(formType, newEntry.codigo, newEntry.talhao);
-                                }
-                            } else {
-                                await OfflineDB.add('offline-writes', { collection: collectionName, data: newEntry });
-                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                    try {
+                        const editingId = App.state.editingQueueItemId;
+
+                        if (editingId) {
+                            // Update existing item in the queue
+                            const itemToUpdate = await OfflineDB.get('sync-queue', editingId);
+                            if (itemToUpdate) {
+                                const updatedItem = {
+                                    ...itemToUpdate,
+                                    data: entryData,
+                                    status: 'Pendente', // Reset status to pending if it was edited
+                                    modifiedAt: new Date()
+                                };
+                                await OfflineDB.set('sync-queue', editingId, updatedItem);
                             }
-                        } catch (e) {
-                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
-                            console.error(`Erro ao salvar ${formType}, salvando offline:`, e);
-                            await OfflineDB.add('offline-writes', { collection: collectionName, data: newEntry });
-                        } finally {
-                            App.ui.setLoading(false);
+                        } else {
+                            // Add new item to the queue
+                            const queueItem = {
+                                id: `client_${Date.now()}`, // Unique client-side ID
+                                collection: collectionName,
+                                data: entryData,
+                                status: 'Pendente', // 'Pendente', 'Sincronizado', 'Erro'
+                                createdAt: new Date(),
+                                createdBy: App.state.currentUser.username
+                            };
+                            await OfflineDB.add('sync-queue', queueItem);
                         }
-                    })();
+
+                        App.ui.showAlert(successMessage, 'success');
+
+                        // Clear form and state
+                        App.ui.clearForm(formElements.form);
+                        this.clearFormDraft(formType);
+                        App.ui.setDefaultDatesForEntryForms();
+                        App.state.editingQueueItemId = null;
+
+                        // Trigger background sync if online
+                        if (navigator.onLine) {
+                            App.actions.syncOfflineWrites();
+                        }
+
+                    } catch (e) {
+                        App.ui.showAlert('Erro ao guardar localmente.', "error");
+                        console.error(`Erro ao salvar na sync-queue:`, e);
+                    } finally {
+                        App.ui.setLoading(false);
+                        if (document.getElementById('fila-sincronizacao')?.classList.contains('active')) {
+                            App.ui.renderSyncQueue();
+                        }
+                    }
                 });
             },
 
@@ -4799,9 +4896,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const somaFases = Object.values(amostra).reduce((sum, val) => sum + val, 0);
                     return acc + (somaFases / divisor);
                 }, 0);
-                const mediaFinal = somaDasMedias / amostrasData.length;
+                const mediaFinal = amostrasData.length > 0 ? somaDasMedias / amostrasData.length : 0;
 
-                const newEntry = {
+                const entryData = {
                     data: els.data.value,
                     codigo: farm.code,
                     fazenda: farm.name,
@@ -4815,29 +4912,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     companyId: App.state.currentUser.companyId
                 };
 
-                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este lançamento?", () => {
-                    App.ui.clearForm(els.form);
-                    els.amostrasContainer.innerHTML = '';
-                    App.ui.setDefaultDatesForEntryForms();
-                    App.ui.setLoading(true, "A guardar...");
+                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este lançamento?", async () => {
+                    App.ui.setLoading(true, "A guardar localmente...");
 
-                    (async () => {
-                        try {
-                            if (navigator.onLine) {
-                                await App.data.addDocument('cigarrinhaAmostragem', newEntry);
-                                App.ui.showAlert("Lançamento de amostragem guardado com sucesso!");
-                            } else {
-                                await OfflineDB.add('offline-writes', { collection: 'cigarrinhaAmostragem', data: newEntry });
-                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                    try {
+                        const editingId = App.state.editingQueueItemId;
+                        if (editingId) {
+                            const itemToUpdate = await OfflineDB.get('sync-queue', editingId);
+                            if (itemToUpdate) {
+                                const updatedItem = { ...itemToUpdate, data: entryData, status: 'Pendente', modifiedAt: new Date() };
+                                await OfflineDB.set('sync-queue', editingId, updatedItem);
                             }
-                        } catch (e) {
-                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
-                            console.error(`Erro ao salvar cigarrinhaAmostragem, salvando offline:`, e);
-                            await OfflineDB.add('offline-writes', { collection: 'cigarrinhaAmostragem', data: newEntry });
-                        } finally {
-                            App.ui.setLoading(false);
+                        } else {
+                            const queueItem = {
+                                id: `client_${Date.now()}`,
+                                collection: 'cigarrinhaAmostragem',
+                                data: entryData,
+                                status: 'Pendente',
+                                createdAt: new Date(),
+                                createdBy: App.state.currentUser.username
+                            };
+                            await OfflineDB.add('sync-queue', queueItem);
                         }
-                    })();
+
+                        App.ui.showAlert("Lançamento guardado na fila com sucesso!", 'success');
+
+                        // Limpeza
+                        App.ui.clearForm(els.form);
+                        els.amostrasContainer.innerHTML = '';
+                        els.resultado.textContent = '';
+                        App.ui.setDefaultDatesForEntryForms();
+                        App.state.editingQueueItemId = null;
+
+                        if (navigator.onLine) {
+                            App.actions.syncOfflineWrites();
+                        }
+
+                    } catch (e) {
+                        App.ui.showAlert('Erro ao guardar na fila local.', "error");
+                        console.error(`Erro ao salvar cigarrinhaAmostragem na sync-queue:`, e);
+                    } finally {
+                        App.ui.setLoading(false);
+                        if (document.getElementById('fila-sincronizacao')?.classList.contains('active')) {
+                            App.ui.renderSyncQueue();
+                        }
+                    }
                 });
             },
 
@@ -5487,120 +5606,108 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.state.isSyncing = true;
-                console.log("Iniciando a verificação de dados offline...");
-                const logEntry = {
-                    timestamp: new Date(),
-                    status: '',
-                    details: '',
-                    items: []
-                };
+                console.log("Iniciando a verificação de dados para sincronização...");
 
                 try {
-                    const db = await OfflineDB.dbPromise;
-                    if (!db) return;
+                    // Primeiro, migra e processa qualquer item legado do 'offline-writes'
+                    const legacyWrites = await OfflineDB.getAll('offline-writes');
+                    if (legacyWrites.length > 0) {
+                        App.ui.showAlert(`A migrar ${legacyWrites.length} registos antigos para a nova fila...`, 'info');
+                        for (const write of legacyWrites) {
+                            await OfflineDB.add('sync-queue', {
+                                id: `client_${Date.now()}_${Math.random()}`,
+                                collection: write.collection,
+                                data: write.data,
+                                status: 'Pendente',
+                                createdAt: new Date(),
+                                createdBy: App.state.currentUser.username || 'Sistema'
+                            });
+                        }
+                        const db = await OfflineDB.dbPromise;
+                        await db.clear('offline-writes');
+                        console.log("Registos antigos migrados e limpos.");
+                    }
 
-                    const writesToSync = await db.getAll('offline-writes');
+                    // Agora, processa a nova 'sync-queue'
+                    const allQueueItems = await OfflineDB.getAll('sync-queue');
+                    const itemsToSync = allQueueItems.filter(item => item.status === 'Pendente');
 
-                    if (writesToSync.length === 0) {
-                        logEntry.status = 'no_data';
-                        logEntry.details = 'Nenhum registo pendente para sincronizar.';
-                        // Não precisa notificar ou salvar log se não há nada para fazer.
+                    if (itemsToSync.length === 0) {
+                        console.log("Nenhum item pendente na fila de sincronização.");
                         App.state.isSyncing = false;
+                        // Opcional: atualizar a UI se estiver aberta
+                        if (document.getElementById('fila-sincronizacao')?.classList.contains('active')) {
+                            App.ui.renderSyncQueue();
+                        }
                         return;
                     }
 
-                    App.ui.showSystemNotification("Sincronização", `A enviar ${writesToSync.length} registos offline...`, 'info');
+                    App.ui.showSystemNotification("Sincronização", `A enviar ${itemsToSync.length} registos pendentes...`, 'info');
 
-                    const syncPromises = writesToSync.map(write =>
-                        App.data.addDocument(write.collection, write.data)
-                            .then(() => ({ status: 'fulfilled', originalWrite: write }))
-                            .catch(error => ({ status: 'rejected', error, originalWrite: write }))
-                    );
-
-                    const settledResults = await Promise.allSettled(syncPromises);
-
-                    const syncedKeys = [];
-                    let failureCount = 0;
-
-                    for (const result of settledResults) {
-                        if (result.status === 'fulfilled') {
-                            const syncResult = result.value;
-                            if (syncResult.status === 'fulfilled') {
-                                // A chave para apagar do IndexedDB está no próprio objeto de escrita.
-                                // Assumindo que a chave primária é auto-incrementada e não está no objeto 'value'.
-                                // Vamos precisar buscar as chaves primeiro.
-                                // A abordagem anterior de buscar chaves e valores juntos era melhor. Vamos voltar a ela.
-                                // ESTA IMPLEMENTAÇÃO É MAIS SIMPLES E ROBUSTA.
-                                // Re-implementando o início para ser mais seguro.
-                            }
-                        }
-                    }
-                    // A lógica acima está ficando complexa. Vamos simplificar e tornar mais robusta.
-
-                    const dbTx = await OfflineDB.dbPromise;
-                    const allWrites = await dbTx.getAll('offline-writes');
-
-                    const allPromises = allWrites.map(async (write) => {
-                        try {
-                            await App.data.addDocument(write.collection, write.data);
-                            return { status: 'success', write };
-                        } catch (error) {
-                            return { status: 'failure', write, error };
-                        }
-                    });
-
-                    const allResults = await Promise.all(allPromises);
-
-                    const successfulWrites = allResults.filter(r => r.status === 'success');
-                    const failedWrites = allResults.filter(r => r.status === 'failure');
-
-                    logEntry.items = allResults.map(r => ({
-                        status: r.status,
-                        collection: r.write.collection,
-                        data: r.write.data,
-                        error: r.error ? r.error.message : null
-                    }));
-
-                    // Apagar apenas os que tiveram sucesso
-                    if (successfulWrites.length > 0) {
-                        const deleteTx = (await OfflineDB.dbPromise).transaction('offline-writes', 'readwrite');
-                        const store = deleteTx.objectStore('offline-writes');
-                        // Esta parte é complexa porque não temos as chaves.
-                        // A melhor maneira é limpar tudo e re-adicionar as falhas.
-                        await store.clear();
-                        if (failedWrites.length > 0) {
-                            for (const failed of failedWrites) {
-                                await store.add(failed.write);
-                            }
-                        }
-                        await deleteTx.done;
-                    }
-
-                    if (failedWrites.length === 0 && successfulWrites.length > 0) {
-                        logEntry.status = 'success';
-                        logEntry.details = `${successfulWrites.length} registos enviados com sucesso.`;
-                    } else if (successfulWrites.length > 0) {
-                        logEntry.status = 'partial';
-                        logEntry.details = `${successfulWrites.length} registos enviados. ${failedWrites.length} falharam.`;
-                    } else {
-                        logEntry.status = 'failure';
-                        logEntry.details = `Não foi possível enviar ${failedWrites.length} registos.`;
-                    }
-
-                    // Salvar o log permanente no Firestore
-                    const permanentLogEntry = {
+                    const logEntry = {
                         userId: App.state.currentUser.uid,
                         username: App.state.currentUser.username || App.state.currentUser.email,
                         companyId: App.state.currentUser.companyId,
                         timestamp: serverTimestamp(),
-                        status: logEntry.status,
-                        details: logEntry.details,
-                        items: logEntry.items
+                        status: '',
+                        details: '',
+                        items: []
                     };
-                    const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
 
-                    // Notifica o utilizador, passando o ID do log para que a notificação seja clicável
-                    App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
+                    let successCount = 0;
+                    let failureCount = 0;
+
+                    for (const item of itemsToSync) {
+                        try {
+                            // Tenta adicionar o documento ao Firestore
+                            await App.data.addDocument(item.collection, item.data);
+
+                            // Em caso de sucesso, atualiza o status no IndexedDB
+                            item.status = 'Sincronizado';
+                            item.syncTimestamp = new Date();
+                            item.errorMessage = null;
+                            await OfflineDB.set('sync-queue', item.id, item);
+
+                            logEntry.items.push({ status: 'success', collection: item.collection, data: item.data });
+                            successCount++;
+
+                            // Atualiza plano se necessário
+                             if (item.collection === 'registros' || item.collection === 'perdas') {
+                                const formType = item.collection === 'registros' ? 'broca' : 'perda';
+                                this.verificarEAtualizarPlano(formType, item.data.codigo, item.data.talhao);
+                            }
+
+                        } catch (error) {
+                            // Em caso de falha, atualiza o status e guarda a mensagem de erro
+                            item.status = 'Erro';
+                            item.errorMessage = error.message;
+                            await OfflineDB.set('sync-queue', item.id, item);
+
+                            logEntry.items.push({ status: 'failure', collection: item.collection, data: item.data, error: error.message });
+                            failureCount++;
+                            console.error(`Falha ao sincronizar item ${item.id}:`, error);
+                        }
+                    }
+
+                    // Define o status geral do log
+                    if (failureCount === 0 && successCount > 0) {
+                        logEntry.status = 'success';
+                        logEntry.details = `${successCount} registos enviados com sucesso.`;
+                    } else if (successCount > 0) {
+                        logEntry.status = 'partial';
+                        logEntry.details = `${successCount} registos enviados. ${failureCount} falharam.`;
+                    } else {
+                        logEntry.status = 'failure';
+                        logEntry.details = `Não foi possível enviar ${failureCount} registos.`;
+                    }
+
+                    // Salva o log no Firestore
+                    if (logEntry.items.length > 0) {
+                        const logDocRef = await App.data.addDocument('sync_history_store', logEntry);
+                        // Notifica o utilizador
+                        App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
+                    }
+
 
                 } catch (error) {
                     console.error("Ocorreu um erro crítico durante a sincronização:", error);
@@ -5608,6 +5715,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     App.state.isSyncing = false;
                     console.log("Processo de sincronização finalizado.");
+                    // Atualiza a UI se estiver aberta
+                    if (document.getElementById('fila-sincronizacao')?.classList.contains('active')) {
+                        App.ui.renderSyncQueue();
+                    }
                 }
             },
 
@@ -5976,6 +6087,104 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.renderMenu();
                 App.ui.showTab('gerenciarEmpresas'); // Go back to a sensible super-admin tab
                 App.ui.hideImpersonationBanner();
+            },
+
+            async editQueueItem(queueId) {
+                try {
+                    const item = await OfflineDB.get('sync-queue', queueId);
+                    if (!item) {
+                        App.ui.showAlert("Item não encontrado na fila.", "error");
+                        return;
+                    }
+
+                    App.state.editingQueueItemId = queueId;
+
+                    const formTypeMap = {
+                        'registros': 'broca',
+                        'perdas': 'perda',
+                        'cigarrinha': 'cigarrinha',
+                        'cigarrinhaAmostragem': 'cigarrinhaAmostragem'
+                    };
+
+                    const formType = formTypeMap[item.collection];
+                    if (!formType) {
+                        App.ui.showAlert("Tipo de lançamento desconhecido. Não é possível editar.", "error");
+                        return;
+                    }
+
+                    const formElements = App.elements[formType];
+                    const data = item.data;
+
+                    // Limpa o formulário antes de preencher
+                    App.ui.clearForm(formElements.form);
+
+                    // Preenche os campos comuns
+                    const farm = App.state.fazendas.find(f => f.code === data.codigo);
+                    if (farm) {
+                        formElements.codigo.value = farm.id;
+                    }
+                    formElements.data.value = data.data;
+                    formElements.talhao.value = data.talhao;
+
+                    // Preenche campos específicos
+                    switch (formType) {
+                        case 'broca':
+                            formElements.entrenos.value = data.entrenos;
+                            formElements.base.value = data.base;
+                            formElements.meio.value = data.meio;
+                            formElements.topo.value = data.topo;
+                            break;
+                        case 'perda':
+                            formElements.frente.value = data.frenteServico;
+                            formElements.turno.value = data.turno;
+                            formElements.frota.value = data.frota;
+                            formElements.matricula.value = data.matricula;
+                            formElements.canaInteira.value = data.canaInteira;
+                            formElements.tolete.value = data.tolete;
+                            formElements.toco.value = data.toco;
+                            formElements.ponta.value = data.ponta;
+                            formElements.estilhaco.value = data.estilhaco;
+                            formElements.pedaco.value = data.pedaco;
+                            break;
+                        case 'cigarrinha':
+                            formElements.fase1.value = data.fase1;
+                            formElements.fase2.value = data.fase2;
+                            formElements.fase3.value = data.fase3;
+                            formElements.fase4.value = data.fase4;
+                            formElements.fase5.value = data.fase5;
+                            formElements.adulto.checked = data.adulto;
+                            break;
+                        case 'cigarrinhaAmostragem':
+                            formElements.adulto.checked = data.adulto;
+                            formElements.amostrasContainer.innerHTML = '';
+                            if (data.amostras && Array.isArray(data.amostras)) {
+                                data.amostras.forEach(() => App.ui.addAmostraCard());
+                                const cards = formElements.amostrasContainer.querySelectorAll('.amostra-card');
+                                cards.forEach((card, index) => {
+                                    const amostraData = data.amostras[index];
+                                    if (amostraData) {
+                                        card.querySelectorAll('.amostra-input').forEach((input, i) => {
+                                            input.value = amostraData[`fase${i + 1}`] || 0;
+                                        });
+                                    }
+                                });
+                            }
+                            break;
+                    }
+
+                    // Dispara eventos de input para recalcular totais e atualizar displays
+                    formElements.form.querySelectorAll('input, select').forEach(el => el.dispatchEvent(new Event('input')));
+
+                    // Navega para a aba correta
+                    const tabId = `lancamento${formType.charAt(0).toUpperCase() + formType.slice(1)}`;
+                    App.ui.showTab(tabId);
+                    App.ui.showAlert("Dados carregados para edição.", "info");
+
+                } catch (error) {
+                    console.error("Erro ao editar item da fila:", error);
+                    App.ui.showAlert("Não foi possível carregar o item para edição.", "error");
+                    App.state.editingQueueItemId = null; // Limpa o ID em caso de erro
+                }
             },
 
             async saveGlobalFeatures() {
@@ -7010,15 +7219,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.trapInfoBox.classList.remove('visible');
             },
             
-            // Verifica o status das armadilhas para gerar notificações de coleta
             checkTrapStatusAndNotify() {
                 const activeTraps = App.state.armadilhas.filter(t => t.status === 'Ativa');
-                let newNotificationsForBell = [];
                 
                 activeTraps.forEach(trap => {
-                    if (!trap.dataInstalacao) {
-                        return;
-                    }
+                    if (!trap.dataInstalacao) return;
 
                     const installDate = trap.dataInstalacao.toDate();
                     const now = new Date();
@@ -7030,90 +7235,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
-                    let notification = null;
+                    let notificationType = null;
+                    let notificationMessage = '';
+                    let notificationTitle = 'Atenção à Armadilha';
+
                     if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
                         const diasRestantes = 7 - diasDesdeInstalacao;
-                        const msg = diasRestantes > 0 ? `Coleta em ${diasRestantes} dia(s).` : "Coleta hoje.";
-                        notification = { trapId: trap.id, type: 'warning', message: msg, timestamp: new Date() };
+                        notificationMessage = diasRestantes > 0 ? `Coleta em ${diasRestantes} dia(s) no talhão ${trap.talhaoNome || 'N/A'}.` : `Coleta hoje no talhão ${trap.talhaoNome || 'N/A'}.`;
+                        notificationType = 'warning';
                     } else if (diasDesdeInstalacao > 7) {
                         const diasAtraso = diasDesdeInstalacao - 7;
-                        notification = { trapId: trap.id, type: 'danger', message: `Coleta atrasada em ${diasAtraso} dia(s).`, timestamp: new Date() };
+                        notificationMessage = `Coleta atrasada em ${diasAtraso} dia(s) no talhão ${trap.talhaoNome || 'N/A'}.`;
+                        notificationType = 'danger';
                     }
 
-                    if (notification) {
-                        // Adiciona para a lista do sino
-                        newNotificationsForBell.push(notification);
+                    if (notificationType) {
+                        // Verifica se uma notificação similar (mesmo ID e tipo) já foi enviada para evitar duplicatas
+                        const alreadyNotified = App.state.trapNotifications.some(
+                            n => n.trapId === trap.id && n.type === notificationType
+                        );
 
-                        // Mostra o pop-up apenas se não foi mostrado nesta sessão
-                        if (!App.state.notifiedTrapIds.has(trap.id)) {
-                            this.showTrapNotification(notification);
-                            App.state.notifiedTrapIds.add(trap.id);
-                            sessionStorage.setItem('notifiedTrapIds', JSON.stringify(Array.from(App.state.notifiedTrapIds)));
+                        if (!alreadyNotified) {
+                            App.ui.showSystemNotification(
+                                notificationTitle,
+                                notificationMessage,
+                                notificationType,
+                                { trapId: trap.id }
+                            );
                         }
                     }
                 });
-
-                // Atualiza o estado geral de notificações
-                const unreadNotifications = newNotificationsForBell.filter(n => !App.state.trapNotifications.some(oldN => oldN.trapId === n.trapId && oldN.message === n.message));
-                if (unreadNotifications.length > 0) {
-                    App.state.unreadNotificationCount += unreadNotifications.length;
-                }
-                App.state.trapNotifications = newNotificationsForBell.sort((a, b) => b.timestamp - a.timestamp);
-                App.ui.updateNotificationBell();
-            },
-
-            showTrapNotification(notification) {
-                const container = App.elements.notificationContainer;
-
-                // Limita o número de notificações na tela para 3
-                while (container.children.length >= 3) {
-                    container.removeChild(container.firstChild);
-                }
-
-                const notificationEl = document.createElement('div');
-                notificationEl.className = `trap-notification ${notification.type}`;
-                notificationEl.dataset.trapId = notification.trapId;
-
-                const iconClass = notification.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
-                
-                notificationEl.innerHTML = `
-                    <button class="close-btn">&times;</button>
-                    <div class="icon"><i class="fas ${iconClass}"></i></div>
-                    <div class="text">
-                        <p><strong>Armadilha requer atenção</strong></p>
-                        <p>${notification.message}</p>
-                    </div>
-                `;
-                
-                container.appendChild(notificationEl);
-                
-                const dismiss = () => {
-                    notificationEl.classList.add('dismiss');
-                    notificationEl.addEventListener('animationend', () => {
-                        notificationEl.remove();
-                    });
-                };
-
-                // Click no X para fechar
-                notificationEl.querySelector('.close-btn').addEventListener('click', dismiss);
-
-                // Deslizar para fechar
-                let touchStartX = 0;
-                let touchEndX = 0;
-
-                notificationEl.addEventListener('touchstart', (event) => {
-                    touchStartX = event.changedTouches[0].screenX;
-                }, { passive: true });
-
-                notificationEl.addEventListener('touchend', (event) => {
-                    touchEndX = event.changedTouches[0].screenX;
-                    if (touchEndX < touchStartX - 50) { // Deslize para a esquerda de 50px
-                        dismiss();
-                    }
-                }, { passive: true });
-
-                // Remover automaticamente após um tempo
-                setTimeout(dismiss, 10000);
             },
 
             centerOnTrap(trapId) {
