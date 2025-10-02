@@ -1013,6 +1013,90 @@
         z-index: 3;
       }
       
+      #notification-container {
+          position: fixed;
+          top: 85px;
+          right: 20px;
+          z-index: 1500;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          max-width: 350px;
+      }
+      .trap-notification {
+          background-color: var(--color-surface);
+          color: var(--color-text);
+          border-radius: var(--border-radius);
+          box-shadow: var(--shadow-lg);
+          padding: 15px;
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          border-left: 5px solid;
+          animation: slideInRight 0.5s ease-out;
+          cursor: pointer;
+      }
+      .trap-notification.warning {
+          border-left-color: var(--color-warning);
+      }
+      .trap-notification.danger {
+          border-left-color: var(--color-danger);
+      }
+      .trap-notification .icon {
+          font-size: 24px;
+      }
+      .trap-notification.warning .icon { color: var(--color-warning); }
+      .trap-notification.danger .icon { color: var(--color-danger); }
+      .trap-notification p {
+          margin: 0;
+          font-size: 14px;
+          line-height: 1.4;
+      }
+      .trap-notification p strong {
+          font-weight: 600;
+          display: block;
+      }
+      @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(100%);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+      }
+
+      @keyframes slideOutLeft {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(-100%);
+          }
+      }
+
+      .trap-notification.dismiss {
+        animation: slideOutLeft 0.3s ease-out forwards;
+      }
+
+      .trap-notification .close-btn {
+        position: absolute;
+        top: 5px;
+        right: 10px;
+        background: none;
+        border: none;
+        font-size: 18px;
+        color: var(--color-text-light);
+        cursor: pointer;
+        transition: var(--transition);
+      }
+      .trap-notification .close-btn:hover {
+        color: var(--color-danger);
+      }
+
       /* [NOVO] Estilos para o sino e dropdown de notificações */
       .notification-bell {
         position: relative;
@@ -1457,6 +1541,7 @@
     </div>
 
     <div id="alertContainer"></div>
+    <div id="notification-container"></div>
 
     <div id="loading-overlay">
         <div class="spinner"></div>
@@ -2398,14 +2483,6 @@
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Veja os detalhes de cada tentativa de sincronização de dados.</p>
                 <div id="syncHistoryList">
                     <!-- Logs de sincronização serão inseridos aqui -->
-                </div>
-            </section>
-
-            <section id="fila-sincronizacao" class="tab-content card" aria-label="Fila de Sincronização" tabindex="0" hidden>
-                <h2><i class="fas fa-sync-alt"></i> Fila de Sincronização</h2>
-                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Todos os lançamentos feitos no dispositivo. Itens com status "Pendente" podem ser editados.</p>
-                <div id="sync-queue-list">
-                    <!-- Itens da fila serão renderizados aqui -->
                 </div>
             </section>
 
