@@ -1848,6 +1848,36 @@
                 </div>
             </section>
 
+                <!-- Relatório Perobox -->
+                <section id="relatorioPerobox" class="tab-content" hidden>
+                    <h2>Relatório de Coleta Perobox</h2>
+                     <div class="report-filters">
+                        <div class="form-group">
+                            <label for="fazendaFiltroPerobox">Fazenda:</label>
+                            <select id="fazendaFiltroPerobox"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="inicioPerobox">Data Início:</label>
+                            <input type="date" id="inicioPerobox">
+                        </div>
+                        <div class="form-group">
+                            <label for="fimPerobox">Data Fim:</label>
+                            <input type="date" id="fimPerobox">
+                        </div>
+                        <div class="form-group">
+                            <label for="tipoRelatorioPerobox">Modelo de Relatório:</label>
+                            <select id="tipoRelatorioPerobox">
+                                <option value="resumido">Resumido por Talhão</option>
+                                <option value="detalhado">Detalhado por Ponto</option>
+                            </select>
+                        </div>
+                        <div class="form-group-buttons">
+                            <button id="btnPDFPerobox" class="btn-report pdf"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+                            <button id="btnExcelPerobox" class="btn-report excel"><i class="fas fa-file-excel"></i> Gerar Excel</button>
+                        </div>
+                    </div>
+                </section>
+
             <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
                 <h2><i class="fas fa-calendar-alt"></i> Planejamento de Inspeções</h2>
                 <div class="card" style="border-left-color: var(--color-info);">
@@ -2105,6 +2135,56 @@
                     </div>
                     <div id="resultadoCigarrinhaAmostragem" class="resultado" style="margin-top: 20px;"></div>
                     <button type="button" id="btnSalvarCigarrinhaAmostragem" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Lançamento</button>
+                </form>
+            </section>
+
+            <section id="lancamentoPerobox" class="tab-content card" aria-label="Lançamento Instalação Perobox" tabindex="0" hidden>
+                <h2><i class="fas fa-box-open"></i> Lançamento Instalação/Coleta Perobox</h2>
+                <form id="formPerobox">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="dataPerobox" class="required">Data:</label>
+                            <input type="date" id="dataPerobox" required>
+                        </div>
+                        <div class="form-col">
+                                    <label for="fazendaPerobox">Fazenda</label>
+                                    <select id="fazendaPerobox" required></select>
+                        </div>
+                        <div class="form-col">
+                            <label for="talhaoPerobox" class="required">Talhão:</label>
+                            <input type="text" id="talhaoPerobox" list="talhaoList" required>
+                            <div id="varietyDisplayPerobox" class="info-display"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="align-items: center; margin-top: 20px;">
+                        <label>Tipo de Lançamento:</label>
+                        <div class="checkbox-group-grid" style="grid-template-columns: 1fr 1fr;">
+                             <label class="report-option-item">
+                                <input type="radio" name="tipoLancamentoPerobox" value="instalacao" checked>
+                                <span class="checkbox-visual" style="border-radius: 50%;"><i class="fas fa-check"></i></span>
+                                <span class="option-content"><i class="fas fa-cogs"></i><span>Instalação</span></span>
+                            </label>
+                             <label class="report-option-item">
+                                <input type="radio" name="tipoLancamentoPerobox" value="coleta">
+                                <span class="checkbox-visual" style="border-radius: 50%;"><i class="fas fa-check"></i></span>
+                                <span class="option-content"><i class="fas fa-clipboard-check"></i><span>Coleta</span></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 10px;">
+                        <h3><i class="fas fa-map-marker-alt"></i> Pontos de Coleta</h3>
+                        <button type="button" id="addPontoPerobox" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Ponto</button>
+                    </div>
+                    <div id="pontosPeroboxContainer" class="pontos-container">
+                        <!-- Cards de pontos serão inseridos aqui -->
+                    </div>
+
+                    <label for="obsPerobox">Observações Gerais:</label>
+                    <textarea id="obsPerobox" placeholder="Observações gerais sobre a instalação ou coleta..."></textarea>
+
+                    <button type="button" id="btnSalvarPerobox" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Lançamento</button>
                 </form>
             </section>
 

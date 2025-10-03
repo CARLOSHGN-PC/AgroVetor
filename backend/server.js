@@ -474,6 +474,155 @@ try {
         return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
     };
 
+    // --- ROTAS DE RELATÓRIOS ---
+
+    app.get('/reports/perobox/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        const { tipoRelatorio = 'detalhado' } = req.query;
+        const filename = `relatorio_perobox_${tipoRelatorio}.pdf`;
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getFilteredData('perobox', filters);
+            const title = `Relatório de Instalação/Coleta Perobox - ${tipoRelatorio.charAt(0).toUpperCase() + tipoRelatorio.slice(1)}`;
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title, filters.companyId);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            if (tipoRelatorio === 'resumido') {
+                const headers = ['Fazenda', 'Talhão', 'Variedade', 'Data Instalação', 'Data Coleta', 'Pontos', 'Total Mariposas', 'Status'];
+                const columnWidths = [150, 80, 120, 80, 80, 60, 90, 82];
+                currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+                for (const r of data) {
+                    const totalMariposas = r.pontos.reduce((sum, p) => sum + (p.mariposas || 0), 0);
+                    const row = [
+                        `${r.codigo} - ${r.fazenda}`,
+                        r.talhao,
+                        r.variedade,
+                        r.data,
+                        r.type === 'coleta' ? (r.dataColeta || '-') : '-',
+                        r.pontos.length,
+                        totalMariposas,
+                        r.type === 'instalacao' ? 'Instalado' : 'Coletado'
+                    ];
+                    currentY = await checkPageBreak(doc, currentY, title);
+                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                }
+
+            } else { // Detalhado
+                const headers = ['Fazenda', 'Talhão', 'Data', 'Tipo', 'Ponto Nº', 'Mariposas', 'Observação'];
+                const columnWidths = [180, 100, 80, 80, 70, 70, 162];
+                currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+                for(const r of data) {
+                    if (r.pontos && r.pontos.length > 0) {
+                        for (let i = 0; i < r.pontos.length; i++) {
+                            const ponto = r.pontos[i];
+                            const row = [
+                                `${r.codigo} - ${r.fazenda}`,
+                                r.talhao,
+                                r.data,
+                                r.type === 'instalacao' ? 'Instalação' : 'Coleta',
+                                i + 1,
+                                ponto.mariposas || 0,
+                                ponto.observacao || ''
+                            ];
+                            currentY = await checkPageBreak(doc, currentY, title);
+                            currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                        }
+                    }
+                }
+            }
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Perobox:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/perobox/csv', async (req, res) => {
+        try {
+            const { tipoRelatorio = 'detalhado' } = req.query;
+            const data = await getFilteredData('perobox', req.query);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
+
+            const filename = `relatorio_perobox_${tipoRelatorio}_${Date.now()}.csv`;
+            const filePath = path.join(os.tmpdir(), filename);
+
+            let header, records;
+
+            if (tipoRelatorio === 'resumido') {
+                header = [
+                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
+                    { id: 'dataInstalacao', title: 'Data Instalação' }, { id: 'dataColeta', title: 'Data Coleta' },
+                    { id: 'pontos', title: 'Nº Pontos' }, { id: 'totalMariposas', title: 'Total Mariposas' }, { id: 'status', title: 'Status' }
+                ];
+                records = data.map(r => {
+                    const totalMariposas = r.pontos.reduce((sum, p) => sum + (p.mariposas || 0), 0);
+                    return {
+                        fazenda: `${r.codigo} - ${r.fazenda}`,
+                        talhao: r.talhao,
+                        variedade: r.variedade,
+                        dataInstalacao: r.data,
+                        dataColeta: r.type === 'coleta' ? (r.dataColeta || '-') : '-',
+                        pontos: r.pontos.length,
+                        totalMariposas,
+                        status: r.type === 'instalacao' ? 'Instalado' : 'Coletado'
+                    };
+                });
+
+            } else { // Detalhado
+                header = [
+                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' },
+                    { id: 'tipo', title: 'Tipo' }, { id: 'ponto', title: 'Ponto Nº' },
+                    { id: 'mariposas', title: 'Mariposas' }, { id: 'observacao', title: 'Observação' }
+                ];
+                records = [];
+                data.forEach(lancamento => {
+                    if (lancamento.pontos && lancamento.pontos.length > 0) {
+                        lancamento.pontos.forEach((ponto, index) => {
+                            records.push({
+                                fazenda: `${lancamento.codigo} - ${lancamento.fazenda}`,
+                                talhao: lancamento.talhao,
+                                data: lancamento.data,
+                                tipo: lancamento.type === 'instalacao' ? 'Instalação' : 'Coleta',
+                                ponto: index + 1,
+                                mariposas: ponto.mariposas || 0,
+                                observacao: ponto.observacao || ''
+                            });
+                        });
+                    }
+                });
+            }
+
+            const csvWriter = createObjectCsvWriter({ path: filePath, header: header, fieldDelimiter: ';' });
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Perobox:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+
     const generatePdfHeader = async (doc, title, companyId) => {
         try {
             let logoBase64 = null;
