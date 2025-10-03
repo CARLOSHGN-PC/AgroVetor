@@ -112,6 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
                         { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
+                        { label: 'Instalação Perobox', icon: 'fas fa-box-open', target: 'lancamentoPerobox', permission: 'lancamentoPerobox' },
+                        { label: 'Coletas Pendentes (Perobox)', icon: 'fas fa-tasks', target: 'coletasPendentesPerobox', permission: 'lancamentoPerobox' },
                     ]
                 },
                 {
@@ -121,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Relatório Cigarrinha', icon: 'fas fa-leaf', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
                         { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
+                        { label: 'Relatório Perobox', icon: 'fas fa-chart-bar', target: 'relatorioPerobox', permission: 'relatorioPerobox' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                     ]
@@ -144,9 +147,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, lancamentoPerobox: true, relatorioPerobox: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, lancamentoPerobox: true, relatorioPerobox: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, lancamentoPerobox: true, relatorioPerobox: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
             }
@@ -194,6 +197,10 @@ document.addEventListener('DOMContentLoaded', () => {
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
+            perobox: {
+                pontos: [],
+                editingPeroboxId: null
+            },
         },
         
         elements: {
@@ -539,6 +546,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnPDF: document.getElementById('btnPDFCigarrinhaAmostragem'),
                 btnExcel: document.getElementById('btnExcelCigarrinhaAmostragem'),
             },
+            perobox: {
+                form: document.getElementById('formPerobox'),
+                tipo: document.getElementById('tipoPerobox'),
+                tipoLabel: document.getElementById('tipoPeroboxLabel'),
+                data: document.getElementById('dataPerobox'),
+                fazenda: document.getElementById('fazendaPerobox'),
+                talhao: document.getElementById('talhaoPerobox'),
+                varietyDisplay: document.getElementById('varietyDisplayPerobox'),
+                addPontoBtn: document.getElementById('addPontoPerobox'),
+                pontosContainer: document.getElementById('pontosPeroboxContainer'),
+                obs: document.getElementById('obsPerobox'),
+                btnSalvar: document.getElementById('btnSalvarPerobox'),
+                listaColetasPendentes: document.getElementById('listaColetasPendentesPerobox'),
+            },
             exclusao: {
                 lista: document.getElementById('listaExclusao')
             },
@@ -570,6 +591,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 fim: document.getElementById('monitoramentoFim'),
                 btnPDF: document.getElementById('btnPDFMonitoramento'),
                 btnExcel: document.getElementById('btnExcelMonitoramento'),
+            },
+            relatorioPerobox: {
+                filtroFazenda: document.getElementById('fazendaFiltroPerobox'),
+                filtroInicio: document.getElementById('inicioPerobox'),
+                filtroFim: document.getElementById('fimPerobox'),
+                btnPDF: document.getElementById('btnPDFPerobox'),
+                btnExcel: document.getElementById('btnExcelPerobox'),
             },
             trapPlacementModal: {
                 overlay: document.getElementById('trapPlacementModal'),
@@ -902,7 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'perobox'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1234,11 +1262,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const createMenuItem = (item) => {
                     const { currentUser, companies } = App.state;
-                    const isSuperAdmin = currentUser.role === 'super-admin';
+                    const isSuperAdmin = currentUser.role === 'super-admin' && !App.state.isImpersonating;
 
-                    const hasPermission = isSuperAdmin || (item.submenu ?
-                        item.submenu.some(sub => currentUser.permissions && currentUser.permissions[sub.permission]) :
-                        (currentUser.permissions && currentUser.permissions[item.permission]));
+                    let hasPermission;
+                    if (isSuperAdmin) {
+                        // Super Admin only has access to menu items that lead to a 'superAdmin' permission.
+                        hasPermission = (item.permission === 'superAdmin') || (item.submenu && item.submenu.some(sub => sub.permission === 'superAdmin'));
+                    } else {
+                        // Regular user permission check
+                        hasPermission = (item.submenu ?
+                            item.submenu.some(sub => currentUser.permissions && currentUser.permissions[sub.permission]) :
+                            (currentUser.permissions && currentUser.permissions[item.permission]));
+                    }
 
                     if (!hasPermission) return null;
 
@@ -1305,8 +1340,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const subscribedModules = new Set(userCompany?.subscribedModules || []);
 
                 parentItem.submenu.forEach(subItem => {
-                    const isSuperAdmin = currentUser.role === 'super-admin';
-                    const hasPermission = isSuperAdmin || (currentUser.permissions && currentUser.permissions[subItem.permission]);
+                    const isSuperAdmin = currentUser.role === 'super-admin' && !App.state.isImpersonating;
+
+                    let hasPermission;
+                    if (isSuperAdmin) {
+                        // Super Admin only has access to submenu items with 'superAdmin' permission.
+                        hasPermission = subItem.permission === 'superAdmin';
+                    } else {
+                        // Regular user permission check
+                        hasPermission = currentUser.permissions && currentUser.permissions[subItem.permission];
+                    }
 
                     if (!hasPermission) return;
 
@@ -1382,14 +1425,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 // LÓGICA DE BLOQUEIO REFINADA
-                if (requiredPermission && currentUser.role !== 'super-admin' && !App.state.isImpersonating) {
-                    const isGloballyActive = App.isFeatureGloballyActive(requiredPermission);
-                    if (!isGloballyActive) {
-                        App.ui.showAlert("Esta funcionalidade não está ativa no momento.", "info", 5000);
+                if (requiredPermission) {
+                    const isSuperAdmin = currentUser.role === 'super-admin' && !App.state.isImpersonating;
+
+                    // Bloqueia o super-admin (não personificado) de aceder a qualquer página que não seja de super-admin
+                    if (isSuperAdmin && requiredPermission !== 'superAdmin') {
+                        App.ui.showAlert("Acesso negado. Os Super Admins só podem aceder às páginas de gestão de empresas.", "error", 5000);
                         return; // Bloqueia a navegação
                     }
 
-                    const userCompany = companies.find(c => c.id === currentUser.companyId);
+                    // Lógica existente para utilizadores normais
+                    if (!isSuperAdmin) {
+                        const isGloballyActive = App.isFeatureGloballyActive(requiredPermission);
+                        if (!isGloballyActive) {
+                            App.ui.showAlert("Esta funcionalidade não está ativa no momento.", "info", 5000);
+                            return; // Bloqueia a navegação
+                        }
+
+                        const userCompany = companies.find(c => c.id === currentUser.companyId);
+                        if (!userCompany) {
+                            console.warn(`Tentativa de acesso ao módulo ${requiredPermission} sem dados da empresa carregados. A bloquear.`);
+                            return;
+                        }
+                        const subscribedModules = new Set(userCompany?.subscribedModules || []);
+                        if (!subscribedModules.has(requiredPermission)) {
+                            App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa.", "warning", 5000);
+                            return; // Bloqueia a navegação
+                        }
+                    }
+                }
+
+
+                const currentActiveTab = document.querySelector('.tab-content.active');
                     if (!userCompany) {
                         console.warn(`Tentativa de acesso ao módulo ${requiredPermission} sem dados da empresa carregados. A bloquear.`);
                         return;
@@ -1518,12 +1585,60 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 }
-                if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha'].includes(id)) this.setDefaultDatesForReportForms();
+                if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha', 'relatorioPerobox'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
-                if (id === 'lancamentoBroca' || id === 'lancamentoPerda' || id === 'lancamentoCigarrinha') this.setDefaultDatesForEntryForms();
+                if (id === 'lancamentoBroca' || id === 'lancamentoPerda' || id === 'lancamentoCigarrinha' || id === 'lancamentoPerobox') this.setDefaultDatesForEntryForms();
+                if (id === 'coletasPendentesPerobox') this.renderColetasPendentesPerobox();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
+            },
+
+            async renderColetasPendentesPerobox() {
+                const { listaColetasPendentes } = App.elements.perobox;
+                if (!listaColetasPendentes) return;
+
+                listaColetasPendentes.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
+
+                const allPeroboxData = await App.actions.getConsolidatedData('perobox');
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                sevenDaysAgo.setHours(0, 0, 0, 0);
+
+                const pendingInstallations = allPeroboxData.filter(item => {
+                    const itemDate = new Date(item.data + 'T03:00:00Z');
+                    return item.tipo === 'Instalação' && item.status === 'Pendente' && itemDate <= sevenDaysAgo;
+                }).sort((a, b) => new Date(a.data) - new Date(b.data));
+
+                if (pendingInstallations.length === 0) {
+                    listaColetasPendentes.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma coleta pendente encontrada.</p>';
+                    return;
+                }
+
+                listaColetasPendentes.innerHTML = '';
+                pendingInstallations.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'plano-card'; // Reusing styles
+                    card.style.borderLeftColor = 'var(--color-warning)';
+                    const dataInstalacao = new Date(item.data + 'T03:00:00Z').toLocaleDateString('pt-BR');
+
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-box-open"></i> ${item.fazendaNome} - Talhão: ${item.talhaoNome}</span>
+                            <span class="plano-status" style="background-color: var(--color-warning);">Pendente</span>
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-calendar-day"></i> Instalado em: ${dataInstalacao}</div>
+                            <div><i class="fas fa-user"></i> Por: ${item.usuario}</div>
+                        </div>
+                        <div class="plano-actions">
+                            <button class="btn-excluir" style="background-color: var(--color-success); margin-left: 0;" data-action="coletar-perobox" data-id="${item.id}">
+                                <i class="fas fa-check-circle"></i> Realizar Coleta
+                            </button>
+                        </div>
+                    `;
+                    listaColetasPendentes.appendChild(card);
+                });
             },
 
             // ALTERAÇÃO PONTO 4: Nova função para atualizar o sino de notificação
@@ -1635,17 +1750,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.perda.data.value = today;
                 App.elements.cigarrinha.data.value = today;
                 App.elements.cigarrinhaAmostragem.data.value = today;
+                if (App.elements.perobox.data) App.elements.perobox.data.value = today;
                 App.elements.broca.data.max = today;
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
                 App.elements.cigarrinhaAmostragem.data.max = today;
+                if (App.elements.perobox.data) App.elements.perobox.data.max = today;
             },
             setDefaultDatesForReportForms() {
                 const today = new Date();
                 const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
                 const todayDate = today.toISOString().split('T')[0];
 
-                const reportSections = ['broca', 'perda', 'cigarrinha', 'cigarrinhaAmostragem', 'relatorioMonitoramento'];
+                const reportSections = ['broca', 'perda', 'cigarrinha', 'cigarrinhaAmostragem', 'relatorioMonitoramento', 'relatorioPerobox'];
 
                 reportSections.forEach(section => {
                     const els = App.elements[section];
@@ -1716,7 +1833,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cigarrinhaAmostragem.codigo,
                     App.elements.cigarrinha.filtroFazenda,
                     App.elements.cigarrinhaAmostragem.filtroFazenda,
-                    App.elements.relatorioMonitoramento.fazendaFiltro
+                    App.elements.relatorioMonitoramento.fazendaFiltro,
+                    App.elements.perobox.fazenda,
+                    App.elements.relatorioPerobox.filtroFazenda
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
@@ -2635,6 +2754,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.calculateCigarrinhaAmostragem();
             },
 
+            addPeroboxPontoCard() {
+                const container = App.elements.perobox.pontosContainer;
+                if (!container) return;
+
+                // Recolhe todos os outros cartões antes de adicionar um novo
+                container.querySelectorAll('.amostra-card:not(.collapsed)').forEach(c => c.classList.add('collapsed'));
+
+                const pontoId = Date.now();
+                const card = document.createElement('div');
+                card.className = 'amostra-card'; // Reutilizando a classe de estilo
+                card.dataset.id = pontoId;
+
+                const pontoCount = container.children.length + 1;
+
+                card.innerHTML = `
+                    <div class="amostra-header" style="cursor: pointer;">
+                        <i class="fas fa-chevron-down amostra-toggle-icon"></i>
+                        <h4>Ponto ${pontoCount}</h4>
+                        <button type="button" class="btn-remover-amostra" title="Remover Ponto">&times;</button>
+                    </div>
+                    <div class="amostra-body">
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="mariposas-${pontoId}">Mariposas Coletadas:</label>
+                                <input type="number" id="mariposas-${pontoId}" class="perobox-ponto-mariposas" min="0" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="obs-ponto-${pontoId}">Observações do Ponto:</label>
+                                <textarea id="obs-ponto-${pontoId}" class="perobox-ponto-obs" placeholder="Observações específicas para este ponto..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+                card.querySelector('input').focus();
+            },
+
             applyTheme(theme) {
                 document.body.className = theme;
                 App.elements.userMenu.themeButtons.forEach(btn => {
@@ -3340,6 +3498,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (relatorioMonitoramentoEls.btnPDF) relatorioMonitoramentoEls.btnPDF.addEventListener('click', () => App.reports.generateArmadilhaPDF());
                 if (relatorioMonitoramentoEls.btnExcel) relatorioMonitoramentoEls.btnExcel.addEventListener('click', () => App.reports.generateArmadilhaCSV());
                 
+                const relatorioPeroboxEls = App.elements.relatorioPerobox;
+                if (relatorioPeroboxEls.btnPDF) relatorioPeroboxEls.btnPDF.addEventListener('click', () => App.reports.generatePeroboxPDF());
+                if (relatorioPeroboxEls.btnExcel) relatorioPeroboxEls.btnExcel.addEventListener('click', () => App.reports.generatePeroboxCSV());
+
                 if (App.elements.notificationContainer) App.elements.notificationContainer.addEventListener('click', (e) => {
                     const notification = e.target.closest('.trap-notification');
                     if (notification && notification.dataset.trapId) {
@@ -3438,6 +3600,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (configModal.overlay) configModal.overlay.addEventListener('click', e => { if (e.target === configModal.overlay) App.ui.hideConfigHistoryModal(); });
                 if (configModal.closeBtn) configModal.closeBtn.addEventListener('click', () => App.ui.hideConfigHistoryModal());
                 if (configModal.cancelBtn) configModal.cancelBtn.addEventListener('click', () => App.ui.hideConfigHistoryModal());
+
+                // Listeners para Perobox
+                const peroboxEls = App.elements.perobox;
+                if (peroboxEls.tipo) peroboxEls.tipo.addEventListener('change', (e) => {
+                    peroboxEls.tipoLabel.textContent = e.target.checked ? 'Coleta' : 'Instalação';
+                });
+                if (peroboxEls.addPontoBtn) peroboxEls.addPontoBtn.addEventListener('click', () => this.addPeroboxPontoCard());
+                if (peroboxEls.pontosContainer) peroboxEls.pontosContainer.addEventListener('click', e => {
+                    const removeBtn = e.target.closest('.btn-remover-amostra');
+                    if (removeBtn) {
+                        e.stopPropagation();
+                        removeBtn.closest('.amostra-card').remove();
+                        // Renumerar os pontos
+                        const allCards = peroboxEls.pontosContainer.querySelectorAll('.amostra-card');
+                        allCards.forEach((card, index) => {
+                            card.querySelector('h4').textContent = `Ponto ${index + 1}`;
+                        });
+                    }
+                });
+                if (peroboxEls.fazenda) peroboxEls.fazenda.addEventListener('change', () => App.actions.findVarietyForTalhao('perobox'));
+                if (peroboxEls.talhao) peroboxEls.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('perobox'));
+                if (peroboxEls.btnSalvar) peroboxEls.btnSalvar.addEventListener('click', () => App.actions.savePerobox());
+                if (peroboxEls.listaColetasPendentes) peroboxEls.listaColetasPendentes.addEventListener('click', e => {
+                    const coletarBtn = e.target.closest('button[data-action="coletar-perobox"]');
+                    if (coletarBtn) {
+                        App.actions.editPendentePerobox(coletarBtn.dataset.id);
+                    }
+                });
             }
         },
         
@@ -4067,6 +4257,107 @@ document.addEventListener('DOMContentLoaded', () => {
                     display.textContent = `Variedade: ${talhao.variedade}`;
                 }
             },
+            savePerobox() {
+                const els = App.elements.perobox;
+                const editingId = App.state.perobox.editingPeroboxId;
+
+                // Validação dos campos principais
+                if (!App.ui.validateFields([els.data.id, els.fazenda.id, els.talhao.id])) {
+                    App.ui.showAlert("Preencha todos os campos principais (Data, Fazenda, Talhão)!", "error");
+                    return;
+                }
+
+                const pontosCards = els.pontosContainer.querySelectorAll('.amostra-card');
+                if (pontosCards.length === 0) {
+                    App.ui.showAlert("Adicione pelo menos um ponto de coleta antes de guardar.", "error");
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
+                const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === els.talhao.value.trim().toUpperCase());
+
+                const pontosData = [];
+                pontosCards.forEach(card => {
+                    pontosData.push({
+                        id: card.dataset.id,
+                        mariposas: parseInt(card.querySelector('.perobox-ponto-mariposas').value) || 0,
+                        observacao: card.querySelector('.perobox-ponto-obs').value.trim()
+                    });
+                });
+
+                const confirmationMessage = editingId
+                    ? "Tem certeza que deseja guardar os dados desta coleta?"
+                    : "Tem certeza que deseja guardar esta nova instalação?";
+
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A guardar...");
+
+                    try {
+                        if (editingId) {
+                            // Lógica de ATUALIZAÇÃO para uma coleta
+                            const updatedData = {
+                                // Note: The 'data' field is not being updated here, only specific collection fields.
+                                // This is because we are updating an existing document. The original 'data' of installation remains.
+                                tipo: 'Coleta',
+                                dataColeta: els.data.value,
+                                pontos: pontosData,
+                                observacaoGeral: els.obs.value.trim(),
+                                status: 'Concluído'
+                            };
+
+                            // Adiciona a operação de 'update' à fila para ser processada pela sincronização.
+                            await OfflineDB.add('offline-writes', {
+                                type: 'update', // Specifies the operation type
+                                collection: 'perobox',
+                                docId: editingId,
+                                data: updatedData
+                            });
+                            App.ui.showAlert('Coleta guardada offline. Será atualizada quando houver conexão.', 'info');
+
+                        } else {
+                            // Lógica de CRIAÇÃO para uma nova instalação
+                            const newEntry = {
+                                tipo: 'Instalação',
+                                data: els.data.value,
+                                fazendaId: farm.id,
+                                fazendaNome: farm.name,
+                                talhaoId: talhao.id,
+                                talhaoNome: talhao.name,
+                                variedade: talhao.variedade || '',
+                                pontos: pontosData,
+                                observacaoGeral: els.obs.value.trim(),
+                                usuario: App.state.currentUser.username,
+                                companyId: App.state.currentUser.companyId,
+                                status: 'Pendente'
+                            };
+                            await OfflineDB.add('offline-writes', {
+                                type: 'add', // Explicitly set the operation type
+                                collection: 'perobox',
+                                data: newEntry
+                            });
+                            App.ui.showAlert('Instalação guardada offline. Será enviada quando houver conexão.', 'info');
+                        }
+
+                        // Resetar o formulário em ambos os casos
+                        App.ui.clearForm(els.form);
+                        els.pontosContainer.innerHTML = '';
+                        els.tipo.checked = false;
+                        els.tipoLabel.textContent = 'Instalação';
+                        els.tipo.disabled = false;
+                        els.fazenda.disabled = false;
+                        els.talhao.disabled = false;
+                        App.state.perobox.editingPeroboxId = null;
+                        App.ui.setDefaultDatesForEntryForms();
+
+                    } catch (e) {
+                        App.ui.showAlert('Erro ao guardar. Verifique sua conexão ou tente novamente.', "error");
+                        console.error("Erro ao guardar Perobox:", e);
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
             findOperatorName() {
                 const { matricula, operadorNome } = App.elements.perda;
                 const matriculaValue = matricula.value.trim();
@@ -4841,6 +5132,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+
+            async editPendentePerobox(peroboxId) {
+                const allPeroboxData = await App.actions.getConsolidatedData('perobox');
+                const item = allPeroboxData.find(p => p.id === peroboxId);
+
+                if (!item) {
+                    App.ui.showAlert("Lançamento pendente não encontrado.", "error");
+                    return;
+                }
+
+                // Navegar para a tela de lançamento
+                App.ui.showTab('lancamentoPerobox');
+
+                const els = App.elements.perobox;
+
+                // Preencher o formulário
+                App.state.perobox.editingPeroboxId = item.id;
+                els.data.value = new Date().toISOString().split('T')[0]; // Data da coleta é hoje
+                els.fazenda.value = item.fazendaId;
+
+                // Disparar change para carregar os talhões da fazenda se necessário
+                els.fazenda.dispatchEvent(new Event('change'));
+
+                els.talhao.value = item.talhaoNome;
+                els.obs.value = item.observacaoGeral || '';
+
+                // Mudar para o modo "Coleta" e desativar o switch e campos
+                els.tipo.checked = true;
+                els.tipoLabel.textContent = 'Coleta';
+                els.tipo.disabled = true;
+                els.fazenda.disabled = true;
+                els.talhao.disabled = true;
+
+                // Limpar pontos antigos e adicionar novos, prontos para preenchimento
+                els.pontosContainer.innerHTML = '';
+                item.pontos.forEach(() => {
+                    App.ui.addPeroboxPontoCard();
+                });
+
+                App.ui.showAlert("Formulário preenchido para coleta. Por favor, insira os dados dos pontos.", "info", 5000);
+            },
+
             savePerda() {
                 this._saveEntry({
                     formType: 'perda',
@@ -5488,61 +5821,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.state.isSyncing = true;
                 console.log("Iniciando a verificação de dados offline...");
-                const logEntry = {
-                    timestamp: new Date(),
-                    status: '',
-                    details: '',
-                    items: []
-                };
 
                 try {
                     const db = await OfflineDB.dbPromise;
                     if (!db) return;
 
-                    const writesToSync = await db.getAll('offline-writes');
+                    const allWrites = await db.getAll('offline-writes');
 
-                    if (writesToSync.length === 0) {
-                        logEntry.status = 'no_data';
-                        logEntry.details = 'Nenhum registo pendente para sincronizar.';
-                        // Não precisa notificar ou salvar log se não há nada para fazer.
+                    if (allWrites.length === 0) {
+                        console.log('Nenhum registo pendente para sincronizar.');
                         App.state.isSyncing = false;
                         return;
                     }
 
-                    App.ui.showSystemNotification("Sincronização", `A enviar ${writesToSync.length} registos offline...`, 'info');
-
-                    const syncPromises = writesToSync.map(write =>
-                        App.data.addDocument(write.collection, write.data)
-                            .then(() => ({ status: 'fulfilled', originalWrite: write }))
-                            .catch(error => ({ status: 'rejected', error, originalWrite: write }))
-                    );
-
-                    const settledResults = await Promise.allSettled(syncPromises);
-
-                    const syncedKeys = [];
-                    let failureCount = 0;
-
-                    for (const result of settledResults) {
-                        if (result.status === 'fulfilled') {
-                            const syncResult = result.value;
-                            if (syncResult.status === 'fulfilled') {
-                                // A chave para apagar do IndexedDB está no próprio objeto de escrita.
-                                // Assumindo que a chave primária é auto-incrementada e não está no objeto 'value'.
-                                // Vamos precisar buscar as chaves primeiro.
-                                // A abordagem anterior de buscar chaves e valores juntos era melhor. Vamos voltar a ela.
-                                // ESTA IMPLEMENTAÇÃO É MAIS SIMPLES E ROBUSTA.
-                                // Re-implementando o início para ser mais seguro.
-                            }
-                        }
-                    }
-                    // A lógica acima está ficando complexa. Vamos simplificar e tornar mais robusta.
-
-                    const dbTx = await OfflineDB.dbPromise;
-                    const allWrites = await dbTx.getAll('offline-writes');
+                    App.ui.showSystemNotification("Sincronização", `A enviar ${allWrites.length} registos offline...`, 'info');
 
                     const allPromises = allWrites.map(async (write) => {
                         try {
-                            await App.data.addDocument(write.collection, write.data);
+                            const writeType = write.type || 'add'; // Default to 'add' for backward compatibility
+
+                            if (writeType === 'update') {
+                                if (!write.docId) throw new Error("Sync failed: 'docId' is required for update operations.");
+                                await App.data.updateDocument(write.collection, write.docId, write.data);
+                            } else {
+                                await App.data.addDocument(write.collection, write.data);
+                            }
                             return { status: 'success', write };
                         } catch (error) {
                             return { status: 'failure', write, error };
@@ -5554,29 +5857,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     const successfulWrites = allResults.filter(r => r.status === 'success');
                     const failedWrites = allResults.filter(r => r.status === 'failure');
 
-                    logEntry.items = allResults.map(r => ({
-                        status: r.status,
-                        collection: r.write.collection,
-                        data: r.write.data,
-                        error: r.error ? r.error.message : null
-                    }));
+                    const logEntry = {
+                        status: '',
+                        details: '',
+                        items: allResults.map(r => ({
+                            status: r.status,
+                            collection: r.write.collection,
+                            data: r.write.data, // Keep data for logging
+                            error: r.error ? r.error.message : null
+                        }))
+                    };
 
-                    // Apagar apenas os que tiveram sucesso
-                    if (successfulWrites.length > 0) {
-                        const deleteTx = (await OfflineDB.dbPromise).transaction('offline-writes', 'readwrite');
-                        const store = deleteTx.objectStore('offline-writes');
-                        // Esta parte é complexa porque não temos as chaves.
-                        // A melhor maneira é limpar tudo e re-adicionar as falhas.
-                        await store.clear();
-                        if (failedWrites.length > 0) {
-                            for (const failed of failedWrites) {
-                                await store.add(failed.write);
-                            }
+                    // Clean up IndexedDB: clear all and re-add failures
+                    const deleteTx = (await OfflineDB.dbPromise).transaction('offline-writes', 'readwrite');
+                    const store = deleteTx.objectStore('offline-writes');
+                    await store.clear();
+                    if (failedWrites.length > 0) {
+                        for (const failed of failedWrites) {
+                            await store.add(failed.write);
                         }
-                        await deleteTx.done;
                     }
+                    await deleteTx.done;
 
-                    if (failedWrites.length === 0 && successfulWrites.length > 0) {
+                    // Determine final status and details
+                    if (failedWrites.length === 0) {
                         logEntry.status = 'success';
                         logEntry.details = `${successfulWrites.length} registos enviados com sucesso.`;
                     } else if (successfulWrites.length > 0) {
@@ -5587,7 +5891,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         logEntry.details = `Não foi possível enviar ${failedWrites.length} registos.`;
                     }
 
-                    // Salvar o log permanente no Firestore
+                    // Save the permanent log to Firestore
                     const permanentLogEntry = {
                         userId: App.state.currentUser.uid,
                         username: App.state.currentUser.username || App.state.currentUser.email,
@@ -5599,7 +5903,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                     const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
 
-                    // Notifica o utilizador, passando o ID do log para que a notificação seja clicável
+                    // Notify the user, with a clickable link to the details
                     App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
 
                 } catch (error) {
@@ -7916,6 +8220,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaCodigo: farm ? farm.code : ''
                 };
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
+            },
+
+            generatePeroboxPDF() {
+                const { filtroInicio, filtroFim, filtroFazenda } = App.elements.relatorioPerobox;
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farm = App.state.fazendas.find(f => f.id === filtroFazenda.value);
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: farm ? farm.code : ''
+                };
+                this._fetchAndDownloadReport('perobox/pdf', filters, 'relatorio_perobox.pdf');
+            },
+
+            generatePeroboxCSV() {
+                const { filtroInicio, filtroFim, filtroFazenda } = App.elements.relatorioPerobox;
+                if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farm = App.state.fazendas.find(f => f.id === filtroFazenda.value);
+                const filters = {
+                    inicio: filtroInicio.value,
+                    fim: filtroFim.value,
+                    fazendaCodigo: farm ? farm.code : ''
+                };
+                this._fetchAndDownloadReport('perobox/csv', filters, 'relatorio_perobox.csv');
             }
         },
 

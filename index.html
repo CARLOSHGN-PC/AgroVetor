@@ -645,6 +645,49 @@
           color: var(--color-danger);
       }
 
+      /* --- ESTILOS PEROBOX --- */
+      .toggle-switch-container {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-top: 8px;
+        margin-bottom: 10px;
+      }
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
+        flex-shrink: 0;
+      }
+      .switch input { opacity: 0; width: 0; height: 0; }
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: var(--color-info);
+        transition: .4s;
+      }
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 26px; width: 26px;
+        left: 4px; bottom: 4px;
+        background-color: white;
+        transition: .4s;
+      }
+      input:checked + .slider { background-color: var(--color-success); }
+      input:focus + .slider { box-shadow: 0 0 1px var(--color-success); }
+      input:checked + .slider:before { transform: translateX(26px); }
+      .slider.round { border-radius: 34px; }
+      .slider.round:before { border-radius: 50%; }
+      #tipoPeroboxLabel {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--color-text);
+      }
+
+
       /* --- OUTROS ESTILOS --- */
       .fazenda-list { margin-top: 20px; border: 1px solid var(--color-border); border-radius: var(--border-radius); overflow: hidden; }
       .fazenda-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; gap: 10px; }
@@ -1376,6 +1419,9 @@
       #splash-screen.hidden {
         opacity: 0;
         visibility: hidden;
+      }
+      #splash-screen.hidden {
+        display: none;
       }
       .splash-logo {
         width: 250px; /* Tamanho aumentado */
@@ -2214,6 +2260,75 @@
         <button id="btnExcelCigarrinhaAmostragem" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
     </div>
 </section>
+
+            <section id="lancamentoPerobox" class="tab-content card" aria-label="Lançamento Perobox" tabindex="0" hidden>
+                <h2><i class="fas fa-box-open"></i> Lançamento Perobox</h2>
+                <form id="formPerobox">
+                    <div class="toggle-switch-container">
+                        <label class="switch">
+                            <input type="checkbox" id="tipoPerobox">
+                            <span class="slider round"></span>
+                        </label>
+                        <span id="tipoPeroboxLabel">Instalação</span>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="dataPerobox" class="required">Data:</label>
+                            <input type="date" id="dataPerobox" required>
+                        </div>
+                        <div class="form-col">
+                            <label for="fazendaPerobox" class="required">Fazenda:</label>
+                            <select id="fazendaPerobox" required></select>
+                        </div>
+                        <div class="form-col">
+                            <label for="talhaoPerobox" class="required">Talhão:</label>
+                            <input type="text" id="talhaoPerobox" list="talhaoListPerobox" required>
+                            <div id="varietyDisplayPerobox" class="info-display"></div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 10px;">
+                        <h3><i class="fas fa-map-marker-alt"></i> Pontos de Coleta</h3>
+                        <button type="button" id="addPontoPerobox" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Ponto</button>
+                    </div>
+                    <div id="pontosPeroboxContainer" class="pontos-container">
+                        <!-- Cards de pontos serão inseridos aqui -->
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="obsPerobox">Observações Gerais:</label>
+                            <textarea id="obsPerobox" placeholder="Observações gerais sobre a instalação ou coleta..."></textarea>
+                        </div>
+                    </div>
+
+                    <button type="button" id="btnSalvarPerobox" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Lançamento</button>
+                </form>
+            </section>
+
+            <section id="relatorioPerobox" class="tab-content card" aria-label="Relatório Perobox" tabindex="0" hidden>
+                <h2><i class="fas fa-chart-bar"></i> Relatório de Instalação e Coleta Perobox</h2>
+                <div class="form-row">
+                    <div class="form-col"><label for="fazendaFiltroPerobox">Filtrar por Fazenda:</label><select id="fazendaFiltroPerobox"><option value="">Todas</option></select></div>
+                    <div class="form-col"><label for="inicioPerobox" class="required">Data Início:</label><input type="date" id="inicioPerobox" /></div>
+                    <div class="form-col"><label for="fimPerobox" class="required">Data Fim:</label><input type="date" id="fimPerobox" /></div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFPerobox" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelPerobox" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+            </section>
+
+            <section id="coletasPendentesPerobox" class="tab-content card" aria-label="Coletas Pendentes Perobox" tabindex="0" hidden>
+                <h2><i class="fas fa-tasks"></i> Coletas Pendentes (Perobox)</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">
+                    Instalações com 7 ou mais dias que precisam de uma coleta de acompanhamento.
+                </p>
+                <div id="listaColetasPendentesPerobox">
+                    <!-- A lista de coletas pendentes será renderizada aqui -->
+                </div>
+            </section>
 
             <section id="excluirDados" class="tab-content card" aria-label="Excluir Lançamentos" tabindex="0" hidden>
                 <h2><i class="fas fa-trash"></i> Excluir Lançamentos</h2>
