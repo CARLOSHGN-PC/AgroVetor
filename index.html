@@ -1877,12 +1877,6 @@
 
             <section id="lancamentoBroca" class="tab-content card" aria-label="Lançamento Broca" tabindex="0" hidden>
                 <h2><i class="fas fa-bug"></i> Lançamento Broca</h2>
-                <div id="superAdminBrocaCreation" class="card" style="display: none; border-left-color: var(--color-purple); margin-bottom: 20px;">
-                    <h4><i class="fas fa-user-shield"></i> Ação como Super Admin</h4>
-                    <p>Selecione a empresa alvo para este lançamento.</p>
-                    <label for="adminTargetCompanyBroca" class="required">Empresa Alvo:</label>
-                    <select id="adminTargetCompanyBroca" required></select>
-                </div>
                 <div class="form-row">
                     <div class="form-col">
                         <label for="codigo" class="required">Fazenda:</label>
@@ -2046,12 +2040,6 @@
 
             <section id="lancamentoPerda" class="tab-content card" aria-label="Lançamento Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-dollar-sign"></i> Lançamento Perda</h2>
-                 <div id="superAdminPerdaCreation" class="card" style="display: none; border-left-color: var(--color-purple); margin-bottom: 20px;">
-                    <h4><i class="fas fa-user-shield"></i> Ação como Super Admin</h4>
-                    <p>Selecione a empresa alvo para este lançamento.</p>
-                    <label for="adminTargetCompanyPerda" class="required">Empresa Alvo:</label>
-                    <select id="adminTargetCompanyPerda" required></select>
-                </div>
                 <div class="form-row">
                     <div class="form-col"><label for="dataPerda" class="required">Data:</label><input type="date" id="dataPerda" required /></div>
                     <div class="form-col"><label for="codigoPerda" class="required">Fazenda:</label><select id="codigoPerda" required></select></div>
@@ -2083,12 +2071,6 @@
             <section id="lancamentoCigarrinhaAmostragem" class="tab-content card" aria-label="Lançamento Cigarrinha por Amostragem" tabindex="0" hidden>
                 <h2><i class="fas fa-vial"></i> Monitoramento de Cigarrinha (Amostragem)</h2>
                 <form id="formCigarrinhaAmostragem">
-                    <div id="superAdminCigarrinhaAmostragemCreation" class="card" style="display: none; border-left-color: var(--color-purple); margin-bottom: 20px;">
-                        <h4><i class="fas fa-user-shield"></i> Ação como Super Admin</h4>
-                        <p>Selecione a empresa alvo para este lançamento.</p>
-                        <label for="adminTargetCompanyCigarrinhaAmostragem" class="required">Empresa Alvo:</label>
-                        <select id="adminTargetCompanyCigarrinhaAmostragem" required></select>
-                    </div>
                     <div class="form-row">
                         <div class="form-col">
                             <label for="dataCigarrinhaAmostragem" class="required">Data:</label>
@@ -2128,12 +2110,6 @@
 
             <section id="lancamentoCigarrinha" class="tab-content card" aria-label="Lançamento Cigarrinha" tabindex="0" hidden>
                 <h2><i class="fas fa-leaf"></i> Lançamento Monitoramento de Cigarrinha</h2>
-                <div id="superAdminCigarrinhaCreation" class="card" style="display: none; border-left-color: var(--color-purple); margin-bottom: 20px;">
-                    <h4><i class="fas fa-user-shield"></i> Ação como Super Admin</h4>
-                    <p>Selecione a empresa alvo para este lançamento.</p>
-                    <label for="adminTargetCompanyCigarrinha" class="required">Empresa Alvo:</label>
-                    <select id="adminTargetCompanyCigarrinha" required></select>
-                </div>
                 <div class="form-row">
                     <div class="form-col">
                         <label for="dataCigarrinha" class="required">Data do Levantamento:</label>
@@ -2236,106 +2212,6 @@
     <div class="botoes-relatorio">
         <button id="btnPDFCigarrinhaAmostragem" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
         <button id="btnExcelCigarrinhaAmostragem" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
-    </div>
-</section>
-
-<section id="lancamentoPerobox" class="tab-content" hidden>
-    <div class="form-container card">
-        <div id="perobox-pending-container" class="card" style="border-left-color: var(--color-warning); margin-bottom: 30px;">
-            <h3><i class="fas fa-clock"></i> Coletas Pendentes (7 dias)</h3>
-            <p style="margin-top: -10px; margin-bottom: 15px; color: var(--color-text-light);">Instalações que atingiram o prazo de 7 dias e precisam ser coletadas.</p>
-            <div id="peroboxPendingList">
-                <!-- Itens pendentes serão renderizados aqui -->
-            </div>
-        </div>
-        <h2><i class="fas fa-box-open"></i> Lançamento Perobox</h2>
-        <form id="formPerobox" class="data-form">
-            <input type="hidden" id="editingPeroboxId">
-            <div class="super-admin-target-container" id="superAdminPeroboxCreation" style="display: none;">
-                <label for="adminTargetCompanyPerobox">Empresa Alvo (Super Admin):</label>
-                <select id="adminTargetCompanyPerobox" class="form-control"></select>
-            </div>
-            <div class="form-row">
-                <div class="form-col">
-                    <label for="dataPerobox">Data:</label>
-                    <input type="date" id="dataPerobox" required>
-                </div>
-                <div class="form-col">
-                    <label for="codigoPerobox">Fazenda:</label>
-                    <select id="codigoPerobox" required></select>
-                </div>
-                <div class="form-col">
-                    <label for="talhaoPerobox">Talhão:</label>
-                    <input type="text" id="talhaoPerobox" list="talhoesList" required>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-col full-width">
-                    <p id="varietyDisplayPerobox" class="info-display"></p>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-col">
-                    <label>Tipo de Operação:</label>
-                    <div class="radio-group" style="display: flex; gap: 20px; margin-top: 10px;">
-                        <label style="display: flex; align-items: center; gap: 5px; margin-top: 0;"><input type="radio" name="tipoOperacaoPerobox" value="instalacao" checked> Instalação</label>
-                        <label style="display: flex; align-items: center; gap: 5px; margin-top: 0;"><input type="radio" name="tipoOperacaoPerobox" value="coleta"> Coleta</label>
-                    </div>
-                </div>
-            </div>
-
-            <hr style="margin: 20px 0;">
-            <h3><i class="fas fa-map-marker-alt"></i> Pontos de Coleta</h3>
-            <div id="pontosPeroboxContainer" class="pontos-container">
-                <!-- Pontos serão adicionados dinamicamente aqui -->
-            </div>
-            <button type="button" id="addPontoPeroboxBtn" class="save" style="max-width: 250px; margin-top: 15px;"><i class="fas fa-plus"></i> Adicionar Ponto</button>
-            <hr style="margin: 20px 0;">
-
-            <div class="form-row">
-                <div class="form-col full-width">
-                    <label for="obsPerobox">Observações Gerais:</label>
-                    <textarea id="obsPerobox" rows="3"></textarea>
-                </div>
-            </div>
-
-            <div class="form-actions">
-                <button type="button" id="btnSalvarPerobox" class="save"><i class="fas fa-save"></i> Guardar Lançamento</button>
-            </div>
-        </form>
-    </div>
-</section>
-
-<section id="relatorioPerobox" class="tab-content" hidden>
-    <div class="report-container card">
-        <h2><i class="fas fa-chart-bar"></i> Relatório Perobox</h2>
-        <div class="report-filters">
-            <div class="form-row">
-                <div class="form-col">
-                    <label for="inicioPerobox">Data Início:</label>
-                    <input type="date" id="inicioPerobox">
-                </div>
-                <div class="form-col">
-                    <label for="fimPerobox">Data Fim:</label>
-                    <input type="date" id="fimPerobox">
-                </div>
-                <div class="form-col">
-                    <label for="fazendaFiltroPerobox">Fazenda:</label>
-                    <select id="fazendaFiltroPerobox"></select>
-                </div>
-                <div class="form-col">
-                    <label for="tipoRelatorioPerobox">Tipo de Relatório:</label>
-                    <select id="tipoRelatorioPerobox">
-                        <option value="detalhado">Detalhado</option>
-                        <option value="consolidado">Consolidado por Talhão</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-        <div class="botoes-relatorio">
-            <button id="btnPDFPerobox" type="button"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
-            <button id="btnExcelPerobox" type="button"><i class="fas fa-file-excel"></i> Gerar Excel</button>
-        </div>
     </div>
 </section>
 
