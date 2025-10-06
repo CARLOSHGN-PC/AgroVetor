@@ -479,10 +479,10 @@ try {
         if (dateComparison !== 0) {
             return dateComparison;
         }
-        // Normaliza o nome da fazenda para garantir que a ordenação funcione mesmo se o campo for diferente
-        const fazendaA = a.fazenda || a.fazendaNome || '';
-        const fazendaB = b.fazenda || b.fazendaNome || '';
-        return fazendaA.localeCompare(fazendaB);
+        // Fallback para o código da fazenda (ordem numérica)
+        const codeA = parseInt(a.codigo, 10) || 0;
+        const codeB = parseInt(b.codigo, 10) || 0;
+        return codeA - codeB;
     };
 
     const generatePdfHeader = async (doc, title, companyId) => {
@@ -1174,6 +1174,7 @@ try {
                         acc[key] = {
                             data: r.data, // Preserva a data original para ordenação
                             formattedDate: formattedDate,
+                            codigo: r.codigo,
                             fazenda: `${r.codigo} - ${r.fazenda}`,
                             talhao: r.talhao,
                             variedade: r.variedade,
