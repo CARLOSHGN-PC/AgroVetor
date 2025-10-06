@@ -938,6 +938,15 @@ try {
                 return { ...reg, variedade: talhao?.variedade || 'N/A' };
             });
 
+            // Ordena os dados por fazenda (ordem alfabética) e depois por data (da mais antiga para a mais nova)
+            enrichedData.sort((a, b) => {
+                const fazendaComparison = a.fazenda.localeCompare(b.fazenda);
+                if (fazendaComparison !== 0) {
+                    return fazendaComparison;
+                }
+                return new Date(a.data) - new Date(b.data);
+            });
+
             let currentY = await generatePdfHeader(doc, title);
 
             const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado'];
@@ -997,6 +1006,15 @@ try {
                 doc.end();
                 return;
             }
+
+            // Ordena os dados por fazenda (ordem alfabética) e depois por data (da mais antiga para a mais nova)
+            data.sort((a, b) => {
+                const fazendaComparison = a.fazenda.localeCompare(b.fazenda);
+                if (fazendaComparison !== 0) {
+                    return fazendaComparison;
+                }
+                return new Date(a.data) - new Date(b.data);
+            });
 
             let currentY = await generatePdfHeader(doc, title);
 
@@ -1125,6 +1143,15 @@ try {
             const { tipoRelatorio = 'detalhado' } = req.query;
             const data = await getFilteredData('cigarrinhaAmostragem', req.query);
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
+
+            // Ordena os dados por fazenda (ordem alfabética) e depois por data (da mais antiga para a mais nova)
+            data.sort((a, b) => {
+                const fazendaComparison = a.fazenda.localeCompare(b.fazenda);
+                if (fazendaComparison !== 0) {
+                    return fazendaComparison;
+                }
+                return new Date(a.data) - new Date(b.data);
+            });
 
             const filename = `relatorio_cigarrinha_amostragem_${tipoRelatorio}_${Date.now()}.csv`;
             const filePath = path.join(os.tmpdir(), filename);
@@ -1261,6 +1288,15 @@ try {
                     adulto: r.adulto ? 'Sim' : 'Não',
                     resultado: r.resultado
                 };
+            });
+
+            // Ordena os dados por fazenda (ordem alfabética) e depois por data (da mais antiga para a mais nova)
+            records.sort((a, b) => {
+                const fazendaComparison = a.fazenda.localeCompare(b.fazenda);
+                if (fazendaComparison !== 0) {
+                    return fazendaComparison;
+                }
+                return new Date(a.data) - new Date(b.data);
             });
 
             await csvWriter.writeRecords(records);
