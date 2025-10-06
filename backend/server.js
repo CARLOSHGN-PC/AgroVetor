@@ -474,6 +474,19 @@ try {
         return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
     };
 
+    const sortByFazendaAndDate = (a, b) => {
+        // Normaliza o nome da fazenda para garantir que a ordenação funcione mesmo se o campo for diferente
+        const fazendaA = a.fazenda || a.fazendaNome || '';
+        const fazendaB = b.fazenda || b.fazendaNome || '';
+
+        const fazendaComparison = fazendaA.localeCompare(fazendaB);
+        if (fazendaComparison !== 0) {
+            return fazendaComparison;
+        }
+        // Fallback para a data se os nomes das fazendas forem os mesmos
+        return new Date(a.data) - new Date(b.data);
+    };
+
     const generatePdfHeader = async (doc, title, companyId) => {
         try {
             let logoBase64 = null;
@@ -938,14 +951,7 @@ try {
                 return { ...reg, variedade: talhao?.variedade || 'N/A' };
             });
 
-            // Ordena os dados por fazenda (ordem alfabética) e depois por data (da mais antiga para a mais nova)
-            enrichedData.sort((a, b) => {
-                const fazendaComparison = a.fazenda.localeCompare(b.fazenda);
-                if (fazendaComparison !== 0) {
-                    return fazendaComparison;
-                }
-                return new Date(a.data) - new Date(b.data);
-            });
+            enrichedData.sort(sortByFazendaAndDate);
 
             let currentY = await generatePdfHeader(doc, title);
 
@@ -1007,14 +1013,7 @@ try {
                 return;
             }
 
-            // Ordena os dados por fazenda (ordem alfabética) e depois por data (da mais antiga para a mais nova)
-            data.sort((a, b) => {
-                const fazendaComparison = a.fazenda.localeCompare(b.fazenda);
-                if (fazendaComparison !== 0) {
-                    return fazendaComparison;
-                }
-                return new Date(a.data) - new Date(b.data);
-            });
+            data.sort(sortByFazendaAndDate);
 
             let currentY = await generatePdfHeader(doc, title);
 
@@ -1044,8 +1043,10 @@ try {
                 const columnWidths = [180, 100, 100, 70, 70, 70, 70, 72];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
-                for (const key in groupedData) {
-                    const group = groupedData[key];
+                const summarizedData = Object.values(groupedData);
+                summarizedData.sort(sortByFazendaAndDate);
+
+                for (const group of summarizedData) {
                     const row = [
                         `${group.codigo} - ${group.fazenda}`,
                         group.talhao,
@@ -1144,14 +1145,7 @@ try {
             const data = await getFilteredData('cigarrinhaAmostragem', req.query);
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
 
-            // Ordena os dados por fazenda (ordem alfabética) e depois por data (da mais antiga para a mais nova)
-            data.sort((a, b) => {
-                const fazendaComparison = a.fazenda.localeCompare(b.fazenda);
-                if (fazendaComparison !== 0) {
-                    return fazendaComparison;
-                }
-                return new Date(a.data) - new Date(b.data);
-            });
+            data.sort(sortByFazendaAndDate);
 
             const filename = `relatorio_cigarrinha_amostragem_${tipoRelatorio}_${Date.now()}.csv`;
             const filePath = path.join(os.tmpdir(), filename);
@@ -1184,6 +1178,7 @@ try {
                 }, {});
 
                 records = Object.values(groupedData);
+                records.sort(sortByFazendaAndDate);
 
             } else if (tipoRelatorio === 'final') {
                 header = [
@@ -1290,14 +1285,7 @@ try {
                 };
             });
 
-            // Ordena os dados por fazenda (ordem alfabética) e depois por data (da mais antiga para a mais nova)
-            records.sort((a, b) => {
-                const fazendaComparison = a.fazenda.localeCompare(b.fazenda);
-                if (fazendaComparison !== 0) {
-                    return fazendaComparison;
-                }
-                return new Date(a.data) - new Date(b.data);
-            });
+            records.sort(sortByFazendaAndDate);
 
             await csvWriter.writeRecords(records);
             res.download(filePath);
