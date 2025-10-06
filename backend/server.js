@@ -474,17 +474,15 @@ try {
         return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
     };
 
-    const sortByFazendaAndDate = (a, b) => {
+    const sortByDateAndFazenda = (a, b) => {
+        const dateComparison = new Date(a.data) - new Date(b.data);
+        if (dateComparison !== 0) {
+            return dateComparison;
+        }
         // Normaliza o nome da fazenda para garantir que a ordenação funcione mesmo se o campo for diferente
         const fazendaA = a.fazenda || a.fazendaNome || '';
         const fazendaB = b.fazenda || b.fazendaNome || '';
-
-        const fazendaComparison = fazendaA.localeCompare(fazendaB);
-        if (fazendaComparison !== 0) {
-            return fazendaComparison;
-        }
-        // Fallback para a data se os nomes das fazendas forem os mesmos
-        return new Date(a.data) - new Date(b.data);
+        return fazendaA.localeCompare(fazendaB);
     };
 
     const generatePdfHeader = async (doc, title, companyId) => {
@@ -951,7 +949,7 @@ try {
                 return { ...reg, variedade: talhao?.variedade || 'N/A' };
             });
 
-            enrichedData.sort(sortByFazendaAndDate);
+            enrichedData.sort(sortByDateAndFazenda);
 
             let currentY = await generatePdfHeader(doc, title);
 
@@ -963,8 +961,10 @@ try {
 
             for(const r of enrichedData) {
                 currentY = await checkPageBreak(doc, currentY, title);
+                const date = new Date(r.data + 'T03:00:00Z');
+                const formattedDate = date.toLocaleDateString('pt-BR');
                 const row = [
-                    r.data,
+                    formattedDate,
                     `${r.codigo} - ${r.fazenda}`,
                     r.talhao,
                     r.variedade,
@@ -1013,15 +1013,20 @@ try {
                 return;
             }
 
-            data.sort(sortByFazendaAndDate);
+            data.sort(sortByDateAndFazenda);
 
             let currentY = await generatePdfHeader(doc, title);
 
             if (tipoRelatorio === 'resumido') {
                 const groupedData = data.reduce((acc, r) => {
-                    const key = `${r.codigo}|${r.fazenda}|${r.talhao}`;
+                    const date = new Date(r.data + 'T03:00:00Z');
+                    const formattedDate = date.toLocaleDateString('pt-BR');
+                    const key = `${formattedDate}|${r.codigo}|${r.fazenda}|${r.talhao}`;
+
                     if (!acc[key]) {
                         acc[key] = {
+                            data: r.data, // Preserva a data original para ordenação
+                            formattedDate: formattedDate, // Usa a data formatada para exibição
                             codigo: r.codigo,
                             fazenda: r.fazenda,
                             talhao: r.talhao,
@@ -1039,15 +1044,16 @@ try {
                     return acc;
                 }, {});
 
-                const headers = ['Fazenda', 'Talhão', 'Variedade', 'Fase 1 (Soma)', 'Fase 2 (Soma)', 'Fase 3 (Soma)', 'Fase 4 (Soma)', 'Fase 5 (Soma)'];
-                const columnWidths = [180, 100, 100, 70, 70, 70, 70, 72];
+                const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Fase 1 (Soma)', 'Fase 2 (Soma)', 'Fase 3 (Soma)', 'Fase 4 (Soma)', 'Fase 5 (Soma)'];
+                const columnWidths = [80, 150, 80, 100, 60, 60, 60, 60, 72];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
                 const summarizedData = Object.values(groupedData);
-                summarizedData.sort(sortByFazendaAndDate);
+                summarizedData.sort(sortByDateAndFazenda);
 
                 for (const group of summarizedData) {
                     const row = [
+                        group.formattedDate,
                         `${group.codigo} - ${group.fazenda}`,
                         group.talhao,
                         group.variedade,
@@ -1145,7 +1151,7 @@ try {
             const data = await getFilteredData('cigarrinhaAmostragem', req.query);
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
 
-            data.sort(sortByFazendaAndDate);
+            data.sort(sortByDateAndFazenda);
 
             const filename = `relatorio_cigarrinha_amostragem_${tipoRelatorio}_${Date.now()}.csv`;
             const filePath = path.join(os.tmpdir(), filename);
@@ -1154,16 +1160,23 @@ try {
 
             if (tipoRelatorio === 'resumido') {
                 header = [
-                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
+                    { id: 'data', title: 'Data' }, { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
                     { id: 'fase1', title: 'Fase 1 (Soma)' }, { id: 'fase2', title: 'Fase 2 (Soma)' }, { id: 'fase3', title: 'Fase 3 (Soma)' },
                     { id: 'fase4', title: 'Fase 4 (Soma)' }, { id: 'fase5', title: 'Fase 5 (Soma)' }
                 ];
 
                 const groupedData = data.reduce((acc, r) => {
-                    const key = `${r.codigo}|${r.fazenda}|${r.talhao}`;
+                    const date = new Date(r.data + 'T03:00:00Z');
+                    const formattedDate = date.toLocaleDateString('pt-BR');
+                    const key = `${formattedDate}|${r.codigo}|${r.fazenda}|${r.talhao}`;
+
                     if (!acc[key]) {
                         acc[key] = {
-                            fazenda: `${r.codigo} - ${r.fazenda}`, talhao: r.talhao, variedade: r.variedade,
+                            data: r.data, // Preserva a data original para ordenação
+                            formattedDate: formattedDate,
+                            fazenda: `${r.codigo} - ${r.fazenda}`,
+                            talhao: r.talhao,
+                            variedade: r.variedade,
                             fase1: 0, fase2: 0, fase3: 0, fase4: 0, fase5: 0,
                         };
                     }
@@ -1177,8 +1190,20 @@ try {
                     return acc;
                 }, {});
 
-                records = Object.values(groupedData);
-                records.sort(sortByFazendaAndDate);
+                let summarizedData = Object.values(groupedData);
+                summarizedData.sort(sortByDateAndFazenda);
+
+                records = summarizedData.map(rec => ({
+                    data: rec.formattedDate,
+                    fazenda: rec.fazenda,
+                    talhao: rec.talhao,
+                    variedade: rec.variedade,
+                    fase1: rec.fase1,
+                    fase2: rec.fase2,
+                    fase3: rec.fase3,
+                    fase4: rec.fase4,
+                    fase5: rec.fase5
+                }));
 
             } else if (tipoRelatorio === 'final') {
                 header = [
@@ -1276,8 +1301,11 @@ try {
             const records = data.map(r => {
                 const farm = fazendasData[r.codigo];
                 const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === r.talhao.toUpperCase());
+                const date = new Date(r.data + 'T03:00:00Z');
+                const formattedDate = date.toLocaleDateString('pt-BR');
                 return {
                     ...r,
+                    data: formattedDate,
                     fazenda: `${r.codigo} - ${r.fazenda}`,
                     variedade: talhao?.variedade || 'N/A',
                     adulto: r.adulto ? 'Sim' : 'Não',
@@ -1285,7 +1313,7 @@ try {
                 };
             });
 
-            records.sort(sortByFazendaAndDate);
+            records.sort(sortByDateAndFazenda);
 
             await csvWriter.writeRecords(records);
             res.download(filePath);
