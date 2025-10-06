@@ -471,7 +471,32 @@ try {
             filteredData = filteredData.filter(d => d.frenteServico && d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
         }
         
-        return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
+        // Passo 1: Obter todos os dados de fazendas para a empresa.
+        const farmsSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
+        const farmsMap = new Map();
+        farmsSnapshot.forEach(doc => {
+            const farmData = doc.data();
+            farmsMap.set(farmData.code, farmData.name);
+        });
+
+        // Passo 2: Enriquecer os dados filtrados com o nome completo da fazenda.
+        const enrichedData = filteredData.map(item => ({
+            ...item,
+            fullFazendaName: farmsMap.get(item.codigo) || item.fazenda || ''
+        }));
+
+        // Passo 3: Ordenar. Primeiro por nome da fazenda, depois pela data.
+        enrichedData.sort((a, b) => {
+            // Compara por nome da fazenda
+            const farmNameComparison = a.fullFazendaName.localeCompare(b.fullFazendaName);
+            if (farmNameComparison !== 0) {
+                return farmNameComparison;
+            }
+            // Se os nomes das fazendas forem iguais, compara por data
+            return new Date(a.data) - new Date(b.data);
+        });
+
+        return enrichedData;
     };
 
     const generatePdfHeader = async (doc, title, companyId) => {
@@ -1867,7 +1892,7 @@ try {
             const geojsonData = await getShapefileData(companyId);
             
             let enrichedData = data.map(trap => {
-                const talhaoProps = findTalhaoForTrap(trap, geojsonData);
+                const talhaoProps = geojsonData ? findTalhaoForTrap(trap, geojsonData) : null;
                 const dataInstalacao = trap.dataInstalacao.toDate();
                 const dataColeta = trap.dataColeta.toDate();
                 const diffTime = Math.abs(dataColeta - dataInstalacao);
@@ -1875,15 +1900,24 @@ try {
 
                 return {
                     ...trap,
-                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
-                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
-                    talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
+                    fazendaNome: trap.fazendaNome || findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || 'N/A',
+                    fundoAgricola: trap.fundoAgricola || findShapefileProp(talhaoProps, ['FUNDO_AGR']) || 'N/A',
+                    talhaoNome: trap.talhaoNome || findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A',
                     dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
                     dataColetaFmt: dataColeta.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
                     instaladoPorNome: usersMap[trap.instaladoPor] || 'Desconhecido',
                     coletadoPorNome: usersMap[trap.coletadoPor] || 'Desconhecido',
                 };
+            });
+
+            // Adiciona a lógica de ordenação aqui
+            enrichedData.sort((a, b) => {
+                const farmNameComparison = a.fazendaNome.localeCompare(b.fazendaNome);
+                if (farmNameComparison !== 0) {
+                    return farmNameComparison;
+                }
+                return a.dataColeta.toDate() - b.dataColeta.toDate(); // Ordena pela data de coleta
             });
 
             if (fazendaCodigo) {
@@ -1959,24 +1993,34 @@ try {
             const geojsonData = await getShapefileData(companyId);
 
             let enrichedData = data.map(trap => {
-                const talhaoProps = findTalhaoForTrap(trap, geojsonData);
+                const talhaoProps = geojsonData ? findTalhaoForTrap(trap, geojsonData) : null;
                 const dataInstalacao = trap.dataInstalacao.toDate();
                 const dataColeta = trap.dataColeta.toDate();
                 const diffTime = Math.abs(dataColeta - dataInstalacao);
                 const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
                 return {
-                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
-                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
-                    talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
-                    dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
-                    dataColeta: dataColeta.toLocaleDateString('pt-BR'),
+                    ...trap, // Mantém o dado original para ordenação
+                    fundoAgricola: trap.fundoAgricola || findShapefileProp(talhaoProps, ['FUNDO_AGR']) || 'N/A',
+                    fazendaNome: trap.fazendaNome || findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || 'N/A',
+                    talhaoNome: trap.talhaoNome || findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A',
+                    dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
+                    dataColetaFmt: dataColeta.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
                     contagemMariposas: trap.contagemMariposas || 0,
                     instaladoPor: usersMap[trap.instaladoPor] || 'Desconhecido',
                     coletadoPor: usersMap[trap.coletadoPor] || 'Desconhecido',
                     observacoes: trap.observacoes || ''
                 };
+            });
+
+            // Adiciona a lógica de ordenação aqui
+            enrichedData.sort((a, b) => {
+                const farmNameComparison = a.fazendaNome.localeCompare(b.fazendaNome);
+                if (farmNameComparison !== 0) {
+                    return farmNameComparison;
+                }
+                return a.dataColeta.toDate() - b.dataColeta.toDate(); // Ordena pela data de coleta
             });
             
             if (fazendaCodigo) {
@@ -2058,7 +2102,7 @@ try {
             const geojsonData = await getShapefileData(companyId);
 
             let enrichedData = data.map(trap => {
-                const talhaoProps = findTalhaoForTrap(trap, geojsonData);
+                const talhaoProps = geojsonData ? findTalhaoForTrap(trap, geojsonData) : null;
                 const dataInstalacao = trap.dataInstalacao.toDate();
                 const diffTime = Math.abs(new Date() - dataInstalacao);
                 const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -2068,14 +2112,23 @@ try {
 
                 return {
                     ...trap,
-                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
-                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
-                    talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
+                    fazendaNome: trap.fazendaNome || findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || 'N/A',
+                    fundoAgricola: trap.fundoAgricola || findShapefileProp(talhaoProps, ['FUNDO_AGR']) || 'N/A',
+                    talhaoNome: trap.talhaoNome || findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A',
                     dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
                     previsaoRetiradaFmt: previsaoRetirada.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
                     instaladoPorNome: usersMap[trap.instaladoPor] || 'Desconhecido',
                 };
+            });
+
+            // Adiciona a lógica de ordenação aqui
+            enrichedData.sort((a, b) => {
+                const farmNameComparison = a.fazendaNome.localeCompare(b.fazendaNome);
+                if (farmNameComparison !== 0) {
+                    return farmNameComparison;
+                }
+                return a.dataInstalacao.toDate() - b.dataInstalacao.toDate(); // Ordena pela data de instalação
             });
 
             if (fazendaCodigo) {
@@ -2149,7 +2202,7 @@ try {
             const geojsonData = await getShapefileData(companyId);
 
             let enrichedData = data.map(trap => {
-                const talhaoProps = findTalhaoForTrap(trap, geojsonData);
+                const talhaoProps = geojsonData ? findTalhaoForTrap(trap, geojsonData) : null;
                 const dataInstalacao = trap.dataInstalacao.toDate();
                 const diffTime = Math.abs(new Date() - dataInstalacao);
                 const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -2158,15 +2211,25 @@ try {
                 previsaoRetirada.setDate(previsaoRetirada.getDate() + 7);
 
                 return {
-                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
-                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
-                    talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
-                    dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
-                    previsaoRetirada: previsaoRetirada.toLocaleDateString('pt-BR'),
+                    ...trap, // Mantém o dado original para ordenação
+                    fundoAgricola: trap.fundoAgricola || findShapefileProp(talhaoProps, ['FUNDO_AGR']) || 'N/A',
+                    fazendaNome: trap.fazendaNome || findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || 'N/A',
+                    talhaoNome: trap.talhaoNome || findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A',
+                    dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
+                    previsaoRetiradaFmt: previsaoRetirada.toLocaleDateString('pt-BR'),
                     diasEmCampo: diasEmCampo,
                     instaladoPor: usersMap[trap.instaladoPor] || 'Desconhecido',
                     observacoes: trap.observacoes || ''
                 };
+            });
+
+            // Adiciona a lógica de ordenação aqui
+            enrichedData.sort((a, b) => {
+                const farmNameComparison = a.fazendaNome.localeCompare(b.fazendaNome);
+                if (farmNameComparison !== 0) {
+                    return farmNameComparison;
+                }
+                return a.dataInstalacao.toDate() - b.dataInstalacao.toDate(); // Ordena pela data de instalação
             });
             
             if (fazendaCodigo) {
