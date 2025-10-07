@@ -3478,13 +3478,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 // [NOVO] Listeners para a pesquisa no mapa
                 const mapSearchBtn = App.elements.monitoramentoAereo.mapFarmSearchBtn;
                 const mapSearchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
+                const mapContainer = App.elements.monitoramentoAereo.mapContainer;
+
                 if (mapSearchBtn) {
-                    mapSearchBtn.addEventListener('click', () => App.mapModule.searchFarmOnMap());
+                    mapSearchBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        App.mapModule.toggleSearch();
+                    });
                 }
                 if (mapSearchInput) {
                     mapSearchInput.addEventListener('keypress', (e) => {
                         if (e.key === 'Enter') {
                             App.mapModule.searchFarmOnMap();
+                        }
+                    });
+                }
+                if (mapContainer) {
+                    mapContainer.addEventListener('click', (e) => {
+                        const searchContainer = document.querySelector('.map-search-container');
+                        // Se a busca estiver ativa e o clique não foi dentro do container de busca
+                        if (searchContainer.classList.contains('active') && !e.target.closest('.map-search-container')) {
+                            App.mapModule.closeSearch();
                         }
                     });
                 }
@@ -6643,28 +6657,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            // ALTERAÇÃO PONTO 5: Melhoria na busca de propriedades do Shapefile
-            showTalhaoInfo(feature) { // feature is now a GeoJSON feature
+            _findProp(feature, keys) {
+                if (!feature || !feature.properties) return 'Não identificado';
                 const props = {};
-                // Normalize properties to uppercase for consistent access
+                // Normalize all property keys to uppercase for consistent access
                 for (const key in feature.properties) {
                     props[key.toUpperCase()] = feature.properties[key];
                 }
                 
-                const findProp = (keys) => {
-                    for (const key of keys) {
-                        if (props[key.toUpperCase()] !== undefined) {
-                            return props[key.toUpperCase()];
-                        }
+                for (const key of keys) {
+                    if (props[key.toUpperCase()] !== undefined) {
+                        return props[key.toUpperCase()];
                     }
-                    return 'Não identificado';
-                };
+                }
+                return 'Não identificado';
+            },
 
-                const fundoAgricola = findProp(['FUNDO_AGR']);
-                const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
-                const talhaoNome = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-                const areaHa = findProp(['AREA_HA', 'AREA', 'HECTARES']);
-                const variedade = findProp(['VARIEDADE', 'CULTURA']);
+            // ALTERAÇÃO PONTO 5: Melhoria na busca de propriedades do Shapefile
+            showTalhaoInfo(feature) { // feature is now a GeoJSON feature
+                const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
+                const fazendaNome = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
+                const talhaoNome = this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                const areaHa = this._findProp(feature, ['AREA_HA', 'AREA', 'HECTARES']);
+                const variedade = this._findProp(feature, ['VARIEDADE', 'CULTURA']);
 
                 const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
                 contentEl.innerHTML = `
@@ -6831,23 +6846,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         manualBtn.style.display = 'none';
                         break;
                     case 'success':
-                        const feature = data[0]; // This is now a GeoJSON feature
-                        const findProp = (keys, props) => {
-                            if (!props) return 'Não identificado';
-                            for (const key of keys) {
-                                const upperKey = key.toUpperCase();
-                                for (const propKey in props) {
-                                    if (propKey.toUpperCase() === upperKey) {
-                                        return props[propKey];
-                                    }
-                                }
-                            }
-                            return 'Não identificado';
-                        };
-
-                        const fazendaNome = findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA'], feature.properties);
-                        const talhaoName = findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO'], feature.properties);
-                        const fundoAgricola = findProp(['FUNDO_AGR'], feature.properties);
+                        const feature = data[0];
+                        const fazendaNome = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
+                        const talhaoName = this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                        const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
 
                         content = `<p style="font-weight: 500;">Confirme o local de instalação:</p>
                                    <div class="location-confirmation-box">
@@ -6889,29 +6891,15 @@ document.addEventListener('DOMContentLoaded', () => {
                  App.state.trapPlacementData = null;
             },
 
-            async installTrap(lat, lng, feature = null) { // feature is a GeoJSON feature
-                const findProp = (keys) => {
-                    if (!feature || !feature.properties) return null;
-                    for (const key of keys) {
-                        const upperKey = key.toUpperCase();
-                        // Search for property case-insensitively
-                        for (const propKey in feature.properties) {
-                            if (propKey.toUpperCase() === upperKey) {
-                                return feature.properties[propKey];
-                            }
-                        }
-                    }
-                    return null;
-                };
-
+            async installTrap(lat, lng, feature = null) {
                 const newTrap = {
                     latitude: lat,
                     longitude: lng,
                     dataInstalacao: Timestamp.fromDate(new Date()),
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
-                    fazendaNome: feature ? findProp(['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : null,
-                    talhaoNome: feature ? findProp(['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) : null,
+                    fazendaNome: feature ? this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : 'Não identificado',
+                    talhaoNome: feature ? this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) : 'Não identificado',
                     companyId: App.state.currentUser.companyId
                 };
 
@@ -7206,11 +7194,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            toggleSearch() {
+                const searchContainer = document.querySelector('.map-search-container');
+                const searchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
+                const searchBtn = App.elements.monitoramentoAereo.mapFarmSearchBtn;
+                const searchBtnIcon = searchBtn.querySelector('i');
+
+                const isActive = searchContainer.classList.contains('active');
+
+                if (isActive) {
+                    // Se estiver ativo, verifica se tem texto para pesquisar, senão apenas fecha
+                    if (searchInput.value.trim() !== '') {
+                        this.searchFarmOnMap();
+                    } else {
+                        searchContainer.classList.remove('active');
+                        searchBtnIcon.className = 'fas fa-search';
+                        searchInput.value = '';
+                    }
+                } else {
+                    // Se não estiver ativo, ativa
+                    searchContainer.classList.add('active');
+                    searchBtnIcon.className = 'fas fa-times'; // Ícone de fechar
+                    searchInput.focus();
+                }
+            },
+
+            closeSearch() {
+                const searchContainer = document.querySelector('.map-search-container');
+                const searchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
+                const searchBtn = App.elements.monitoramentoAereo.mapFarmSearchBtn;
+                const searchBtnIcon = searchBtn.querySelector('i');
+
+                if (searchContainer.classList.contains('active')) {
+                    searchContainer.classList.remove('active');
+                    searchBtnIcon.className = 'fas fa-search';
+                    searchInput.value = '';
+                }
+            },
+
             searchFarmOnMap() {
                 const searchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
                 const searchTerm = searchInput.value.trim().toUpperCase();
                 if (!searchTerm) {
-                    App.ui.showAlert("Por favor, insira um nome ou código de fazenda.", "warning");
+                    // Se o campo de busca está vazio, apenas fecha a barra
+                    this.closeSearch();
                     return;
                 }
 
@@ -7220,7 +7247,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Limpa o destaque da pesquisa anterior
                 if (mapboxMap.searchedFarmFeatureIds) {
                     mapboxMap.searchedFarmFeatureIds.forEach(id => {
                         mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
@@ -7238,17 +7264,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const farmFeatures = geoJsonData.features.filter(feature => {
-                    if (!feature.properties) return false;
-                    const props = {};
-                    for (const key in feature.properties) {
-                        props[key.toUpperCase()] = feature.properties[key];
-                    }
-                    const fazendaCodigo = props['CD_FAZENDA'] || props['CODFZ'] || props['COD_FAZEND'];
+                    const fazendaCodigo = this._findProp(feature, ['CD_FAZENDA', 'CODFZ', 'COD_FAZEND']);
                     return String(fazendaCodigo) === String(foundFarm.code);
                 });
 
                 if (farmFeatures.length === 0) {
-                    App.ui.showAlert(`Fazenda "${foundFarm.name}" encontrada, mas seus desenhos não foram localizados no mapa. Verifique se a propriedade 'CD_FAZENDA' no shapefile corresponde ao código da fazenda.`, "warning", 6000);
+                    App.ui.showAlert(`Fazenda "${foundFarm.name}" encontrada, mas seus desenhos não foram localizados no mapa. Verifique se a propriedade de código da fazenda no shapefile corresponde.`, "warning", 6000);
                     return;
                 }
 
@@ -7262,18 +7283,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 1500
                 });
 
-                // Aplica o novo destaque
                 const featureIds = farmFeatures.map(f => f.id);
                 featureIds.forEach(id => {
                     mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: true });
                 });
                 mapboxMap.searchedFarmFeatureIds = featureIds;
 
-                // Remove o destaque após 8 segundos
                 setTimeout(() => {
                     featureIds.forEach(id => {
-                        // Apenas remove se ainda for o destaque ativo
-                        if (mapboxMap.searchedFarmFeatureIds.includes(id)) {
+                        if (mapboxMap.searchedFarmFeatureIds && mapboxMap.searchedFarmFeatureIds.includes(id)) {
                              mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
                         }
                     });

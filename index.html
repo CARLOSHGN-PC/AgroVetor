@@ -921,30 +921,38 @@
           left: 15px;
           z-index: 2;
           display: flex;
-          gap: 5px;
+          align-items: center; /* Centraliza verticalmente o botão e o input */
           background-color: var(--color-surface);
-          padding: 5px;
-          border-radius: var(--border-radius-lg);
+          border-radius: 50px; /* Faz o container ficar arredondado */
           box-shadow: var(--shadow-lg);
+          transition: width 0.4s ease-in-out;
+          height: 50px; /* Altura fixa */
+          padding: 0 5px; /* Padding horizontal */
       }
       #map-farm-search-input {
           border: none;
-          border-radius: var(--border-radius);
-          padding: 0 15px;
-          font-size: 15px;
-          width: 220px;
-          height: 50px;
-          margin: 0;
-          background-color: var(--color-bg);
-          color: var(--color-text);
-      }
-      #map-farm-search-input:focus {
           outline: none;
-          box-shadow: none;
-          background-color: var(--color-surface);
+          padding: 0;
+          font-size: 15px;
+          width: 0; /* Começa escondido */
+          height: 100%;
+          margin: 0;
+          background-color: transparent;
+          color: var(--color-text);
+          transition: width 0.4s ease-in-out, padding 0.4s ease-in-out;
+      }
+      .map-search-container.active #map-farm-search-input {
+          width: 220px; /* Largura quando ativo */
+          padding: 0 15px; /* Padding quando ativo */
       }
       #map-farm-search-btn {
-          position: static; /* Override .map-control-btn styles */
+          position: static;
+          width: 40px; /* Tamanho do botão */
+          height: 40px;
+          border-radius: 50%;
+          flex-shrink: 0; /* Impede que o botão encolha */
+          box-shadow: none; /* Remove a sombra individual do botão */
+          background-color: transparent;
       }
       .map-control-btn {
           width: 50px;
