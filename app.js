@@ -6569,12 +6569,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         paint: {
                             'line-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'searched'], false], '#FFEB3B', // Amarelo Brilhante para pesquisado
+                                ['boolean', ['feature-state', 'searched'], false], '#FFFFFF', // Branco para pesquisado
                                 '#FFD700' // Cor original
                             ],
                             'line-width': [
                                 'case',
-                                ['boolean', ['feature-state', 'searched'], false], 4,
+                                ['boolean', ['feature-state', 'searched'], false], 5,
                                 2
                             ],
                             'line-opacity': 0.9
