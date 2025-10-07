@@ -7240,8 +7240,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const { geoJsonData, mapboxMap } = App.state;
-                if (!geoJsonData || !mapboxMap) {
+                const { mapboxMap } = App.state;
+                if (!mapboxMap || !mapboxMap.getSource('talhoes-source')) {
                     App.ui.showAlert("Os dados do mapa ainda não foram carregados.", "error");
                     return;
                 }
@@ -7249,13 +7249,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Limpa a pesquisa anterior
                 if (mapboxMap.searchedFarmFeatureIds) {
                     mapboxMap.searchedFarmFeatureIds.forEach(id => {
-                        mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
+                        mapboxMap.setFeatureState({ source: 'talhoes-source', id }, { searched: false });
                     });
                 }
                 mapboxMap.searchedFarmFeatureIds = [];
+                if (mapboxMap.searchTimeout) {
+                    clearTimeout(mapboxMap.searchTimeout);
+                }
 
-                // Procura diretamente no GeoJSON pela propriedade FUNDO_AGR
-                const foundFeatures = geoJsonData.features.filter(feature => {
+                // **CORREÇÃO**: Em vez de pesquisar no geoJsonData (que não tem os IDs do mapa),
+                // consultamos as features que já estão na fonte do mapa.
+                const allSourceFeatures = mapboxMap.querySourceFeatures('talhoes-source');
+
+                const foundFeatures = allSourceFeatures.filter(feature => {
                     const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
                     return fundoAgricola && String(fundoAgricola).toUpperCase().includes(searchTerm);
                 });
@@ -7277,17 +7283,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const featureIds = foundFeatures.map(f => f.id);
                 featureIds.forEach(id => {
-                    mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: true });
+                    // O `id` aqui é o ID interno gerado pelo Mapbox, que é o que setFeatureState espera.
+                    mapboxMap.setFeatureState({ source: 'talhoes-source', id }, { searched: true });
                 });
                 mapboxMap.searchedFarmFeatureIds = featureIds;
 
                 // Remove o destaque após 8 segundos
-                setTimeout(() => {
+                mapboxMap.searchTimeout = setTimeout(() => {
                     featureIds.forEach(id => {
+                        // Verifica se o ID ainda está na lista de pesquisa atual antes de limpá-lo
                         if (mapboxMap.searchedFarmFeatureIds && mapboxMap.searchedFarmFeatureIds.includes(id)) {
-                             mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
+                             mapboxMap.setFeatureState({ source: 'talhoes-source', id }, { searched: false });
                         }
                     });
+                    mapboxMap.searchedFarmFeatureIds = []; // Limpa a lista após o timeout
                 }, 8000);
             },
         },
