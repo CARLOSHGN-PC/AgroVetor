@@ -412,6 +412,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
                 superAdminFarmCreation: document.getElementById('superAdminFarmCreation'),
                 adminTargetCompanyFarms: document.getElementById('adminTargetCompanyFarms'),
+                importProgress: {
+                    container: document.getElementById('farm-import-progress'),
+                    text: document.querySelector('#farm-import-progress .download-progress-text'),
+                    bar: document.querySelector('#farm-import-progress .download-progress-bar'),
+                }
             },
             planejamento: {
                 tipo: document.getElementById('planoTipo'),
@@ -540,7 +545,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnExcel: document.getElementById('btnExcelCigarrinhaAmostragem'),
             },
             exclusao: {
-                lista: document.getElementById('listaExclusao')
+                lista: document.getElementById('listaExclusao'),
+                dataType: document.getElementById('deleteDataType'),
+                startDate: document.getElementById('deleteStartDate'),
+                endDate: document.getElementById('deleteEndDate'),
+                applyBtn: document.getElementById('btnApplyDeleteFilters')
             },
             relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
@@ -562,6 +571,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBox: document.getElementById('trap-info-box'),
                 trapInfoBoxContent: document.getElementById('trap-info-box-content'),
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
+                    mapFarmSearchInput: document.getElementById('map-farm-search-input'),
+                    mapFarmSearchBtn: document.getElementById('map-farm-search-btn'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -2145,16 +2156,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             renderExclusao() {
-                const { lista } = App.elements.exclusao; lista.innerHTML = ''; let content = '';
-                if (App.state.registros.length > 0) {
-                    content += `<h3>Brocamento</h3>`;
-                    content += App.state.registros.map((reg) => `<div class="user-card"><strong>${reg.fazenda}</strong> - ${reg.talhao} (${reg.data}) <button class="btn-excluir" data-type="brocamento" data-id="${reg.id}"><i class="fas fa-trash"></i> Excluir</button></div>`).join('');
+                const { lista, dataType, startDate, endDate } = App.elements.exclusao;
+                lista.innerHTML = '';
+                let content = '';
+
+                const type = dataType.value;
+                const start = startDate.value;
+                const end = endDate.value;
+
+                let registrosFiltrados = App.state.registros;
+                let perdasFiltradas = App.state.perdas;
+
+                if (start) {
+                    registrosFiltrados = registrosFiltrados.filter(r => r.data >= start);
+                    perdasFiltradas = perdasFiltradas.filter(p => p.data >= start);
                 }
-                if (App.state.perdas.length > 0) {
-                    content += `<h3 style="margin-top:20px;">Perda de Cana</h3>`;
-                    content += App.state.perdas.map((p) => `<div class="user-card"><strong>${p.fazenda}</strong> - ${p.talhao} (${p.data}) <button class="btn-excluir" data-type="perda" data-id="${p.id}"><i class="fas fa-trash"></i> Excluir</button></div>`).join('');
+                if (end) {
+                    registrosFiltrados = registrosFiltrados.filter(r => r.data <= end);
+                    perdasFiltradas = perdasFiltradas.filter(p => p.data <= end);
                 }
-                lista.innerHTML = content || '<p>Nenhum lançamento encontrado.</p>';
+
+                if (type === 'todos' || type === 'brocamento') {
+                    if (registrosFiltrados.length > 0) {
+                        content += `<h3>Brocamento (${registrosFiltrados.length})</h3>`;
+                        content += registrosFiltrados.map((reg) => `<div class="user-card"><strong>${reg.fazenda}</strong> - ${reg.talhao} (${reg.data}) <button class="btn-excluir" data-type="brocamento" data-id="${reg.id}"><i class="fas fa-trash"></i> Excluir</button></div>`).join('');
+                    }
+                }
+                if (type === 'todos' || type === 'perda') {
+                    if (perdasFiltradas.length > 0) {
+                        content += `<h3 style="margin-top:20px;">Perda de Cana (${perdasFiltradas.length})</h3>`;
+                        content += perdasFiltradas.map((p) => `<div class="user-card"><strong>${p.fazenda}</strong> - ${p.talhao} (${p.data}) <button class="btn-excluir" data-type="perda" data-id="${p.id}"><i class="fas fa-trash"></i> Excluir</button></div>`).join('');
+                    }
+                }
+
+                lista.innerHTML = content || '<p style="text-align:center; padding: 20px;">Nenhum lançamento encontrado para os filtros selecionados.</p>';
             },
             renderPlanejamento() {
                 const { lista } = App.elements.planejamento; lista.innerHTML = '';
@@ -3289,6 +3324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (amostragemEls.btnExcel) amostragemEls.btnExcel.addEventListener('click', () => App.reports.generateCigarrinhaAmostragemCSV());
 
                 if (App.elements.exclusao.lista) App.elements.exclusao.lista.addEventListener('click', e => { const button = e.target.closest('button.btn-excluir'); if (button) App.actions.deleteEntry(button.dataset.type, button.dataset.id); });
+                if (App.elements.exclusao.applyBtn) App.elements.exclusao.applyBtn.addEventListener('click', () => this.renderExclusao());
                 
                 const customReportEls = App.elements.relatorioColheita;
                 if (customReportEls.btnPDF) customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
@@ -3438,6 +3474,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (configModal.overlay) configModal.overlay.addEventListener('click', e => { if (e.target === configModal.overlay) App.ui.hideConfigHistoryModal(); });
                 if (configModal.closeBtn) configModal.closeBtn.addEventListener('click', () => App.ui.hideConfigHistoryModal());
                 if (configModal.cancelBtn) configModal.cancelBtn.addEventListener('click', () => App.ui.hideConfigHistoryModal());
+
+                // [NOVO] Listeners para a pesquisa no mapa
+                const mapSearchBtn = App.elements.monitoramentoAereo.mapFarmSearchBtn;
+                const mapSearchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
+                if (mapSearchBtn) {
+                    mapSearchBtn.addEventListener('click', () => App.mapModule.searchFarmOnMap());
+                }
+                if (mapSearchInput) {
+                    mapSearchInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            App.mapModule.searchFarmOnMap();
+                        }
+                    });
+                }
             }
         },
         
@@ -4882,6 +4932,8 @@ document.addEventListener('DOMContentLoaded', () => {
             async importFarmsFromCSV(file) {
                  if (!file) return;
                  const reader = new FileReader();
+                 const progressEls = App.elements.cadastros.importProgress;
+
                  reader.onload = async (event) => {
                      const CHUNK_SIZE = 400; 
                      const PAUSE_DURATION = 50;
@@ -4895,7 +4947,10 @@ document.addEventListener('DOMContentLoaded', () => {
                              App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
                          }
                          
-                         App.ui.setLoading(true, `A iniciar importação de ${totalLines} linhas...`);
+                         progressEls.container.style.display = 'block';
+                         progressEls.text.textContent = `A iniciar importação de ${totalLines} linhas...`;
+                         progressEls.bar.value = 0;
+                         progressEls.bar.max = totalLines;
                          await new Promise(resolve => setTimeout(resolve, 100));
 
                          const fileHeaders = lines[0].split(';').map(h => h.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
@@ -4911,9 +4966,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          };
 
                          if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
-                             App.ui.showAlert('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.', "error");
-                             App.ui.setLoading(false);
-                             return;
+                             throw new Error('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.');
                          }
                          
                          const fazendasToUpdate = {};
@@ -4929,9 +4982,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                  if(App.state.currentUser.role === 'super-admin') {
                                     targetCompanyId = App.elements.cadastros.adminTargetCompanyFarms.value;
                                     if(!targetCompanyId) {
-                                         App.ui.showAlert("Como Super Admin, você deve selecionar uma empresa alvo para importar os dados.", "error");
-                                         App.ui.setLoading(false);
-                                         throw new Error("Empresa alvo não selecionada pelo Super Admin.");
+                                         throw new Error("Como Super Admin, você deve selecionar uma empresa alvo para importar os dados.");
                                     }
                                  }
 
@@ -4987,17 +5038,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                              await batch.commit();
                              const progress = Math.min(i + CHUNK_SIZE, farmCodes.length);
-                             App.ui.setLoading(true, `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`);
+                             progressEls.bar.value = progress;
+                             progressEls.text.textContent = `A processar... ${progress} de ${farmCodes.length} fazendas atualizadas.`;
                              await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
                          }
 
                          App.ui.showAlert(`Importação concluída! ${farmCodes.length} fazendas foram processadas.`, 'success');
 
                      } catch (e) {
-                         App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
+                         App.ui.showAlert(`Erro ao processar o ficheiro CSV: ${e.message}`, "error", 5000);
                          console.error(e);
                      } finally {
-                         App.ui.setLoading(false);
+                         setTimeout(() => {
+                            progressEls.container.style.display = 'none';
+                         }, 4000);
                          App.elements.cadastros.csvFileInput.value = '';
                      }
                  };
@@ -6105,7 +6159,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Ocorreu um erro ao tentar notificar os administradores.", "error");
                 }
             },
-
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
@@ -6401,8 +6454,13 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async loadAndCacheShapes(url) {
-                if (!url) return;
+                const mapContainer = document.getElementById('map-container');
+                if (!url) {
+                    if (mapContainer) mapContainer.classList.remove('loading');
+                    return;
+                }
                 console.log("Iniciando o carregamento dos contornos do mapa em segundo plano...");
+                if (mapContainer) mapContainer.classList.add('loading');
                 try {
                     const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
                     const response = await fetch(urlWithCacheBuster);
@@ -6422,11 +6480,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
                     App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
+                    if (mapContainer) mapContainer.classList.remove('loading');
                     this.loadOfflineShapes();
                 }
             },
 
             async loadOfflineShapes() {
+                const mapContainer = document.getElementById('map-container');
+                if (mapContainer) mapContainer.classList.add('loading');
                 const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
                 if (buffer) {
                     App.ui.showAlert("A carregar mapa do cache offline.", "info");
@@ -6438,12 +6499,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } catch (e) {
                         console.error("Erro ao processar shapefile do cache:", e);
+                        if (mapContainer) mapContainer.classList.remove('loading');
                     }
+                } else {
+                    if (mapContainer) mapContainer.classList.remove('loading');
                 }
             },
 
             loadShapesOnMap() {
-                if (!App.state.mapboxMap || !App.state.geoJsonData) return;
+                const mapContainer = document.getElementById('map-container');
+                if (!App.state.mapboxMap || !App.state.geoJsonData) {
+                    if (mapContainer) mapContainer.classList.remove('loading');
+                    return;
+                }
 
                 const map = App.state.mapboxMap;
                 const sourceId = 'talhoes-source';
@@ -6485,9 +6553,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'line',
                         source: sourceId,
                         paint: {
-                            'line-color': '#FFD700',
-                            'line-width': 2,
-                            'line-opacity': 0.8
+                            'line-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'searched'], false], '#FFEB3B', // Amarelo Brilhante para pesquisado
+                                '#FFD700' // Cor original
+                            ],
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'searched'], false], 4,
+                                2
+                            ],
+                            'line-opacity': 0.9
                         }
                     });
                 }
@@ -6514,6 +6590,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 map.on('click', layerId, (e) => {
+                    // Impede que o clique no talhão seja acionado se um marcador (armadilha) for clicado
+                    if (e.originalEvent.target.closest('.mapboxgl-marker')) {
+                        return;
+                    }
+
                     if (e.features.length === 0) return;
                     const clickedFeature = e.features[0];
                     const userMarker = App.state.mapboxUserMarker;
@@ -6693,7 +6774,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         .setLngLat([trap.longitude, trap.latitude])
                         .addTo(App.state.mapboxMap);
                     
-                    el.addEventListener('click', () => this.showTrapInfo(trap.id));
+                    el.addEventListener('click', (e) => { e.stopPropagation(); this.showTrapInfo(trap.id); });
                     App.state.mapboxTrapMarkers[trap.id] = marker;
                 }
             },
@@ -7125,6 +7206,79 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            searchFarmOnMap() {
+                const searchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
+                const searchTerm = searchInput.value.trim().toUpperCase();
+                if (!searchTerm) {
+                    App.ui.showAlert("Por favor, insira um nome ou código de fazenda.", "warning");
+                    return;
+                }
+
+                const { fazendas, geoJsonData, mapboxMap } = App.state;
+                if (!fazendas || !geoJsonData || !mapboxMap) {
+                    App.ui.showAlert("Os dados das fazendas ou do mapa ainda não foram carregados.", "error");
+                    return;
+                }
+
+                // Limpa o destaque da pesquisa anterior
+                if (mapboxMap.searchedFarmFeatureIds) {
+                    mapboxMap.searchedFarmFeatureIds.forEach(id => {
+                        mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
+                    });
+                }
+                mapboxMap.searchedFarmFeatureIds = [];
+
+                const foundFarm = fazendas.find(f =>
+                    f.name.toUpperCase().includes(searchTerm) || String(f.code).toUpperCase().includes(searchTerm)
+                );
+
+                if (!foundFarm) {
+                    App.ui.showAlert(`Nenhuma fazenda encontrada com o termo "${searchInput.value}".`, "info");
+                    return;
+                }
+
+                const farmFeatures = geoJsonData.features.filter(feature => {
+                    if (!feature.properties) return false;
+                    const props = {};
+                    for (const key in feature.properties) {
+                        props[key.toUpperCase()] = feature.properties[key];
+                    }
+                    const fazendaCodigo = props['CD_FAZENDA'] || props['CODFZ'] || props['COD_FAZEND'];
+                    return String(fazendaCodigo) === String(foundFarm.code);
+                });
+
+                if (farmFeatures.length === 0) {
+                    App.ui.showAlert(`Fazenda "${foundFarm.name}" encontrada, mas seus desenhos não foram localizados no mapa. Verifique se a propriedade 'CD_FAZENDA' no shapefile corresponde ao código da fazenda.`, "warning", 6000);
+                    return;
+                }
+
+                const featureCollection = turf.featureCollection(farmFeatures);
+                const bbox = turf.bbox(featureCollection);
+                const bounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
+
+                mapboxMap.fitBounds(bounds, {
+                    padding: 60,
+                    maxZoom: 14,
+                    duration: 1500
+                });
+
+                // Aplica o novo destaque
+                const featureIds = farmFeatures.map(f => f.id);
+                featureIds.forEach(id => {
+                    mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: true });
+                });
+                mapboxMap.searchedFarmFeatureIds = featureIds;
+
+                // Remove o destaque após 8 segundos
+                setTimeout(() => {
+                    featureIds.forEach(id => {
+                        // Apenas remove se ainda for o destaque ativo
+                        if (mapboxMap.searchedFarmFeatureIds.includes(id)) {
+                             mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
+                        }
+                    });
+                }, 8000);
+            },
         },
 
         charts: {

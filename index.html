@@ -915,6 +915,37 @@
           flex-direction: column;
           gap: 10px;
       }
+      .map-search-container {
+          position: absolute;
+          top: 15px;
+          left: 15px;
+          z-index: 2;
+          display: flex;
+          gap: 5px;
+          background-color: var(--color-surface);
+          padding: 5px;
+          border-radius: var(--border-radius-lg);
+          box-shadow: var(--shadow-lg);
+      }
+      #map-farm-search-input {
+          border: none;
+          border-radius: var(--border-radius);
+          padding: 0 15px;
+          font-size: 15px;
+          width: 220px;
+          height: 50px;
+          margin: 0;
+          background-color: var(--color-bg);
+          color: var(--color-text);
+      }
+      #map-farm-search-input:focus {
+          outline: none;
+          box-shadow: none;
+          background-color: var(--color-surface);
+      }
+      #map-farm-search-btn {
+          position: static; /* Override .map-control-btn styles */
+      }
       .map-control-btn {
           width: 50px;
           height: 50px;
@@ -2218,6 +2249,28 @@
             <section id="excluirDados" class="tab-content card" aria-label="Excluir Lançamentos" tabindex="0" hidden>
                 <h2><i class="fas fa-trash"></i> Excluir Lançamentos</h2>
                 <p>Selecione um lançamento para excluir. Esta ação é irreversível.</p>
+                <div class="card" style="border-left-color: var(--color-warning); margin-bottom: 20px;">
+                    <h3><i class="fas fa-filter"></i> Filtros</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="deleteDataType">Tipo de Dado:</label>
+                            <select id="deleteDataType">
+                                <option value="todos">Todos</option>
+                                <option value="brocamento">Brocamento</option>
+                                <option value="perda">Perda de Cana</option>
+                            </select>
+                        </div>
+                        <div class="form-col">
+                            <label for="deleteStartDate">Data Início:</label>
+                            <input type="date" id="deleteStartDate">
+                        </div>
+                        <div class="form-col">
+                            <label for="deleteEndDate">Data Fim:</label>
+                            <input type="date" id="deleteEndDate">
+                        </div>
+                    </div>
+                    <button id="btnApplyDeleteFilters" class="save" style="max-width: 200px;"><i class="fas fa-filter"></i> Aplicar Filtros</button>
+                </div>
                 <div id="listaExclusao" tabindex="0"></div>
             </section>
 
@@ -2237,6 +2290,10 @@
                     <div class="upload-area" id="csvUploadArea">
                         <i class="fas fa-file-csv fa-2x" style="color: var(--color-primary);"></i>
                         <p>Clique ou arraste um ficheiro CSV aqui</p>
+                    </div>
+                    <div class="download-progress-container" id="farm-import-progress" style="display: none; margin-top: 15px;">
+                        <p class="download-progress-text"></p>
+                        <progress class="download-progress-bar" value="0" max="100"></progress>
                     </div>
                     <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
                     <button id="btnDownloadCsvTemplate" class="save" style="max-width: 300px; margin-top: 15px; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
@@ -2489,8 +2546,14 @@
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
-            <div id="map-container">
+            <div id="map-container" class="loading">
                 <div id="map"></div>
+                <div class="map-search-container">
+                    <input type="text" id="map-farm-search-input" placeholder="Pesquisar fazenda...">
+                    <button id="map-farm-search-btn" class="map-control-btn" title="Pesquisar Fazenda">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
                 <div class="map-controls">
                     <button id="btnCenterMap" class="map-control-btn" title="Centralizar em Mim">
                         <i class="fas fa-location-arrow"></i>
