@@ -401,6 +401,17 @@ try {
         });
     };
 
+    const sortByDateAndFazenda = (a, b) => {
+        const dateComparison = new Date(a.data) - new Date(b.data);
+        if (dateComparison !== 0) {
+            return dateComparison;
+        }
+        // Fallback para o código da fazenda (ordem numérica)
+        const codeA = parseInt(a.codigo, 10) || 0;
+        const codeB = parseInt(b.codigo, 10) || 0;
+        return codeA - codeB;
+    };
+
     const getFilteredData = async (collectionName, filters) => {
         // Validação de Segurança: Garante que o companyId foi fornecido.
         if (!filters.companyId) {
@@ -471,18 +482,7 @@ try {
             filteredData = filteredData.filter(d => d.frenteServico && d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
         }
         
-        return filteredData.sort((a, b) => new Date(a.data) - new Date(b.data));
-    };
-
-    const sortByDateAndFazenda = (a, b) => {
-        const dateComparison = new Date(a.data) - new Date(b.data);
-        if (dateComparison !== 0) {
-            return dateComparison;
-        }
-        // Fallback para o código da fazenda (ordem numérica)
-        const codeA = parseInt(a.codigo, 10) || 0;
-        const codeB = parseInt(b.codigo, 10) || 0;
-        return codeA - codeB;
+        return filteredData.sort(sortByDateAndFazenda);
     };
 
     const generatePdfHeader = async (doc, title, companyId) => {
@@ -949,8 +949,6 @@ try {
                 return { ...reg, variedade: talhao?.variedade || 'N/A' };
             });
 
-            enrichedData.sort(sortByDateAndFazenda);
-
             let currentY = await generatePdfHeader(doc, title);
 
             const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado'];
@@ -1012,8 +1010,6 @@ try {
                 doc.end();
                 return;
             }
-
-            data.sort(sortByDateAndFazenda);
 
             let currentY = await generatePdfHeader(doc, title);
 
@@ -1098,7 +1094,7 @@ try {
                 }
             } else { // Detalhado
                 const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Adulto', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
-                const columnWidths = [160, 80, 65, 100, 50, 60, 40, 40, 40, 40, 40, 67];
+                const columnWidths = [140, 70, 65, 100, 50, 60, 40, 40, 40, 40, 40, 97];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
                 const divisor = parseInt(filters.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
 
@@ -1150,8 +1146,6 @@ try {
             const { tipoRelatorio = 'detalhado' } = req.query;
             const data = await getFilteredData('cigarrinhaAmostragem', req.query);
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado para os filtros selecionados.');
-
-            data.sort(sortByDateAndFazenda);
 
             const filename = `relatorio_cigarrinha_amostragem_${tipoRelatorio}_${Date.now()}.csv`;
             const filePath = path.join(os.tmpdir(), filename);
@@ -1313,8 +1307,6 @@ try {
                     resultado: r.resultado
                 };
             });
-
-            records.sort(sortByDateAndFazenda);
 
             await csvWriter.writeRecords(records);
             res.download(filePath);
