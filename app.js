@@ -194,7 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
-            trapClicked: false,
         },
         
         elements: {
@@ -1091,7 +1090,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.notificationBell.container.style.display = 'block';
                 App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
                 
-                App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AGROVETOR`;
+                // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
+                App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AgroVetor`;
+
                 this.updateDateTime();
                 setInterval(() => this.updateDateTime(), 60000);
 
@@ -1713,19 +1714,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 formElement.querySelectorAll('.info-display').forEach(el => el.textContent = '');
                 formElement.querySelectorAll('.resultado').forEach(el => el.textContent = '');
             },
-            populateMapFarmSearch() {
-                const datalist = document.getElementById('farm-list-for-map');
-                if (!datalist) return;
-
-                datalist.innerHTML = '';
-                App.state.fazendas
-                    .sort((a, b) => parseInt(a.code) - parseInt(b.code))
-                    .forEach(farm => {
-                        const option = document.createElement('option');
-                        option.value = `${farm.code} - ${farm.name}`;
-                        datalist.appendChild(option);
-                    });
-            },
             populateFazendaSelects() {
                 const selects = [
                     App.elements.broca.filtroFazenda,
@@ -1742,7 +1730,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.relatorioMonitoramento.fazendaFiltro
                 ];
 
-                this.populateMapFarmSearch(); // Popula o datalist do mapa
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
 
                 selects.forEach(select => {
@@ -6603,11 +6590,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 map.on('click', layerId, (e) => {
-                    // Se uma armadilha foi clicada recentemente, ignora este evento para não selecionar o talhão por baixo.
-                    if (App.state.trapClicked) {
-                        return;
-                    }
-
                     // Impede que o clique no talhão seja acionado se um marcador (armadilha) for clicado
                     if (e.originalEvent.target.closest('.mapboxgl-marker')) {
                         return;
@@ -6792,13 +6774,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         .setLngLat([trap.longitude, trap.latitude])
                         .addTo(App.state.mapboxMap);
                     
-                    el.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        // Define uma flag para evitar que o clique no mapa seja acionado ao mesmo tempo
-                        App.state.trapClicked = true;
-                        this.showTrapInfo(trap.id);
-                        setTimeout(() => { App.state.trapClicked = false; }, 100); // Reseta a flag após um curto período
-                    });
+                    el.addEventListener('click', (e) => { e.stopPropagation(); this.showTrapInfo(trap.id); });
                     App.state.mapboxTrapMarkers[trap.id] = marker;
                 }
             },
@@ -7232,15 +7208,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             searchFarmOnMap() {
                 const searchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
-                const searchTerm = searchInput.value.trim();
+                const searchTerm = searchInput.value.trim().toUpperCase();
                 if (!searchTerm) {
-                    App.ui.showAlert("Por favor, selecione ou digite o nome de uma fazenda.", "warning");
+                    App.ui.showAlert("Por favor, insira um nome ou código de fazenda.", "warning");
                     return;
                 }
-
-                // Extrai o código da fazenda do valor (formato "CÓDIGO - NOME")
-                const farmCodeMatch = searchTerm.match(/^(\d+)/);
-                const searchCode = farmCodeMatch ? farmCodeMatch[1] : null;
 
                 const { fazendas, geoJsonData, mapboxMap } = App.state;
                 if (!fazendas || !geoJsonData || !mapboxMap) {
@@ -7256,9 +7228,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 mapboxMap.searchedFarmFeatureIds = [];
 
-                const foundFarm = searchCode
-                    ? fazendas.find(f => String(f.code) === searchCode)
-                    : fazendas.find(f => f.name.toUpperCase().includes(searchTerm.toUpperCase()));
+                const foundFarm = fazendas.find(f =>
+                    f.name.toUpperCase().includes(searchTerm) || String(f.code).toUpperCase().includes(searchTerm)
+                );
 
                 if (!foundFarm) {
                     App.ui.showAlert(`Nenhuma fazenda encontrada com o termo "${searchInput.value}".`, "info");

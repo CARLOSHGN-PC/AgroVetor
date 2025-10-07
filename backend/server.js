@@ -359,11 +359,10 @@ try {
 
         try {
             const query = db.collection('locationHistory')
-            .where('companyId', '==', companyId)
+                .where('companyId', '==', companyId) // Adiciona filtro de empresa
                 .where('userId', '==', userId)
                 .where('timestamp', '>=', new Date(startDate + 'T00:00:00Z'))
-            .where('timestamp', '<=', new Date(endDate + 'T23:59:59Z'))
-            .orderBy('timestamp');
+                .where('timestamp', '<=', new Date(endDate + 'T23:59:59Z'));
 
             const snapshot = await query.get();
 
@@ -371,15 +370,19 @@ try {
                 return res.status(200).json([]);
             }
 
-        const history = snapshot.docs.map(doc => {
+            const history = [];
+            snapshot.forEach(doc => {
                 const data = doc.data();
-            return {
+                history.push({
                     id: doc.id,
                     latitude: data.location.latitude,
                     longitude: data.location.longitude,
                 timestamp: data.timestamp.toDate()
-            };
+                });
             });
+
+            // Ordena os resultados manualmente pelo timestamp
+            history.sort((a, b) => a.timestamp - b.timestamp);
 
             res.status(200).json(history);
         } catch (error) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v12'; // Incremented version for update
+const CACHE_NAME = 'agrovetor-cache-v11'; // Incremented version for update
 const TILE_CACHE_NAME = 'agrovetor-tile-cache-v3'; // Incremented tile cache
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
