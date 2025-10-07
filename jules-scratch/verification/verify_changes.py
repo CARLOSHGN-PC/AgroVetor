@@ -4,65 +4,123 @@ from playwright.async_api import async_playwright, expect
 async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+        context = await browser.new_context()
+        page = await context.new_page()
 
-        # Get the absolute path of the index.html file
-        import os
-        file_path = os.path.abspath('index.html')
+        try:
+            # 1. Go to the app
+            await page.goto("http://localhost:8001")
 
-        # 1. Go to the local index.html file
-        await page.goto(f'file://{file_path}')
+            # Wait for the App object to be available on the window
+            await page.wait_for_function("window.App")
 
-        # Wait for the login form to be visible, which indicates the app is ready for login.
-        await expect(page.locator('#loginForm')).to_be_visible(timeout=10000)
-        print("Login form is visible.")
+            # 2. Inject user profile and company data to bypass login
+            user_profile = {
+                "uid": "test-user-id",
+                "email": "test@example.com",
+                "username": "Test User",
+                "role": "admin",
+                "active": True,
+                "companyId": "test-company-id",
+                "permissions": {
+                    "dashboard": True, "monitoramentoAereo": True, "relatorioMonitoramento": True,
+                    "planejamentoColheita": True, "planejamento": True, "lancamentoBroca": True,
+                    "lancamentoPerda": True, "lancamentoCigarrinha": True, "relatorioBroca": True,
+                    "relatorioPerda": True, "relatorioCigarrinha": True, "lancamentoCigarrinhaAmostragem": True,
+                    "relatorioCigarrinhaAmostragem": True, "excluir": True, "gerenciarUsuarios": True,
+                    "configuracoes": True, "cadastrarPessoas": True, "syncHistory": True
+                }
+            }
 
-        # 2. Log in as Super Admin
-        await page.locator('#loginUser').fill('admin@agrovetor.com')
-        await page.locator('#loginPass').fill('agro@123')
-        await page.locator('#btnLogin').click()
+            company_data = {
+                "id": "test-company-id",
+                "name": "Test Company",
+                "active": True,
+                "subscribedModules": list(user_profile["permissions"].keys())
+            }
 
-        # Wait for the app screen to be visible
-        await expect(page.locator('#appScreen')).to_be_visible(timeout=20000)
-        print("Login successful, app screen is visible.")
+            # Correctly pass Python objects to page.evaluate
+            await page.evaluate("""(args) => {
+                const [user, company] = args;
+                localStorage.setItem('localUserProfiles', JSON.stringify([user]));
+                window.App.state.currentUser = user;
+                window.App.state.companies = [company];
+            }""", [user_profile, company_data])
 
-        # 3. Navigate to "Gerir Utilizadores" and take a screenshot
-        await page.locator('#btnToggleMenu').click()
-        # Click on 'Administrativo' submenu
-        await page.get_by_role("button", name="Administrativo").click()
-        # Click on 'Gerir Utilizadores'
-        await page.get_by_role("button", name="Gerir Utilizadores").click()
+            # Show the main app screen
+            await page.evaluate("window.App.ui.showAppScreen()")
 
-        await expect(page.locator('#superAdminUserCreation')).to_be_visible()
-        print("Company selector for user creation is visible.")
-        await page.screenshot(path='jules-scratch/verification/01_super_admin_user_creation.png')
-        print("Screenshot 1 taken.")
+            # 3. Navigate to Aerial Monitoring
+            await page.get_by_label("Abrir menu").click()
+            await page.get_by_role("button", name="Monitoramento Aéreo").click()
 
-        # 4. Navigate to "Cadastros" and take a screenshot
-        await page.locator('#btnToggleMenu').click()
-        # Click on 'Administrativo' submenu again
-        await page.get_by_role("button", name="Administrativo").click()
-        # Click on 'Cadastros'
-        await page.get_by_role("button", name="Cadastros").click()
+            # 4. Verify Loading Spinner
+            map_container = page.locator("#map-container")
+            await expect(map_container).not_to_have_class("loading", timeout=20000)
+            print("Map loaded and spinner disappeared.")
 
-        await expect(page.locator('#superAdminFarmCreation')).to_be_visible()
-        print("Company selector for farm creation is visible.")
-        await page.screenshot(path='jules-scratch/verification/02_super_admin_farm_creation.png')
-        print("Screenshot 2 taken.")
+            await page.screenshot(path="jules-scratch/verification/01_map_loaded.png")
+            print("Screenshot 1: Map loaded.")
 
-        # 5. Navigate to "Cigarrinha (Amostragem)" and take a screenshot
-        await page.locator('#btnToggleMenu').click()
-        # Click on 'Lançamentos' submenu
-        await page.get_by_role("button", name="Lançamentos").click()
-        # Click on 'Monitoramento de Cigarrinha (Amostragem)'
-        await page.get_by_role("button", name="Monitoramento de Cigarrinha (Amostragem)").click()
+            # 5. Test Farm Search by injecting mock data
+            await page.evaluate("""() => {
+                window.App.state.fazendas = [{
+                    id: 'farm-1', code: '123', name: 'FAZENDA TESTE', talhoes: []
+                }];
+                window.App.state.geoJsonData = {
+                    type: 'FeatureCollection',
+                    features: [{
+                        type: 'Feature',
+                        id: 1,
+                        geometry: { type: 'Polygon', coordinates: [[[-48, -21], [-49, -21], [-49, -22], [-48, -22], [-48, -21]]] },
+                        properties: { CD_FAZENDA: '123', NM_IMOVEL: 'FAZENDA TESTE' }
+                    }]
+                };
+                window.App.mapModule.loadShapesOnMap();
+            }""")
 
-        await expect(page.locator('#adultoPresenteCigarrinhaAmostragem')).to_be_visible()
-        print("'Adulto Presente' checkbox is visible.")
-        await page.screenshot(path='jules-scratch/verification/03_cigarrinha_amostragem_adulto.png')
-        print("Screenshot 3 taken.")
+            await page.locator("#map-farm-search-input").fill("Fazenda Teste")
+            await page.locator("#map-farm-search-btn").click()
+            await page.wait_for_timeout(2000) # Wait for pan
 
-        await browser.close()
+            await page.screenshot(path="jules-scratch/verification/02_farm_search.png")
+            print("Screenshot 2: Farm search executed.")
 
-if __name__ == '__main__':
+            # 6. Test Trap Selection by injecting a mock trap
+            await page.evaluate("""() => {
+                const trap = {
+                    id: 'trap-1',
+                    latitude: -21.5,
+                    longitude: -48.5,
+                    dataInstalacao: new Date(),
+                    status: 'Ativa',
+                    talhaoNome: 'T-01'
+                };
+                // Mock toDate() for marker creation
+                trap.dataInstalacao.toDate = function() { return this; };
+                window.App.state.armadilhas = [trap];
+                window.App.mapModule.addOrUpdateTrapMarker(trap);
+            }""")
+
+            trap_marker = page.locator(".mapbox-marker").first
+            await expect(trap_marker).to_be_visible(timeout=10000)
+            await trap_marker.click()
+
+            trap_info_box = page.locator("#trap-info-box")
+            plot_info_box = page.locator("#talhao-info-box")
+
+            await expect(trap_info_box).to_be_visible()
+            await expect(plot_info_box).not_to_be_visible()
+            print("Trap info box is visible and plot info box is hidden, as expected.")
+
+            await page.screenshot(path="jules-scratch/verification/03_trap_selection.png")
+            print("Screenshot 3: Trap selection verified.")
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await page.screenshot(path="jules-scratch/verification/error.png")
+        finally:
+            await browser.close()
+
+if __name__ == "__main__":
     asyncio.run(main())
