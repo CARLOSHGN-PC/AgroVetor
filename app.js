@@ -7236,17 +7236,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const searchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
                 const searchTerm = searchInput.value.trim().toUpperCase();
                 if (!searchTerm) {
-                    // Se o campo de busca está vazio, apenas fecha a barra
                     this.closeSearch();
                     return;
                 }
 
-                const { fazendas, geoJsonData, mapboxMap } = App.state;
-                if (!fazendas || !geoJsonData || !mapboxMap) {
-                    App.ui.showAlert("Os dados das fazendas ou do mapa ainda não foram carregados.", "error");
+                const { geoJsonData, mapboxMap } = App.state;
+                if (!geoJsonData || !mapboxMap) {
+                    App.ui.showAlert("Os dados do mapa ainda não foram carregados.", "error");
                     return;
                 }
 
+                // Limpa a pesquisa anterior
                 if (mapboxMap.searchedFarmFeatureIds) {
                     mapboxMap.searchedFarmFeatureIds.forEach(id => {
                         mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
@@ -7254,26 +7254,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 mapboxMap.searchedFarmFeatureIds = [];
 
-                const foundFarm = fazendas.find(f =>
-                    f.name.toUpperCase().includes(searchTerm) || String(f.code).toUpperCase().includes(searchTerm)
-                );
-
-                if (!foundFarm) {
-                    App.ui.showAlert(`Nenhuma fazenda encontrada com o termo "${searchInput.value}".`, "info");
-                    return;
-                }
-
-                const farmFeatures = geoJsonData.features.filter(feature => {
-                    const fazendaCodigo = this._findProp(feature, ['CD_FAZENDA', 'CODFZ', 'COD_FAZEND']);
-                    return String(fazendaCodigo) === String(foundFarm.code);
+                // Procura diretamente no GeoJSON pela propriedade FUNDO_AGR
+                const foundFeatures = geoJsonData.features.filter(feature => {
+                    const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
+                    return fundoAgricola && String(fundoAgricola).toUpperCase().includes(searchTerm);
                 });
 
-                if (farmFeatures.length === 0) {
-                    App.ui.showAlert(`Fazenda "${foundFarm.name}" encontrada, mas seus desenhos não foram localizados no mapa. Verifique se a propriedade de código da fazenda no shapefile corresponde.`, "warning", 6000);
+                if (foundFeatures.length === 0) {
+                    App.ui.showAlert(`Nenhum fundo agrícola encontrado com o termo "${searchInput.value}" no mapa.`, "info");
                     return;
                 }
 
-                const featureCollection = turf.featureCollection(farmFeatures);
+                const featureCollection = turf.featureCollection(foundFeatures);
                 const bbox = turf.bbox(featureCollection);
                 const bounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
 
@@ -7283,12 +7275,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 1500
                 });
 
-                const featureIds = farmFeatures.map(f => f.id);
+                const featureIds = foundFeatures.map(f => f.id);
                 featureIds.forEach(id => {
                     mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: true });
                 });
                 mapboxMap.searchedFarmFeatureIds = featureIds;
 
+                // Remove o destaque após 8 segundos
                 setTimeout(() => {
                     featureIds.forEach(id => {
                         if (mapboxMap.searchedFarmFeatureIds && mapboxMap.searchedFarmFeatureIds.includes(id)) {
@@ -8138,6 +8131,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Inicia a aplicação
     App.init();
+    window.App = App; // Expor para testes e depuração
 });
 
 
