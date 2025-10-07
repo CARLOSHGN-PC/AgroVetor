@@ -1271,7 +1271,7 @@
       .btn-collect-trap {
         width: calc(100% - 40px); /* Subtrai o padding do info-box-content */
         margin: 10px 20px 20px 20px; /* Adiciona margem para centralizar e dar espaço */
-        background: var(--color-success);
+        background: linear-gradient(to right, var(--color-success), var(--color-accent));
         color: var(--color-white);
         border: none;
         padding: 12px;
@@ -1286,9 +1286,9 @@
         gap: 10px;
       }
       .btn-collect-trap:hover {
-        background: var(--color-primary-dark);
+        background: linear-gradient(to right, var(--color-primary-dark), var(--color-success));
         transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
+        box-shadow: var(--shadow-lg);
       }
 
       .info-box-actions {
@@ -2549,7 +2549,8 @@
             <div id="map-container" class="loading">
                 <div id="map"></div>
                 <div class="map-search-container">
-                    <input type="text" id="map-farm-search-input" placeholder="Pesquisar fazenda...">
+                    <input type="text" id="map-farm-search-input" placeholder="Pesquisar fazenda..." list="farm-list-for-map">
+                    <datalist id="farm-list-for-map"></datalist>
                     <button id="map-farm-search-btn" class="map-control-btn" title="Pesquisar Fazenda">
                         <i class="fas fa-search"></i>
                     </button>
