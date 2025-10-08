@@ -6624,30 +6624,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const userMarker = App.state.mapboxUserMarker;
 
                     if (App.state.trapPlacementMode === 'manual_select') {
-                        if (!userMarker) {
-                            App.ui.showAlert("Sua localização GPS ainda não está disponível. Aguarde ou ative a localização.", "error");
-                            return;
-                        }
-                        const userPosition = userMarker.getLngLat();
-                        const point = turf.point([userPosition.lng, userPosition.lat]);
-                        
-                        let isLocationValid = false;
-                        try {
-                            isLocationValid = turf.booleanPointInPolygon(point, clickedFeature.geometry);
-                        } catch(e) {
-                            console.error("Erro ao verificar a geometria do talhão com Turf:", e);
-                            App.ui.showAlert("Erro ao processar a área do talhão selecionado.", "error");
-                            this.hideTrapPlacementModal();
-                            return;
-                        }
-
-                        if (isLocationValid) {
-                            this.installTrap(userPosition.lat, userPosition.lng, clickedFeature);
-                            App.ui.showAlert("Localização verificada com sucesso! Armadilha instalada.", "success");
-                        } else {
-                            App.ui.showAlert("Falha na verificação: Você não está na área do talhão selecionado.", "error");
-                        }
-                        
+                        // For manual placement, we don't check the user's physical location.
+                        // The trap is placed exactly where the admin clicks on the map.
+                        const clickPosition = e.lngLat;
+                        this.installTrap(clickPosition.lat, clickPosition.lng, clickedFeature);
+                        App.ui.showAlert("Armadilha instalada manualmente com sucesso!", "success");
                         this.hideTrapPlacementModal();
 
                     } else {
