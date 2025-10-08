@@ -5640,7 +5640,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const allPromises = allWrites.map(async (write) => {
                         try {
-                            await App.data.addDocument(write.collection, write.data);
+                            let dataToSync = write.data;
+                            // Conversão CRÍTICA: Garante que a data da armadilha seja um Timestamp do Firestore antes de enviar
+                            if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
+                                dataToSync = {
+                                    ...write.data,
+                                    dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao))
+                                };
+                            }
+                            await App.data.addDocument(write.collection, dataToSync);
                             return { status: 'success', write };
                         } catch (error) {
                             return { status: 'failure', write, error };
@@ -6768,7 +6776,11 @@ document.addEventListener('DOMContentLoaded', () => {
             addOrUpdateTrapMarker(trap) {
                 if (!trap.dataInstalacao || !App.state.mapboxMap) return;
 
-                const installDate = trap.dataInstalacao.toDate();
+                // Lida com ambos os Timestamps do Firebase (que têm .toDate()) e Date objects/ISO strings (que não têm)
+                const installDate = typeof trap.dataInstalacao.toDate === 'function'
+                    ? trap.dataInstalacao.toDate()
+                    : new Date(trap.dataInstalacao);
+
                 const now = new Date();
                 const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
@@ -6903,10 +6915,13 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async installTrap(lat, lng, feature = null) {
+                // Use um objeto Date padrão, que é serializável por IndexedDB.
+                const installDate = new Date();
                 const newTrapData = {
                     latitude: lat,
                     longitude: lng,
-                    dataInstalacao: Timestamp.fromDate(new Date()),
+                    // Armazena como ISO string para garantir a serialização
+                    dataInstalacao: installDate.toISOString(),
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
                     fazendaNome: feature ? this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : 'Não identificado',
@@ -6918,24 +6933,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     if (navigator.onLine) {
-                        const docRef = await App.data.addDocument('armadilhas', newTrapData);
-                        // Adiciona o marcador imediatamente ao mapa para feedback visual instantâneo
-                        this.addOrUpdateTrapMarker({ id: docRef.id, ...newTrapData });
+                        // Converte para Firebase Timestamp apenas no momento do envio online.
+                        const dataForFirestore = { ...newTrapData, dataInstalacao: Timestamp.fromDate(installDate) };
+                        const docRef = await App.data.addDocument('armadilhas', dataForFirestore);
+                        this.addOrUpdateTrapMarker({ id: docRef.id, ...dataForFirestore });
                         App.ui.showAlert(`Armadilha ${docRef.id.substring(0, 5)}... instalada em ${newTrapData.talhaoNome || 'local desconhecido'}.`, "success");
                     } else {
                         await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
                         App.ui.showAlert('Armadilha guardada offline. Será enviada quando houver conexão.', 'info');
-                        // Adiciona um marcador temporário para feedback visual offline
-                        const tempTrap = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: new Date() };
-                        this.addOrUpdateTrapMarker(tempTrap);
+                        const tempTrapForMarker = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: installDate };
+                        this.addOrUpdateTrapMarker(tempTrapForMarker);
                     }
                 } catch (error) {
                     console.error("Erro ao instalar armadilha, a guardar offline:", error);
                     try {
                         await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
                         App.ui.showAlert('Falha ao conectar. Armadilha guardada offline.', 'warning');
-                        const tempTrap = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: new Date() };
-                        this.addOrUpdateTrapMarker(tempTrap);
+                        const tempTrapForMarker = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: installDate };
+                        this.addOrUpdateTrapMarker(tempTrapForMarker);
                     } catch (offlineError) {
                         console.error("Falha crítica ao guardar armadilha offline:", offlineError);
                         App.ui.showAlert("Falha crítica ao guardar a armadilha offline.", "error");
