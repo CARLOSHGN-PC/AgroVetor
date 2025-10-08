@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
             deferredInstallPrompt: null,
-            newUserCreationData: null,
+            adminAction: null, // Stores a function to be executed after admin password confirmation
             expandedChart: null,
             mapboxMap: null,
             mapboxUserMarker: null,
@@ -767,54 +767,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     permissions[cb.dataset.permission] = cb.checked;
                 });
 
-                App.state.newUserCreationData = { email, password, role, permissions };
-                App.ui.showAdminPasswordConfirmModal();
-            },
-            async createUserAfterAdminConfirmation() {
-                const { email, password, role, permissions } = App.state.newUserCreationData;
-                const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
-
-                if (!adminPassword) {
-                    App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error");
-                    return;
-                }
-
-                App.ui.setLoading(true, "A criar utilizador...");
-                try {
-                    const adminUser = auth.currentUser;
-                    const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
-                    await reauthenticateWithCredential(adminUser, credential);
-                    
-                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-                    const newUser = userCredential.user;
-
-                    await signOut(secondaryAuth);
-
+                // Define the action to be executed upon confirmation
+                const userCreationAction = async () => {
                     let targetCompanyId = App.state.currentUser.companyId;
                     if (App.state.currentUser.role === 'super-admin') {
                         targetCompanyId = App.elements.users.adminTargetCompanyUsers.value;
                         if (!targetCompanyId) {
-                            App.ui.showAlert("Como Super Admin, você deve selecionar uma empresa alvo para criar o utilizador.", "error");
-                            App.ui.setLoading(false);
-                            return;
+                            throw new Error("Como Super Admin, você deve selecionar uma empresa alvo para criar o utilizador.");
                         }
                     }
 
+                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                    const newUser = userCredential.user;
+                    await signOut(secondaryAuth);
+
                     const userData = {
-                        username: email.split('@')[0],
-                        email: email,
-                        role: role,
-                        active: true,
-                        permissions: permissions,
-                        companyId: targetCompanyId
+                        username: email.split('@')[0], email, role, active: true, permissions, companyId: targetCompanyId
                     };
                     await App.data.createUserData(newUser.uid, userData);
                     
                     App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
-                    App.elements.users.username.value = ''; 
-                    App.elements.users.password.value = ''; 
-                    App.elements.users.role.value = 'user';
+                    els.username.value = '';
+                    els.password.value = '';
+                    els.role.value = 'user';
                     App.ui.updatePermissionsForRole('user');
+                };
+
+                // Store the action and show the modal
+                App.state.adminAction = userCreationAction;
+                App.ui.showAdminPasswordConfirmModal();
+            },
+
+            async executeAdminAction() {
+                const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
+                if (!adminPassword) { App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error"); return; }
+                if (!App.state.adminAction || typeof App.state.adminAction !== 'function') { return; }
+
+                App.ui.setLoading(true, "A autenticar e executar ação...");
+                try {
+                    const adminUser = auth.currentUser;
+                    const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
+                    await reauthenticateWithCredential(adminUser, credential);
+
+                    // If re-authentication is successful, execute the stored action
+                    await App.state.adminAction();
+
                     App.ui.closeAdminPasswordConfirmModal();
 
                 } catch (error) {
@@ -825,11 +822,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (error.code === 'auth/weak-password') {
                         App.ui.showAlert("A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
                     } else {
-                        App.ui.showAlert("Erro ao criar utilizador.", "error");
-                        console.error("Erro ao criar utilizador:", error);
+                        App.ui.showAlert(`Erro ao executar ação: ${error.message}`, "error");
+                        console.error("Erro na ação de administrador:", error);
                     }
                 } finally {
-                    App.state.newUserCreationData = null;
+                    App.state.adminAction = null; // Clear the action after execution
                     App.elements.adminPasswordConfirmModal.passwordInput.value = '';
                     App.ui.setLoading(false);
                 }
@@ -3058,7 +3055,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const adminModal = App.elements.adminPasswordConfirmModal;
                 if (adminModal.closeBtn) adminModal.closeBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
                 if (adminModal.cancelBtn) adminModal.cancelBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
-                if (adminModal.confirmBtn) adminModal.confirmBtn.addEventListener('click', () => App.auth.createUserAfterAdminConfirmation());
+                if (adminModal.confirmBtn) adminModal.confirmBtn.addEventListener('click', () => App.auth.executeAdminAction());
                 if (adminModal.overlay) adminModal.overlay.addEventListener('click', e => { if(e.target === adminModal.overlay) this.closeAdminPasswordConfirmModal(); });
 
 
@@ -3342,9 +3339,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
                 if (trapModal.cancelBtn) trapModal.cancelBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
                 if (trapModal.manualBtn) trapModal.manualBtn.addEventListener('click', () => {
-                    App.mapModule.hideTrapPlacementModal();
-                    App.state.trapPlacementMode = 'manual_select';
-                    App.ui.showAlert("Modo de seleção manual ativado. Clique no talhão desejado no mapa.", "info", 4000);
+                    const userRole = App.state.currentUser.role;
+                    if (userRole !== 'admin' && userRole !== 'super-admin') {
+                        App.ui.showAlert("Apenas administradores podem instalar armadilhas manualmente.", "error");
+                        return;
+                    }
+
+                    // Define a ação a ser executada após a confirmação da senha
+                    const manualPlacementAction = () => {
+                        App.mapModule.hideTrapPlacementModal();
+                        App.state.trapPlacementMode = 'manual_select';
+                        App.ui.showAlert("Modo de seleção manual ativado. Clique no talhão desejado no mapa.", "info", 4000);
+                    };
+
+                    // Armazena a ação e mostra o modal de senha
+                    App.state.adminAction = manualPlacementAction;
+                    App.ui.showAdminPasswordConfirmModal();
                 });
                 if (trapModal.confirmBtn) trapModal.confirmBtn.addEventListener('click', () => {
                     const { trapPlacementMode, trapPlacementData, mapboxUserMarker } = App.state;
@@ -6892,7 +6902,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async installTrap(lat, lng, feature = null) {
-                const newTrap = {
+                const newTrapData = {
                     latitude: lat,
                     longitude: lng,
                     dataInstalacao: Timestamp.fromDate(new Date()),
@@ -6903,14 +6913,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     companyId: App.state.currentUser.companyId
                 };
 
+                App.ui.setLoading(true, "A guardar armadilha...");
+
                 try {
-                    const docRef = await App.data.addDocument('armadilhas', newTrap);
-                    // Adiciona o marcador imediatamente ao mapa para feedback visual instantâneo
-                    this.addOrUpdateTrapMarker({ id: docRef.id, ...newTrap });
-                    App.ui.showAlert(`Armadilha ${docRef.id.substring(0, 5)}... instalada em ${newTrap.talhaoNome || 'local desconhecido'}.`, "success");
+                    if (navigator.onLine) {
+                        const docRef = await App.data.addDocument('armadilhas', newTrapData);
+                        // Adiciona o marcador imediatamente ao mapa para feedback visual instantâneo
+                        this.addOrUpdateTrapMarker({ id: docRef.id, ...newTrapData });
+                        App.ui.showAlert(`Armadilha ${docRef.id.substring(0, 5)}... instalada em ${newTrapData.talhaoNome || 'local desconhecido'}.`, "success");
+                    } else {
+                        await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
+                        App.ui.showAlert('Armadilha guardada offline. Será enviada quando houver conexão.', 'info');
+                        // Adiciona um marcador temporário para feedback visual offline
+                        const tempTrap = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: new Date() };
+                        this.addOrUpdateTrapMarker(tempTrap);
+                    }
                 } catch (error) {
-                    console.error("Erro ao instalar armadilha:", error);
-                    App.ui.showAlert("Falha ao instalar armadilha.", "error");
+                    console.error("Erro ao instalar armadilha, a guardar offline:", error);
+                    try {
+                        await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
+                        App.ui.showAlert('Falha ao conectar. Armadilha guardada offline.', 'warning');
+                        const tempTrap = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: new Date() };
+                        this.addOrUpdateTrapMarker(tempTrap);
+                    } catch (offlineError) {
+                        console.error("Falha crítica ao guardar armadilha offline:", offlineError);
+                        App.ui.showAlert("Falha crítica ao guardar a armadilha offline.", "error");
+                    }
+                } finally {
+                    App.ui.setLoading(false);
                 }
             },
 
