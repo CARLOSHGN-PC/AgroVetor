@@ -3625,33 +3625,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return date.toLocaleDateString('pt-BR');
             },
-
-            /**
-             * Calcula o número de dias corridos (calendário) desde uma data de início.
-             * A contagem de dias aumenta à meia-noite.
-             * @param {Date} startDate A data de início do período.
-             * @returns {number} O número de dias de calendário que se passaram.
-             */
-            calculateCalendarDaysSince(startDate) {
-                if (!startDate) return 0;
-
-                const now = new Date();
-
-                // Normaliza a data de início para a meia-noite do dia em que ocorreu (no fuso horário local)
-                const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-
-                // Normaliza a data atual para a meia-noite do dia atual (no fuso horário local)
-                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-                // Calcula a diferença em milissegundos
-                const diffTime = today.getTime() - start.getTime();
-
-                // Converte a diferença de milissegundos para dias.
-                // A divisão deve resultar em um número inteiro, pois estamos comparando inícios de dia.
-                const diffDays = diffTime / (1000 * 60 * 60 * 24);
-
-                return diffDays;
-            },
             resetInactivityTimer() {
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
@@ -6785,7 +6758,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!trap.dataInstalacao || !App.state.mapboxMap) return;
 
                 const installDate = trap.dataInstalacao.toDate();
-                const diasDesdeInstalacao = App.actions.calculateCalendarDaysSince(installDate);
+                const now = new Date();
+                const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
                 let color = '#388e3c'; // Verde (Normal)
                 if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
@@ -7038,8 +7012,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const installDate = trap.dataInstalacao.toDate();
                 const collectionDate = new Date(installDate);
                 collectionDate.setDate(installDate.getDate() + 7);
+                const now = new Date();
                 
-                const diasDesdeInstalacao = App.actions.calculateCalendarDaysSince(installDate);
+                const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
                 let statusText = 'Normal';
                 let statusColor = 'var(--color-success)';
@@ -7115,24 +7090,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     const installDate = trap.dataInstalacao.toDate();
+                    const now = new Date();
 
                     if (isNaN(installDate.getTime())) {
                         console.error(`Armadilha ${trap.id} com data de instalação inválida.`);
                         return;
                     }
 
-                    const diasDesdeInstalacao = App.actions.calculateCalendarDaysSince(installDate);
+                    const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
                     let notification = null;
-                    // A lógica de notificação permanece a mesma, apenas a forma de calcular os dias mudou.
-                    // Notificação de aviso entre 5 e 7 dias.
                     if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
                         const diasRestantes = 7 - diasDesdeInstalacao;
                         const msg = diasRestantes > 0 ? `Coleta em ${diasRestantes} dia(s).` : "Coleta hoje.";
                         notification = { trapId: trap.id, type: 'warning', message: msg, timestamp: new Date() };
-                    }
-                    // Notificação de perigo para mais de 7 dias.
-                    else if (diasDesdeInstalacao > 7) {
+                    } else if (diasDesdeInstalacao > 7) {
                         const diasAtraso = diasDesdeInstalacao - 7;
                         notification = { trapId: trap.id, type: 'danger', message: `Coleta atrasada em ${diasAtraso} dia(s).`, timestamp: new Date() };
                     }
