@@ -800,22 +800,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async executeAdminAction() {
                 const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
-                if (!adminPassword) { App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error"); return; }
                 if (!App.state.adminAction || typeof App.state.adminAction !== 'function') { return; }
 
+                // Se estiver offline, confia no papel do utilizador já logado
+                if (!navigator.onLine) {
+                    const userRole = App.state.currentUser?.role;
+                    if (userRole === 'admin' || userRole === 'super-admin') {
+                        App.ui.setLoading(true, "A executar ação offline...");
+                        try {
+                            await App.state.adminAction();
+                            App.ui.closeAdminPasswordConfirmModal();
+                        } catch (error) {
+                            App.ui.showAlert(`Erro ao executar ação offline: ${error.message}`, "error");
+                        } finally {
+                            App.state.adminAction = null;
+                            App.elements.adminPasswordConfirmModal.passwordInput.value = '';
+                            App.ui.setLoading(false);
+                        }
+                        return;
+                    }
+                }
+
+                // Fluxo online normal com verificação de senha
+                if (!adminPassword) { App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error"); return; }
                 App.ui.setLoading(true, "A autenticar e executar ação...");
+
                 try {
                     const adminUser = auth.currentUser;
                     const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
                     await reauthenticateWithCredential(adminUser, credential);
 
-                    // If re-authentication is successful, execute the stored action
+                    // Se a reautenticação for bem-sucedida, executa a ação armazenada
                     await App.state.adminAction();
-
                     App.ui.closeAdminPasswordConfirmModal();
 
                 } catch (error) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
                         App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
                     } else if (error.code === 'auth/email-already-in-use') {
                         App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
@@ -826,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.error("Erro na ação de administrador:", error);
                     }
                 } finally {
-                    App.state.adminAction = null; // Clear the action after execution
+                    App.state.adminAction = null; // Limpa a ação após a execução
                     App.elements.adminPasswordConfirmModal.passwordInput.value = '';
                     App.ui.setLoading(false);
                 }
