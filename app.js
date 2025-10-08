@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
             roles: {
                 admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
                 supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, syncHistory: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
             }
@@ -3342,9 +3342,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
                 if (trapModal.cancelBtn) trapModal.cancelBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
                 if (trapModal.manualBtn) trapModal.manualBtn.addEventListener('click', () => {
-                    App.mapModule.hideTrapPlacementModal();
-                    App.state.trapPlacementMode = 'manual_select';
-                    App.ui.showAlert("Modo de seleção manual ativado. Clique no talhão desejado no mapa.", "info", 4000);
+                    App.actions.requestAdminAction(() => {
+                        App.mapModule.hideTrapPlacementModal();
+                        App.state.trapPlacementMode = 'manual_select';
+                        App.ui.showAlert("Modo de seleção manual ativado. Clique no talhão desejado no mapa.", "info", 4000);
+                    });
                 });
                 if (trapModal.confirmBtn) trapModal.confirmBtn.addEventListener('click', () => {
                     const { trapPlacementMode, trapPlacementData, mapboxUserMarker } = App.state;
@@ -6173,6 +6175,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Ocorreu um erro ao tentar notificar os administradores.", "error");
                 }
             },
+
+            requestAdminAction(onConfirm) {
+                App.ui.showConfirmationModal(
+                    "Para realizar esta ação, por favor, confirme a sua senha de administrador.",
+                    async (input) => {
+                        const adminPassword = input.adminPassword;
+                        if (!adminPassword) {
+                            App.ui.showAlert("A senha é obrigatória.", "error");
+                            return;
+                        }
+
+                        App.ui.setLoading(true, "A verificar credenciais...");
+                        try {
+                            const adminUser = auth.currentUser;
+                            const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
+                            await reauthenticateWithCredential(adminUser, credential);
+                            App.ui.setLoading(false);
+                            onConfirm();
+                        } catch (error) {
+                            App.ui.setLoading(false);
+                            if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                                App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
+                            } else {
+                                App.ui.showAlert("Erro ao verificar a senha.", "error");
+                                console.error("Erro na verificação de senha de admin:", error);
+                            }
+                        }
+                    },
+                    [{
+                        type: 'password',
+                        id: 'adminPassword',
+                        placeholder: 'Digite sua senha de administrador',
+                        required: true
+                    }]
+                );
+            },
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
@@ -6838,7 +6876,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 let content = '';
                 
                 confirmBtn.style.display = 'none';
-                manualBtn.style.display = 'inline-flex';
+                if (App.state.currentUser.role === 'admin') {
+                    manualBtn.style.display = 'inline-flex';
+                } else {
+                    manualBtn.style.display = 'none';
+                }
 
                 switch(state) {
                     case 'loading':
@@ -6904,13 +6946,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 try {
-                    const docRef = await App.data.addDocument('armadilhas', newTrap);
-                    // Adiciona o marcador imediatamente ao mapa para feedback visual instantâneo
-                    this.addOrUpdateTrapMarker({ id: docRef.id, ...newTrap });
-                    App.ui.showAlert(`Armadilha ${docRef.id.substring(0, 5)}... instalada em ${newTrap.talhaoNome || 'local desconhecido'}.`, "success");
+                    if (navigator.onLine) {
+                        const docRef = await App.data.addDocument('armadilhas', newTrap);
+                        this.addOrUpdateTrapMarker({ id: docRef.id, ...newTrap });
+                        App.ui.showAlert(`Armadilha instalada em ${newTrap.talhaoNome || 'local desconhecido'}.`, "success");
+                    } else {
+                        await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrap });
+                        App.ui.showAlert('Armadilha guardada offline. Será enviada quando houver conexão.', 'info');
+                    }
                 } catch (error) {
-                    console.error("Erro ao instalar armadilha:", error);
-                    App.ui.showAlert("Falha ao instalar armadilha.", "error");
+                    console.error("Erro ao instalar armadilha, a guardar offline:", error);
+                    try {
+                        await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrap });
+                        App.ui.showAlert('Erro ao conectar. Armadilha guardada offline.', 'warning');
+                    } catch (offlineError) {
+                        console.error("Falha crítica ao guardar armadilha offline:", offlineError);
+                        App.ui.showAlert("Falha crítica. Não foi possível guardar a armadilha nem online nem offline.", "error");
+                    }
                 }
             },
 
