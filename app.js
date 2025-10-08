@@ -6895,7 +6895,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newTrap = {
                     latitude: lat,
                     longitude: lng,
-                    dataInstalacao: Timestamp.fromDate(new Date()),
+                    dataInstalacao: new Date(), // Use standard JS Date object. Firestore SDK will convert it.
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
                     fazendaNome: feature ? this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : 'Não identificado',
@@ -6903,14 +6903,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     companyId: App.state.currentUser.companyId
                 };
 
+                App.ui.setLoading(true, "A instalar armadilha...");
                 try {
-                    const docRef = await App.data.addDocument('armadilhas', newTrap);
-                    // Adiciona o marcador imediatamente ao mapa para feedback visual instantâneo
-                    this.addOrUpdateTrapMarker({ id: docRef.id, ...newTrap });
-                    App.ui.showAlert(`Armadilha ${docRef.id.substring(0, 5)}... instalada em ${newTrap.talhaoNome || 'local desconhecido'}.`, "success");
+                    if (navigator.onLine) {
+                        await App.data.addDocument('armadilhas', newTrap);
+                        // The real-time listener will add the marker automatically.
+                        App.ui.showAlert(`Armadilha instalada em ${newTrap.talhaoNome || 'local desconhecido'}.`, "success");
+                    } else {
+                        await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrap });
+                        App.ui.showAlert(`Armadilha guardada offline em ${newTrap.talhaoNome || 'local desconhecido'}. Será sincronizada quando houver conexão.`, "info");
+                    }
                 } catch (error) {
-                    console.error("Erro ao instalar armadilha:", error);
-                    App.ui.showAlert("Falha ao instalar armadilha.", "error");
+                    console.error("Erro ao instalar armadilha online:", error);
+                    try {
+                        await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrap });
+                        App.ui.showAlert("Falha na conexão. Armadilha guardada offline para sincronização.", "warning");
+                    } catch (dbError) {
+                        console.error("Erro CRÍTICO ao guardar armadilha offline:", dbError);
+                        App.ui.showAlert("Falha crítica. Não foi possível guardar os dados da armadilha.", "error");
+                    }
+                } finally {
+                    App.ui.setLoading(false);
                 }
             },
 
