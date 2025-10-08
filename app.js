@@ -179,6 +179,9 @@ document.addEventListener('DOMContentLoaded', () => {
             unsubscribeListeners: [],
             deferredInstallPrompt: null,
             newUserCreationData: null,
+            adminAction: {
+                onConfirm: null
+            },
             expandedChart: null,
             mapboxMap: null,
             mapboxUserMarker: null,
@@ -755,6 +758,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem('agrovetor_lastActiveTab');
                 App.ui.showLoginScreen();
             },
+            _createUser() {
+                const { email, password, role, permissions } = App.state.newUserCreationData;
+                App.ui.setLoading(true, "A criar utilizador...");
+
+                (async () => {
+                    try {
+                        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                        const newUser = userCredential.user;
+                        await signOut(secondaryAuth);
+
+                        let targetCompanyId = App.state.currentUser.companyId;
+                        if (App.state.currentUser.role === 'super-admin') {
+                            targetCompanyId = App.elements.users.adminTargetCompanyUsers.value;
+                        }
+
+                        const userData = {
+                            username: email.split('@')[0], email, role, active: true, permissions, companyId: targetCompanyId
+                        };
+                        await App.data.createUserData(newUser.uid, userData);
+
+                        App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
+                        App.elements.users.username.value = '';
+                        App.elements.users.password.value = '';
+                        App.elements.users.role.value = 'user';
+                        App.ui.updatePermissionsForRole('user');
+                        App.ui.closeAdminPasswordConfirmModal();
+
+                    } catch (error) {
+                        if (error.code === 'auth/email-already-in-use') App.ui.showAlert("Este e-mail já está em uso.", "error");
+                        else if (error.code === 'auth/weak-password') App.ui.showAlert("A senha deve ter pelo menos 6 caracteres.", "error");
+                        else { App.ui.showAlert("Erro ao criar utilizador.", "error"); console.error("Erro ao criar utilizador:", error); }
+                    } finally {
+                        App.state.newUserCreationData = null;
+                        App.ui.setLoading(false);
+                    }
+                })();
+            },
             initiateUserCreation() {
                 const els = App.elements.users;
                 const email = els.username.value.trim();
@@ -762,76 +802,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 const role = els.role.value;
                 if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
 
+                if (App.state.currentUser.role === 'super-admin' && !App.elements.users.adminTargetCompanyUsers.value) {
+                    App.ui.showAlert("Como Super Admin, você deve selecionar uma empresa alvo.", "error");
+                    return;
+                }
+
                 const permissions = {};
                 els.permissionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                     permissions[cb.dataset.permission] = cb.checked;
                 });
 
                 App.state.newUserCreationData = { email, password, role, permissions };
-                App.ui.showAdminPasswordConfirmModal();
+                App.ui.showAdminPasswordConfirmModal(this._createUser);
             },
-            async createUserAfterAdminConfirmation() {
-                const { email, password, role, permissions } = App.state.newUserCreationData;
+            async executeAdminAction() {
                 const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
-
                 if (!adminPassword) {
                     App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error");
                     return;
                 }
 
-                App.ui.setLoading(true, "A criar utilizador...");
+                if (typeof App.state.adminAction.onConfirm !== 'function') {
+                    console.error("Nenhuma ação de administrador definida para ser executada.");
+                    App.ui.closeAdminPasswordConfirmModal();
+                    return;
+                }
+
+                App.ui.setLoading(true, "A verificar credenciais de administrador...");
                 try {
                     const adminUser = auth.currentUser;
                     const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
                     await reauthenticateWithCredential(adminUser, credential);
-                    
-                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-                    const newUser = userCredential.user;
 
-                    await signOut(secondaryAuth);
-
-                    let targetCompanyId = App.state.currentUser.companyId;
-                    if (App.state.currentUser.role === 'super-admin') {
-                        targetCompanyId = App.elements.users.adminTargetCompanyUsers.value;
-                        if (!targetCompanyId) {
-                            App.ui.showAlert("Como Super Admin, você deve selecionar uma empresa alvo para criar o utilizador.", "error");
-                            App.ui.setLoading(false);
-                            return;
-                        }
-                    }
-
-                    const userData = {
-                        username: email.split('@')[0],
-                        email: email,
-                        role: role,
-                        active: true,
-                        permissions: permissions,
-                        companyId: targetCompanyId
-                    };
-                    await App.data.createUserData(newUser.uid, userData);
-                    
-                    App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
-                    App.elements.users.username.value = ''; 
-                    App.elements.users.password.value = ''; 
-                    App.elements.users.role.value = 'user';
-                    App.ui.updatePermissionsForRole('user');
-                    App.ui.closeAdminPasswordConfirmModal();
+                    // Se a reautenticação for bem-sucedida, executa a ação de callback
+                    App.ui.setLoading(false); // Esconde o loading de verificação
+                    App.state.adminAction.onConfirm();
 
                 } catch (error) {
                     if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
-                    } else if (error.code === 'auth/email-already-in-use') {
-                        App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
-                    } else if (error.code === 'auth/weak-password') {
-                        App.ui.showAlert("A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
                     } else {
-                        App.ui.showAlert("Erro ao criar utilizador.", "error");
-                        console.error("Erro ao criar utilizador:", error);
+                        App.ui.showAlert("Erro ao verificar a sua identidade.", "error");
+                        console.error("Erro na reautenticação do administrador:", error);
                     }
                 } finally {
-                    App.state.newUserCreationData = null;
-                    App.elements.adminPasswordConfirmModal.passwordInput.value = '';
                     App.ui.setLoading(false);
+                    // A ação de callback é responsável por fechar o modal se tudo correr bem
+                    App.elements.adminPasswordConfirmModal.passwordInput.value = '';
                 }
             },
             async deleteUser(userId) {
@@ -2510,13 +2527,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeBtn.addEventListener('click', closeHandler);
                 overlay.classList.add('show');
             },
-            showAdminPasswordConfirmModal() {
+            showAdminPasswordConfirmModal(onConfirmCallback) {
+                App.state.adminAction.onConfirm = onConfirmCallback;
                 App.elements.adminPasswordConfirmModal.overlay.classList.add('show');
                 App.elements.adminPasswordConfirmModal.passwordInput.focus();
             },
             closeAdminPasswordConfirmModal() {
                 App.elements.adminPasswordConfirmModal.overlay.classList.remove('show');
                 App.elements.adminPasswordConfirmModal.passwordInput.value = '';
+                App.state.adminAction.onConfirm = null; // Limpa a ação ao fechar
             },
 
             showImpersonationBanner(companyName) {
@@ -3058,7 +3077,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const adminModal = App.elements.adminPasswordConfirmModal;
                 if (adminModal.closeBtn) adminModal.closeBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
                 if (adminModal.cancelBtn) adminModal.cancelBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
-                if (adminModal.confirmBtn) adminModal.confirmBtn.addEventListener('click', () => App.auth.createUserAfterAdminConfirmation());
+                if (adminModal.confirmBtn) adminModal.confirmBtn.addEventListener('click', () => App.auth.executeAdminAction());
                 if (adminModal.overlay) adminModal.overlay.addEventListener('click', e => { if(e.target === adminModal.overlay) this.closeAdminPasswordConfirmModal(); });
 
 
@@ -3342,10 +3361,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
                 if (trapModal.cancelBtn) trapModal.cancelBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
                 if (trapModal.manualBtn) trapModal.manualBtn.addEventListener('click', () => {
-                    App.actions.requestAdminAction(() => {
+                    App.ui.showAdminPasswordConfirmModal(() => {
                         App.mapModule.hideTrapPlacementModal();
                         App.state.trapPlacementMode = 'manual_select';
                         App.ui.showAlert("Modo de seleção manual ativado. Clique no talhão desejado no mapa.", "info", 4000);
+                        App.ui.closeAdminPasswordConfirmModal();
                     });
                 });
                 if (trapModal.confirmBtn) trapModal.confirmBtn.addEventListener('click', () => {
