@@ -1,7 +1,7 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence, browserLocalPersistence as localPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 4 for the new notifications store
-            this.dbPromise = openDB('agrovetor-offline-storage', 4, {
+            // Version 5 for the new app-cache store
+            this.dbPromise = openDB('agrovetor-offline-storage', 5, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -66,6 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (oldVersion < 4) {
                         db.createObjectStore('notifications', { autoIncrement: true });
+                    }
+                    if (oldVersion < 5) {
+                        db.createObjectStore('app-cache'); // Cache para configs globais e de empresa
                     }
                 },
             });
@@ -625,17 +628,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const userDoc = await App.data.getUserData(user.uid);
 
                         if (userDoc && userDoc.active) {
-                            let companyDoc = null;
-                            // Bloqueia o login se a empresa do utilizador estiver inativa
-                            if (userDoc.role !== 'super-admin' && userDoc.companyId) {
-                                companyDoc = await App.data.getDocument('companies', userDoc.companyId);
-                                if (!companyDoc || companyDoc.active === false) {
-                                    App.auth.logout();
-                                    App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
-                                    return;
-                                }
-                            }
-
                             App.state.currentUser = { ...user, ...userDoc };
 
                             // Validação CRÍTICA para o modelo multi-empresa
@@ -645,42 +637,77 @@ document.addEventListener('DOMContentLoaded', () => {
                                 return;
                             }
 
-                            // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
                             App.ui.setLoading(true, "A carregar configurações...");
+                            const isOnline = navigator.onLine;
+
                             try {
-                                // 1. Carregar configurações globais
-                                const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                                if (globalConfigsDoc.exists()) {
-                                    App.state.globalConfigs = globalConfigsDoc.data();
+                                if (isOnline) {
+                                    // --- Online Path ---
+                                    console.log("Online. A carregar configurações do servidor...");
+                                    const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                                    if (globalConfigsDoc.exists()) {
+                                        App.state.globalConfigs = globalConfigsDoc.data();
+                                        await OfflineDB.set('app-cache', 'global_configs', App.state.globalConfigs);
+                                    } else {
+                                        console.warn("Documento de configurações globais 'main' não encontrado.");
+                                        App.state.globalConfigs = {};
+                                    }
+
+                                    if (userDoc.role !== 'super-admin' && userDoc.companyId) {
+                                        const companyDoc = await App.data.getDocument('companies', userDoc.companyId);
+                                        if (!companyDoc || companyDoc.active === false) {
+                                            App.auth.logout();
+                                            App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
+                                            return;
+                                        }
+                                        App.state.companies = [companyDoc];
+                                        await OfflineDB.set('app-cache', `company_${userDoc.companyId}`, companyDoc);
+                                    }
                                 } else {
-                                    console.warn("Documento de configurações globais 'main' não encontrado.");
-                                    App.state.globalConfigs = {};
+                                    // --- Offline Path ---
+                                    console.log("Offline. A carregar configurações do cache...");
+                                    App.ui.setLoading(true, "A carregar dados do cache...");
+                                    const cachedGlobalConfigs = await OfflineDB.get('app-cache', 'global_configs');
+                                    if (cachedGlobalConfigs) {
+                                        App.state.globalConfigs = cachedGlobalConfigs;
+                                    } else {
+                                        throw new Error("Configurações offline não encontradas. Conecte-se à internet uma vez para sincronizar.");
+                                    }
+
+                                    if (userDoc.role !== 'super-admin' && userDoc.companyId) {
+                                        const cachedCompany = await OfflineDB.get('app-cache', `company_${userDoc.companyId}`);
+                                        if (cachedCompany) {
+                                            App.state.companies = [cachedCompany];
+                                        } else {
+                                            throw new Error("Dados da empresa offline não encontrados. Conecte-se à internet uma vez para sincronizar.");
+                                        }
+                                    }
                                 }
 
-                                // 2. Pré-popular os dados da empresa (se já foram carregados)
-                                if (companyDoc) {
-                                    App.state.companies = [companyDoc];
-                                }
-
-                                // 3. Agora é seguro mostrar a tela principal
+                                // --- Common Initialization Logic ---
                                 App.actions.saveUserProfileLocally(App.state.currentUser);
-                                App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
-                                App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
+                                App.ui.showAppScreen();
+                                App.data.listenToAllData(); // Agora é seguro chamar, pois os dados essenciais (global/company) estão carregados
+
+                                if(isOnline) {
+                                    App.actions.syncOfflineWrites();
+                                } else {
+                                    App.mapModule.loadOfflineShapes();
+                                }
 
                                 const draftRestored = await App.actions.checkForDraft();
                                 if (!draftRestored) {
                                     const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
-                                    App.ui.showTab(lastTab || 'dashboard');
-                                }
-
-                                if (navigator.onLine) {
-                                    App.actions.syncOfflineWrites();
+                                    // NOVO: Garante que o dashboard seja exibido ao entrar offline, evitando uma tela em branco.
+                                    App.ui.showTab(lastTab && isOnline ? lastTab : 'dashboard');
                                 }
 
                             } catch (error) {
-                                console.error("Falha crítica ao carregar dados iniciais:", error);
+                                console.error("Falha crítica ao carregar dados iniciais (online ou offline):", error);
                                 App.auth.logout();
-                                App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
+                                App.ui.showLoginMessage(error.message, "error");
+                            } finally {
+                                App.ui.setLoading(false);
                             }
 
                         } else {
@@ -688,12 +715,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
-                        const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection(localProfiles);
-                        } else {
-                            App.ui.showLoginScreen();
-                        }
+                        // MODIFICAÇÃO OFFLINE-FIRST: Simplificar o fluxo.
+                        // Com a persistência local, o onAuthStateChanged lidará com o utilizador logado.
+                        // Se não houver utilizador, simplesmente mostramos a tela de login.
+                        // O service worker servirá a app a partir do cache se estiver offline.
+                        App.ui.showLoginScreen();
                     }
                     App.ui.setLoading(false);
                 });
@@ -708,9 +734,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.ui.setLoading(true, "A autenticar...");
                 try {
-                    // Força a persistência da sessão apenas para a aba atual.
-                    // Isso fará com que o usuário seja deslogado ao fechar o app.
-                    await setPersistence(auth, browserSessionPersistence);
+                    // **MODIFICAÇÃO OFFLINE-FIRST**: Mudar para localPersistence.
+                    // Isto mantém o utilizador autenticado mesmo depois de fechar o navegador,
+                    // que é o comportamento esperado e necessário para uma PWA offline robusta.
+                    await setPersistence(auth, localPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -723,16 +750,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Erro de login:", error.code, error.message);
                 } finally {
                     App.ui.setLoading(false);
-                }
-            },
-            async loginOffline(userId) {
-                const localProfiles = App.actions.getLocalUserProfiles();
-                const userProfile = localProfiles.find(p => p.uid === userId);
-                if (userProfile) {
-                    App.state.currentUser = userProfile;
-                    App.ui.showAppScreen();
-                    App.mapModule.loadOfflineShapes();
-                    App.data.listenToAllData();
                 }
             },
             async logout() {
@@ -1079,23 +1096,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginPass.value = '';
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
-                App.ui.setLoading(false);
-            },
-            showOfflineUserSelection(profiles) {
-                App.elements.loginForm.style.display = 'none';
-                App.elements.offlineUserSelection.style.display = 'block';
-                const { offlineUserList } = App.elements;
-                offlineUserList.innerHTML = '';
-                profiles.forEach(profile => {
-                    const btn = document.createElement('button');
-                    btn.className = 'offline-user-btn';
-                    btn.dataset.uid = profile.uid;
-                    btn.innerHTML = `<i class="fas fa-user-circle"></i> ${profile.username || profile.email}`;
-                    btn.addEventListener('click', () => App.auth.loginOffline(profile.uid));
-                    offlineUserList.appendChild(btn);
-                });
-                App.elements.loginScreen.style.display = 'flex';
-                App.elements.appScreen.style.display = 'none';
                 App.ui.setLoading(false);
             },
             showAppScreen() {
