@@ -36,9 +36,7 @@ const urlsToCache = [
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js',
-  'https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js',
-  'https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css'
+  'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js'
 ];
 
 // Install event: force the new service worker to become active
@@ -99,10 +97,6 @@ self.addEventListener('fetch', event => {
               trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
             });
             return networkResponse;
-          }).catch(error => {
-            console.warn(`Mapbox fetch failed for: ${event.request.url}. Returning empty response to prevent map crash.`, error);
-            // Return a successful but empty response to prevent the map from crashing on a failed tile load
-            return new Response(null, { status: 200, statusText: "OK" });
           });
         });
       })
