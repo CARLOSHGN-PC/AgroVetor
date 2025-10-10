@@ -1,5 +1,5 @@
-const CACHE_NAME = 'agrovetor-cache-v11'; // Incremented version for update
-const TILE_CACHE_NAME = 'agrovetor-tile-cache-v3'; // Incremented tile cache
+const CACHE_NAME = 'agrovetor-cache-v12'; // Incremented version for update
+const TILE_CACHE_NAME = 'agrovetor-tile-cache-v4'; // Incremented tile cache
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the tile cache
@@ -89,15 +89,21 @@ self.addEventListener('fetch', event => {
             return response;
           }
           // Otherwise, fetch from the network.
-          return fetch(event.request).then(networkResponse => {
+          const fetchAndCache = fetch(event.request).then(networkResponse => {
             // For third-party tiles, we can't check the status (opaque response),
-            // so we trust it and put it in the cache. The cache trimming will handle potential issues.
+            // so we trust it and put it in the cache.
             const responseToCache = networkResponse.clone();
             cache.put(event.request, responseToCache).then(() => {
               trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
             });
             return networkResponse;
+          }).catch(error => {
+            // When offline, fetch will fail.
+            // We return a successful but empty response to prevent the map from breaking.
+            console.warn(`Failed to fetch map tile: ${event.request.url}. Returning empty response.`, error);
+            return new Response('', { status: 200, statusText: 'OK' });
           });
+          return fetchAndCache;
         });
       })
     );
