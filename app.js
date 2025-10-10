@@ -731,7 +731,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (userProfile) {
                     App.state.currentUser = userProfile;
                     App.ui.showAppScreen();
-                    App.mapModule.loadOfflineShapes();
+                    try {
+                        await App.mapModule.loadOfflineShapes();
+                    } catch (error) {
+                        console.error("Falha ao carregar o mapa offline:", error);
+                        App.ui.showAlert("Não foi possível carregar os dados do mapa offline. Os dados podem estar corrompidos.", "error");
+                    }
                     App.data.listenToAllData();
                 }
             },
@@ -5802,6 +5807,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         clearInterval(App.state.locationUpdateIntervalId);
                     }
 
+                    const geoOptions = {
+                        enableHighAccuracy: navigator.onLine, // Alta precisão apenas online
+                        timeout: 10000,
+                        maximumAge: 60000 // Permite usar uma posição em cache de até 1 minuto
+                    };
+
                     App.state.locationWatchId = navigator.geolocation.watchPosition(
                         (position) => {
                             App.state.lastKnownPosition = {
@@ -5813,7 +5824,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         (error) => {
                             console.warn("Erro no rastreamento de localização:", error.message);
                         },
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                        geoOptions
                     );
 
                     App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000); // Envia a cada 60 segundos
@@ -6403,6 +6414,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             watchUserPosition() {
                 if ('geolocation' in navigator) {
+                    // Define as opções de geolocalização com base no status da conexão
+                    const geoOptions = {
+                        enableHighAccuracy: navigator.onLine, // Alta precisão apenas online
+                        timeout: 27000,
+                        maximumAge: 60000
+                    };
+
                     navigator.geolocation.watchPosition(
                         (position) => {
                             const { latitude, longitude } = position.coords;
@@ -6410,9 +6428,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         },
                         (error) => {
                             console.warn(`Erro de Geolocalização: ${error.message}`);
-                            App.ui.showAlert("Não foi possível obter sua localização.", "warning");
+                            // Exibe uma mensagem mais amigável se for um timeout
+                            if (error.code === error.TIMEOUT) {
+                                App.ui.showAlert("A obtenção da localização demorou muito. Tente novamente.", "warning");
+                            } else {
+                                App.ui.showAlert("Não foi possível obter sua localização.", "warning");
+                            }
                         },
-                        { enableHighAccuracy: true, timeout: 27000, maximumAge: 60000 }
+                        geoOptions // Usa as opções dinâmicas
                     );
                 } else {
                     App.ui.showAlert("Geolocalização não é suportada pelo seu navegador.", "error");
@@ -6540,20 +6563,20 @@ document.addEventListener('DOMContentLoaded', () => {
             async loadOfflineShapes() {
                 const mapContainer = document.getElementById('map-container');
                 if (mapContainer) mapContainer.classList.add('loading');
-                try {
-                    const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
-                    if (buffer) {
-                        App.ui.showAlert("A carregar mapa do cache offline.", "info");
+                const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
+                if (buffer) {
+                    App.ui.showAlert("A carregar mapa do cache offline.", "info");
+                    try {
                         const geojson = await shp(buffer);
                         App.state.geoJsonData = geojson;
                         if (App.state.mapboxMap) {
                             this.loadShapesOnMap();
                         }
+                    } catch (e) {
+                        console.error("Erro ao processar shapefile do cache:", e);
+                        if (mapContainer) mapContainer.classList.remove('loading');
                     }
-                } catch (error) {
-                    console.error("Erro crítico ao carregar ou processar o mapa offline:", error);
-                    App.ui.showAlert("Falha ao carregar os desenhos do mapa offline. O mapa pode não ser exibido, mas o aplicativo continuará a funcionar.", "error", 6000);
-                } finally {
+                } else {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
             },
@@ -7055,6 +7078,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const trap = App.state.armadilhas.find(t => t.id === trapId);
                     if (!trap) return;
+
+                    // Adiciona validação para data de instalação ausente ou inválida
+                    if (!trap.dataInstalacao) {
+                        throw new Error("A data de instalação desta armadilha está em falta ou é inválida.");
+                    }
 
                     // Lida com ambos os Timestamps do Firebase (que têm .toDate()) e Date objects/ISO strings (que não têm)
                     const installDate = typeof trap.dataInstalacao.toDate === 'function'
