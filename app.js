@@ -108,7 +108,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Lançamentos', icon: 'fas fa-pen-to-square',
                     submenu: [
-                        { label: 'Apontamento Diário de Plantio', icon: 'fas fa-tractor', target: 'apontamentoDiarioPlantio', permission: 'apontamentoDiarioPlantio' },
                         { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
                         { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
@@ -118,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Relatórios', icon: 'fas fa-chart-line',
                     submenu: [
-                        { label: 'Relatórios de Plantio', icon: 'fas fa-tractor', target: 'relatoriosPlantio', permission: 'relatoriosPlantio' },
                         { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
                         { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
                         { label: 'Relatório Cigarrinha', icon: 'fas fa-leaf', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
@@ -131,7 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
-                        { label: 'Cadastrar Frentes de Plantio', icon: 'fas fa-leaf', target: 'cadastrarFrenteDePlantio', permission: 'cadastrarFrenteDePlantio' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
@@ -147,9 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, cadastrarFrenteDePlantio: true, apontamentoDiarioPlantio: true, relatoriosPlantio: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, cadastrarFrenteDePlantio: true, apontamentoDiarioPlantio: true, relatoriosPlantio: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoDiarioPlantio: true, relatoriosPlantio: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
             }
@@ -172,8 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
             planos: [],
             fazendas: [],
             personnel: [],
-            frentesDePlantio: [],
-            apontamentosPlantio: [],
             companyLogo: null,
             activeSubmenu: null,
             charts: {},
@@ -391,26 +386,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 csvFileInput: document.getElementById('personnelCsvInput'),
                 btnDownloadCsvTemplate: document.getElementById('btnDownloadPersonnelCsvTemplate'),
             },
-            apontamentoDiarioPlantio: {
-                form: document.getElementById('formApontamentoPlantio'),
-                frente: document.getElementById('plantioFrente'),
-                prestador: document.getElementById('plantioPrestador'),
-                liderMatricula: document.getElementById('plantioLiderMatricula'),
-                fazendaNome: document.getElementById('plantioFazendaNome'),
-                data: document.getElementById('plantioData'),
-                addEntryBtn: document.getElementById('addPlantioEntry'),
-                entriesContainer: document.getElementById('plantioEntriesContainer'),
-                resultado: document.getElementById('resultadoPlantio'),
-                btnSalvar: document.getElementById('btnSalvarApontamentoPlantio'),
-            },
-            frenteDePlantio: {
-                id: document.getElementById('frenteDePlantioId'),
-                nome: document.getElementById('frenteDePlantioNome'),
-                prestador: document.getElementById('frenteDePlantioPrestador'),
-                obs: document.getElementById('frenteDePlantioObs'),
-                btnSave: document.getElementById('btnSaveFrenteDePlantio'),
-                list: document.getElementById('frentesDePlantioList'),
-            },
             cadastros: {
                 farmCode: document.getElementById('farmCode'),
                 farmName: document.getElementById('farmName'),
@@ -606,14 +581,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 fim: document.getElementById('monitoramentoFim'),
                 btnPDF: document.getElementById('btnPDFMonitoramento'),
                 btnExcel: document.getElementById('btnExcelMonitoramento'),
-            },
-            relatoriosPlantio: {
-                inicio: document.getElementById('plantioRelatorioInicio'),
-                fim: document.getElementById('plantioRelatorioFim'),
-                frente: document.getElementById('plantioRelatorioFrente'),
-                btnFazenda: document.getElementById('btnGerarRelatorioPlantioFazenda'),
-                btnTalhao: document.getElementById('btnGerarRelatorioPlantioTalhao'),
-                container: document.getElementById('relatorioPlantioContainer'),
             },
             trapPlacementModal: {
                 overlay: document.getElementById('trapPlacementModal'),
@@ -963,7 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1189,11 +1156,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.renderPersonnelList();
                         }
                         break;
-                    case 'frentesDePlantio':
-                        if (activeTab === 'cadastrarFrenteDePlantio') {
-                            this.renderFrentesDePlantioList();
-                        }
-                        break;
                     case 'planos':
                         if (activeTab === 'planejamento') {
                             this.renderPlanejamento();
@@ -1241,7 +1203,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('populateOperatorSelects', () => this.populateOperatorSelects());
                 renderWithCatch('renderUsersList', () => this.renderUsersList());
                 renderWithCatch('renderPersonnelList', () => this.renderPersonnelList());
-                renderWithCatch('renderFrentesDePlantioList', () => this.renderFrentesDePlantioList());
                 renderWithCatch('renderLogoPreview', () => this.renderLogoPreview());
                 renderWithCatch('renderPlanejamento', () => this.renderPlanejamento());
                 renderWithCatch('showHarvestPlanList', () => this.showHarvestPlanList());
@@ -1568,11 +1529,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
-                if (id === 'cadastrarFrenteDePlantio') this.renderFrentesDePlantioList();
-                if (id === 'apontamentoDiarioPlantio') {
-                    this.populateFrentesDePlantioSelect();
-                    this.addPlantioEntryCard();
-                }
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
@@ -2053,107 +2009,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 list.appendChild(table);
             },
-            renderFrentesDePlantioList() {
-                const { list } = App.elements.frenteDePlantio;
-                list.innerHTML = '';
-                if (App.state.frentesDePlantio.length === 0) {
-                    list.innerHTML = '<p>Nenhuma frente de plantio cadastrada.</p>';
-                    return;
-                }
-                const table = document.createElement('table');
-                table.id = 'frentesDePlantioTable';
-                table.className = 'harvestPlanTable';
-                table.innerHTML = `<thead><tr><th>Nome</th><th>Prestador</th><th>Observação</th><th>Ações</th></tr></thead><tbody></tbody>`;
-                const tbody = table.querySelector('tbody');
-                App.state.frentesDePlantio.sort((a,b) => a.nome.localeCompare(b.nome)).forEach(f => {
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td data-label="Nome">${f.nome}</td>
-                        <td data-label="Prestador">${f.prestador}</td>
-                        <td data-label="Observação">${f.obs || ''}</td>
-                        <td data-label="Ações">
-                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-frente" data-id="${f.id}"><i class="fas fa-edit"></i></button>
-                                <button class="btn-excluir" data-action="delete-frente" data-id="${f.id}"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </td>
-                    `;
-                });
-                list.appendChild(table);
-            },
-
-            populateFrentesDePlantioSelect() {
-                const select = App.elements.apontamentoDiarioPlantio.frente;
-                if (!select) return;
-
-                const currentValue = select.value;
-                select.innerHTML = '<option value="">Selecione...</option>';
-
-                App.state.frentesDePlantio
-                    .sort((a, b) => a.nome.localeCompare(b.nome))
-                    .forEach(frente => {
-                        select.innerHTML += `<option value="${frente.id}">${frente.nome}</option>`;
-                    });
-                select.value = currentValue;
-            },
-
-            addPlantioEntryCard() {
-                const container = App.elements.apontamentoDiarioPlantio.entriesContainer;
-                if (!container) return;
-
-                const entryId = Date.now();
-                const card = document.createElement('div');
-                card.className = 'amostra-card';
-                card.dataset.id = entryId;
-
-                const entryCount = container.children.length + 1;
-
-                card.innerHTML = `
-                    <div class="amostra-header">
-                        <h4>Lançamento ${entryCount}</h4>
-                        <button type="button" class="btn-remover-amostra" title="Remover Lançamento">&times;</button>
-                    </div>
-                    <div class="amostra-body">
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label for="plantioTalhao-${entryId}" class="required">Talhão:</label>
-                                <input type="text" id="plantioTalhao-${entryId}" class="plantio-entry-input" required>
-                            </div>
-                            <div class="form-col">
-                                <label for="plantioVariedade-${entryId}" class="required">Variedade Plantada:</label>
-                                <input type="text" id="plantioVariedade-${entryId}" class="plantio-entry-input" required>
-                            </div>
-                            <div class="form-col">
-                                <label for="plantioArea-${entryId}" class="required">Área Plantada (ha):</label>
-                                <input type="number" id="plantioArea-${entryId}" class="plantio-entry-input" min="0" placeholder="0" required>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(card);
-                card.querySelector('input').focus();
-                this.calculatePlantioTotal();
-            },
-
-            calculatePlantioTotal() {
-                const container = App.elements.apontamentoDiarioPlantio.entriesContainer;
-                const resultadoEl = App.elements.apontamentoDiarioPlantio.resultado;
-                if (!container || !resultadoEl) return;
-
-                const entries = container.querySelectorAll('.amostra-card');
-                let totalArea = 0;
-
-                entries.forEach(card => {
-                    const areaInput = card.querySelector('input[id^="plantioArea-"]');
-                    totalArea += parseFloat(areaInput.value) || 0;
-                });
-
-                resultadoEl.textContent = `Total de Área Plantada: ${totalArea.toFixed(2).replace('.', ',')} ha`;
-            },
-
             _createModernUserCardHTML(user) {
                 const getRoleInfo = (role) => {
-                    const roles = {
+                    const roles = { 
                         "super-admin": ['Super Admin', 'var(--color-ai)'],
                         admin: ['Administrador', 'var(--color-danger)'], 
                         supervisor: ['Supervisor', 'var(--color-warning)'], 
@@ -3275,42 +3133,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.personnel.csvUploadArea) App.elements.personnel.csvUploadArea.addEventListener('click', () => App.elements.personnel.csvFileInput.click());
                 if (App.elements.personnel.csvFileInput) App.elements.personnel.csvFileInput.addEventListener('change', (e) => App.actions.importPersonnelFromCSV(e.target.files[0]));
                 if (App.elements.personnel.btnDownloadCsvTemplate) App.elements.personnel.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadPersonnelCsvTemplate());
-
-                const frenteDePlantioEls = App.elements.frenteDePlantio;
-                if (frenteDePlantioEls.btnSave) frenteDePlantioEls.btnSave.addEventListener('click', () => App.actions.saveFrenteDePlantio());
-                if (frenteDePlantioEls.list) frenteDePlantioEls.list.addEventListener('click', e => {
-                    const btn = e.target.closest('button');
-                    if (!btn) return;
-                    const { action, id } = btn.dataset;
-                    if (action === 'edit-frente') App.actions.editFrenteDePlantio(id);
-                    if (action === 'delete-frente') App.actions.deleteFrenteDePlantio(id);
-                });
-
-                const relatoriosPlantioEls = App.elements.relatoriosPlantio;
-                if (relatoriosPlantioEls.btnFazenda) relatoriosPlantioEls.btnFazenda.addEventListener('click', () => App.reports.generatePlantioReport('fazenda'));
-                if (relatoriosPlantioEls.btnTalhao) relatoriosPlantioEls.btnTalhao.addEventListener('click', () => App.reports.generatePlantioReport('talhao'));
-
-                const apontamentoPlantioEls = App.elements.apontamentoDiarioPlantio;
-                if (apontamentoPlantioEls.frente) apontamentoPlantioEls.frente.addEventListener('change', e => {
-                    const frenteId = e.target.value;
-                    const frente = App.state.frentesDePlantio.find(f => f.id === frenteId);
-                    apontamentoPlantioEls.prestador.value = frente ? frente.prestador : '';
-                });
-                if (apontamentoPlantioEls.addEntryBtn) apontamentoPlantioEls.addEntryBtn.addEventListener('click', () => App.ui.addPlantioEntryCard());
-                if (apontamentoPlantioEls.btnSalvar) apontamentoPlantioEls.btnSalvar.addEventListener('click', () => App.actions.saveApontamentoPlantio());
-                if (apontamentoPlantioEls.entriesContainer) {
-                    apontamentoPlantioEls.entriesContainer.addEventListener('click', e => {
-                        if (e.target.classList.contains('btn-remover-amostra')) {
-                            e.target.closest('.amostra-card').remove();
-                            App.ui.calculatePlantioTotal();
-                        }
-                    });
-                    apontamentoPlantioEls.entriesContainer.addEventListener('input', e => {
-                        if (e.target.id.startsWith('plantioArea-')) {
-                            App.ui.calculatePlantioTotal();
-                        }
-                    });
-                }
                 
                 const companyConfigEls = App.elements.companyConfig;
                 if (companyConfigEls.logoUploadArea) companyConfigEls.logoUploadArea.addEventListener('click', () => companyConfigEls.logoInput.click());
@@ -4169,127 +3991,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('Pessoa excluída com sucesso.', 'info');
                 });
             },
-
-            async saveFrenteDePlantio() {
-                const { id, nome, prestador, obs } = App.elements.frenteDePlantio;
-                const nomeValue = nome.value.trim();
-                const prestadorValue = prestador.value.trim();
-                if (!nomeValue || !prestadorValue) { App.ui.showAlert("Nome da Frente and Prestador Vinculado are required.", "error"); return; }
-
-                const existingId = id.value;
-                const data = {
-                    nome: nomeValue,
-                    prestador: prestadorValue,
-                    obs: obs.value.trim(),
-                    companyId: App.state.currentUser.companyId
-                };
-
-                App.ui.showConfirmationModal(`Tem a certeza que deseja guardar os dados da frente ${nomeValue}?`, async () => {
-                    try {
-                        if (existingId) {
-                            await App.data.updateDocument('frentesDePlantio', existingId, data);
-                        } else {
-                            await App.data.addDocument('frentesDePlantio', data);
-                        }
-                        App.ui.showAlert("Frente de plantio guardada com sucesso!");
-                        id.value = ''; nome.value = ''; prestador.value = ''; obs.value = '';
-                    } catch (e) {
-                        App.ui.showAlert("Erro ao guardar frente de plantio.", "error");
-                    }
-                });
-            },
-
-            editFrenteDePlantio(frenteId) {
-                const { id, nome, prestador, obs } = App.elements.frenteDePlantio;
-                const frente = App.state.frentesDePlantio.find(f => f.id == frenteId);
-                if (frente) {
-                    id.value = frente.id;
-                    nome.value = frente.nome;
-                    prestador.value = frente.prestador;
-                    obs.value = frente.obs;
-                    nome.focus();
-                }
-            },
-
-            deleteFrenteDePlantio(frenteId) {
-                App.ui.showConfirmationModal("Tem a certeza que deseja excluir esta frente de plantio?", async () => {
-                    await App.data.deleteDocument('frentesDePlantio', frenteId);
-                    App.ui.showAlert('Frente de plantio excluída com sucesso.', 'info');
-                });
-            },
-
-            async saveApontamentoPlantio() {
-                const els = App.elements.apontamentoDiarioPlantio;
-                if (!App.ui.validateFields([els.frente.id, els.liderMatricula.id, els.fazendaNome.id, els.data.id])) {
-                    App.ui.showAlert("Preencha todos os campos principais (Frente, Lider, Fazenda, Data)!", "error");
-                    return;
-                }
-
-                const entriesCards = els.entriesContainer.querySelectorAll('.amostra-card');
-                if (entriesCards.length === 0) {
-                    App.ui.showAlert("Adicione pelo menos um lançamento de plantio.", "error");
-                    return;
-                }
-
-                const entriesData = [];
-                let allEntriesValid = true;
-                entriesCards.forEach(card => {
-                    const talhao = card.querySelector('input[id^="plantioTalhao-"]').value.trim();
-                    const variedade = card.querySelector('input[id^="plantioVariedade-"]').value.trim();
-                    const area = parseFloat(card.querySelector('input[id^="plantioArea-"]').value);
-
-                    if (!talhao || !variedade || isNaN(area) || area <= 0) {
-                        allEntriesValid = false;
-                    }
-                    entriesData.push({ talhao, variedade, area });
-                });
-
-                if (!allEntriesValid) {
-                    App.ui.showAlert("Preencha todos os campos em cada lançamento de plantio.", "error");
-                    return;
-                }
-
-                const frente = App.state.frentesDePlantio.find(f => f.id === els.frente.value);
-
-                const newEntry = {
-                    frenteId: frente.id,
-                    frenteNome: frente.nome,
-                    prestador: els.prestador.value,
-                    liderMatricula: els.liderMatricula.value,
-                    fazendaNome: els.fazendaNome.value,
-                    data: els.data.value,
-                    entries: entriesData,
-                    totalArea: entriesData.reduce((sum, entry) => sum + entry.area, 0),
-                    usuario: App.state.currentUser.username,
-                    companyId: App.state.currentUser.companyId
-                };
-
-                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este apontamento de plantio?", () => {
-                    App.ui.clearForm(els.form);
-                    els.entriesContainer.innerHTML = '';
-                    App.ui.setDefaultDatesForEntryForms();
-                    App.ui.setLoading(true, "A guardar...");
-
-                    (async () => {
-                        try {
-                            if (navigator.onLine) {
-                                await App.data.addDocument('apontamentosPlantio', newEntry);
-                                App.ui.showAlert("Apontamento de plantio guardado com sucesso!");
-                            } else {
-                                await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
-                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
-                            }
-                        } catch (e) {
-                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
-                            console.error(`Erro ao salvar apontamento de plantio, salvando offline:`, e);
-                            await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
-                        } finally {
-                            App.ui.setLoading(false);
-                        }
-                    })();
-                });
-            },
-
             async handleLogoUpload(e) {
                 const file = e.target.files[0];
                 const input = e.target;
@@ -8439,85 +8140,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaCodigo: farm ? farm.code : ''
                 };
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
-            },
-
-            async generatePlantioReport(reportType) {
-                const els = App.elements.relatoriosPlantio;
-                const { inicio, fim, frente, container } = els;
-
-                if (!inicio.value || !fim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
-                }
-
-                container.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
-
-                const allData = await App.actions.getConsolidatedData('apontamentosPlantio');
-
-                const filteredData = allData.filter(item => {
-                    const itemDate = new Date(item.data + 'T00:00:00');
-                    const startDate = new Date(inicio.value + 'T00:00:00');
-                    const endDate = new Date(fim.value + 'T00:00:00');
-                    const inDateRange = itemDate >= startDate && itemDate <= endDate;
-                    const inFrente = frente.value ? item.frenteId === frente.value : true;
-                    return inDateRange && inFrente;
-                });
-
-                if (filteredData.length === 0) {
-                    container.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum dado encontrado para os filtros selecionados.</p>';
-                    return;
-                }
-
-                let reportData = [];
-                let headers = [];
-                let grandTotal = 0;
-
-                if (reportType === 'fazenda') {
-                    headers = ['Fazenda', 'Total Hectares Plantados'];
-                    const aggregation = {};
-                    filteredData.forEach(item => {
-                        if (!aggregation[item.fazendaNome]) {
-                            aggregation[item.fazendaNome] = 0;
-                        }
-                        aggregation[item.fazendaNome] += item.totalArea;
-                    });
-                    reportData = Object.entries(aggregation).map(([fazenda, total]) => [fazenda, total.toFixed(2)]);
-                } else { // talhao
-                    headers = ['Fazenda', 'Talhão', 'Variedade', 'Área Plantada (ha)'];
-                    filteredData.forEach(item => {
-                        item.entries.forEach(entry => {
-                            reportData.push([item.fazendaNome, entry.talhao, entry.variedade, entry.area.toFixed(2)]);
-                        });
-                    });
-                }
-
-                reportData.forEach(row => grandTotal += parseFloat(row[row.length - 1]));
-
-                let tableHTML = `
-                    <button id="btnExportPlantioXLSX" class="btn-secondary" style="margin-bottom: 15px;"><i class="fas fa-file-excel"></i> Exportar para .xlsx</button>
-                    <div class="table-responsive">
-                        <table class="harvestPlanTable">
-                            <thead>
-                                <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
-                            </thead>
-                            <tbody>
-                                ${reportData.map(row => `<tr>${row.map((cell, i) => `<td data-label="${headers[i]}">${cell}</td>`).join('')}</tr>`).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="harvest-summary" style="margin-top: 20px;">
-                        <p>Total Geral: <span>${grandTotal.toFixed(2)} ha</span></p>
-                    </div>
-                `;
-
-                container.innerHTML = tableHTML;
-
-                document.getElementById('btnExportPlantioXLSX').addEventListener('click', () => {
-                    const ws = XLSX.utils.aoa_to_sheet([headers, ...reportData, ['', '', 'Total Geral:', grandTotal.toFixed(2)]]);
-                    const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, ws, 'Relatorio_Plantio');
-                    XLSX.writeFile(wb, `relatorio_plantio_${reportType}.xlsx`);
-                });
             }
         },
 
