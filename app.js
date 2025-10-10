@@ -6540,21 +6540,24 @@ document.addEventListener('DOMContentLoaded', () => {
             async loadOfflineShapes() {
                 const mapContainer = document.getElementById('map-container');
                 if (mapContainer) mapContainer.classList.add('loading');
-                const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
-                if (buffer) {
-                    App.ui.showAlert("A carregar mapa do cache offline.", "info");
-                    try {
+                try {
+                    const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
+                    if (buffer) {
+                        App.ui.showAlert("A carregar mapa do cache offline.", "info");
                         const geojson = await shp(buffer);
                         App.state.geoJsonData = geojson;
                         if (App.state.mapboxMap) {
                             this.loadShapesOnMap();
                         }
-                    } catch (e) {
-                        console.error("Erro ao processar shapefile do cache:", e);
-                        if (mapContainer) mapContainer.classList.remove('loading');
                     }
-                } else {
-                    if (mapContainer) mapContainer.classList.remove('loading');
+                    // Não há 'else' aqui, se não houver buffer, o spinner simplesmente para no 'finally'.
+                } catch (e) {
+                    console.error("Erro ao carregar ou processar shapefile do cache:", e);
+                    App.ui.showAlert("Não foi possível carregar os dados do mapa offline. O cache pode estar corrompido.", "error");
+                } finally {
+                    if (mapContainer) {
+                        mapContainer.classList.remove('loading');
+                    }
                 }
             },
 
@@ -7052,73 +7055,83 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             
             showTrapInfo(trapId) {
-                const trap = App.state.armadilhas.find(t => t.id === trapId);
-                if (!trap) return;
+                try {
+                    const trap = App.state.armadilhas.find(t => t.id === trapId);
+                    if (!trap) return;
 
-                const installDate = trap.dataInstalacao.toDate();
-                const collectionDate = new Date(installDate);
-                collectionDate.setDate(installDate.getDate() + 7);
-                const now = new Date();
-                
-                const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
+                    // Validação CRÍTICA: Verifica se dataInstalacao existe e é um objeto válido
+                    if (!trap.dataInstalacao || typeof trap.dataInstalacao.toDate !== 'function') {
+                        throw new Error("Os dados desta armadilha estão incompletos ou corrompidos (data de instalação inválida).");
+                    }
 
-                let statusText = 'Normal';
-                let statusColor = 'var(--color-success)';
-                if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
-                    const diasRestantes = 7 - diasDesdeInstalacao;
-                    statusText = `Atenção (${diasRestantes} dias restantes)`;
-                    statusColor = 'var(--color-warning)';
-                } else if (diasDesdeInstalacao > 7) {
-                    const diasAtraso = diasDesdeInstalacao - 7;
-                    statusText = `Atrasado (${diasAtraso} dias)`;
-                    statusColor = 'var(--color-danger)';
-                }
+                    const installDate = trap.dataInstalacao.toDate();
+                    const collectionDate = new Date(installDate);
+                    collectionDate.setDate(installDate.getDate() + 7);
+                    const now = new Date();
 
-                const contentEl = App.elements.monitoramentoAereo.trapInfoBoxContent;
-                contentEl.innerHTML = `
-                    <div class="info-title" style="color: ${statusColor};">
-                        <i class="fas fa-bug"></i>
-                        <span>Detalhes da Armadilha</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Status</span>
-                        <span class="value"><span class="status-indicator" style="background-color: ${statusColor};"></span>${statusText}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Fazenda</span>
-                        <span class="value">${trap.fazendaNome || 'N/A'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Talhão</span>
-                        <span class="value">${trap.talhaoNome || 'N/A'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Data de Instalação</span>
-                        <span class="value">${installDate.toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Data Prevista para Coleta</span>
-                        <span class="value">${collectionDate.toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div class="info-item" id="trap-obs-display" style="${trap.observacoes ? 'display: flex;' : 'display: none;'}">
-                        <span class="label">Observações</span>
-                        <span class="value" style="white-space: pre-wrap; font-size: 14px;">${trap.observacoes || ''}</span>
-                    </div>
-                    <div class="info-box-actions">
-                        <button class="btn-collect-trap" id="btnCollectTrap"><i class="fas fa-check-circle"></i> Coletar</button>
-                        <div class="action-button-group">
-                            <button class="action-btn" id="btnEditTrap" title="Editar Observações"><i class="fas fa-edit"></i></button>
-                            <button class="action-btn danger" id="btnDeleteTrap" title="Excluir Armadilha"><i class="fas fa-trash"></i></button>
+                    const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
+
+                    let statusText = 'Normal';
+                    let statusColor = 'var(--color-success)';
+                    if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
+                        const diasRestantes = 7 - diasDesdeInstalacao;
+                        statusText = `Atenção (${diasRestantes} dias restantes)`;
+                        statusColor = 'var(--color-warning)';
+                    } else if (diasDesdeInstalacao > 7) {
+                        const diasAtraso = diasDesdeInstalacao - 7;
+                        statusText = `Atrasado (${diasAtraso} dias)`;
+                        statusColor = 'var(--color-danger)';
+                    }
+
+                    const contentEl = App.elements.monitoramentoAereo.trapInfoBoxContent;
+                    contentEl.innerHTML = `
+                        <div class="info-title" style="color: ${statusColor};">
+                            <i class="fas fa-bug"></i>
+                            <span>Detalhes da Armadilha</span>
                         </div>
-                    </div>
-                `;
+                        <div class="info-item">
+                            <span class="label">Status</span>
+                            <span class="value"><span class="status-indicator" style="background-color: ${statusColor};"></span>${statusText}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Fazenda</span>
+                            <span class="value">${trap.fazendaNome || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Talhão</span>
+                            <span class="value">${trap.talhaoNome || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Data de Instalação</span>
+                            <span class="value">${installDate.toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Data Prevista para Coleta</span>
+                            <span class="value">${collectionDate.toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <div class="info-item" id="trap-obs-display" style="${trap.observacoes ? 'display: flex;' : 'display: none;'}">
+                            <span class="label">Observações</span>
+                            <span class="value" style="white-space: pre-wrap; font-size: 14px;">${trap.observacoes || ''}</span>
+                        </div>
+                        <div class="info-box-actions">
+                            <button class="btn-collect-trap" id="btnCollectTrap"><i class="fas fa-check-circle"></i> Coletar</button>
+                            <div class="action-button-group">
+                                <button class="action-btn" id="btnEditTrap" title="Editar Observações"><i class="fas fa-edit"></i></button>
+                                <button class="action-btn danger" id="btnDeleteTrap" title="Excluir Armadilha"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `;
 
-                document.getElementById('btnCollectTrap').onclick = () => this.promptCollectTrap(trapId);
-                document.getElementById('btnEditTrap').onclick = () => this.editTrap(trapId);
-                document.getElementById('btnDeleteTrap').onclick = () => this.deleteTrap(trapId);
+                    document.getElementById('btnCollectTrap').onclick = () => this.promptCollectTrap(trapId);
+                    document.getElementById('btnEditTrap').onclick = () => this.editTrap(trapId);
+                    document.getElementById('btnDeleteTrap').onclick = () => this.deleteTrap(trapId);
 
-                this.hideTalhaoInfo();
-                App.elements.monitoramentoAereo.trapInfoBox.classList.add('visible');
+                    this.hideTalhaoInfo();
+                    App.elements.monitoramentoAereo.trapInfoBox.classList.add('visible');
+                } catch (error) {
+                    console.error(`Erro ao exibir informações da armadilha ${trapId}:`, error);
+                    App.ui.showAlert(`Não foi possível carregar os dados desta armadilha. Verifique se os dados de instalação estão corretos.`, "error", 5000);
+                }
             },
 
             hideTrapInfo() {
