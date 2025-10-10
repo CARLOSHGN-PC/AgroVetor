@@ -1,5 +1,5 @@
-const CACHE_NAME = 'agrovetor-cache-v12'; // Incremented version for update
-const TILE_CACHE_NAME = 'agrovetor-tile-cache-v4'; // Incremented tile cache
+const CACHE_NAME = 'agrovetor-cache-v13'; // Incremented version for update
+const TILE_CACHE_NAME = 'agrovetor-tile-cache-v5'; // Incremented tile cache
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the tile cache
@@ -98,9 +98,16 @@ self.addEventListener('fetch', event => {
             });
             return networkResponse;
           }).catch(error => {
-            console.warn(`Mapbox tile fetch failed for: ${event.request.url}. Returning empty response.`, error);
-            // Return a successful but empty response to prevent the map from crashing on a failed tile load.
-            return new Response(null, { status: 200 });
+            console.warn(`Mapbox tile fetch failed for: ${event.request.url}. Returning transparent pixel.`, error);
+            // On network failure, return a transparent 1x1 pixel GIF.
+            // This is a common strategy to prevent map libraries from crashing when a tile fails to load.
+            const transparentPixel = new Uint8Array([
+              0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0x21, 0xf9, 0x04, 0x01, 0x00,
+              0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
+              0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b
+            ]);
+            return new Response(transparentPixel, { headers: { 'Content-Type': 'image/gif' } });
           });
         });
       })
