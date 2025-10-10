@@ -2058,34 +2058,6 @@
                 <h2><i class="fas fa-bug"></i> Relatório de Armadilhas</h2>
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere relatórios em PDF ou Excel das armadilhas, com filtros por período e fazenda.</p>
                 <div class="form-row">
-            </section>
-
-            <section id="relatoriosPlantio" class="tab-content card" aria-label="Relatórios de Plantio" tabindex="0" hidden>
-                <h2><i class="fas fa-tractor"></i> Relatórios de Plantio</h2>
-                <div class="card" style="border-left-color: var(--color-success);">
-                    <h3><i class="fas fa-filter"></i> Filtros do Relatório</h3>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="plantioRelatorioInicio" class="required">Data Início:</label>
-                            <input type="date" id="plantioRelatorioInicio" required>
-                        </div>
-                        <div class="form-col">
-                            <label for="plantioRelatorioFim" class="required">Data Fim:</label>
-                            <input type="date" id="plantioRelatorioFim" required>
-                        </div>
-                        <div class="form-col">
-                            <label for="plantioRelatorioFrente">Frente de Plantio (Opcional):</label>
-                            <select id="plantioRelatorioFrente"></select>
-                        </div>
-                    </div>
-                    <div class="button-group" style="margin-top: 15px;">
-                        <button id="btnGerarRelatorioPlantioFazenda" class="save"><i class="fas fa-building"></i> Relatório por Fazenda</button>
-                        <button id="btnGerarRelatorioPlantioTalhao" class="save"><i class="fas fa-th-large"></i> Relatório por Talhão</button>
-                    </div>
-                </div>
-                <div id="relatorioPlantioContainer" style="margin-top: 20px;">
-                    <!-- O resultado do relatório será exibido aqui -->
-                </div>
                     <div class="form-col">
                         <label for="monitoramentoTipoRelatorio" class="required">Tipo de Relatório:</label>
                         <select id="monitoramentoTipoRelatorio">
@@ -2164,47 +2136,6 @@
 
                     <div class="form-row">
                         <div class="form-col" style="display: flex; align-items: center; justify-content: flex-start;">
-            </section>
-
-            <section id="apontamentoDiarioPlantio" class="tab-content card" aria-label="Apontamento Diário de Plantio" tabindex="0" hidden>
-                <h2><i class="fas fa-tractor"></i> Apontamento Diário de Plantio</h2>
-                <form id="formApontamentoPlantio">
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="plantioFrente" class="required">Frente de Plantio:</label>
-                            <select id="plantioFrente" required></select>
-                        </div>
-                        <div class="form-col">
-                            <label for="plantioPrestador">Prestador:</label>
-                            <input type="text" id="plantioPrestador" readonly style="background-color: #eee;">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="plantioLiderMatricula" class="required">Matrícula do Líder/Responsável:</label>
-                            <input type="text" id="plantioLiderMatricula" required>
-                        </div>
-                        <div class="form-col">
-                            <label for="plantioFazendaNome" class="required">Nome da Fazenda:</label>
-                            <input type="text" id="plantioFazendaNome" required>
-                        </div>
-                        <div class="form-col">
-                            <label for="plantioData" class="required">Data da Operação:</label>
-                            <input type="date" id="plantioData" required>
-                        </div>
-                    </div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 10px;">
-                        <h3><i class="fas fa-plus-circle"></i> Lançamentos de Plantio</h3>
-                        <button type="button" id="addPlantioEntry" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Lançamento</button>
-                    </div>
-                    <div id="plantioEntriesContainer" class="pontos-container">
-                        <!-- Cards de lançamentos serão inseridos aqui -->
-                    </div>
-
-                    <div class="resultado" id="resultadoPlantio" style="margin-top: 20px;"></div>
-                    <button type="button" id="btnSalvarApontamentoPlantio" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Apontamento</button>
-                </form>
                             <label for="adultoPresenteCigarrinhaAmostragem" style="display: flex; align-items: center; gap: 10px; margin-top: 20px;">
                                 <input type="checkbox" id="adultoPresenteCigarrinhaAmostragem" style="width: auto; transform: scale(1.4);">
                                 <span>Presença de Adulto?</span>
@@ -2500,33 +2431,6 @@
                 <h2><i class="fas fa-id-card"></i> Cadastro de Pessoas</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-upload"></i> Importar Pessoas via CSV</h3>
-            </section>
-
-            <section id="cadastrarFrenteDePlantio" class="tab-content card" aria-label="Cadastrar Frentes de Plantio" tabindex="0" hidden>
-                <h2><i class="fas fa-leaf"></i> Cadastro de Frentes de Plantio</h2>
-                <div class="card" style="border-left-color: var(--color-success);">
-                    <h3><i class="fas fa-plus-circle"></i> Adicionar/Editar Frente de Plantio</h3>
-                    <input type="hidden" id="frenteDePlantioId">
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="frenteDePlantioNome" class="required">Nome da Frente:</label>
-                            <input type="text" id="frenteDePlantioNome" placeholder="Ex: Frente A">
-                        </div>
-                        <div class="form-col">
-                            <label for="frenteDePlantioPrestador" class="required">Prestador Vinculado:</label>
-                            <input type="text" id="frenteDePlantioPrestador" placeholder="Ex: Empresa X">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="frenteDePlantioObs">Observação:</label>
-                            <textarea id="frenteDePlantioObs" placeholder="Detalhes adicionais..."></textarea>
-                        </div>
-                    </div>
-                    <button id="btnSaveFrenteDePlantio" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Guardar Frente</button>
-                </div>
-                <h3><i class="fas fa-list"></i> Frentes Cadastradas</h3>
-                <div id="frentesDePlantioList" class="table-responsive"></div>
                     <p>Faça o upload de um ficheiro CSV com matrículas e nomes. O sistema irá <strong>atualizar</strong> os nomes existentes e <strong>adicionar</strong> novos, sem criar duplicatas.</p>
                     <div class="upload-area" id="personnelCsvUploadArea">
                         <i class="fas fa-file-csv fa-2x" style="color: var(--color-info);"></i>
@@ -2933,9 +2837,6 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
     <!-- Turf.js for spatial analysis -->
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
-
-    <!-- SheetJS/xlsx for Excel export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
