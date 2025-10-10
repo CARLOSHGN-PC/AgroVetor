@@ -5583,138 +5583,99 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("A sincronização já está em andamento.");
                     return;
                 }
-
                 App.state.isSyncing = true;
                 console.log("Iniciando a verificação de dados offline...");
-                const logEntry = {
-                    timestamp: new Date(),
-                    status: '',
-                    details: '',
-                    items: []
-                };
 
-                try {
-                    const db = await OfflineDB.dbPromise;
-                    if (!db) return;
+                const db = await OfflineDB.dbPromise;
+                if (!db) {
+                    App.state.isSyncing = false;
+                    return;
+                }
 
-                    const writesToSync = await db.getAll('offline-writes');
+                const tx = db.transaction('offline-writes', 'readwrite');
+                const store = tx.objectStore('offline-writes');
+                let cursor = await store.openCursor();
 
-                    if (writesToSync.length === 0) {
-                        logEntry.status = 'no_data';
-                        logEntry.details = 'Nenhum registo pendente para sincronizar.';
-                        // Não precisa notificar ou salvar log se não há nada para fazer.
-                        App.state.isSyncing = false;
-                        return;
-                    }
+                if (!cursor) {
+                    console.log("Nenhum registo pendente para sincronizar.");
+                    App.state.isSyncing = false;
+                    return;
+                }
 
-                    App.ui.showSystemNotification("Sincronização", `A enviar ${writesToSync.length} registos offline...`, 'info');
+                const totalItems = await store.count();
+                App.ui.showSystemNotification("Sincronização", `A enviar ${totalItems} registos offline...`, 'info');
 
-                    const syncPromises = writesToSync.map(write =>
-                        App.data.addDocument(write.collection, write.data)
-                            .then(() => ({ status: 'fulfilled', originalWrite: write }))
-                            .catch(error => ({ status: 'rejected', error, originalWrite: write }))
-                    );
+                let successfulWrites = 0;
+                let failedWrites = 0;
+                const logItems = [];
 
-                    const settledResults = await Promise.allSettled(syncPromises);
-
-                    const syncedKeys = [];
-                    let failureCount = 0;
-
-                    for (const result of settledResults) {
-                        if (result.status === 'fulfilled') {
-                            const syncResult = result.value;
-                            if (syncResult.status === 'fulfilled') {
-                                // A chave para apagar do IndexedDB está no próprio objeto de escrita.
-                                // Assumindo que a chave primária é auto-incrementada e não está no objeto 'value'.
-                                // Vamos precisar buscar as chaves primeiro.
-                                // A abordagem anterior de buscar chaves e valores juntos era melhor. Vamos voltar a ela.
-                                // ESTA IMPLEMENTAÇÃO É MAIS SIMPLES E ROBUSTA.
-                                // Re-implementando o início para ser mais seguro.
-                            }
+                while (cursor) {
+                    const write = cursor.value;
+                    try {
+                        let dataToSync = write.data;
+                        if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
+                            dataToSync = {
+                                ...write.data,
+                                dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao))
+                            };
                         }
-                    }
-                    // A lógica acima está ficando complexa. Vamos simplificar e tornar mais robusta.
 
-                    const dbTx = await OfflineDB.dbPromise;
-                    const allWrites = await dbTx.getAll('offline-writes');
-
-                    const allPromises = allWrites.map(async (write) => {
-                        try {
-                            let dataToSync = write.data;
-                            // Conversão CRÍTICA: Garante que a data da armadilha seja um Timestamp do Firestore antes de enviar
-                            if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
-                                dataToSync = {
-                                    ...write.data,
-                                    dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao))
-                                };
-                            }
-                            await App.data.addDocument(write.collection, dataToSync);
-                            return { status: 'success', write };
-                        } catch (error) {
-                            return { status: 'failure', write, error };
+                        // O 'type' e 'docId' são para atualizações, que a lógica atual não parece usar, mas é bom manter para o futuro.
+                        if (write.type === 'update' && write.docId) {
+                             await App.data.updateDocument(write.collection, write.docId, dataToSync);
+                        } else {
+                             await App.data.addDocument(write.collection, dataToSync);
                         }
-                    });
 
-                    const allResults = await Promise.all(allPromises);
-
-                    const successfulWrites = allResults.filter(r => r.status === 'success');
-                    const failedWrites = allResults.filter(r => r.status === 'failure');
-
-                    logEntry.items = allResults.map(r => ({
-                        status: r.status,
-                        collection: r.write.collection,
-                        data: r.write.data,
-                        error: r.error ? r.error.message : null
-                    }));
-
-                    // Apagar apenas os que tiveram sucesso
-                    if (successfulWrites.length > 0) {
-                        const deleteTx = (await OfflineDB.dbPromise).transaction('offline-writes', 'readwrite');
-                        const store = deleteTx.objectStore('offline-writes');
-                        // Esta parte é complexa porque não temos as chaves.
-                        // A melhor maneira é limpar tudo e re-adicionar as falhas.
-                        await store.clear();
-                        if (failedWrites.length > 0) {
-                            for (const failed of failedWrites) {
-                                await store.add(failed.write);
-                            }
-                        }
-                        await deleteTx.done;
+                        logItems.push({ status: 'success', collection: write.collection, data: write.data, error: null });
+                        successfulWrites++;
+                        await cursor.delete(); // Apaga o registo do IndexedDB APENAS em caso de sucesso
+                    } catch (error) {
+                        console.error(`Falha ao sincronizar item da coleção ${write.collection}:`, error);
+                        logItems.push({ status: 'failure', collection: write.collection, data: write.data, error: error.message });
+                        failedWrites++;
                     }
+                    cursor = await cursor.continue();
+                }
 
-                    if (failedWrites.length === 0 && successfulWrites.length > 0) {
-                        logEntry.status = 'success';
-                        logEntry.details = `${successfulWrites.length} registos enviados com sucesso.`;
-                    } else if (successfulWrites.length > 0) {
-                        logEntry.status = 'partial';
-                        logEntry.details = `${successfulWrites.length} registos enviados. ${failedWrites.length} falharam.`;
+                await tx.done;
+
+                // Apenas cria um log se houver algo a reportar
+                if (successfulWrites > 0 || failedWrites > 0) {
+                    let logStatus, logDetails;
+                    if (failedWrites === 0) {
+                        logStatus = 'success';
+                        logDetails = `${successfulWrites} registo(s) enviado(s) com sucesso.`;
+                    } else if (successfulWrites > 0) {
+                        logStatus = 'partial';
+                        logDetails = `${successfulWrites} registo(s) enviado(s). ${failedWrites} falharam e permanecem na fila.`;
                     } else {
-                        logEntry.status = 'failure';
-                        logEntry.details = `Não foi possível enviar ${failedWrites.length} registos.`;
+                        logStatus = 'failure';
+                        logDetails = `Não foi possível enviar ${failedWrites} registo(s). Permanecem na fila.`;
                     }
 
-                    // Salvar o log permanente no Firestore
                     const permanentLogEntry = {
                         userId: App.state.currentUser.uid,
                         username: App.state.currentUser.username || App.state.currentUser.email,
                         companyId: App.state.currentUser.companyId,
                         timestamp: serverTimestamp(),
-                        status: logEntry.status,
-                        details: logEntry.details,
-                        items: logEntry.items
+                        status: logStatus,
+                        details: logDetails,
+                        items: logItems
                     };
-                    const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
 
-                    // Notifica o utilizador, passando o ID do log para que a notificação seja clicável
-                    App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
-
-                } catch (error) {
-                    console.error("Ocorreu um erro crítico durante a sincronização:", error);
-                    App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo.", "error");
-                } finally {
-                    App.state.isSyncing = false;
-                    console.log("Processo de sincronização finalizado.");
+                    try {
+                        const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
+                        App.ui.showSystemNotification(`Sincronização: ${logStatus}`, logDetails, logStatus, { logId: logDocRef.id });
+                    } catch (logError) {
+                        console.error("Falha ao guardar o log de sincronização no Firestore:", logError);
+                        // A notificação ainda é útil para o utilizador, mesmo que o log não seja guardado
+                        App.ui.showSystemNotification(`Sincronização: ${logStatus}`, logDetails, logStatus);
+                    }
                 }
+
+                App.state.isSyncing = false;
+                console.log("Processo de sincronização finalizado.");
             },
 
             async checkForDraft() {
@@ -7052,73 +7013,89 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             
             showTrapInfo(trapId) {
-                const trap = App.state.armadilhas.find(t => t.id === trapId);
-                if (!trap) return;
+                try {
+                    const trap = App.state.armadilhas.find(t => t.id === trapId);
+                    if (!trap) {
+                        App.ui.showAlert("Dados da armadilha não encontrados no estado da aplicação.", "error");
+                        return;
+                    };
 
-                const installDate = trap.dataInstalacao.toDate();
-                const collectionDate = new Date(installDate);
-                collectionDate.setDate(installDate.getDate() + 7);
-                const now = new Date();
-                
-                const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
+                    // Lida com ambos os Timestamps do Firebase (que têm .toDate()) e Date objects/ISO strings (que não têm)
+                    const installDate = typeof trap.dataInstalacao.toDate === 'function'
+                        ? trap.dataInstalacao.toDate()
+                        : new Date(trap.dataInstalacao);
 
-                let statusText = 'Normal';
-                let statusColor = 'var(--color-success)';
-                if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
-                    const diasRestantes = 7 - diasDesdeInstalacao;
-                    statusText = `Atenção (${diasRestantes} dias restantes)`;
-                    statusColor = 'var(--color-warning)';
-                } else if (diasDesdeInstalacao > 7) {
-                    const diasAtraso = diasDesdeInstalacao - 7;
-                    statusText = `Atrasado (${diasAtraso} dias)`;
-                    statusColor = 'var(--color-danger)';
-                }
+                    if (isNaN(installDate.getTime())) {
+                        throw new Error("Data de instalação da armadilha é inválida.");
+                    }
 
-                const contentEl = App.elements.monitoramentoAereo.trapInfoBoxContent;
-                contentEl.innerHTML = `
-                    <div class="info-title" style="color: ${statusColor};">
-                        <i class="fas fa-bug"></i>
-                        <span>Detalhes da Armadilha</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Status</span>
-                        <span class="value"><span class="status-indicator" style="background-color: ${statusColor};"></span>${statusText}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Fazenda</span>
-                        <span class="value">${trap.fazendaNome || 'N/A'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Talhão</span>
-                        <span class="value">${trap.talhaoNome || 'N/A'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Data de Instalação</span>
-                        <span class="value">${installDate.toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Data Prevista para Coleta</span>
-                        <span class="value">${collectionDate.toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div class="info-item" id="trap-obs-display" style="${trap.observacoes ? 'display: flex;' : 'display: none;'}">
-                        <span class="label">Observações</span>
-                        <span class="value" style="white-space: pre-wrap; font-size: 14px;">${trap.observacoes || ''}</span>
-                    </div>
-                    <div class="info-box-actions">
-                        <button class="btn-collect-trap" id="btnCollectTrap"><i class="fas fa-check-circle"></i> Coletar</button>
-                        <div class="action-button-group">
-                            <button class="action-btn" id="btnEditTrap" title="Editar Observações"><i class="fas fa-edit"></i></button>
-                            <button class="action-btn danger" id="btnDeleteTrap" title="Excluir Armadilha"><i class="fas fa-trash"></i></button>
+                    const collectionDate = new Date(installDate);
+                    collectionDate.setDate(installDate.getDate() + 7);
+                    const now = new Date();
+
+                    const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
+
+                    let statusText = 'Normal';
+                    let statusColor = 'var(--color-success)';
+                    if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
+                        const diasRestantes = 7 - diasDesdeInstalacao;
+                        statusText = `Atenção (${diasRestantes} dias restantes)`;
+                        statusColor = 'var(--color-warning)';
+                    } else if (diasDesdeInstalacao > 7) {
+                        const diasAtraso = diasDesdeInstalacao - 7;
+                        statusText = `Atrasado (${diasAtraso} dias)`;
+                        statusColor = 'var(--color-danger)';
+                    }
+
+                    const contentEl = App.elements.monitoramentoAereo.trapInfoBoxContent;
+                    contentEl.innerHTML = `
+                        <div class="info-title" style="color: ${statusColor};">
+                            <i class="fas fa-bug"></i>
+                            <span>Detalhes da Armadilha</span>
                         </div>
-                    </div>
-                `;
+                        <div class="info-item">
+                            <span class="label">Status</span>
+                            <span class="value"><span class="status-indicator" style="background-color: ${statusColor};"></span>${statusText}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Fazenda</span>
+                            <span class="value">${trap.fazendaNome || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Talhão</span>
+                            <span class="value">${trap.talhaoNome || 'N/A'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Data de Instalação</span>
+                            <span class="value">${installDate.toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Data Prevista para Coleta</span>
+                            <span class="value">${collectionDate.toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <div class="info-item" id="trap-obs-display" style="${trap.observacoes ? 'display: flex;' : 'display: none;'}">
+                            <span class="label">Observações</span>
+                            <span class="value" style="white-space: pre-wrap; font-size: 14px;">${trap.observacoes || ''}</span>
+                        </div>
+                        <div class="info-box-actions">
+                            <button class="btn-collect-trap" id="btnCollectTrap"><i class="fas fa-check-circle"></i> Coletar</button>
+                            <div class="action-button-group">
+                                <button class="action-btn" id="btnEditTrap" title="Editar Observações"><i class="fas fa-edit"></i></button>
+                                <button class="action-btn danger" id="btnDeleteTrap" title="Excluir Armadilha"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `;
 
-                document.getElementById('btnCollectTrap').onclick = () => this.promptCollectTrap(trapId);
-                document.getElementById('btnEditTrap').onclick = () => this.editTrap(trapId);
-                document.getElementById('btnDeleteTrap').onclick = () => this.deleteTrap(trapId);
+                    document.getElementById('btnCollectTrap').onclick = () => this.promptCollectTrap(trapId);
+                    document.getElementById('btnEditTrap').onclick = () => this.editTrap(trapId);
+                    document.getElementById('btnDeleteTrap').onclick = () => this.deleteTrap(trapId);
 
-                this.hideTalhaoInfo();
-                App.elements.monitoramentoAereo.trapInfoBox.classList.add('visible');
+                    this.hideTalhaoInfo();
+                    App.elements.monitoramentoAereo.trapInfoBox.classList.add('visible');
+                } catch (error) {
+                    console.error("Erro ao exibir informações da armadilha:", error, trapId);
+                    App.ui.showAlert("Não foi possível carregar os dados desta armadilha. Pode haver uma inconsistência de dados.", "error");
+                }
             },
 
             hideTrapInfo() {
