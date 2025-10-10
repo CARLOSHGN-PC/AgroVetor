@@ -1,5 +1,5 @@
-const CACHE_NAME = 'agrovetor-cache-v12'; // Incremented version for update
-const TILE_CACHE_NAME = 'agrovetor-tile-cache-v4'; // Incremented tile cache
+const CACHE_NAME = 'agrovetor-cache-v11'; // Incremented version for update
+const TILE_CACHE_NAME = 'agrovetor-tile-cache-v3'; // Incremented tile cache
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the tile cache
@@ -97,10 +97,6 @@ self.addEventListener('fetch', event => {
               trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
             });
             return networkResponse;
-          }).catch(error => {
-            console.warn(`Mapbox tile fetch failed for: ${event.request.url}. Returning empty response.`, error);
-            // Return a successful but empty response to prevent the map from crashing on a failed tile load.
-            return new Response(null, { status: 200 });
           });
         });
       })
