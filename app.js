@@ -6412,7 +6412,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             console.warn(`Erro de Geolocalização: ${error.message}`);
                             App.ui.showAlert("Não foi possível obter sua localização.", "warning");
                         },
-                        { enableHighAccuracy: true }
+                        { enableHighAccuracy: true, timeout: 27000, maximumAge: 60000 }
                     );
                 } else {
                     App.ui.showAlert("Geolocalização não é suportada pelo seu navegador.", "error");
