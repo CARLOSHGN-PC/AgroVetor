@@ -2254,6 +2254,72 @@
     </div>
 </section>
 
+<section id="apontamentoDiarioPlantio" class="tab-content card" aria-label="Apontamento Diário de Plantio" tabindex="0" hidden>
+    <h2><i class="fas fa-seedling"></i> Apontamento Diário de Plantio</h2>
+    <form id="formApontamentoDiarioPlantio">
+        <div classs="form-row">
+            <div class="form-col">
+                <label for="frentePlantio" class="required">Frente de Plantio:</label>
+                <select id="frentePlantio" required></select>
+            </div>
+            <div class="form-col">
+                <label for="prestador" class="required">Prestador:</label>
+                <input type="text" id="prestador" readonly required />
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-col">
+                <label for="liderResponsavel" class="required">Matrícula do líder / responsável:</label>
+                <input type="text" id="liderResponsavel" required />
+            </div>
+            <div class="form-col">
+                <label for="fazenda" class="required">Nome da fazenda:</label>
+                <input type="text" id="fazenda" required />
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-col">
+                <label for="dataOperacao" class="required">Data da operação:</label>
+                <input type="date" id="dataOperacao" required />
+            </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 10px;">
+            <h3><i class="fas fa-plus-circle"></i> Lançamentos</h3>
+            <button type="button" id="addPlantio" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Lançamento</button>
+        </div>
+        <div id="plantioContainer" class="pontos-container">
+            <!-- Cards de lançamentos serão inseridos aqui -->
+        </div>
+        <div class="resultado" id="resultadoPlantio" style="margin-top: 20px;"></div>
+        <button type="button" id="btnSalvarPlantio" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Apontamento</button>
+    </form>
+</section>
+
+<section id="relatoriosPlantio" class="tab-content card" aria-label="Relatórios de Plantio" tabindex="0" hidden>
+    <h2><i class="fas fa-chart-bar"></i> Relatórios de Plantio</h2>
+    <div class="form-row">
+        <div class="form-col">
+            <label for="tipoRelatorioPlantio">Tipo de Relatório:</label>
+            <select id="tipoRelatorioPlantio">
+                <option value="fazenda">Por Fazenda</option>
+                <option value="talhao">Por Talhão</option>
+            </select>
+        </div>
+        <div class="form-col"><label for="inicioPlantio" class="required">Data Início:</label><input type="date" id="inicioPlantio" /></div>
+        <div class="form-col"><label for="fimPlantio" class="required">Data Fim:</label><input type="date" id="fimPlantio" /></div>
+    </div>
+    <div class="form-row">
+        <div class="form-col">
+            <label for="frentePlantioFiltro">Filtrar por Frente de Plantio:</label>
+            <select id="frentePlantioFiltro"><option value="">Todas</option></select>
+        </div>
+    </div>
+    <div class="botoes-relatorio">
+        <button id="btnExcelPlantio" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+    </div>
+</section>
+
+
             <section id="excluirDados" class="tab-content card" aria-label="Excluir Lançamentos" tabindex="0" hidden>
                 <h2><i class="fas fa-trash"></i> Excluir Lançamentos</h2>
                 <p>Selecione um lançamento para excluir. Esta ação é irreversível.</p>
@@ -2430,6 +2496,17 @@
             <section id="cadastrarPessoas" class="tab-content card" aria-label="Cadastrar Pessoas" tabindex="0" hidden>
                 <h2><i class="fas fa-id-card"></i> Cadastro de Pessoas</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
+            </section>
+
+            <section id="frentePlantio" class="tab-content card" aria-label="Frente de Plantio" tabindex="0" hidden>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-success); margin: 0;"><i class="fas fa-map-signs"></i> Frentes de Plantio</h2>
+                    <div class="button-group">
+                        <button id="btnAddNewFrentePlantio" class="save"><i class="fas fa-plus"></i> Nova Frente</button>
+                    </div>
+                </div>
+                <div id="frentesPlantioList"></div>
+            </section>
                     <h3><i class="fas fa-upload"></i> Importar Pessoas via CSV</h3>
                     <p>Faça o upload de um ficheiro CSV com matrículas e nomes. O sistema irá <strong>atualizar</strong> os nomes existentes e <strong>adicionar</strong> novos, sem criar duplicatas.</p>
                     <div class="upload-area" id="personnelCsvUploadArea">
@@ -2822,9 +2899,40 @@
                 </div>
             </div>
         </div>
+
+        <div id="frentePlantioModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="frentePlantioModalTitle">Adicionar Nova Frente de Plantio</h2>
+                    <button id="frentePlantioModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <input type="hidden" id="editingFrentePlantioId">
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="nomeFrentePlantio" class="required">Nome da Frente de Plantio:</label>
+                        <input id="nomeFrentePlantio" type="text" required />
+                    </div>
+                    <div class="form-col">
+                        <label for="prestadorFrentePlantio" class="required">Prestador Vinculado:</label>
+                        <input id="prestadorFrentePlantio" type="text" required />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="obsFrentePlantio">Observação:</label>
+                        <textarea id="obsFrentePlantio"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="frentePlantioModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="btnSalvarFrentePlantio" class="save"><i class="fas fa-save"></i> Guardar</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Bibliotecas Externas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
