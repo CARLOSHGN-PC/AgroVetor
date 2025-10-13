@@ -112,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
                         { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
+                        { label: 'Apontamento Diário de Plantio', icon: 'fas fa-seedling', target: 'apontamentoDiarioPlantio', permission: 'apontamentoDiarioPlantio' },
                     ]
                 },
                 {
@@ -123,12 +124,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
+                        { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatoriosPlantio', permission: 'relatoriosPlantio' },
                     ]
                 },
                 {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
+                        { label: 'Frente de Plantio', icon: 'fas fa-map-signs', target: 'frentePlantio', permission: 'frentePlantio' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
@@ -144,10 +147,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, apontamentoDiarioPlantio: true, relatoriosPlantio: true, frentePlantio: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, apontamentoDiarioPlantio: true, relatoriosPlantio: true, frentePlantio: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoDiarioPlantio: true, relatoriosPlantio: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, apontamentoDiarioPlantio: true },
                 user: { dashboard: true }
             }
         },
@@ -194,6 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
+            frentesPlantio: [],
+            apontamentosPlantio: [],
+
         },
         
         elements: {
@@ -292,6 +298,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: document.getElementById('syncHistoryDetailModalBody'),
                 closeBtn: document.getElementById('syncHistoryDetailModalCloseBtn'),
                 cancelBtn: document.getElementById('syncHistoryDetailModalCancelBtn'),
+            },
+            frentePlantioModal: {
+                overlay: document.getElementById('frentePlantioModal'),
+                title: document.getElementById('frentePlantioModalTitle'),
+                closeBtn: document.getElementById('frentePlantioModalCloseBtn'),
+                cancelBtn: document.getElementById('frentePlantioModalCancelBtn'),
+                saveBtn: document.getElementById('btnSalvarFrentePlantio'),
+                editingId: document.getElementById('editingFrentePlantioId'),
+                nome: document.getElementById('nomeFrentePlantio'),
+                prestador: document.getElementById('prestadorFrentePlantio'),
+                obs: document.getElementById('obsFrentePlantio'),
+            },
+            apontamentoDiarioPlantio: {
+                form: document.getElementById('formApontamentoDiarioPlantio'),
+                frentePlantio: document.getElementById('frentePlantio'),
+            relatoriosPlantio: {
+                tipoRelatorio: document.getElementById('tipoRelatorioPlantio'),
+                inicio: document.getElementById('inicioPlantio'),
+                fim: document.getElementById('fimPlantio'),
+                frenteFiltro: document.getElementById('frentePlantioFiltro'),
+                btnExcel: document.getElementById('btnExcelPlantio'),
+            },
+                prestador: document.getElementById('prestador'),
+                liderResponsavel: document.getElementById('liderResponsavel'),
+                fazenda: document.getElementById('fazenda'),
+                dataOperacao: document.getElementById('dataOperacao'),
+                addPlantioBtn: document.getElementById('addPlantio'),
+                plantioContainer: document.getElementById('plantioContainer'),
+                resultado: document.getElementById('resultadoPlantio'),
+                btnSalvar: document.getElementById('btnSalvarPlantio'),
             },
             configHistoryModal: {
                 overlay: document.getElementById('configHistoryModal'),
@@ -930,7 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesPlantio', 'apontamentosPlantio'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1154,6 +1190,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.populateOperatorSelects();
                         if (activeTab === 'cadastrarPessoas') {
                             this.renderPersonnelList();
+                        }
+                        break;
+                    case 'frentesPlantio':
+                        this.populateFrentePlantioSelects();
+                        if (activeTab === 'frentePlantio') {
+                            this.renderFrentePlantioList();
                         }
                         break;
                     case 'planos':
@@ -1529,6 +1571,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
+                if (id === 'frentePlantio') this.renderFrentePlantioList();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
@@ -1810,6 +1853,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 const selects = [App.elements.perda.filtroOperador];
                 selects.forEach(select => {
                     if (!select) return;
+            },
+
+            populateFrentePlantioSelects() {
+                const selects = [
+                    App.elements.apontamentoDiarioPlantio.frentePlantio,
+                    document.getElementById('frentePlantioFiltro')
+                ];
+
+                selects.forEach(select => {
+                    if (!select) return;
+
+                    const currentValue = select.value;
+                    let firstOptionHTML = '<option value="">Selecione...</option>';
+                    if (select.id.includes('Filtro')) {
+                        firstOptionHTML = '<option value="">Todas</option>';
+                    }
+                    select.innerHTML = firstOptionHTML;
+
+                    App.state.frentesPlantio
+                        .sort((a, b) => a.nome.localeCompare(b.nome))
+                        .forEach(f => {
+                            select.innerHTML += `<option value="${f.id}">${f.nome}</option>`;
+                        });
+                    select.value = currentValue;
+                });
 
                     const currentValue = select.value;
                     let firstOptionHTML = '';
@@ -2969,7 +3037,124 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            addPlantioCard() {
+                const container = App.elements.apontamentoDiarioPlantio.plantioContainer;
+                if (!container) return;
+
+                const card = document.createElement('div');
+                card.className = 'amostra-card';
+                card.innerHTML = `
+                    <div class="amostra-header">
+                        <h4>Novo Lançamento</h4>
+                        <button type="button" class="btn-remover-amostra" title="Remover Lançamento">&times;</button>
+                    </div>
+                    <div class="amostra-body">
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="talhaoPlantio" class="required">Talhão:</label>
+                                <input type="text" class="talhao-plantio" required />
+                            </div>
+                            <div class="form-col">
+                                <label for="variedadePlantio" class="required">Variedade Plantada:</label>
+                                <input type="text" class="variedade-plantio" required />
+                            </div>
+                            <div class="form-col">
+                                <label for="areaPlantio" class="required">Área Plantada (ha):</label>
+                                <input type="number" class="area-plantio" required />
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            },
+
+            calculateTotalAreaPlantio() {
+                const container = App.elements.apontamentoDiarioPlantio.plantioContainer;
+                const resultadoEl = App.elements.apontamentoDiarioPlantio.resultado;
+                if (!container || !resultadoEl) return;
+
+                const areas = container.querySelectorAll('.area-plantio');
+                let totalArea = 0;
+                areas.forEach(input => {
+                    totalArea += parseFloat(input.value) || 0;
+                });
+
+                resultadoEl.textContent = `Total de Área Plantada: ${totalArea.toFixed(2)} ha`;
+            },
+
+            updatePrestador(frenteId) {
+                const els = App.elements.apontamentoDiarioPlantio;
+                const frente = App.state.frentesPlantio.find(f => f.id === frenteId);
+                if (frente) {
+                    els.prestador.value = frente.prestador;
+                } else {
+                    els.prestador.value = '';
+                }
+            },
+
+            showFrentePlantioModal(frente = null) {
+                const modal = App.elements.frentePlantioModal;
+                if (frente) {
+                    modal.title.textContent = 'Editar Frente de Plantio';
+                    modal.editingId.value = frente.id;
+                    modal.nome.value = frente.nome;
+                    modal.prestador.value = frente.prestador;
+                    modal.obs.value = frente.obs;
+                } else {
+                    modal.title.textContent = 'Adicionar Nova Frente de Plantio';
+                    modal.editingId.value = '';
+                    modal.nome.value = '';
+                    modal.prestador.value = '';
+                    modal.obs.value = '';
+                }
+                modal.overlay.classList.add('show');
+            },
+
+            hideFrentePlantioModal() {
+                App.elements.frentePlantioModal.overlay.classList.remove('show');
+            },
+
+            renderFrentePlantioList() {
+                const listEl = document.getElementById('frentesPlantioList');
+                if (!listEl) return;
+
+                listEl.innerHTML = '';
+                if (App.state.frentesPlantio.length === 0) {
+                    listEl.innerHTML = '<p>Nenhuma frente de plantio cadastrada.</p>';
+                    return;
+                }
+
+                App.state.frentesPlantio.forEach(frente => {
+                    const card = document.createElement('div');
+                    card.className = 'plano-card';
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-map-signs"></i> ${frente.nome}</span>
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-user-tie"></i> Prestador: ${frente.prestador}</div>
+                            ${frente.obs ? `<div><i class="fas fa-info-circle"></i> Obs: ${frente.obs}</div>` : ''}
+                        </div>
+                        <div class="plano-actions">
+                            <button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="edit-frente" data-id="${frente.id}"><i class="fas fa-edit"></i> Editar</button>
+                            <button class="btn-excluir" data-action="delete-frente" data-id="${frente.id}"><i class="fas fa-trash"></i> Excluir</button>
+                        </div>
+                    `;
+                    listEl.appendChild(card);
+                });
+
+                listEl.addEventListener('click', e => {
+                    const button = e.target.closest('button[data-action]');
+                    if (!button) return;
+                    const { action, id } = button.dataset;
+                    if (action === 'edit-frente') App.actions.editFrentePlantio(id);
+                    if (action === 'delete-frente') App.actions.deleteFrentePlantio(id);
+                });
+            },
+
             setupEventListeners() {
+                const btnAddNewFrentePlantio = document.getElementById('btnAddNewFrentePlantio');
+                if (btnAddNewFrentePlantio) btnAddNewFrentePlantio.addEventListener('click', () => this.showFrentePlantioModal());
                 if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => App.auth.login());
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
@@ -3504,6 +3689,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (configModal.overlay) configModal.overlay.addEventListener('click', e => { if (e.target === configModal.overlay) App.ui.hideConfigHistoryModal(); });
                 if (configModal.closeBtn) configModal.closeBtn.addEventListener('click', () => App.ui.hideConfigHistoryModal());
                 if (configModal.cancelBtn) configModal.cancelBtn.addEventListener('click', () => App.ui.hideConfigHistoryModal());
+
+                const frentePlantioModal = App.elements.frentePlantioModal;
+                if (frentePlantioModal.closeBtn) frentePlantioModal.closeBtn.addEventListener('click', () => this.hideFrentePlantioModal());
+                if (frentePlantioModal.cancelBtn) frentePlantioModal.cancelBtn.addEventListener('click', () => this.hideFrentePlantioModal());
+                if (frentePlantioModal.saveBtn) frentePlantioModal.saveBtn.addEventListener('click', () => App.actions.saveFrentePlantio());
+                if (frentePlantioModal.overlay) frentePlantioModal.overlay.addEventListener('click', e => { if (e.target === frentePlantioModal.overlay) this.hideFrentePlantioModal(); });
+
+            const apontamentoEls = App.elements.apontamentoDiarioPlantio;
+            if (apontamentoEls.addPlantioBtn) apontamentoEls.addPlantioBtn.addEventListener('click', () => this.addPlantioCard());
+            if (apontamentoEls.plantioContainer) {
+                apontamentoEls.plantioContainer.addEventListener('click', e => {
+                    if (e.target.closest('.btn-remover-amostra')) {
+                        e.target.closest('.amostra-card').remove();
+                        this.calculateTotalAreaPlantio();
+                    }
+                });
+                apontamentoEls.plantioContainer.addEventListener('input', e => {
+                    if (e.target.classList.contains('area-plantio')) {
+                        this.calculateTotalAreaPlantio();
+                    }
+                });
+            }
+            if (apontamentoEls.btnSalvar) apontamentoEls.btnSalvar.addEventListener('click', () => App.actions.saveApontamentoPlantio());
+            if (apontamentoEls.frentePlantio) apontamentoEls.frentePlantio.addEventListener('change', e => this.updatePrestador(e.target.value));
+
+            const relatoriosPlantioEls = App.elements.relatoriosPlantio;
+            if (relatoriosPlantioEls.btnExcel) relatoriosPlantioEls.btnExcel.addEventListener('click', () => App.reports.generatePlantioReport());
 
                 // [NOVO] Listeners para a pesquisa no mapa
                 const mapSearchBtn = App.elements.monitoramentoAereo.mapFarmSearchBtn;
@@ -6118,6 +6330,121 @@ document.addEventListener('DOMContentLoaded', () => {
             async notifyAdminsOfNewFeatures(oldConfigs, newConfigs) {
                 const newlyEnabledFeatures = Object.keys(newConfigs).filter(key => newConfigs[key] && !oldConfigs[key]);
 
+            async saveApontamentoPlantio() {
+                const els = App.elements.apontamentoDiarioPlantio;
+                if (!App.ui.validateFields([els.frentePlantio.id, els.liderResponsavel.id, els.fazenda.id, els.dataOperacao.id])) {
+                    App.ui.showAlert("Preencha todos os campos principais!", "error");
+                    return;
+                }
+
+                const plantioCards = els.plantioContainer.querySelectorAll('.amostra-card');
+                if (plantioCards.length === 0) {
+                    App.ui.showAlert("Adicione pelo menos um lançamento de plantio.", "error");
+                    return;
+                }
+
+                const plantiosData = [];
+                plantioCards.forEach(card => {
+                    const plantio = {
+                        talhao: card.querySelector('.talhao-plantio').value,
+                        variedade: card.querySelector('.variedade-plantio').value,
+                        area: parseFloat(card.querySelector('.area-plantio').value) || 0,
+                    };
+                    plantiosData.push(plantio);
+                });
+
+                const frente = App.state.frentesPlantio.find(f => f.id === els.frentePlantio.value);
+
+                const newEntry = {
+                    frentePlantioId: frente.id,
+                    frentePlantioNome: frente.nome,
+                    prestador: els.prestador.value,
+                    liderResponsavel: els.liderResponsavel.value,
+                    fazenda: els.fazenda.value,
+                    dataOperacao: els.dataOperacao.value,
+                    plantios: plantiosData,
+                    totalArea: plantiosData.reduce((acc, p) => acc + p.area, 0),
+                    usuario: App.state.currentUser.username,
+                    companyId: App.state.currentUser.companyId
+                };
+
+                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este apontamento?", () => {
+                    App.ui.clearForm(els.form);
+                    els.plantioContainer.innerHTML = '';
+                    App.ui.setDefaultDatesForEntryForms();
+                    App.ui.setLoading(true, "A guardar...");
+
+                    (async () => {
+                        try {
+                            if (navigator.onLine) {
+                                await App.data.addDocument('apontamentosPlantio', newEntry);
+                                App.ui.showAlert("Apontamento de plantio guardado com sucesso!");
+                            } else {
+                                await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
+                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                            }
+                        } catch (e) {
+                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
+                            console.error(`Erro ao salvar apontamento de plantio, salvando offline:`, e);
+                            await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    })();
+                });
+            },
+
+            async saveFrentePlantio() {
+                const modal = App.elements.frentePlantioModal;
+                const nome = modal.nome.value.trim();
+                const prestador = modal.prestador.value.trim();
+                const obs = modal.obs.value.trim();
+                const editingId = modal.editingId.value;
+
+                if (!nome || !prestador) {
+                    App.ui.showAlert("Nome da frente and prestador are required.", "error");
+                    return;
+                }
+
+                const data = {
+                    nome,
+                    prestador,
+                    obs,
+                    companyId: App.state.currentUser.companyId
+                };
+
+                try {
+                    if (editingId) {
+                        await App.data.updateDocument('frentesPlantio', editingId, data);
+                        App.ui.showAlert("Frente de plantio atualizada com sucesso!");
+                    } else {
+                        await App.data.addDocument('frentesPlantio', data);
+                        App.ui.showAlert("Frente de plantio salva com sucesso!");
+                    }
+                    App.ui.hideFrentePlantioModal();
+                } catch (error) {
+                    App.ui.showAlert("Erro ao salvar frente de plantio.", "error");
+                }
+            },
+
+            editFrentePlantio(id) {
+                const frente = App.state.frentesPlantio.find(f => f.id === id);
+                if (frente) {
+                    App.ui.showFrentePlantioModal(frente);
+                }
+            },
+
+            deleteFrentePlantio(id) {
+                App.ui.showConfirmationModal("Tem certeza que deseja excluir esta frente de plantio?", async () => {
+                    try {
+                        await App.data.deleteDocument('frentesPlantio', id);
+                        App.ui.showAlert('Frente de plantio excluída com sucesso.', 'info');
+                    } catch (error) {
+                        App.ui.showAlert('Erro ao excluir frente de plantio.', 'error');
+                    }
+                });
+            },
+
                 if (newlyEnabledFeatures.length === 0) {
                     console.log("Nenhuma nova feature ativada. Nenhuma notificação a ser enviada.");
                     return;
@@ -8130,6 +8457,57 @@ document.addEventListener('DOMContentLoaded', () => {
             generateMonitoramentoCSV() { // Now generates Trap Report
                 const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+            },
+
+            generatePlantioReport() {
+                const els = App.elements.relatoriosPlantio;
+                if (!els.inicio.value || !els.fim.value) {
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    return;
+                }
+
+                let data = App.state.apontamentosPlantio.filter(p => {
+                    const dataOperacao = new Date(p.dataOperacao);
+                    const inicio = new Date(els.inicio.value);
+                    const fim = new Date(els.fim.value);
+                    return dataOperacao >= inicio && dataOperacao <= fim;
+                });
+
+                if (els.frenteFiltro.value) {
+                    data = data.filter(p => p.frentePlantioId === els.frenteFiltro.value);
+                }
+
+                if (els.tipoRelatorio.value === 'fazenda') {
+                    const fazendas = {};
+                    data.forEach(p => {
+                        if (!fazendas[p.fazenda]) {
+                            fazendas[p.fazenda] = { totalArea: 0 };
+                        }
+                        fazendas[p.fazenda].totalArea += p.totalArea;
+                    });
+                    const sheetData = Object.keys(fazendas).map(fazenda => ({ Fazenda: fazenda, 'Área Total (ha)': fazendas[fazenda].totalArea }));
+                    const worksheet = XLSX.utils.json_to_sheet(sheetData);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "Relatório por Fazenda");
+                    XLSX.writeFile(workbook, "relatorio_plantio_por_fazenda.xlsx");
+                } else {
+                    const sheetData = [];
+                    data.forEach(p => {
+                        p.plantios.forEach(plantio => {
+                            sheetData.push({
+                                Fazenda: p.fazenda,
+                                Talhão: plantio.talhao,
+                                Variedade: plantio.variedade,
+                                'Área (ha)': plantio.area,
+                            });
+                        });
+                    });
+                    const worksheet = XLSX.utils.json_to_sheet(sheetData);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "Relatório por Talhão");
+                    XLSX.writeFile(workbook, "relatorio_plantio_por_talhao.xlsx");
+                }
+            }
 
                 const farmId = fazendaFiltro.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
