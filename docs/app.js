@@ -112,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
                         { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
+                        { label: 'Apontamento de Plantio', icon: 'fas fa-seedling', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
                     ]
                 },
                 {
@@ -123,11 +124,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
+                        { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
                     ]
                 },
                 {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
+                        { label: 'Frente de Plantio', icon: 'fas fa-tractor', target: 'frenteDePlantio', permission: 'frenteDePlantio' },
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
@@ -144,9 +147,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
             }
@@ -169,6 +172,8 @@ document.addEventListener('DOMContentLoaded', () => {
             planos: [],
             fazendas: [],
             personnel: [],
+            frentesDePlantio: [],
+            apontamentosPlantio: [],
             companyLogo: null,
             activeSubmenu: null,
             charts: {},
@@ -386,6 +391,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 csvFileInput: document.getElementById('personnelCsvInput'),
                 btnDownloadCsvTemplate: document.getElementById('btnDownloadPersonnelCsvTemplate'),
             },
+            frenteDePlantio: {
+                id: document.getElementById('frenteDePlantioId'),
+                name: document.getElementById('frenteDePlantioName'),
+                provider: document.getElementById('frenteDePlantioProvider'),
+                obs: document.getElementById('frenteDePlantioObs'),
+                btnSave: document.getElementById('btnSaveFrenteDePlantio'),
+                list: document.getElementById('frenteDePlantioList'),
+            },
+            apontamentoPlantio: {
+                form: document.getElementById('formApontamentoPlantio'),
+                frente: document.getElementById('plantioFrente'),
+                provider: document.getElementById('plantioProvider'),
+                leaderId: document.getElementById('plantioLeaderId'),
+                farmName: document.getElementById('plantioFarmName'),
+                date: document.getElementById('plantioDate'),
+                addRecordBtn: document.getElementById('addPlantioRecord'),
+                recordsContainer: document.getElementById('plantioRecordsContainer'),
+                totalArea: document.getElementById('totalPlantedArea'),
+                btnSave: document.getElementById('btnSaveApontamentoPlantio'),
+            },
             cadastros: {
                 farmCode: document.getElementById('farmCode'),
                 farmName: document.getElementById('farmName'),
@@ -573,6 +598,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
                     mapFarmSearchInput: document.getElementById('map-farm-search-input'),
                     mapFarmSearchBtn: document.getElementById('map-farm-search-btn'),
+            },
+            relatorioPlantio: {
+                frente: document.getElementById('plantioRelatorioFrente'),
+                inicio: document.getElementById('plantioRelatorioInicio'),
+                fim: document.getElementById('plantioRelatorioFim'),
+                btnPDFFazenda: document.getElementById('btnPDFFazenda'),
+                btnExcelFazenda: document.getElementById('btnExcelFazenda'),
+                btnPDFTalhao: document.getElementById('btnPDFTalhao'),
+                btnExcelTalhao: document.getElementById('btnExcelTalhao'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -930,7 +964,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1156,6 +1190,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.renderPersonnelList();
                         }
                         break;
+                    case 'frentesDePlantio':
+                        if (activeTab === 'frenteDePlantio') {
+                            this.renderFrenteDePlantioList();
+                        }
+                        this.populateFrenteDePlantioSelect();
+                        break;
+                    case 'apontamentosPlantio':
+                        // This collection is for storing data, no direct render action needed on snapshot
+                        break;
                     case 'planos':
                         if (activeTab === 'planejamento') {
                             this.renderPlanejamento();
@@ -1203,6 +1246,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('populateOperatorSelects', () => this.populateOperatorSelects());
                 renderWithCatch('renderUsersList', () => this.renderUsersList());
                 renderWithCatch('renderPersonnelList', () => this.renderPersonnelList());
+                renderWithCatch('renderFrenteDePlantioList', () => this.renderFrenteDePlantioList());
+                renderWithCatch('populateFrenteDePlantioSelect', () => this.populateFrenteDePlantioSelect());
                 renderWithCatch('renderLogoPreview', () => this.renderLogoPreview());
                 renderWithCatch('renderPlanejamento', () => this.renderPlanejamento());
                 renderWithCatch('showHarvestPlanList', () => this.showHarvestPlanList());
@@ -2134,6 +2179,106 @@ document.addEventListener('DOMContentLoaded', () => {
                     .map((u) => this._createModernUserCardHTML(u))
                     .join(''); 
             },
+            renderFrenteDePlantioList() {
+                const { list } = App.elements.frenteDePlantio;
+                list.innerHTML = '';
+                if (App.state.frentesDePlantio.length === 0) {
+                    list.innerHTML = '<p>Nenhuma frente de plantio cadastrada.</p>';
+                    return;
+                }
+                const table = document.createElement('table');
+                table.id = 'frenteDePlantioTable';
+                table.className = 'harvestPlanTable';
+                table.innerHTML = `<thead><tr><th>Nome</th><th>Prestador</th><th>Observação</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+                App.state.frentesDePlantio.sort((a,b) => a.name.localeCompare(b.name)).forEach(f => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td data-label="Nome">${f.name}</td>
+                        <td data-label="Prestador">${f.provider}</td>
+                        <td data-label="Observação">${f.obs || ''}</td>
+                        <td data-label="Ações">
+                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-frente" data-id="${f.id}"><i class="fas fa-edit"></i></button>
+                                <button class="btn-excluir" data-action="delete-frente" data-id="${f.id}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    `;
+                });
+                list.appendChild(table);
+            },
+
+            populateFrenteDePlantioSelect() {
+                const selects = [App.elements.apontamentoPlantio.frente, App.elements.relatorioPlantio.frente];
+                selects.forEach(select => {
+                    if (!select) return;
+                    const currentValue = select.value;
+                    let firstOption = '<option value="">Selecione...</option>';
+                    if (select.id === 'plantioRelatorioFrente') {
+                        firstOption = '<option value="">Todas</option>';
+                    }
+                    select.innerHTML = firstOption;
+                    App.state.frentesDePlantio.sort((a, b) => a.name.localeCompare(b.name)).forEach(f => {
+                        select.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+                    });
+                    select.value = currentValue;
+                });
+            },
+
+            addPlantioRecordCard() {
+                const container = App.elements.apontamentoPlantio.recordsContainer;
+                if (!container) return;
+
+                container.querySelectorAll('.amostra-card:not(.collapsed)').forEach(c => c.classList.add('collapsed'));
+
+                const recordId = Date.now();
+                const card = document.createElement('div');
+                card.className = 'amostra-card';
+                card.dataset.id = recordId;
+
+                const recordCount = container.children.length + 1;
+
+                card.innerHTML = `
+                    <div class="amostra-header" style="cursor: pointer;">
+                        <i class="fas fa-chevron-down amostra-toggle-icon"></i>
+                        <h4>Lançamento ${recordCount}</h4>
+                        <button type="button" class="btn-remover-amostra" title="Remover Lançamento">&times;</button>
+                    </div>
+                    <div class="amostra-body">
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="plantioTalhao-${recordId}" class="required">Talhão:</label>
+                                <input type="text" id="plantioTalhao-${recordId}" class="plantio-record-input" required>
+                            </div>
+                            <div class="form-col">
+                                <label for="plantioVariedade-${recordId}" class="required">Variedade Plantada:</label>
+                                <input type="text" id="plantioVariedade-${recordId}" class="plantio-record-input" required>
+                            </div>
+                            <div class="form-col">
+                                <label for="plantioArea-${recordId}" class="required">Área Plantada (ha):</label>
+                                <input type="number" id="plantioArea-${recordId}" class="plantio-record-input plantio-area-input" required>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+                card.querySelector('input').focus();
+                this.calculateTotalPlantedArea();
+            },
+
+            calculateTotalPlantedArea() {
+                const container = App.elements.apontamentoPlantio.recordsContainer;
+                const totalAreaEl = App.elements.apontamentoPlantio.totalArea;
+                if (!container || !totalAreaEl) return;
+
+                let totalArea = 0;
+                container.querySelectorAll('.plantio-area-input').forEach(input => {
+                    totalArea += parseFloat(input.value) || 0;
+                });
+
+                totalAreaEl.textContent = `Total de Área Plantada: ${totalArea.toFixed(2).replace('.', ',')} ha`;
+            },
+
             renderPersonnelList() {
                 const { list } = App.elements.personnel;
                 list.innerHTML = '';
@@ -3415,9 +3560,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
+                if (App.elements.frenteDePlantio.btnSave) App.elements.frenteDePlantio.btnSave.addEventListener('click', () => App.actions.saveFrenteDePlantio());
+                if (App.elements.frenteDePlantio.list) App.elements.frenteDePlantio.list.addEventListener('click', e => {
+                    const btn = e.target.closest('button');
+                    if (!btn) return;
+                    const { action, id } = btn.dataset;
+                    if (action === 'edit-frente') App.actions.editFrenteDePlantio(id);
+                    if (action === 'delete-frente') App.actions.deleteFrenteDePlantio(id);
+                });
+
+                // Listeners for Apontamento de Plantio
+                const apontamentoEls = App.elements.apontamentoPlantio;
+                if (apontamentoEls.addRecordBtn) {
+                    apontamentoEls.addRecordBtn.addEventListener('click', () => App.ui.addPlantioRecordCard());
+                }
+                if (apontamentoEls.btnSave) {
+                    apontamentoEls.btnSave.addEventListener('click', () => App.actions.saveApontamentoPlantio());
+                }
+                if (apontamentoEls.recordsContainer) {
+                    apontamentoEls.recordsContainer.addEventListener('click', e => {
+                        const removeBtn = e.target.closest('.btn-remover-amostra');
+                        if (removeBtn) {
+                            e.stopPropagation();
+                            removeBtn.closest('.amostra-card').remove();
+                            const allCards = apontamentoEls.recordsContainer.querySelectorAll('.amostra-card');
+                            allCards.forEach((card, index) => {
+                                card.querySelector('h4').textContent = `Lançamento ${index + 1}`;
+                            });
+                            App.ui.calculateTotalPlantedArea();
+                        }
+                    });
+                    apontamentoEls.recordsContainer.addEventListener('input', e => {
+                        if (e.target.classList.contains('plantio-area-input')) {
+                            App.ui.calculateTotalPlantedArea();
+                        }
+                    });
+                }
+                if (apontamentoEls.frente) {
+                    apontamentoEls.frente.addEventListener('change', e => {
+                        const frenteId = e.target.value;
+                        const frente = App.state.frentesDePlantio.find(f => f.id === frenteId);
+                        apontamentoEls.provider.value = frente ? frente.provider : '';
+                    });
+                }
+
+                this.enableEnterKeyNavigation('#loginBox');
+                this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
                 this.enableEnterKeyNavigation('#lancamentoCigarrinha');
                 this.enableEnterKeyNavigation('#lancamentoCigarrinhaAmostragem');
+                this.enableEnterKeyNavigation('#frenteDePlantio');
+                this.enableEnterKeyNavigation('#relatorioPlantio');
+
+                const relatorioPlantioEls = App.elements.relatorioPlantio;
+                if (relatorioPlantioEls.btnPDFFazenda) relatorioPlantioEls.btnPDFFazenda.addEventListener('click', () => App.reports.generatePlantioFazendaPDF());
+                if (relatorioPlantioEls.btnExcelFazenda) relatorioPlantioEls.btnExcelFazenda.addEventListener('click', () => App.reports.generatePlantioFazendaExcel());
+                if (relatorioPlantioEls.btnPDFTalhao) relatorioPlantioEls.btnPDFTalhao.addEventListener('click', () => App.reports.generatePlantioTalhaoPDF());
+                if (relatorioPlantioEls.btnExcelTalhao) relatorioPlantioEls.btnExcelTalhao.addEventListener('click', () => App.reports.generatePlantioTalhaoExcel());
+
                 this.enableEnterKeyNavigation('#changePasswordModal');
                 this.enableEnterKeyNavigation('#cadastros');
                 this.enableEnterKeyNavigation('#cadastrarPessoas');
@@ -3952,6 +4152,135 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             },
+            async saveFrenteDePlantio() {
+                const { id, name, provider, obs } = App.elements.frenteDePlantio;
+                const nameValue = name.value.trim();
+                const providerValue = provider.value.trim();
+                const obsValue = obs.value.trim();
+                if (!nameValue || !providerValue) {
+                    App.ui.showAlert("Nome da Frente and Prestador Vinculado are required.", "error");
+                    return;
+                }
+
+                const existingId = id.value;
+                const data = {
+                    name: nameValue,
+                    provider: providerValue,
+                    obs: obsValue,
+                    companyId: App.state.currentUser.companyId
+                };
+
+                App.ui.showConfirmationModal(`Are you sure you want to save the Frente de Plantio "${nameValue}"?`, async () => {
+                    try {
+                        if (existingId) {
+                            await App.data.updateDocument('frentesDePlantio', existingId, data);
+                        } else {
+                            await App.data.addDocument('frentesDePlantio', data);
+                        }
+                        App.ui.showAlert("Frente de Plantio saved successfully!");
+                        id.value = '';
+                        name.value = '';
+                        provider.value = '';
+                        obs.value = '';
+                    } catch (e) {
+                        App.ui.showAlert("Error saving Frente de Plantio.", "error");
+                    }
+                });
+            },
+
+            editFrenteDePlantio(frenteId) {
+                const { id, name, provider, obs } = App.elements.frenteDePlantio;
+                const frente = App.state.frentesDePlantio.find(f => f.id == frenteId);
+                if (frente) {
+                    id.value = frente.id;
+                    name.value = frente.name;
+                    provider.value = frente.provider;
+                    obs.value = frente.obs;
+                    name.focus();
+                }
+            },
+
+            deleteFrenteDePlantio(frenteId) {
+                App.ui.showConfirmationModal("Are you sure you want to delete this Frente de Plantio?", async () => {
+                    await App.data.deleteDocument('frentesDePlantio', frenteId);
+                    App.ui.showAlert('Frente de Plantio deleted successfully.', 'info');
+                });
+            },
+
+            async saveApontamentoPlantio() {
+                const els = App.elements.apontamentoPlantio;
+                if (!App.ui.validateFields([els.frente.id, els.leaderId.id, els.farmName.id, els.date.id])) {
+                    App.ui.showAlert("Preencha todos os campos principais (Frente, Matrícula, Fazenda, Data)!", "error");
+                    return;
+                }
+
+                const recordCards = els.recordsContainer.querySelectorAll('.amostra-card');
+                if (recordCards.length === 0) {
+                    App.ui.showAlert("Adicione pelo menos um lançamento de plantio.", "error");
+                    return;
+                }
+
+                const recordsData = [];
+                for (const card of recordCards) {
+                    const talhaoInput = card.querySelector('input[id^="plantioTalhao-"]');
+                    const variedadeInput = card.querySelector('input[id^="plantioVariedade-"]');
+                    const areaInput = card.querySelector('input[id^="plantioArea-"]');
+
+                    if (!talhaoInput.value || !variedadeInput.value || !areaInput.value) {
+                        App.ui.showAlert("Preencha todos os campos em todos os lançamentos (Talhão, Variedade, Área).", "error");
+                        talhaoInput.focus();
+                        return;
+                    }
+
+                    recordsData.push({
+                        talhao: talhaoInput.value,
+                        variedade: variedadeInput.value,
+                        area: parseFloat(areaInput.value) || 0
+                    });
+                }
+
+                const frente = App.state.frentesDePlantio.find(f => f.id === els.frente.value);
+
+                const newEntry = {
+                    frenteDePlantioId: frente.id,
+                    frenteDePlantioName: frente.name,
+                    provider: els.provider.value,
+                    leaderId: els.leaderId.value,
+                    farmName: els.farmName.value,
+                    date: els.date.value,
+                    records: recordsData,
+                    totalArea: recordsData.reduce((sum, rec) => sum + rec.area, 0),
+                    usuario: App.state.currentUser.username,
+                    companyId: App.state.currentUser.companyId
+                };
+
+                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este apontamento?", () => {
+                    App.ui.clearForm(els.form);
+                    els.recordsContainer.innerHTML = '';
+                    App.ui.setDefaultDatesForEntryForms();
+                    App.ui.calculateTotalPlantedArea();
+                    App.ui.setLoading(true, "A guardar...");
+
+                    (async () => {
+                        try {
+                            if (navigator.onLine) {
+                                await App.data.addDocument('apontamentosPlantio', newEntry);
+                                App.ui.showAlert("Apontamento de plantio guardado com sucesso!");
+                            } else {
+                                await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
+                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                            }
+                        } catch (e) {
+                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
+                            console.error(`Erro ao salvar apontamento de plantio, salvando offline:`, e);
+                            await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    })();
+                });
+            },
+
             async savePersonnel() {
                 const { id, matricula, name } = App.elements.personnel;
                 const matriculaValue = matricula.value.trim();
@@ -8125,6 +8454,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaCodigo: farm ? farm.code : ''
                 };
                 this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas.pdf');
+            },
+
+            generatePlantioFazendaPDF() {
+                const { inicio, fim, frente } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const frenteId = frente.value;
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frenteId,
+                };
+                this._fetchAndDownloadReport('plantio/fazenda/pdf', filters, 'relatorio_plantio_fazenda.pdf');
+            },
+
+            generatePlantioFazendaExcel() {
+                const { inicio, fim, frente } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const frenteId = frente.value;
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frenteId,
+                };
+                this._fetchAndDownloadReport('plantio/fazenda/csv', filters, 'relatorio_plantio_fazenda.csv');
+            },
+
+            generatePlantioTalhaoPDF() {
+                const { inicio, fim, frente } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const frenteId = frente.value;
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frenteId,
+                };
+                this._fetchAndDownloadReport('plantio/talhao/pdf', filters, 'relatorio_plantio_talhao.pdf');
+            },
+
+            generatePlantioTalhaoExcel() {
+                const { inicio, fim, frente } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const frenteId = frente.value;
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frenteId,
+                };
+                this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');
             },
 
             generateMonitoramentoCSV() { // Now generates Trap Report

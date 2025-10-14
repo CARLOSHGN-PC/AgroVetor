@@ -2551,6 +2551,107 @@
                 </div>
             </section>
 
+            <section id="relatorioPlantio" class="tab-content card" aria-label="Relatórios de Plantio" tabindex="0" hidden>
+                <h2><i class="fas fa-chart-bar"></i> Relatórios de Plantio</h2>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="plantioRelatorioFrente">Filtrar por Frente de Plantio:</label>
+                        <select id="plantioRelatorioFrente">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label for="plantioRelatorioInicio" class="required">Data Início:</label>
+                        <input type="date" id="plantioRelatorioInicio" />
+                    </div>
+                    <div class="form-col">
+                        <label for="plantioRelatorioFim" class="required">Data Fim:</label>
+                        <input type="date" id="plantioRelatorioFim" />
+                    </div>
+                </div>
+                <div class="card" style="border-left-color: var(--color-success); margin-top: 20px;">
+                    <h3>Relatório por Fazenda</h3>
+                    <div class="botoes-relatorio">
+                        <button id="btnPDFFazenda" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                        <button id="btnExcelFazenda" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                    </div>
+                </div>
+                <div class="card" style="border-left-color: var(--color-info); margin-top: 20px;">
+                    <h3>Relatório por Talhão</h3>
+                    <div class="botoes-relatorio">
+                        <button id="btnPDFTalhao" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                        <button id="btnExcelTalhao" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="apontamentoPlantio" class="tab-content card" aria-label="Apontamento Diário de Plantio" tabindex="0" hidden>
+                <h2><i class="fas fa-seedling"></i> Apontamento Diário de Plantio</h2>
+                <form id="formApontamentoPlantio">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="plantioFrente" class="required">Frente de Plantio:</label>
+                            <select id="plantioFrente" required></select>
+                        </div>
+                        <div class="form-col">
+                            <label for="plantioProvider">Prestador:</label>
+                            <input type="text" id="plantioProvider" readonly>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="plantioLeaderId" class="required">Matrícula do Líder:</label>
+                            <input type="text" id="plantioLeaderId" required>
+                        </div>
+                        <div class="form-col">
+                            <label for="plantioFarmName" class="required">Nome da Fazenda:</label>
+                            <input type="text" id="plantioFarmName" required>
+                        </div>
+                        <div class="form-col">
+                            <label for="plantioDate" class="required">Data da Operação:</label>
+                            <input type="date" id="plantioDate" required>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 10px;">
+                        <h3><i class="fas fa-plus-circle"></i> Lançamentos de Plantio</h3>
+                        <button type="button" id="addPlantioRecord" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Lançamento</button>
+                    </div>
+                    <div id="plantioRecordsContainer" class="pontos-container">
+                        <!-- Cards de lançamentos serão inseridos aqui -->
+                    </div>
+
+                    <div class="resultado" id="totalPlantedArea" style="margin-top: 20px;"></div>
+                    <button type="button" id="btnSaveApontamentoPlantio" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Apontamento</button>
+                </form>
+            </section>
+
+            <section id="frenteDePlantio" class="tab-content card" aria-label="Frente de Plantio" tabindex="0" hidden>
+                <h2><i class="fas fa-tractor"></i> Cadastro de Frente de Plantio</h2>
+                <div class="card" style="border-left-color: var(--color-purple);">
+                    <h3><i class="fas fa-plus-circle"></i> Adicionar/Editar Frente de Plantio</h3>
+                    <input type="hidden" id="frenteDePlantioId">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="frenteDePlantioName" class="required">Nome da Frente:</label>
+                            <input type="text" id="frenteDePlantioName" placeholder="Ex: Frente 01">
+                        </div>
+                        <div class="form-col">
+                            <label for="frenteDePlantioProvider" class="required">Prestador Vinculado:</label>
+                            <input type="text" id="frenteDePlantioProvider" placeholder="Ex: Agro Sementes">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="frenteDePlantioObs">Observação:</label>
+                            <textarea id="frenteDePlantioObs" placeholder="Detalhes adicionais..."></textarea>
+                        </div>
+                    </div>
+                    <button id="btnSaveFrenteDePlantio" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Guardar Frente</button>
+                </div>
+                <h3><i class="fas fa-list-ul"></i> Frentes Cadastradas</h3>
+                <div id="frenteDePlantioList" class="table-responsive"></div>
+            </section>
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
