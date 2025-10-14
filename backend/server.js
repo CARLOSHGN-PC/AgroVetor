@@ -644,6 +644,268 @@ try {
 
     // --- ROTAS DE RELATÓRIOS ---
 
+    const getPlantioData = async (filters) => {
+        if (!filters.companyId) {
+            console.error("Attempt to access getPlantioData without companyId.");
+            return [];
+        }
+
+        let query = db.collection('apontamentosPlantio').where('companyId', '==', filters.companyId);
+
+        if (filters.inicio) {
+            query = query.where('date', '>=', filters.inicio);
+        }
+        if (filters.fim) {
+            query = query.where('date', '<=', filters.fim);
+        }
+        if (filters.frenteId) {
+            query = query.where('frenteDePlantioId', '==', filters.frenteId);
+        }
+
+        const snapshot = await query.get();
+        let data = [];
+        snapshot.forEach(doc => {
+            data.push({ id: doc.id, ...doc.data() });
+        });
+
+        return data.sort((a, b) => new Date(a.date) - new Date(b.date));
+    };
+
+    app.get('/reports/plantio/fazenda/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_plantio_fazenda.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getPlantioData(filters);
+            const title = 'Relatório de Plantio por Fazenda';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title, filters.companyId);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            const headers = ['Data', 'Fazenda', 'Frente de Plantio', 'Prestador', 'Matrícula do Líder', 'Variedade Plantada', 'Talhão', 'Área Plantada (ha)'];
+            const columnWidths = [80, 120, 120, 120, 100, 100, 80, 80];
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            let totalAreaGeral = 0;
+            const dataByFarm = {};
+
+            data.forEach(item => {
+                item.records.forEach(record => {
+                    if (!dataByFarm[item.farmName]) {
+                        dataByFarm[item.farmName] = [];
+                    }
+                    dataByFarm[item.farmName].push({ ...item, ...record });
+                });
+            });
+
+            for (const farmName of Object.keys(dataByFarm).sort()) {
+                let totalAreaFarm = 0;
+                const farmRecords = dataByFarm[farmName];
+                farmRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+                for (const record of farmRecords) {
+                    currentY = await checkPageBreak(doc, currentY, title);
+                    const row = [
+                        record.date,
+                        record.farmName,
+                        record.frenteDePlantioName,
+                        record.provider,
+                        record.leaderId,
+                        record.variedade,
+                        record.talhao,
+                        formatNumber(record.area)
+                    ];
+                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                    totalAreaFarm += record.area;
+                }
+
+                currentY = await checkPageBreak(doc, currentY, title);
+                const subtotalRow = ['', '', '', '', '', '', 'Total Fazenda', formatNumber(totalAreaFarm)];
+                currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
+                currentY += 10;
+                totalAreaGeral += totalAreaFarm;
+            }
+
+            currentY = await checkPageBreak(doc, currentY, title);
+            const totalRow = ['', '', '', '', '', '', 'Total Geral', formatNumber(totalAreaGeral)];
+            drawRow(doc, totalRow, currentY, false, true, columnWidths);
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Plantio por Fazenda:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/plantio/fazenda/csv', async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getPlantioData(filters);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `plantio_fazenda_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'date', title: 'Data' },
+                    { id: 'farmName', title: 'Fazenda' },
+                    { id: 'frenteDePlantioName', title: 'Frente de Plantio' },
+                    { id: 'provider', title: 'Prestador' },
+                    { id: 'leaderId', title: 'Matrícula do Líder' },
+                    { id: 'variedade', title: 'Variedade Plantada' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'area', title: 'Área Plantada (ha)' }
+                ]
+            });
+
+            const records = [];
+            data.forEach(item => {
+                item.records.forEach(record => {
+                    records.push({ ...item, ...record });
+                });
+            });
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Plantio por Fazenda:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/plantio/talhao/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_plantio_talhao.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getPlantioData(filters);
+            const title = 'Relatório de Plantio por Talhão';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title, filters.companyId);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade Plantada', 'Frente de Plantio', 'Prestador', 'Área Plantada (ha)'];
+            const columnWidths = [80, 150, 120, 120, 120, 120, 100];
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            let totalAreaGeral = 0;
+            const dataByTalhao = {};
+
+            data.forEach(item => {
+                item.records.forEach(record => {
+                    const key = `${item.farmName}|${record.talhao}`;
+                    if (!dataByTalhao[key]) {
+                        dataByTalhao[key] = [];
+                    }
+                    dataByTalhao[key].push({ ...item, ...record });
+                });
+            });
+
+            for (const talhaoKey of Object.keys(dataByTalhao).sort()) {
+                let totalAreaTalhao = 0;
+                const talhaoRecords = dataByTalhao[talhaoKey];
+                talhaoRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+                for (const record of talhaoRecords) {
+                    currentY = await checkPageBreak(doc, currentY, title);
+                    const row = [
+                        record.date,
+                        record.farmName,
+                        record.talhao,
+                        record.variedade,
+                        record.frenteDePlantioName,
+                        record.provider,
+                        formatNumber(record.area)
+                    ];
+                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                    totalAreaTalhao += record.area;
+                }
+
+                currentY = await checkPageBreak(doc, currentY, title);
+                const subtotalRow = ['', '', '', '', '', 'Total Talhão', formatNumber(totalAreaTalhao)];
+                currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
+                currentY += 10;
+                totalAreaGeral += totalAreaTalhao;
+            }
+
+            currentY = await checkPageBreak(doc, currentY, title);
+            const totalRow = ['', '', '', '', '', 'Total Geral', formatNumber(totalAreaGeral)];
+            drawRow(doc, totalRow, currentY, false, true, columnWidths);
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Plantio por Talhão:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/plantio/talhao/csv', async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getPlantioData(filters);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `plantio_talhao_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'date', title: 'Data' },
+                    { id: 'farmName', title: 'Fazenda' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'variedade', title: 'Variedade Plantada' },
+                    { id: 'frenteDePlantioName', title: 'Frente de Plantio' },
+                    { id: 'provider', title: 'Prestador' },
+                    { id: 'area', title: 'Área Plantada (ha)' }
+                ]
+            });
+
+            const records = [];
+            data.forEach(item => {
+                item.records.forEach(record => {
+                    records.push({ ...item, ...record });
+                });
+            });
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Plantio por Talhão:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
     app.get('/reports/brocamento/pdf', async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         
