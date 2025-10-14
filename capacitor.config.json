@@ -1,5 +1,9 @@
 {
   "appId": "com.agrovetor.app",
   "appName": "AgroVetor",
-  "webDir": "www"
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "hostname": "app.agrovetor.com"
+  }
 }
