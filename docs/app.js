@@ -7477,7 +7477,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    const installDate = trap.dataInstalacao.toDate();
+                    // Robust date handling
+                    const installDate = typeof trap.dataInstalacao.toDate === 'function'
+                        ? trap.dataInstalacao.toDate()
+                        : new Date(trap.dataInstalacao);
+
                     const now = new Date();
 
                     if (isNaN(installDate.getTime())) {
