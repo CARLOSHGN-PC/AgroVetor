@@ -4158,7 +4158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const providerValue = provider.value.trim();
                 const obsValue = obs.value.trim();
                 if (!nameValue || !providerValue) {
-                    App.ui.showAlert("Nome da Frente and Prestador Vinculado are required.", "error");
+                    App.ui.showAlert("O Nome da Frente e o Prestador Vinculado são obrigatórios.", "error");
                     return;
                 }
 
@@ -4170,20 +4170,47 @@ document.addEventListener('DOMContentLoaded', () => {
                     companyId: App.state.currentUser.companyId
                 };
 
-                App.ui.showConfirmationModal(`Are you sure you want to save the Frente de Plantio "${nameValue}"?`, async () => {
+                const confirmationMessage = existingId
+                    ? `Tem a certeza que deseja atualizar a frente de plantio "${nameValue}"?`
+                    : `Tem a certeza que deseja guardar a nova frente de plantio "${nameValue}"?`;
+
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A guardar...");
                     try {
                         if (existingId) {
+                            if (!navigator.onLine) {
+                                App.ui.showAlert("A edição não está disponível offline. Conecte-se para atualizar.", "warning");
+                                return;
+                            }
                             await App.data.updateDocument('frentesDePlantio', existingId, data);
+                            App.ui.showAlert("Frente de Plantio atualizada com sucesso!");
                         } else {
                             await App.data.addDocument('frentesDePlantio', data);
+                            App.ui.showAlert("Frente de Plantio guardada com sucesso!");
                         }
-                        App.ui.showAlert("Frente de Plantio saved successfully!");
                         id.value = '';
                         name.value = '';
                         provider.value = '';
                         obs.value = '';
-                    } catch (e) {
-                        App.ui.showAlert("Error saving Frente de Plantio.", "error");
+                    } catch (error) {
+                        console.error("Erro ao guardar Frente de Plantio:", error);
+                        const errorMessage = `Erro ao guardar Frente de Plantio: ${error.message}.`;
+
+                        // Apenas tenta guardar offline se for uma nova entrada e se o erro for de rede
+                        if (!existingId && !navigator.onLine) {
+                            try {
+                                await OfflineDB.add('offline-writes', { collection: 'frentesDePlantio', data: data });
+                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                                id.value = ''; name.value = ''; provider.value = ''; obs.value = '';
+                            } catch (offlineError) {
+                                App.ui.showAlert("Falha crítica ao guardar offline.", "error");
+                                console.error("Erro ao guardar offline:", offlineError);
+                            }
+                        } else {
+                            App.ui.showAlert(errorMessage, "error");
+                        }
+                    } finally {
+                        App.ui.setLoading(false);
                     }
                 });
             },
