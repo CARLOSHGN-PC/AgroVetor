@@ -404,6 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 frente: document.getElementById('plantioFrente'),
                 provider: document.getElementById('plantioProvider'),
                 leaderId: document.getElementById('plantioLeaderId'),
+                leaderName: document.getElementById('plantioLeaderName'),
                 farmName: document.getElementById('plantioFarmName'),
                 date: document.getElementById('plantioDate'),
                 addRecordBtn: document.getElementById('addPlantioRecord'),
@@ -1593,7 +1594,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
-                if (id === 'lancamentoBroca' || id === 'lancamentoPerda' || id === 'lancamentoCigarrinha') this.setDefaultDatesForEntryForms();
+                if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio'].includes(id)) this.setDefaultDatesForEntryForms();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
@@ -1708,10 +1709,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.perda.data.value = today;
                 App.elements.cigarrinha.data.value = today;
                 App.elements.cigarrinhaAmostragem.data.value = today;
+                App.elements.apontamentoPlantio.date.value = today;
                 App.elements.broca.data.max = today;
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
                 App.elements.cigarrinhaAmostragem.data.max = today;
+                App.elements.apontamentoPlantio.date.max = today;
             },
             setDefaultDatesForReportForms() {
                 const today = new Date();
@@ -1789,7 +1792,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cigarrinhaAmostragem.codigo,
                     App.elements.cigarrinha.filtroFazenda,
                     App.elements.cigarrinhaAmostragem.filtroFazenda,
-                    App.elements.relatorioMonitoramento.fazendaFiltro
+                    App.elements.relatorioMonitoramento.fazendaFiltro,
+                    App.elements.apontamentoPlantio.farmName
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
@@ -3604,6 +3608,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
+                if (apontamentoEls.leaderId) {
+                    apontamentoEls.leaderId.addEventListener('input', () => App.actions.findLeaderName());
+                }
+
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
@@ -4530,6 +4538,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     operadorNome.textContent = 'Operador não encontrado';
                     operadorNome.style.color = 'var(--color-danger)';
+                }
+            },
+
+            findLeaderName() {
+                const { leaderId, leaderName } = App.elements.apontamentoPlantio;
+                const matriculaValue = leaderId.value.trim();
+                leaderName.textContent = '';
+                if (!matriculaValue) return;
+
+                const leader = App.state.personnel.find(p => p.matricula === matriculaValue);
+                if (leader) {
+                    leaderName.textContent = leader.name;
+                    leaderName.style.color = 'var(--color-primary)';
+                } else {
+                    leaderName.textContent = 'Líder não encontrado';
+                    leaderName.style.color = 'var(--color-danger)';
                 }
             },
             async createCompany() {
