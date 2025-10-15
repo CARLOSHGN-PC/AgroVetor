@@ -121,9 +121,15 @@ self.addEventListener('fetch', event => {
           return networkResponse;
         }).catch(err => {
           console.warn('Fetch failed; using cache if available.', event.request.url, err);
+          // If fetch fails, and we have a cached response, this catch is just for logging.
+          // If we don't have a cached response, fetchPromise will reject, and we need to handle it.
+          // The 'response || fetchPromise' logic handles this.
         });
         // Return cached response immediately if available, otherwise wait for the network.
-        return response || fetchPromise;
+        return response || fetchPromise.catch(err => {
+            console.error("Both cache and network failed for:", event.request.url);
+            return new Response('', { status: 503, statusText: 'Service Unavailable' });
+        });
       });
     })
   );
