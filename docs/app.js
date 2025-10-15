@@ -3583,7 +3583,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (apontamentoEls.recordsContainer) {
                     apontamentoEls.recordsContainer.addEventListener('click', e => {
+                        const header = e.target.closest('.amostra-header');
                         const removeBtn = e.target.closest('.btn-remover-amostra');
+
                         if (removeBtn) {
                             e.stopPropagation();
                             removeBtn.closest('.amostra-card').remove();
@@ -3592,6 +3594,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 card.querySelector('h4').textContent = `Lançamento ${index + 1}`;
                             });
                             App.ui.calculateTotalPlantedArea();
+                        } else if (header) {
+                            header.closest('.amostra-card').classList.toggle('collapsed');
                         }
                     });
                     apontamentoEls.recordsContainer.addEventListener('input', e => {
@@ -3618,6 +3622,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#lancamentoCigarrinha');
                 this.enableEnterKeyNavigation('#lancamentoCigarrinhaAmostragem');
                 this.enableEnterKeyNavigation('#frenteDePlantio');
+                this.enableEnterKeyNavigation('#apontamentoPlantio');
                 this.enableEnterKeyNavigation('#relatorioPlantio');
 
                 const relatorioPlantioEls = App.elements.relatorioPlantio;
