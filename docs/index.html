@@ -2254,32 +2254,32 @@
     </div>
 </section>
 
-            <section id="excluirDados" class="tab-content card" aria-label="Excluir Lançamentos" tabindex="0" hidden>
-                <h2><i class="fas fa-trash"></i> Excluir Lançamentos</h2>
-                <p>Selecione um lançamento para excluir. Esta ação é irreversível.</p>
+            <section id="gerenciarLancamentos" class="tab-content card" aria-label="Gerenciar Lançamentos" tabindex="0" hidden>
+                <h2><i class="fas fa-edit"></i> Gerenciar Lançamentos</h2>
+                <p>Selecione um lançamento para editar ou excluir.</p>
                 <div class="card" style="border-left-color: var(--color-warning); margin-bottom: 20px;">
                     <h3><i class="fas fa-filter"></i> Filtros</h3>
                     <div class="form-row">
                         <div class="form-col">
-                            <label for="deleteDataType">Tipo de Dado:</label>
-                            <select id="deleteDataType">
-                                <option value="todos">Todos</option>
+                            <label for="manageDataType">Tipo de Dado:</label>
+                            <select id="manageDataType">
+                                <option value="apontamentoPlantio">Apontamento de Plantio</option>
                                 <option value="brocamento">Brocamento</option>
                                 <option value="perda">Perda de Cana</option>
                             </select>
                         </div>
                         <div class="form-col">
-                            <label for="deleteStartDate">Data Início:</label>
-                            <input type="date" id="deleteStartDate">
+                            <label for="manageStartDate">Data Início:</label>
+                            <input type="date" id="manageStartDate">
                         </div>
                         <div class="form-col">
-                            <label for="deleteEndDate">Data Fim:</label>
-                            <input type="date" id="deleteEndDate">
+                            <label for="manageEndDate">Data Fim:</label>
+                            <input type="date" id="manageEndDate">
                         </div>
                     </div>
-                    <button id="btnApplyDeleteFilters" class="save" style="max-width: 200px;"><i class="fas fa-filter"></i> Aplicar Filtros</button>
+                    <button id="btnApplyManageFilters" class="save" style="max-width: 200px;"><i class="fas fa-filter"></i> Aplicar Filtros</button>
                 </div>
-                <div id="listaExclusao" tabindex="0"></div>
+                <div id="listaGerenciamento" tabindex="0"></div>
             </section>
 
             <section id="cadastros" class="tab-content card" aria-label="Cadastros" tabindex="0" hidden>
@@ -2611,6 +2611,10 @@
                             <label for="plantioDate" class="required">Data da Operação:</label>
                             <input type="date" id="plantioDate" required>
                         </div>
+                        <div class="form-col">
+                            <label for="plantioChuva">Chuva (mm):</label>
+                            <input type="number" id="plantioChuva" placeholder="Ex: 10">
+                        </div>
                     </div>
 
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 10px;">
@@ -2619,6 +2623,14 @@
                     </div>
                     <div id="plantioRecordsContainer" class="pontos-container">
                         <!-- Cards de lançamentos serão inseridos aqui -->
+                    </div>
+
+                    <div id="plantioInfo" class="resultado" style="margin-top: 10px;"></div>
+                    <div class="form-row" style="margin-top: 20px;">
+                        <div class="form-col">
+                            <label for="plantioObs">Observações:</label>
+                            <textarea id="plantioObs" placeholder="Adicione observações..."></textarea>
+                        </div>
                     </div>
 
                     <div class="resultado" id="totalPlantedArea" style="margin-top: 20px;"></div>
