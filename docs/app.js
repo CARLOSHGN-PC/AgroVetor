@@ -4333,7 +4333,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             App.ui.showAlert(`Erro ao guardar Apontamento de Plantio: ${error.message}.`, "error");
                         }
-                    App.ui.setLoading(false);
                     } finally {
                         App.ui.setLoading(false);
                     }
