@@ -604,10 +604,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 frente: document.getElementById('plantioRelatorioFrente'),
                 inicio: document.getElementById('plantioRelatorioInicio'),
                 fim: document.getElementById('plantioRelatorioFim'),
-                btnPDFFazenda: document.getElementById('btnPDFFazenda'),
-                btnExcelFazenda: document.getElementById('btnExcelFazenda'),
-                btnPDFTalhao: document.getElementById('btnPDFTalhao'),
-                btnExcelTalhao: document.getElementById('btnExcelTalhao'),
+                tipo: document.getElementById('tipoRelatorioPlantio'),
+                btnPDF: document.getElementById('btnPDFPlantio'),
+                btnExcel: document.getElementById('btnExcelPlantio'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -3626,10 +3625,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#relatorioPlantio');
 
                 const relatorioPlantioEls = App.elements.relatorioPlantio;
-                if (relatorioPlantioEls.btnPDFFazenda) relatorioPlantioEls.btnPDFFazenda.addEventListener('click', () => App.reports.generatePlantioFazendaPDF());
-                if (relatorioPlantioEls.btnExcelFazenda) relatorioPlantioEls.btnExcelFazenda.addEventListener('click', () => App.reports.generatePlantioFazendaExcel());
-                if (relatorioPlantioEls.btnPDFTalhao) relatorioPlantioEls.btnPDFTalhao.addEventListener('click', () => App.reports.generatePlantioTalhaoPDF());
-                if (relatorioPlantioEls.btnExcelTalhao) relatorioPlantioEls.btnExcelTalhao.addEventListener('click', () => App.reports.generatePlantioTalhaoExcel());
+                if (relatorioPlantioEls.btnPDF) relatorioPlantioEls.btnPDF.addEventListener('click', () => {
+                    const reportType = relatorioPlantioEls.tipo.value;
+                    if (reportType === 'fazenda') {
+                        App.reports.generatePlantioFazendaPDF();
+                    } else {
+                        App.reports.generatePlantioTalhaoPDF();
+                    }
+                });
+                if (relatorioPlantioEls.btnExcel) relatorioPlantioEls.btnExcel.addEventListener('click', () => {
+                    const reportType = relatorioPlantioEls.tipo.value;
+                    if (reportType === 'fazenda') {
+                        App.reports.generatePlantioFazendaExcel();
+                    } else {
+                        App.reports.generatePlantioTalhaoExcel();
+                    }
+                });
 
                 this.enableEnterKeyNavigation('#changePasswordModal');
                 this.enableEnterKeyNavigation('#cadastros');
@@ -4322,6 +4333,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             App.ui.showAlert(`Erro ao guardar Apontamento de Plantio: ${error.message}.`, "error");
                         }
+                    App.ui.setLoading(false);
                     } finally {
                         App.ui.setLoading(false);
                     }

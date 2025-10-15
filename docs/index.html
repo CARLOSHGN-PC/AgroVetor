@@ -2569,19 +2569,18 @@
                         <input type="date" id="plantioRelatorioFim" />
                     </div>
                 </div>
-                <div class="card" style="border-left-color: var(--color-success); margin-top: 20px;">
-                    <h3>Relatório por Fazenda</h3>
-                    <div class="botoes-relatorio">
-                        <button id="btnPDFFazenda" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
-                        <button id="btnExcelFazenda" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="tipoRelatorioPlantio">Tipo de Relatório:</label>
+                        <select id="tipoRelatorioPlantio">
+                            <option value="fazenda">Por Fazenda</option>
+                            <option value="talhao">Por Talhão</option>
+                        </select>
                     </div>
                 </div>
-                <div class="card" style="border-left-color: var(--color-info); margin-top: 20px;">
-                    <h3>Relatório por Talhão</h3>
-                    <div class="botoes-relatorio">
-                        <button id="btnPDFTalhao" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
-                        <button id="btnExcelTalhao" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
-                    </div>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFPlantio" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelPlantio" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
 
