@@ -4280,13 +4280,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const frente = App.state.frentesDePlantio.find(f => f.id === els.frente.value);
+                const farm = App.state.fazendas.find(f => f.id === els.farmName.value);
 
                 const newEntry = {
                     frenteDePlantioId: frente.id,
                     frenteDePlantioName: frente.name,
                     provider: els.provider.value,
                     leaderId: els.leaderId.value,
-                    farmName: els.farmName.value,
+                    farmName: farm.name,
+                    farmCode: farm.code,
                     date: els.date.value,
                     records: recordsData,
                     totalArea: recordsData.reduce((sum, rec) => sum + rec.area, 0),
@@ -4294,30 +4296,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     companyId: App.state.currentUser.companyId
                 };
 
-                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este apontamento?", () => {
-                    App.ui.clearForm(els.form);
-                    els.recordsContainer.innerHTML = '';
-                    App.ui.setDefaultDatesForEntryForms();
-                    App.ui.calculateTotalPlantedArea();
+                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este apontamento?", async () => {
                     App.ui.setLoading(true, "A guardar...");
-
-                    (async () => {
-                        try {
-                            if (navigator.onLine) {
-                                await App.data.addDocument('apontamentosPlantio', newEntry);
-                                App.ui.showAlert("Apontamento de plantio guardado com sucesso!");
-                            } else {
+                    try {
+                        await App.data.addDocument('apontamentosPlantio', newEntry);
+                        App.ui.showAlert("Apontamento de plantio guardado com sucesso!");
+                        App.ui.clearForm(els.form);
+                        els.recordsContainer.innerHTML = '';
+                        App.ui.setDefaultDatesForEntryForms();
+                        App.ui.calculateTotalPlantedArea();
+                    } catch (error) {
+                        console.error("Erro ao guardar Apontamento de Plantio:", error);
+                        if (!navigator.onLine) {
+                            try {
                                 await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
                                 App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                                App.ui.clearForm(els.form);
+                                els.recordsContainer.innerHTML = '';
+                                App.ui.setDefaultDatesForEntryForms();
+                                App.ui.calculateTotalPlantedArea();
+                            } catch (offlineError) {
+                                App.ui.showAlert("Falha crítica ao guardar offline.", "error");
+                                console.error("Erro ao guardar offline:", offlineError);
                             }
-                        } catch (e) {
-                            App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
-                            console.error(`Erro ao salvar apontamento de plantio, salvando offline:`, e);
-                            await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
-                        } finally {
-                            App.ui.setLoading(false);
+                        } else {
+                            App.ui.showAlert(`Erro ao guardar Apontamento de Plantio: ${error.message}.`, "error");
                         }
-                    })();
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
                 });
             },
 
