@@ -7459,7 +7459,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trap = App.state.armadilhas.find(t => t.id === trapId);
                     if (!trap) return;
 
-                    // Lida com ambos os Timestamps do Firebase (que têm .toDate()) e Date objects/ISO strings (que não têm)
                     const installDate = typeof trap.dataInstalacao.toDate === 'function'
                         ? trap.dataInstalacao.toDate()
                         : new Date(trap.dataInstalacao);
@@ -7551,7 +7550,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    const installDate = trap.dataInstalacao.toDate();
+                    // Lida com ambos os Timestamps do Firebase (que têm .toDate()) e Date objects/ISO strings (que não têm)
+                    const installDate = typeof trap.dataInstalacao.toDate === 'function'
+                        ? trap.dataInstalacao.toDate()
+                        : new Date(trap.dataInstalacao);
                     const now = new Date();
 
                     if (isNaN(installDate.getTime())) {
