@@ -401,6 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             apontamentoPlantio: {
                 form: document.getElementById('formApontamentoPlantio'),
+                entryId: document.getElementById('plantioEntryId'),
                 frente: document.getElementById('plantioFrente'),
                 provider: document.getElementById('plantioProvider'),
                 leaderId: document.getElementById('plantioLeaderId'),
@@ -4411,8 +4412,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     farmName: farm.name,
                     farmCode: farm.code,
                     date: els.date.value,
-                    chuva: els.chuva.value,
-                    obs: els.obs.value,
+                    chuva: els.chuva ? els.chuva.value : '',
+                    obs: els.obs ? els.obs.value : '',
                     records: recordsData,
                     totalArea: recordsData.reduce((sum, rec) => sum + rec.area, 0),
                     usuario: App.state.currentUser.username,
