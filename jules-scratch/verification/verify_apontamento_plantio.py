@@ -1,101 +1,122 @@
 
 from playwright.sync_api import sync_playwright, Page, expect
-import time
+import json
 
-def run(playwright):
-    browser = playwright.chromium.launch(headless=True)
-    try:
-        context = browser.new_context()
-        page = context.new_page()
+# Using full permissions from the app's config to be safe
+admin_permissions = {
+    "dashboard": True, "monitoramentoAereo": True, "relatorioMonitoramento": True,
+    "planejamentoColheita": True, "planejamento": True, "lancamentoBroca": True,
+    "lancamentoPerda": True, "lancamentoCigarrinha": True, "relatorioBroca": True,
+    "relatorioPerda": True, "relatorioCigarrinha": True, "lancamentoCigarrinhaPonto": True,
+    "relatorioCigarrinhaPonto": True, "lancamentoCigarrinhaAmostragem": True,
+    "relatorioCigarrinhaAmostragem": True, "excluir": True, "gerenciarUsuarios": True,
+    "configuracoes": True, "cadastrarPessoas": True, "syncHistory": True,
+    "frenteDePlantio": True, "apontamentoPlantio": True, "relatorioPlantio": True,
+    "gerenciarLancamentos": True
+}
+all_modules = list(admin_permissions.keys())
 
-        # Inject the mocked data before the page loads
-        page.add_init_script("""
-            window.addEventListener('DOMContentLoaded', () => {
-                // Hide login, show app
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('appScreen').style.display = 'flex';
+# Mock data
+mock_user = {
+    "uid": "mock-user-id", "email": "test@agrovetor.com", "username": "Test User", "role": "admin",
+    "companyId": "mock-company-id", "active": True, "permissions": admin_permissions
+}
+mock_company = { "id": "mock-company-id", "name": "Mock Company", "active": True, "subscribedModules": all_modules }
+mock_global_configs = {module: True for module in all_modules}
+mock_fazendas = [{"id": "farm1", "code": "F01", "name": "Fazenda Mock", "talhoes": [{"id": "talhao1", "name": "T01", "area": 50.0}]}]
+mock_frentes = [{"id": "frente1", "name": "Frente Mock 1", "provider": "Provider Mock"}]
+mock_personnel = [{"id": "person1", "matricula": "123", "name": "Líder Mock"}]
 
-                // Set a user with all permissions
-                window.App.state.currentUser = {
-                    'uid': 'test-uid', 'email': 'test@test.com', 'role': 'admin',
-                    'permissions': window.App.config.roles.admin
-                };
+def run_verification(page: Page):
+    """
+    This script verifies that the 'Apontamento de Plantio' form can be
+    submitted successfully after the bugfix.
+    """
+    # 1. Arrange: Go to the app and mock the session state.
 
-                // Mock data for dropdowns
-                window.App.state.fazendas = [{
-                    'id': 'fazenda-1', 'code': 'F01', 'name': 'Fazenda Teste',
-                    'talhoes': [
-                        {'id': 'talhao-1', 'name': 'T01', 'area': 100},
-                        {'id': 'talhao-2', 'name': 'T02', 'area': 150}
-                    ]
-                }];
-                window.App.state.frentesDePlantio = [
-                    {'id': 'frente-1', 'name': 'Frente 01', 'provider': 'Fornecedor A'}
-                ];
-                window.App.state.personnel = [
-                    {'id': 'person-1', 'matricula': '123', 'name': 'João da Silva'}
-                ]
+    # This script is injected into the page to set up a mock user session
+    # and provide the necessary data for the form to function.
+    injection_script = f"""
+        localStorage.setItem('agrovetor_lastActiveTab', 'dashboard');
+        Object.assign(window.App.state, {{
+            currentUser: {json.dumps(mock_user)},
+            companies: [{json.dumps(mock_company)}],
+            globalConfigs: {json.dumps(mock_global_configs)},
+            fazendas: {json.dumps(mock_fazendas)},
+            frentesDePlantio: {json.dumps(mock_frentes)},
+            personnel: {json.dumps(mock_personnel)}
+        }});
+        // Override the session check and manually trigger the app to show
+        window.App.auth.checkSession = () => {{}};
+        setTimeout(() => window.App.ui.showAppScreen(), 50);
+    """
 
-                // Re-render UI with mocked data
-                window.App.ui.renderMenu();
-                window.App.ui.populateFazendaSelects();
-                window.App.ui.populateFrenteDePlantioSelect();
-            });
-        """)
+    page.goto("http://localhost:8000")
 
-        page.goto("http://localhost:8000")
-        page.reload()
-        page.wait_for_load_state("networkidle")
-        time.sleep(2)
+    # Wait for the login screen to ensure the App object is initialized
+    expect(page.locator("#loginScreen")).to_be_visible()
 
+    # Inject script and reload to start the app in a logged-in state
+    page.add_init_script(injection_script)
+    page.reload()
 
-        # Navigate to the correct page
-        page.get_by_role("button", name="Abrir menu").click()
-        page.get_by_role("button", name="Lançamentos").click()
-        page.get_by_role("button", name="Apontamento de Plantio").click()
+    # Wait for the main app screen to confirm successful login
+    page.wait_for_timeout(1000)
+    expect(page.locator("#appScreen")).to_be_visible()
 
-        # Wait for the form to be visible
-        expect(page.get_by_role("heading", name="Apontamento Diário de Plantio")).to_be_visible()
+    # 2. Act: Navigate to the form and fill it out.
 
-        # Fill out the main form fields
-        page.get_by_label("Frente de Plantio:").select_option(label="Frente 01")
+    # Open the main menu
+    page.locator("#btnToggleMenu").click()
 
-        # Check that provider is filled automatically
-        expect(page.get_by_label("Prestador:")).to_have_value("Fornecedor A")
+    # Click through the menu to the target page
+    page.locator("nav#menu").get_by_text("Lançamentos").click()
+    page.locator("nav#menu").get_by_text("Apontamento de Plantio").click()
 
-        page.get_by_label("Matrícula do Líder:").fill("123")
-        # Check that leader name is found
-        expect(page.get_by_text("João da Silva")).to_be_visible()
+    # Wait for the form to be visible
+    form = page.locator("#formApontamentoPlantio")
+    expect(form).to_be_visible()
 
-        page.get_by_label("Nome da Fazenda:").select_option(label="F01 - Fazenda Teste")
-        page.get_by_label("Data da Operação:").fill("2025-10-26")
-        page.get_by_label("Chuva (mm):").fill("15")
+    # Fill out the main form fields
+    form.locator("#plantioFrente").select_option(value="frente1")
+    form.locator("#plantioLeaderId").fill("123")
+    form.locator("#plantioFarmName").select_option(value="farm1")
+    form.locator("#plantioDate").fill("2025-10-15")
 
-        # Add a planting record
-        page.get_by_role("button", name="Adicionar Lançamento").click()
+    # Add a planting record sub-form
+    form.locator("#addPlantioRecord").click()
 
-        # Interact with the newly added record card (it's the first and only one)
-        record_card = page.locator(".amostra-card").first
+    # Fill out the sub-form
+    record_card = form.locator(".amostra-card").last
+    expect(record_card).to_be_visible()
+    record_card.locator(".plantio-talhao-select").select_option(value="talhao1")
+    record_card.locator('input[id^="plantioVariedade-"]').fill("Test Variety")
+    record_card.locator(".plantio-area-input").fill("10")
 
-        # The talhao select should be populated because of the farm selection change handler
-        talhao_select = record_card.get_by_label("Talhão:")
-        expect(talhao_select).to_contain_text("T01")
-        talhao_select.select_option(label="T01")
+    # Click the save button to trigger the confirmation modal
+    form.locator("#btnSaveApontamentoPlantio").click()
 
-        # The info div will not be updated due to the firestore call, so we don't assert its content.
-        # But we can check that it exists.
-        expect(record_card.locator(".info-display")).to_be_visible()
+    # Handle the custom confirmation modal
+    confirmation_modal = page.locator("#confirmationModal")
+    expect(confirmation_modal).to_be_visible()
+    confirmation_modal.locator("#confirmationModalConfirmBtn").click()
 
-        record_card.get_by_label("Variedade Plantada:").fill("Nova Variedade")
-        record_card.get_by_label("Área Plantada (ha):").fill("10")
+    # 3. Assert: Verify the success state.
 
-        page.get_by_label("Observações:").fill("Esta é uma observação de teste.")
+    # A success alert should appear after a successful save.
+    success_alert = page.locator("#alertContainer.show.success")
+    expect(success_alert).to_be_visible()
+    expect(success_alert).to_have_text("Apontamento de plantio guardado com sucesso!")
 
-        # Final screenshot
-        page.screenshot(path="jules-scratch/verification/verification.png")
+    # 4. Screenshot: Capture the final result for visual verification.
+    page.screenshot(path="jules-scratch/verification/verification.png")
 
-    finally:
-        browser.close()
-
-with sync_playwright() as playwright:
-    run(playwright)
+if __name__ == "__main__":
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        try:
+            run_verification(page)
+            print("Verification script ran successfully!")
+        finally:
+            browser.close()
