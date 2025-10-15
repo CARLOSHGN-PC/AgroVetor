@@ -4258,6 +4258,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            async saveApontamentoOffline(newEntry, els) {
+                try {
+                    await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
+                    App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                    App.ui.clearForm(els.form);
+                    els.recordsContainer.innerHTML = '';
+                    App.ui.setDefaultDatesForEntryForms();
+                    App.ui.calculateTotalPlantedArea();
+                } catch (offlineError) {
+                    App.ui.showAlert("Falha crítica ao guardar offline.", "error");
+                    console.error("Erro ao guardar offline:", offlineError);
+                }
+            },
+
             async saveApontamentoPlantio() {
                 const els = App.elements.apontamentoPlantio;
                 if (!App.ui.validateFields([els.frente.id, els.leaderId.id, els.farmName.id, els.date.id])) {
@@ -4309,31 +4323,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.showConfirmationModal("Tem a certeza que deseja guardar este apontamento?", async () => {
                     App.ui.setLoading(true, "A guardar...");
-                    try {
-                        await App.data.addDocument('apontamentosPlantio', newEntry);
-                        App.ui.showAlert("Apontamento de plantio guardado com sucesso!");
-                        App.ui.clearForm(els.form);
-                        els.recordsContainer.innerHTML = '';
-                        App.ui.setDefaultDatesForEntryForms();
-                        App.ui.calculateTotalPlantedArea();
-                    } catch (error) {
-                        console.error("Erro ao guardar Apontamento de Plantio:", error);
-                        if (!navigator.onLine) {
-                            try {
-                                await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
-                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
-                                App.ui.clearForm(els.form);
-                                els.recordsContainer.innerHTML = '';
-                                App.ui.setDefaultDatesForEntryForms();
-                                App.ui.calculateTotalPlantedArea();
-                            } catch (offlineError) {
-                                App.ui.showAlert("Falha crítica ao guardar offline.", "error");
-                                console.error("Erro ao guardar offline:", offlineError);
-                            }
-                        } else {
-                            App.ui.showAlert(`Erro ao guardar Apontamento de Plantio: ${error.message}.`, "error");
+                    if (navigator.onLine) {
+                        try {
+                            await App.data.addDocument('apontamentosPlantio', newEntry);
+                            App.ui.showAlert("Apontamento de plantio guardado com sucesso!");
+                            App.ui.clearForm(els.form);
+                            els.recordsContainer.innerHTML = '';
+                            App.ui.setDefaultDatesForEntryForms();
+                            App.ui.calculateTotalPlantedArea();
+                        } catch (error) {
+                            App.ui.showAlert(`Erro ao guardar online: ${error.message}. Tentando guardar offline.`, "warning");
+                            await App.actions.saveApontamentoOffline(newEntry, els);
+                        } finally {
+                            App.ui.setLoading(false);
                         }
-                    } finally {
+                    } else {
+                        await App.actions.saveApontamentoOffline(newEntry, els);
                         App.ui.setLoading(false);
                     }
                 });
