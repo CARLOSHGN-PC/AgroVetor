@@ -4425,8 +4425,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.showConfirmationModal(confirmationMessage, async () => {
                     App.ui.setLoading(true, "A guardar...");
-                    if (navigator.onLine) {
-                        try {
+                    try {
+                        if (navigator.onLine) {
                             if (entryId) {
                                 await App.data.updateDocument('apontamentosPlantio', entryId, newEntry);
                                 App.ui.showAlert("Apontamento de plantio atualizado com sucesso!");
@@ -4434,18 +4434,27 @@ document.addEventListener('DOMContentLoaded', () => {
                                 await App.data.addDocument('apontamentosPlantio', newEntry);
                                 App.ui.showAlert("Apontamento de plantio guardado com sucesso!");
                             }
-                            App.ui.clearForm(els.form);
-                            els.recordsContainer.innerHTML = '';
-                            App.ui.setDefaultDatesForEntryForms();
-                            App.ui.calculateTotalPlantedArea();
-                            els.entryId.value = '';
-                        } catch (error) {
-                            App.ui.showAlert(`Erro ao guardar online: ${error.message}.`, "error");
-                        } finally {
-                            App.ui.setLoading(false);
+                        } else {
+                            if (entryId) {
+                                App.ui.showAlert("A edição não está disponível offline.", "warning");
+                                return;
+                            }
+                            await this.saveApontamentoOffline(newEntry, els);
                         }
-                    } else {
-                        App.ui.showAlert("A edição não está disponível offline.", "warning");
+
+                        App.ui.clearForm(els.form);
+                        els.recordsContainer.innerHTML = '';
+                        App.ui.setDefaultDatesForEntryForms();
+                        App.ui.calculateTotalPlantedArea();
+                        els.entryId.value = '';
+
+                    } catch (error) {
+                        App.ui.showAlert(`Erro ao guardar: ${error.message}.`, "error");
+                        // Se a operação online falhar, tenta guardar offline
+                        if (!entryId) {
+                            await this.saveApontamentoOffline(newEntry, els);
+                        }
+                    } finally {
                         App.ui.setLoading(false);
                     }
                 });
