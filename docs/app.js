@@ -651,10 +651,155 @@ document.addEventListener('DOMContentLoaded', () => {
 
         init() {
             OfflineDB.init();
+            this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
+        },
+
+        native: {
+            init() {
+                // This function will be the entry point for all Capacitor-related initializations.
+                // It checks if the app is running in a native Capacitor container.
+                if (window.Capacitor && Capacitor.isNativePlatform()) {
+                    this.configureStatusBar();
+                    this.registerPushNotifications(); // Add this call
+                }
+            },
+
+            // --- Funcionalidade 1: Correção da Barra de Status ---
+            configureStatusBar() {
+                try {
+                    // Importa o plugin StatusBar. A variável 'Capacitor' é injetada pelo Capacitor.
+                    const { StatusBar } = Capacitor.Plugins;
+
+                    // Esta é a configuração chave.
+                    // `setOverlaysWebView({ overlay: false })` instrui o Capacitor a não deixar
+                    // a WebView (o conteúdo do seu app) sobrepor a barra de status.
+                    // Em vez disso, a barra de status vai empurrar o conteúdo para baixo.
+                    StatusBar.setOverlaysWebView({ overlay: false });
+
+                    console.log("Status bar configurada para não sobrepor a webview.");
+
+                } catch (e) {
+                    console.error("Erro ao configurar a StatusBar do Capacitor.", e);
+                }
+            },
+
+            // --- Funcionalidade 2: Geolocalização ---
+            async getCurrentLocation() {
+                try {
+                    const { Geolocation } = Capacitor.Plugins;
+                    const coordinates = await Geolocation.getCurrentPosition();
+                    console.log('Localização Atual:', coordinates);
+                    // Exemplo de como usar:
+                    // App.ui.showAlert(`Lat: ${coordinates.coords.latitude}, Lng: ${coordinates.coords.longitude}`);
+                    return coordinates;
+                } catch (e) {
+                    console.error("Erro ao obter localização", e);
+                    App.ui.showAlert("Não foi possível obter a sua localização. Verifique as permissões do aplicativo.", "error");
+                    return null;
+                }
+            },
+
+            async watchLocation(callback) {
+                try {
+                    const { Geolocation } = Capacitor.Plugins;
+                    // O watchPosition retorna um ID que pode ser usado para parar de observar
+                    const watchId = await Geolocation.watchPosition({}, (position, err) => {
+                        if (err) {
+                            console.error("Erro ao observar a localização", err);
+                            return;
+                        }
+                        console.log('Nova localização recebida:', position);
+                        if (callback && typeof callback === 'function') {
+                            callback(position);
+                        }
+                    });
+
+                    // Para parar de observar a localização, você chamaria:
+                    // const { Geolocation } = Capacitor.Plugins;
+                    // Geolocation.clearWatch({ id: watchId });
+
+                    return watchId;
+                } catch (e) {
+                    console.error("Erro ao iniciar o watchPosition", e);
+                    App.ui.showAlert("Não foi possível iniciar o monitoramento de localização.", "error");
+                    return null;
+                }
+            },
+
+            // --- Funcionalidade 3: Notificações Push ---
+            async registerPushNotifications() {
+                const { PushNotifications } = Capacitor.Plugins;
+
+                // 1. Verificar se a permissão já foi concedida
+                let permStatus = await PushNotifications.checkPermissions();
+
+                if (permStatus.receive === 'prompt') {
+                    // 2. Se for a primeira vez, pedir permissão
+                    permStatus = await PushNotifications.requestPermissions();
+                }
+
+                if (permStatus.receive !== 'granted') {
+                    // 3. Se a permissão for negada, informar o usuário
+                    App.ui.showAlert('A permissão para notificações não foi concedida.', 'warning');
+                    return;
+                }
+
+                // 4. Se a permissão for concedida, registrar o dispositivo no serviço de push (FCM)
+                await PushNotifications.register();
+
+                // 5. Adicionar 'ouvintes' (listeners) para os eventos de notificação
+                this.addPushNotificationListeners();
+            },
+
+            async addPushNotificationListeners() {
+                const { PushNotifications } = Capacitor.Plugins;
+
+                // Disparado ao receber o token de registro (FCM Token)
+                PushNotifications.addListener('registration', async (token) => {
+                    console.info('Token de registro Push:', token.value);
+
+                    // IMPORTANTE: Salve este token no seu banco de dados (Firestore)
+                    // associado ao documento do usuário atual.
+                    // O seu backend usará este token para enviar notificações para este aparelho.
+                    if (App.state.currentUser) {
+                        try {
+                            await App.data.updateDocument('users', App.state.currentUser.uid, { fcmToken: token.value });
+                            console.log("FCM token salvo para o usuário.");
+                        } catch (error) {
+                            console.error("Erro ao salvar o FCM token:", error);
+                        }
+                    }
+                });
+
+                // Disparado em caso de erro no registro
+                PushNotifications.addListener('registrationError', (err) => {
+                    console.error('Erro no registro Push:', err);
+                });
+
+                // Disparado quando uma notificação é recebida com o app em primeiro plano
+                PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                    console.log('Notificação Push recebida:', notification);
+                    // Exibe um alerta para o usuário, já que a notificação não aparece
+                    // na barra de status quando o app está aberto.
+                    App.ui.showAlert(
+                        `${notification.title}: ${notification.body}`,
+                        'info',
+                        5000
+                    );
+                });
+
+                // Disparado quando o usuário toca na notificação (com o app fechado ou em segundo plano)
+                PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+                    console.log('Ação de Notificação Push executada:', notification);
+                    // Aqui você pode redirecionar o usuário para uma tela específica
+                    // com base nos dados da notificação.
+                    // Ex: if (notification.notification.data.goToPage) { ... }
+                });
+            }
         },
         
         auth: {
