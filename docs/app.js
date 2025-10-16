@@ -1165,6 +1165,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.resetInactivityTimer();
                 App.actions.startRealtimeTracking(); // Iniciar o rastreamento
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
+                App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
             },
             renderSpecificContent(collectionName) {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
@@ -1501,21 +1502,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    App.mapModule.initMap();
-
-                    // Attach map-specific listeners only when the map is shown
-                    const monitoramentoAereoEls = App.elements.monitoramentoAereo;
-                    if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => {
-                        if (App.state.trapPlacementMode === 'manual_select') {
-                            App.state.trapPlacementMode = null;
-                            App.ui.showAlert("Seleção manual cancelada.", "info");
-                        } else {
-                            App.mapModule.promptInstallTrap();
-                        }
-                    });
-                    if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
-                    if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
-
                 } else {
                     mapContainer.classList.remove('active');
                 }
@@ -3588,6 +3574,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (monitoramentoAereoEls.infoBoxCloseBtn) monitoramentoAereoEls.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
                 if (monitoramentoAereoEls.trapInfoBoxCloseBtn) monitoramentoAereoEls.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
                 
+                // Listeners for the main map controls, added here to prevent re-binding
+                if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => {
+                    if (App.state.trapPlacementMode === 'manual_select') {
+                        App.state.trapPlacementMode = null;
+                        App.ui.showAlert("Seleção manual cancelada.", "info");
+                    } else {
+                        App.mapModule.promptInstallTrap();
+                    }
+                });
+                if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
+                if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
+
+
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
                 if (trapModal.cancelBtn) trapModal.cancelBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
@@ -3611,26 +3610,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 if (trapModal.confirmBtn) trapModal.confirmBtn.addEventListener('click', () => {
                     const { trapPlacementMode, trapPlacementData, mapboxUserMarker } = App.state;
-                    if (!mapboxUserMarker) return;
+
+                    if (!mapboxUserMarker && trapPlacementMode !== 'manual_confirm') {
+                        App.ui.showAlert("Localização do usuário não disponível.", "error");
+                        return;
+                    }
 
                     let selectedFeature = null;
+                    let installPosition = null;
 
                     if (trapPlacementMode === 'success') {
                         selectedFeature = trapPlacementData.feature;
+                        installPosition = mapboxUserMarker.getLngLat();
                     } else if (trapPlacementMode === 'conflict') {
                         const selectedRadio = document.querySelector('input[name="talhaoConflict"]:checked');
                         if (selectedRadio) {
                             const selectedIndex = parseInt(selectedRadio.value, 10);
                             selectedFeature = trapPlacementData.features[selectedIndex];
+                            installPosition = mapboxUserMarker.getLngLat();
                         } else {
                             App.ui.showAlert("Por favor, selecione um talhão.", "warning");
                             return;
                         }
+                    } else if (trapPlacementMode === 'manual_confirm') {
+                        selectedFeature = trapPlacementData.feature;
+                        installPosition = trapPlacementData.position;
                     }
 
-                    if (selectedFeature) {
-                        const position = mapboxUserMarker.getLngLat();
-                        App.mapModule.installTrap(position.lat, position.lng, selectedFeature);
+                    if (selectedFeature && installPosition) {
+                        App.mapModule.installTrap(installPosition.lat, installPosition.lng, selectedFeature);
                         App.mapModule.hideTrapPlacementModal();
                     }
                 });
@@ -7211,13 +7219,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const userMarker = App.state.mapboxUserMarker;
 
                     if (App.state.trapPlacementMode === 'manual_select') {
-                        // For manual placement, we don't check the user's physical location.
-                        // The trap is placed exactly where the admin clicks on the map.
+                        // Não instala diretamente. Mostra um modal de confirmação primeiro.
                         const clickPosition = e.lngLat;
-                        this.installTrap(clickPosition.lat, clickPosition.lng, clickedFeature);
-                        App.ui.showAlert("Armadilha instalada manualmente com sucesso!", "success");
-                        this.hideTrapPlacementModal();
-
+                        this.showTrapPlacementModal('manual_confirm', { feature: clickedFeature, position: clickPosition });
                     } else {
                         if (App.state.selectedMapFeature) {
                              map.setFeatureState({ source: sourceId, id: App.state.selectedMapFeature.id }, { selected: false });
@@ -7389,6 +7393,8 @@ document.addEventListener('DOMContentLoaded', () => {
             findTalhaoFromLocation(position) { // position is a Mapbox LngLat object
                 const containingTalhoes = [];
                 const point = turf.point([position.lng, position.lat]);
+                // Cria um buffer de 15 metros ao redor do ponto do usuário para compensar a imprecisão do GPS.
+                const buffer = turf.buffer(point, 15, { units: 'meters' });
                 const allTalhoes = App.state.geoJsonData;
 
                 if (!allTalhoes || !allTalhoes.features) {
@@ -7398,11 +7404,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 allTalhoes.features.forEach(feature => {
                     try {
-                        if (turf.booleanPointInPolygon(point, feature.geometry)) {
+                        // Verifica se o buffer do usuário (e não o ponto exato) cruza com o polígono do talhão.
+                        if (!turf.booleanDisjoint(buffer, feature.geometry)) {
                             containingTalhoes.push(feature);
                         }
                     } catch (e) {
-                        console.error("Erro ao processar geometria com Turf.js:", e, feature.geometry);
+                        // Adicionado para graciosamente ignorar geometrias inválidas que podem vir do shapefile
+                        console.warn("Geometria inválida ou erro no processamento do Turf.js:", e, feature.geometry);
                     }
                 });
 
@@ -7455,6 +7463,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'failure':
                         content = `<p>Não foi possível detetar o talhão automaticamente. Por favor, selecione manualmente no mapa ou tente novamente.</p>`;
+                        break;
+                    case 'manual_confirm':
+                        const manualFeature = data.feature;
+                        const manualFazendaNome = this._findProp(manualFeature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
+                        const manualTalhaoName = this._findProp(manualFeature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                        const manualFundoAgricola = this._findProp(manualFeature, ['FUNDO_AGR']);
+
+                        content = `<p style="font-weight: 500;">Confirmar instalação manual:</p>
+                                   <div class="location-confirmation-box">
+                                       <span><strong>Fundo Agrícola:</strong> ${manualFundoAgricola}</span>
+                                       <span><strong>Fazenda:</strong> ${manualFazendaNome}</span>
+                                       <span><strong>Talhão:</strong> ${manualTalhaoName}</span>
+                                   </div>
+                                   <p>Deseja instalar a armadilha neste talhão selecionado?</p>`;
+                        confirmBtn.style.display = 'inline-flex';
+                        manualBtn.style.display = 'none';
+                        App.state.trapPlacementData = { feature: manualFeature, position: data.position };
                         break;
                     case 'manual_select':
                         content = `<p style="font-weight: 500; text-align: center;">Clique no talhão desejado no mapa para o selecionar.</p>`;
@@ -7549,13 +7574,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     observacoes: observations || null
                 };
 
+                // Otimização da UI: remove o marcador imediatamente
+                if (App.state.mapboxTrapMarkers[trapId]) {
+                    App.state.mapboxTrapMarkers[trapId].remove();
+                    delete App.state.mapboxTrapMarkers[trapId];
+                }
+
+                // Esconde a caixa de informações e mostra um alerta de sucesso imediato
+                this.hideTrapInfo();
+                App.ui.showAlert("Coleta registrada com sucesso!", "success");
+
                 try {
                     await App.data.updateDocument('armadilhas', trapId, updateData);
-                    App.ui.showAlert("Coleta registrada com sucesso!", "success");
-                    this.hideTrapInfo();
+                    // A UI já foi atualizada, o onSnapshot irá eventualmente confirmar o estado.
                 } catch (error) {
                     console.error("Erro ao registrar coleta:", error);
-                    App.ui.showAlert("Falha ao registrar coleta.", "error");
+                    // Se a atualização do servidor falhar, o onSnapshot irá (eventualmente)
+                    // trazer o marcador de volta, o que é o comportamento correto (estado verdadeiro).
+                    App.ui.showAlert("Falha ao sincronizar a coleta. Verifique sua conexão.", "error");
                 }
             },
 
