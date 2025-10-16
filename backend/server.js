@@ -661,6 +661,9 @@ try {
         if (filters.frenteId) {
             query = query.where('frenteDePlantioId', '==', filters.frenteId);
         }
+        if (filters.cultura) {
+            query = query.where('culture', '==', filters.cultura);
+        }
 
         const snapshot = await query.get();
         let data = [];
