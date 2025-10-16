@@ -3,6 +3,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebas
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
+import { Geolocation } from '@capacitor/geolocation';
+import { PushNotifications } from '@capacitor/push-notifications';
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
 
@@ -716,6 +718,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (navigator.onLine) {
                                     App.actions.syncOfflineWrites();
                                 }
+
+                                // Register for push notifications
+                                App.actions.registerForPushNotifications();
 
                             } catch (error) {
                                 console.error("Falha crítica ao carregar dados iniciais:", error);
@@ -6364,33 +6369,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem(`draft_${formType}`);
             },
 
-            startRealtimeTracking() {
-                if ('geolocation' in navigator && 'watchPosition' in navigator.geolocation) {
+            async startRealtimeTracking() {
+                try {
                     if (App.state.locationWatchId) {
-                        navigator.geolocation.clearWatch(App.state.locationWatchId);
+                        await Geolocation.clearWatch({ id: App.state.locationWatchId });
+                        App.state.locationWatchId = null;
                     }
                     if (App.state.locationUpdateIntervalId) {
                         clearInterval(App.state.locationUpdateIntervalId);
                     }
 
-                    App.state.locationWatchId = navigator.geolocation.watchPosition(
-                        (position) => {
-                            App.state.lastKnownPosition = {
-                                latitude: position.coords.latitude,
-                                longitude: position.coords.longitude
-                            };
-                            // console.log('Location updated:', App.state.lastKnownPosition);
-                        },
-                        (error) => {
-                            console.warn("Erro no rastreamento de localização:", error.message);
-                        },
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    const permissions = await Geolocation.requestPermissions();
+                    if (permissions.location !== 'granted' && permissions.coarseLocation !== 'granted') {
+                        App.ui.showAlert("Permissão de localização negada.", "warning");
+                        return;
+                    }
+
+                    App.state.locationWatchId = await Geolocation.watchPosition({ enableHighAccuracy: true, timeout: 10000 },
+                        (position, err) => {
+                            if (err) {
+                                console.warn("Erro no rastreamento de localização:", err.message);
+                                App.ui.showAlert(`Erro de localização: ${err.message}`, "error");
+                                return;
+                            }
+                            if (position) {
+                                App.state.lastKnownPosition = {
+                                    latitude: position.coords.latitude,
+                                    longitude: position.coords.longitude
+                                };
+                            }
+                        }
                     );
 
                     App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000); // Envia a cada 60 segundos
-                    console.log("Rastreamento de localização iniciado.");
-                } else {
-                    console.warn("Rastreamento de localização não é suportado neste navegador.");
+                    console.log("Rastreamento de localização com Capacitor iniciado.");
+
+                } catch (e) {
+                    console.error("Falha ao iniciar o rastreamento de localização do Capacitor:", e);
+                    App.ui.showAlert("Não foi possível iniciar o rastreamento de localização.", "error");
                 }
             },
 
@@ -6420,9 +6436,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            stopRealtimeTracking() {
+            async stopRealtimeTracking() {
                 if (App.state.locationWatchId) {
-                    navigator.geolocation.clearWatch(App.state.locationWatchId);
+                    try {
+                        await Geolocation.clearWatch({ id: App.state.locationWatchId });
+                    } catch (e) {
+                        console.error("Falha ao parar o watch de localização", e);
+                    }
                     App.state.locationWatchId = null;
                 }
                 if (App.state.locationUpdateIntervalId) {
@@ -6683,6 +6703,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Erro ao guardar configurações globais:", error);
                 } finally {
                     App.ui.setLoading(false);
+                }
+            },
+
+            async sendPushTokenToServer(token) {
+                if (!App.state.currentUser) return;
+                const userId = App.state.currentUser.uid;
+                try {
+                    await App.data.updateDocument('users', userId, { pushToken: token });
+                    console.log("Push token sent to server successfully.");
+                } catch (error) {
+                    console.error("Error sending push token to server:", error);
+                }
+            },
+
+            async registerForPushNotifications() {
+                try {
+                    let permStatus = await PushNotifications.requestPermissions();
+                    if (permStatus.receive !== 'granted') {
+                        App.ui.showAlert('Permissão para notificações negada.', 'warning');
+                        return;
+                    }
+
+                    await PushNotifications.register();
+
+                    PushNotifications.addListener('registration', token => {
+                        console.info('Registration token:', token.value);
+                        this.sendPushTokenToServer(token.value);
+                    });
+
+                    PushNotifications.addListener('pushNotificationReceived', notification => {
+                        console.log('Push notification received:', notification);
+                        App.ui.showAlert(`${notification.title}: ${notification.body}`, 'info', 5000);
+                    });
+                } catch (e) {
+                    console.error("Failed to register for push notifications", e);
+                    App.ui.showAlert("Falha ao registar para notificações.", "error");
                 }
             },
 
