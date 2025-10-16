@@ -668,6 +668,29 @@ try {
             data.push({ id: doc.id, ...doc.data() });
         });
 
+        let farmCodesToFilter = null;
+        if (filters.tipos) {
+            const selectedTypes = filters.tipos.split(',').filter(t => t);
+            if (selectedTypes.length > 0) {
+                const farmsQuery = db.collection('fazendas').where('companyId', '==', filters.companyId).where('types', 'array-contains-any', selectedTypes);
+                const farmsSnapshot = await farmsQuery.get();
+                const matchingFarmCodes = [];
+                farmsSnapshot.forEach(doc => {
+                    matchingFarmCodes.push(doc.data().code);
+                });
+                if (matchingFarmCodes.length > 0) {
+                    farmCodesToFilter = matchingFarmCodes;
+                } else {
+                    return [];
+                }
+            }
+        }
+
+        if(farmCodesToFilter){
+            data = data.filter(d => farmCodesToFilter.includes(d.farmCode));
+        }
+
+
         return data.sort((a, b) => new Date(a.date) - new Date(b.date));
     };
 
@@ -692,7 +715,7 @@ try {
 
             let currentY = await generatePdfHeader(doc, title, filters.companyId);
 
-            const headers = ['Data', 'Fazenda', 'Frente de Plantio', 'Prestador', 'Matrícula do Líder', 'Variedade Plantada', 'Talhão', 'Área Plantada (ha)', 'Chuva (mm)', 'Obs'];
+            const headers = ['Data', 'Fazenda', 'Frente de Plantio', 'Prestador', 'Matrícula do Líder', 'Variedade Plantada', 'Talhão', 'Área Plant. (ha)', 'Chuva (mm)', 'Obs'];
             const columnWidths = [60, 100, 100, 100, 80, 100, 60, 60, 60, 100];
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
@@ -718,7 +741,7 @@ try {
                     currentY = await checkPageBreak(doc, currentY, title);
                     const row = [
                         record.date,
-                        record.farmName,
+                        `${record.farmCode} - ${record.farmName}`,
                         record.frenteDePlantioName,
                         record.provider,
                         record.leaderId,
@@ -733,14 +756,14 @@ try {
                 }
 
                 currentY = await checkPageBreak(doc, currentY, title);
-                const subtotalRow = ['', '', '', '', '', '', 'Total Fazenda', formatNumber(totalAreaFarm), '', ''];
+                const subtotalRow = ['', '', '', '', '', 'SUB TOTAL', '', formatNumber(totalAreaFarm), '', ''];
                 currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
                 currentY += 10;
                 totalAreaGeral += totalAreaFarm;
             }
 
             currentY = await checkPageBreak(doc, currentY, title);
-            const totalRow = ['', '', '', '', '', '', 'Total Geral', formatNumber(totalAreaGeral)];
+            const totalRow = ['', '', '', '', '', 'TOTAL GERAL', '', formatNumber(totalAreaGeral), '', ''];
             drawRow(doc, totalRow, currentY, false, true, columnWidths);
 
             generatePdfFooter(doc, filters.generatedBy);
@@ -772,14 +795,16 @@ try {
                     { id: 'leaderId', title: 'Matrícula do Líder' },
                     { id: 'variedade', title: 'Variedade Plantada' },
                     { id: 'talhao', title: 'Talhão' },
-                    { id: 'area', title: 'Área Plantada (ha)' }
+                    { id: 'area', title: 'Área Plant. (ha)' },
+                    { id: 'chuva', title: 'Chuva (mm)' },
+                    { id: 'obs', title: 'Observações' }
                 ]
             });
 
             const records = [];
             data.forEach(item => {
                 item.records.forEach(record => {
-                    records.push({ ...item, ...record });
+                    records.push({ ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` });
                 });
             });
 
@@ -812,34 +837,32 @@ try {
 
             let currentY = await generatePdfHeader(doc, title, filters.companyId);
 
-            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade Plantada', 'Frente de Plantio', 'Prestador', 'Área Plantada (ha)', 'Chuva (mm)', 'Obs'];
+            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade Plantada', 'Frente de Plantio', 'Prestador', 'Área Plant. (ha)', 'Chuva (mm)', 'Obs'];
             const columnWidths = [60, 120, 100, 100, 100, 100, 60, 60, 100];
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
             let totalAreaGeral = 0;
-            const dataByTalhao = {};
-
+            const allRecords = [];
             data.forEach(item => {
                 item.records.forEach(record => {
-                    const key = `${item.farmName}|${record.talhao}`;
-                    if (!dataByTalhao[key]) {
-                        dataByTalhao[key] = [];
-                    }
-                    dataByTalhao[key].push({ ...item, ...record });
+                    allRecords.push({ ...item, ...record });
                 });
             });
 
-            for (const talhaoKey of Object.keys(dataByTalhao).sort()) {
-                let totalAreaTalhao = 0;
-                const talhaoRecords = dataByTalhao[talhaoKey];
-                talhaoRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
+            allRecords.sort((a, b) => {
+                const farmNameA = `${a.farmCode} - ${a.farmName}`;
+                const farmNameB = `${b.farmCode} - ${b.farmName}`;
+                if (farmNameA < farmNameB) return -1;
+                if (farmNameA > farmNameB) return 1;
+                return new Date(a.date) - new Date(b.date);
+            });
 
-                for (const record of talhaoRecords) {
+            for (const record of allRecords) {
                     currentY = await checkPageBreak(doc, currentY, title);
                     const row = [
                         record.date,
-                        record.farmName,
+                        `${record.farmCode} - ${record.farmName}`,
                         record.talhao,
                         record.variedade,
                         record.frenteDePlantioName,
@@ -849,14 +872,7 @@ try {
                         record.obs || ''
                     ];
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
-                    totalAreaTalhao += record.area;
-                }
-
-                currentY = await checkPageBreak(doc, currentY, title);
-                const subtotalRow = ['', '', '', '', '', 'Total Talhão', formatNumber(totalAreaTalhao), '', ''];
-                currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
-                currentY += 10;
-                totalAreaGeral += totalAreaTalhao;
+                    totalAreaGeral += record.area;
             }
 
             currentY = await checkPageBreak(doc, currentY, title);
@@ -891,7 +907,7 @@ try {
                     { id: 'variedade', title: 'Variedade Plantada' },
                     { id: 'frenteDePlantioName', title: 'Frente de Plantio' },
                     { id: 'provider', title: 'Prestador' },
-                    { id: 'area', title: 'Área Plantada (ha)' },
+                    { id: 'area', title: 'Área Plant. (ha)' },
                     { id: 'chuva', title: 'Chuva (mm)' },
                     { id: 'obs', title: 'Observações' }
                 ]
@@ -900,7 +916,7 @@ try {
             const records = [];
             data.forEach(item => {
                 item.records.forEach(record => {
-                    records.push({ ...item, ...record });
+                    records.push({ ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` });
                 });
             });
 

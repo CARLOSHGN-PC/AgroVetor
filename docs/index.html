@@ -2569,12 +2569,22 @@
                         <input type="date" id="plantioRelatorioFim" />
                     </div>
                 </div>
+                <div class="checkbox-group-container">
+                    <label>Filtrar por Tipo de Fazenda:</label>
+                    <div class="checkbox-group-grid" id="plantioReportFarmTypeFilter">
+                        <label class="report-option-item"><input type="checkbox" name="plantioFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="plantioFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="plantioFarmType" value="Fornecedor"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Fornecedor</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="plantioFarmType" value="Acionista"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Acionista</span></label>
+                        <label class="report-option-item"><input type="checkbox" name="plantioFarmType" value="Arrendatário"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Arrendatário</span></label>
+                    </div>
+                </div>
                 <div class="form-row">
                     <div class="form-col">
                         <label for="tipoRelatorioPlantio">Tipo de Relatório:</label>
                         <select id="tipoRelatorioPlantio">
                             <option value="fazenda">Por Fazenda</option>
-                            <option value="talhao">Por Talhão</option>
+                            <option value="talhao">Geral</option>
                         </select>
                     </div>
                 </div>
