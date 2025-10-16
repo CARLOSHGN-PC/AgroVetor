@@ -2260,7 +2260,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div class="form-col">
                                 <label for="plantioVariedade-${recordId}" class="required">Variedade Plantada:</label>
-                                <input type="text" id="plantioVariedade-${recordId}" class="plantio-record-input" required>
+                                <input type="text" id="plantioVariedade-${recordId}" class="plantio-record-input" required style="text-transform:uppercase" oninput="this.value = this.value.toUpperCase()">
                             </div>
                             <div class="form-col">
                                 <label for="plantioArea-${recordId}" class="required">Área Plantada (ha):</label>
