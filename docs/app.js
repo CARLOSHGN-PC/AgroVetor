@@ -1,3 +1,10 @@
+// CAPACITOR: Importa os plugins
+import { Capacitor } from "https://unpkg.com/@capacitor/core@latest/dist/index.js";
+import { StatusBar } from "https://unpkg.com/@capacitor/status-bar@latest/dist/index.js";
+import { Geolocation } from "https://unpkg.com/@capacitor/geolocation@latest/dist/index.js";
+import { PushNotifications } from "https://unpkg.com/@capacitor/push-notifications@latest/dist/index.js";
+import { Network } from "https://unpkg.com/@capacitor/network@latest/dist/index.js";
+
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
@@ -649,12 +656,23 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         },
 
+        isNativePlatform() {
+            return Capacitor.isNativePlatform();
+        },
+
         init() {
             OfflineDB.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
+            this.network.init(); // Initialize network status listener
+
+            if (this.isNativePlatform()) {
+                StatusBar.setOverlaysWebView({ overlay: false });
+                StatusBar.setStyle({ style: 'light' }); // Use 'light' for dark backgrounds, 'dark' for light backgrounds
+                document.querySelector('header').style.paddingTop = 'env(safe-area-inset-top)';
+            }
         },
         
         auth: {
@@ -1164,6 +1182,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
                 App.actions.startRealtimeTracking(); // Iniciar o rastreamento
+                App.notifications.init(); // Iniciar o setup de notificações
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
                 App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
             },
@@ -3859,6 +3878,77 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         },
+
+        notifications: {
+            init() {
+                if (!App.isNativePlatform()) {
+                    console.log("Push notifications not supported in the browser.");
+                    return;
+                }
+                this.register();
+            },
+
+            async register() {
+                try {
+                    let permStatus = await PushNotifications.checkPermissions();
+
+                    if (permStatus.receive === 'prompt') {
+                        permStatus = await PushNotifications.requestPermissions();
+                    }
+
+                    if (permStatus.receive !== 'granted') {
+                        App.ui.showAlert('A permissão para notificações não foi concedida.', 'warning');
+                        return;
+                    }
+
+                    // Agora, registre-se no FCM
+                    await PushNotifications.register();
+
+                } catch (e) {
+                    console.error('Erro no registro de notificações:', e);
+                    App.ui.showAlert('Ocorreu um erro ao registrar para notificações.', 'error');
+                }
+
+                // Listener para quando o token de registro é recebido
+                PushNotifications.addListener('registration', async (token) => {
+                    console.log('Push registration success, token:', token.value);
+                    App.ui.showAlert('Dispositivo registado para notificações!', 'success');
+                    // Salva o token no perfil do usuário no Firestore
+                    try {
+                        const userId = App.state.currentUser.uid;
+                        await App.data.updateDocument('users', userId, { fcmToken: token.value });
+                        console.log("FCM token saved to user's profile.");
+                    } catch (e) {
+                        console.error('Failed to save FCM token:', e);
+                    }
+                });
+
+                // Listener para erros de registro
+                PushNotifications.addListener('registrationError', (error) => {
+                    console.error('Error on registration: ' + JSON.stringify(error));
+                    App.ui.showAlert('Falha ao registrar para notificações.', 'error');
+                });
+
+                // Listener para quando uma notificação é recebida com o app em primeiro plano
+                PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                    console.log('Push notification received: ', notification);
+                    // Mostra uma notificação no app
+                    App.ui.showAlert(
+                        `${notification.title}: ${notification.body}`,
+                        'info',
+                        5000 // dura 5 segundos
+                    );
+                });
+
+                // Listener para quando o usuário toca na notificação
+                PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+                    console.log('Push notification action performed', notification.actionId, notification.notification);
+                    // Aqui você pode adicionar lógica para navegar para uma tela específica
+                    // com base nos dados da notificação.
+                    // Ex: if (notification.notification.data.goTo) { App.ui.showTab(...) }
+                });
+            }
+        },
         
         actions: {
             async viewConfigHistory() {
@@ -6364,34 +6454,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem(`draft_${formType}`);
             },
 
-            startRealtimeTracking() {
-                if ('geolocation' in navigator && 'watchPosition' in navigator.geolocation) {
-                    if (App.state.locationWatchId) {
-                        navigator.geolocation.clearWatch(App.state.locationWatchId);
-                    }
-                    if (App.state.locationUpdateIntervalId) {
-                        clearInterval(App.state.locationUpdateIntervalId);
-                    }
-
-                    App.state.locationWatchId = navigator.geolocation.watchPosition(
-                        (position) => {
-                            App.state.lastKnownPosition = {
-                                latitude: position.coords.latitude,
-                                longitude: position.coords.longitude
-                            };
-                            // console.log('Location updated:', App.state.lastKnownPosition);
-                        },
-                        (error) => {
-                            console.warn("Erro no rastreamento de localização:", error.message);
-                        },
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                    );
-
-                    App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000); // Envia a cada 60 segundos
-                    console.log("Rastreamento de localização iniciado.");
-                } else {
-                    console.warn("Rastreamento de localização não é suportado neste navegador.");
+            async getCurrentLocation() {
+                try {
+                    const coordinates = await Geolocation.getCurrentPosition();
+                    console.log('Current position:', coordinates);
+                    return coordinates;
+                } catch (e) {
+                    console.error('Error getting location', e);
+                    App.ui.showAlert('Não foi possível obter a localização. Verifique as permissões.', 'error');
+                    return null;
                 }
+            },
+
+            async startRealtimeTracking() {
+                if (!App.isNativePlatform()) {
+                    console.log("Rastreamento de localização nativo não é suportado no navegador. Use para depuração apenas.");
+                    return;
+                }
+
+                try {
+                    await Geolocation.checkPermissions();
+                } catch (e) {
+                    await Geolocation.requestPermissions();
+                }
+
+                if (App.state.locationWatchId) {
+                    await Geolocation.clearWatch({ id: App.state.locationWatchId });
+                    App.state.locationWatchId = null;
+                }
+
+                App.state.locationWatchId = await Geolocation.watchPosition({
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                }, (position, err) => {
+                    if (err) {
+                        console.error('Error watching position:', err);
+                        App.ui.showAlert('Erro no rastreamento de localização.', 'error');
+                        return;
+                    }
+                    App.state.lastKnownPosition = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude
+                    };
+                    App.mapModule.updateUserPosition(position.coords.latitude, position.coords.longitude);
+                    this.sendLocationUpdate();
+                });
+
+                console.log("Rastreamento de localização iniciado com Capacitor. Watch ID:", App.state.locationWatchId);
             },
 
             sendLocationUpdate() {
@@ -6420,14 +6529,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            stopRealtimeTracking() {
+            async stopRealtimeTracking() {
                 if (App.state.locationWatchId) {
-                    navigator.geolocation.clearWatch(App.state.locationWatchId);
+                    await Geolocation.clearWatch({ id: App.state.locationWatchId });
                     App.state.locationWatchId = null;
-                }
-                if (App.state.locationUpdateIntervalId) {
-                    clearInterval(App.state.locationUpdateIntervalId);
-                    App.state.locationUpdateIntervalId = null;
                 }
                 App.state.lastKnownPosition = null;
                 console.log("Rastreamento de localização parado.");
@@ -8807,6 +8912,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
             }
         },
+
+        network: {
+            init() {
+                // This listener uses the Capacitor Network plugin for a more reliable
+                // status detection on native devices. It then triggers the window's
+                // online/offline events, which already contain the logic for handling
+                // synchronization and UI updates. This avoids code duplication.
+                if (!App.isNativePlatform()) {
+                    console.log("Using browser's default online/offline events.");
+                    return;
+                }
+
+                Network.addListener('networkStatusChange', status => {
+                    console.log(`[Capacitor Network] Status changed to: ${status.connected ? 'Online' : 'Offline'}`);
+                    if (status.connected) {
+                        window.dispatchEvent(new Event('online'));
+                    } else {
+                        window.dispatchEvent(new Event('offline'));
+                    }
+                });
+
+                // Perform an initial check as the listener only fires on change.
+                Network.getStatus().then(status => {
+                     console.log(`[Capacitor Network] Initial status: ${status.connected ? 'Online' : 'Offline'}`);
+                     if (status.connected) {
+                        window.dispatchEvent(new Event('online'));
+                     }
+                });
+            }
+        },
 
         pwa: {
             registerServiceWorker() {
