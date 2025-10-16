@@ -607,6 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             relatorioPlantio: {
                 frente: document.getElementById('plantioRelatorioFrente'),
+                cultura: document.getElementById('plantioRelatorioCultura'),
                 inicio: document.getElementById('plantioRelatorioInicio'),
                 fim: document.getElementById('plantioRelatorioFim'),
                 tipo: document.getElementById('tipoRelatorioPlantio'),
@@ -8688,56 +8689,64 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generatePlantioFazendaPDF() {
-                const { inicio, fim, frente } = App.elements.relatorioPlantio;
+                const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
+                const culturaValue = cultura.value;
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
+                    cultura: culturaValue,
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/fazenda/pdf', filters, 'relatorio_plantio_fazenda.pdf');
             },
 
             generatePlantioFazendaExcel() {
-                const { inicio, fim, frente } = App.elements.relatorioPlantio;
+                const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
+                const culturaValue = cultura.value;
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
+                    cultura: culturaValue,
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/fazenda/csv', filters, 'relatorio_plantio_fazenda.csv');
             },
 
             generatePlantioTalhaoPDF() {
-                const { inicio, fim, frente } = App.elements.relatorioPlantio;
+                const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
+                const culturaValue = cultura.value;
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
+                    cultura: culturaValue,
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/talhao/pdf', filters, 'relatorio_plantio_talhao.pdf');
             },
 
             generatePlantioTalhaoExcel() {
-                const { inicio, fim, frente } = App.elements.relatorioPlantio;
+                const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
+                const culturaValue = cultura.value;
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
+                    cultura: culturaValue,
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');
