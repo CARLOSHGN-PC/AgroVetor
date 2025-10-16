@@ -112,30 +112,24 @@ self.addEventListener('fetch', event => {
 
   // Stale-While-Revalidate strategy for all other requests
   event.respondWith(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      const cachedResponse = await cache.match(event.request);
-      const fetchPromise = fetch(event.request).then(networkResponse => {
-        if (networkResponse && networkResponse.status === 200) {
-          cache.put(event.request, networkResponse.clone());
-        }
-        return networkResponse;
-      }).catch(err => {
-        console.warn(`Fetch failed for ${event.request.url}. Error: ${err.message}. Returning cached response if available.`);
-        // If fetch fails, we return the cached response. If there's no cached response, this will result in a undefined,
-        // which will be handled by the final return statement.
-        return cachedResponse;
-      });
-
-      // Return cached response if it exists, otherwise wait for the network fetch.
-      // If both fail, return a generic error response.
-      return cachedResponse || fetchPromise.catch(err => {
-          console.error(`Both cache and network failed for: ${event.request.url}.`);
-          // Return a simple, valid response to avoid breaking the app.
-          return new Response(JSON.stringify({ error: "Offline and no cache available" }), {
-              headers: { 'Content-Type': 'application/json' },
-              status: 503,
-              statusText: 'Service Unavailable'
-          });
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.match(event.request).then(response => {
+        const fetchPromise = fetch(event.request).then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        }).catch(err => {
+          console.warn('Fetch failed; using cache if available.', event.request.url, err);
+          // If fetch fails, and we have a cached response, this catch is just for logging.
+          // If we don't have a cached response, fetchPromise will reject, and we need to handle it.
+          // The 'response || fetchPromise' logic handles this.
+        });
+        // Return cached response immediately if available, otherwise wait for the network.
+        return response || fetchPromise.catch(err => {
+            console.error("Both cache and network failed for:", event.request.url);
+            return new Response('', { status: 503, statusText: 'Service Unavailable' });
+        });
       });
     })
   );
