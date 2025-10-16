@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v14'; // Incremented version for update
+const CACHE_NAME = 'agrovetor-cache-v13'; // Incremented version for update
 const TILE_CACHE_NAME = 'agrovetor-tile-cache-v4';
 const MAX_TILES_IN_CACHE = 2000;
 
@@ -22,23 +22,22 @@ const urlsToCache = [
   './index.html',
   './app.js',
   './manifest.json',
-  // Local Libraries
-  './libs/capacitor.js',
-  './libs/status-bar.js',
-  './libs/geolocation.js',
-  './libs/push-notifications.js',
-  './libs/network.js',
-  './libs/idb.js',
-  './libs/wrap-idb-value.js',
+  // Capacitor Plugins (ESSENTIAL FOR NATIVE FEATURES OFFLINE)
+  'https://unpkg.com/@capacitor/core@latest/dist/index.js',
+  'https://unpkg.com/@capacitor/status-bar@latest/dist/index.js',
+  'https://unpkg.com/@capacitor/geolocation@latest/dist/index.js',
+  'https://unpkg.com/@capacitor/push-notifications@latest/dist/index.js',
+  'https://unpkg.com/@capacitor/network@latest/dist/index.js',
   // Fonts and Icons
   'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  // External Libraries
+  // Libraries
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
   'https://unpkg.com/shpjs@latest/dist/shp.js',
+  'https://unpkg.com/idb@7.1.1/build/index.js',
   // App Icons
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
