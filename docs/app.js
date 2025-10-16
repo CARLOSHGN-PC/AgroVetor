@@ -1502,6 +1502,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
+                    if (App.state.mapboxMap) {
+                        // Força o redimensionamento do mapa para o contêiner visível
+                        setTimeout(() => App.state.mapboxMap.resize(), 0);
+                    }
                 } else {
                     mapContainer.classList.remove('active');
                 }
