@@ -8689,10 +8689,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { inicio, fim, frente } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
+                    tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/fazenda/pdf', filters, 'relatorio_plantio_fazenda.pdf');
             },
@@ -8701,10 +8703,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { inicio, fim, frente } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
+                    tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/fazenda/csv', filters, 'relatorio_plantio_fazenda.csv');
             },
@@ -8713,10 +8717,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { inicio, fim, frente } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
+                    tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/talhao/pdf', filters, 'relatorio_plantio_talhao.pdf');
             },
@@ -8725,10 +8731,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { inicio, fim, frente } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
+                    tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');
             },
