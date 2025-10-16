@@ -715,8 +715,8 @@ try {
 
             let currentY = await generatePdfHeader(doc, title, filters.companyId);
 
-            const headers = ['Data', 'Fazenda', 'Frente de Plantio', 'Prestador', 'Matrícula do Líder', 'Variedade Plantada', 'Talhão', 'Área Plant. (ha)', 'Chuva (mm)', 'Obs'];
-            const columnWidths = [60, 100, 100, 100, 80, 100, 60, 60, 60, 100];
+            const headers = ['Data', 'Fazenda', 'Prestador', 'Matrícula do Líder', 'Variedade Plantada', 'Talhão', 'Área Plant. (ha)', 'Chuva (mm)', 'Obs'];
+            const columnWidths = [60, 200, 100, 80, 100, 60, 60, 60, 100];
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
@@ -742,7 +742,6 @@ try {
                     const row = [
                         record.date,
                         `${record.farmCode} - ${record.farmName}`,
-                        record.frenteDePlantioName,
                         record.provider,
                         record.leaderId,
                         record.variedade,
@@ -756,14 +755,14 @@ try {
                 }
 
                 currentY = await checkPageBreak(doc, currentY, title);
-                const subtotalRow = ['', '', '', '', '', 'SUB TOTAL', '', formatNumber(totalAreaFarm), '', ''];
+                const subtotalRow = ['', '', '', '', 'SUB TOTAL', '', formatNumber(totalAreaFarm), '', ''];
                 currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
                 currentY += 10;
                 totalAreaGeral += totalAreaFarm;
             }
 
             currentY = await checkPageBreak(doc, currentY, title);
-            const totalRow = ['', '', '', '', '', 'TOTAL GERAL', '', formatNumber(totalAreaGeral), '', ''];
+            const totalRow = ['', '', '', '', 'TOTAL GERAL', '', formatNumber(totalAreaGeral), '', ''];
             drawRow(doc, totalRow, currentY, false, true, columnWidths);
 
             generatePdfFooter(doc, filters.generatedBy);
@@ -790,7 +789,6 @@ try {
                 header: [
                     { id: 'date', title: 'Data' },
                     { id: 'farmName', title: 'Fazenda' },
-                    { id: 'frenteDePlantioName', title: 'Frente de Plantio' },
                     { id: 'provider', title: 'Prestador' },
                     { id: 'leaderId', title: 'Matrícula do Líder' },
                     { id: 'variedade', title: 'Variedade Plantada' },
@@ -837,8 +835,8 @@ try {
 
             let currentY = await generatePdfHeader(doc, title, filters.companyId);
 
-            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade Plantada', 'Frente de Plantio', 'Prestador', 'Área Plant. (ha)', 'Chuva (mm)', 'Obs'];
-            const columnWidths = [60, 120, 100, 100, 100, 100, 60, 60, 100];
+            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade Plantada', 'Prestador', 'Área Plant. (ha)', 'Chuva (mm)', 'Obs'];
+            const columnWidths = [60, 220, 100, 100, 100, 60, 60, 100];
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
@@ -865,7 +863,6 @@ try {
                         `${record.farmCode} - ${record.farmName}`,
                         record.talhao,
                         record.variedade,
-                        record.frenteDePlantioName,
                         record.provider,
                         formatNumber(record.area),
                         record.chuva || '',
@@ -905,7 +902,6 @@ try {
                     { id: 'farmName', title: 'Fazenda' },
                     { id: 'talhao', title: 'Talhão' },
                     { id: 'variedade', title: 'Variedade Plantada' },
-                    { id: 'frenteDePlantioName', title: 'Frente de Plantio' },
                     { id: 'provider', title: 'Prestador' },
                     { id: 'area', title: 'Área Plant. (ha)' },
                     { id: 'chuva', title: 'Chuva (mm)' },
