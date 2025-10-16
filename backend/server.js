@@ -692,8 +692,8 @@ try {
 
             let currentY = await generatePdfHeader(doc, title, filters.companyId);
 
-            const headers = ['Data', 'Fazenda', 'Frente de Plantio', 'Prestador', 'Matrícula do Líder', 'Variedade Plantada', 'Talhão', 'Área Plantada (ha)'];
-            const columnWidths = [80, 120, 120, 120, 100, 100, 80, 80];
+            const headers = ['Data', 'Fazenda', 'Frente de Plantio', 'Prestador', 'Matrícula do Líder', 'Variedade Plantada', 'Talhão', 'Área Plantada (ha)', 'Chuva (mm)', 'Obs'];
+            const columnWidths = [60, 100, 100, 100, 80, 100, 60, 60, 60, 100];
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
@@ -724,14 +724,16 @@ try {
                         record.leaderId,
                         record.variedade,
                         record.talhao,
-                        formatNumber(record.area)
+                        formatNumber(record.area),
+                        record.chuva || '',
+                        record.obs || ''
                     ];
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                     totalAreaFarm += record.area;
                 }
 
                 currentY = await checkPageBreak(doc, currentY, title);
-                const subtotalRow = ['', '', '', '', '', '', 'Total Fazenda', formatNumber(totalAreaFarm)];
+                const subtotalRow = ['', '', '', '', '', '', 'Total Fazenda', formatNumber(totalAreaFarm), '', ''];
                 currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
                 currentY += 10;
                 totalAreaGeral += totalAreaFarm;
@@ -810,8 +812,8 @@ try {
 
             let currentY = await generatePdfHeader(doc, title, filters.companyId);
 
-            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade Plantada', 'Frente de Plantio', 'Prestador', 'Área Plantada (ha)'];
-            const columnWidths = [80, 150, 120, 120, 120, 120, 100];
+            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade Plantada', 'Frente de Plantio', 'Prestador', 'Área Plantada (ha)', 'Chuva (mm)', 'Obs'];
+            const columnWidths = [60, 120, 100, 100, 100, 100, 60, 60, 100];
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
@@ -842,21 +844,23 @@ try {
                         record.variedade,
                         record.frenteDePlantioName,
                         record.provider,
-                        formatNumber(record.area)
+                        formatNumber(record.area),
+                        record.chuva || '',
+                        record.obs || ''
                     ];
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                     totalAreaTalhao += record.area;
                 }
 
                 currentY = await checkPageBreak(doc, currentY, title);
-                const subtotalRow = ['', '', '', '', '', 'Total Talhão', formatNumber(totalAreaTalhao)];
+                const subtotalRow = ['', '', '', '', '', 'Total Talhão', formatNumber(totalAreaTalhao), '', ''];
                 currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
                 currentY += 10;
                 totalAreaGeral += totalAreaTalhao;
             }
 
             currentY = await checkPageBreak(doc, currentY, title);
-            const totalRow = ['', '', '', '', '', 'Total Geral', formatNumber(totalAreaGeral)];
+            const totalRow = ['', '', '', '', '', 'Total Geral', formatNumber(totalAreaGeral), '', ''];
             drawRow(doc, totalRow, currentY, false, true, columnWidths);
 
             generatePdfFooter(doc, filters.generatedBy);
@@ -887,7 +891,9 @@ try {
                     { id: 'variedade', title: 'Variedade Plantada' },
                     { id: 'frenteDePlantioName', title: 'Frente de Plantio' },
                     { id: 'provider', title: 'Prestador' },
-                    { id: 'area', title: 'Área Plantada (ha)' }
+                    { id: 'area', title: 'Área Plantada (ha)' },
+                    { id: 'chuva', title: 'Chuva (mm)' },
+                    { id: 'obs', title: 'Observações' }
                 ]
             });
 
