@@ -1,12 +1,13 @@
-const CACHE_NAME = 'agrovetor-cache-v13'; // Incremented version for update
-const TILE_CACHE_NAME = 'agrovetor-tile-cache-v4';
-const MAX_TILES_IN_CACHE = 2000;
+const CACHE_NAME = 'agrovetor-cache-v12'; // Incremented version for update
+const TILE_CACHE_NAME = 'agrovetor-tile-cache-v4'; // Incremented tile cache
+const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the tile cache
 const trimCache = (cacheName, maxItems) => {
   caches.open(cacheName).then(cache => {
     cache.keys().then(keys => {
       if (keys.length > maxItems) {
+        // Delete the oldest items to keep the cache at the defined size
         const itemsToDelete = keys.slice(0, keys.length - maxItems);
         Promise.all(itemsToDelete.map(key => cache.delete(key)))
           .then(() => {
@@ -22,26 +23,16 @@ const urlsToCache = [
   './index.html',
   './app.js',
   './manifest.json',
-  // Capacitor Plugins (ESSENTIAL FOR NATIVE FEATURES OFFLINE)
-  'https://unpkg.com/@capacitor/core@latest/dist/index.js',
-  'https://unpkg.com/@capacitor/status-bar@latest/dist/index.js',
-  'https://unpkg.com/@capacitor/geolocation@latest/dist/index.js',
-  'https://unpkg.com/@capacitor/push-notifications@latest/dist/index.js',
-  'https://unpkg.com/@capacitor/network@latest/dist/index.js',
-  // Fonts and Icons
   'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  // Libraries
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
-  'https://unpkg.com/shpjs@latest/dist/shp.js',
-  'https://unpkg.com/idb@7.1.1/build/index.js',
-  // App Icons
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
-  // Firebase SDK
+  'https://unpkg.com/shpjs@latest/dist/shp.js',
+  'https://unpkg.com/idb@7.1.1/build/index.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
@@ -50,7 +41,7 @@ const urlsToCache = [
 
 // Install event: force the new service worker to become active
 self.addEventListener('install', event => {
-  self.skipWaiting();
+  self.skipWaiting(); 
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -74,8 +65,8 @@ self.addEventListener('activate', event => {
         })
       );
     }).then(() => {
-      console.log('Service worker activated and taking control.');
-      return self.clients.claim();
+        console.log('Service worker activated and taking control.');
+        return self.clients.claim();
     })
   );
 });
@@ -88,58 +79,57 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(event.request.url);
 
-  // Strategy for Mapbox tiles (Cache First with trimming)
+  // Strategy for Mapbox tiles, fonts, and sprites (Cache First with trimming)
   if (url.hostname.includes('mapbox.com')) {
     event.respondWith(
       caches.open(TILE_CACHE_NAME).then(cache => {
         return cache.match(event.request).then(response => {
+          // If we have a cached response, return it.
+          if (response) {
+            return response;
+          }
+          // Otherwise, fetch from the network.
           const fetchAndCache = fetch(event.request).then(networkResponse => {
+            // For third-party tiles, we can't check the status (opaque response),
+            // so we trust it and put it in the cache.
             const responseToCache = networkResponse.clone();
             cache.put(event.request, responseToCache).then(() => {
               trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
             });
             return networkResponse;
           }).catch(error => {
-            console.warn(`[SW] Network fetch failed for map tile: ${event.request.url}.`, error);
+            // When offline, fetch will fail.
+            // We return a successful but empty response to prevent the map from breaking.
+            console.warn(`Failed to fetch map tile: ${event.request.url}. Returning empty response.`, error);
             return new Response('', { status: 200, statusText: 'OK' });
           });
-          return response || fetchAndCache;
+          return fetchAndCache;
         });
       })
     );
-    return;
+    return; // End execution for this request
   }
 
   // Stale-While-Revalidate strategy for all other requests
   event.respondWith(
     caches.open(CACHE_NAME).then(cache => {
-      return cache.match(event.request).then(cachedResponse => {
+      return cache.match(event.request).then(response => {
         const fetchPromise = fetch(event.request).then(networkResponse => {
-          // If the request is successful, update the cache.
           if (networkResponse && networkResponse.status === 200) {
             cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
-        }).catch(error => {
-            // This .catch block is crucial. It handles network failures.
-            // If we have a cached response, it will have already been returned.
-            // If not, this ensures the promise doesn't reject unhandled.
-            console.warn(`[SW] Network fetch failed for: ${event.request.url}.`, error);
-            // We return the error to be handled by the final .catch
-            throw error;
+        }).catch(err => {
+          console.warn('Fetch failed; using cache if available.', event.request.url, err);
+          // If fetch fails, and we have a cached response, this catch is just for logging.
+          // If we don't have a cached response, fetchPromise will reject, and we need to handle it.
+          // The 'response || fetchPromise' logic handles this.
         });
-
-        // Return the cached response immediately if available, otherwise wait for the network.
-        return cachedResponse || fetchPromise;
-      }).catch(error => {
-          // This fallback triggers if the resource is not in the cache AND the network fetch fails.
-          console.error("[SW] Cannot serve resource from cache or network:", event.request.url, error);
-          // Return a generic offline fallback page or a simple error response.
-          // For now, a simple error response is fine.
-          return new Response("Network error", {
-              status: 408,
-              headers: { "Content-Type": "text/plain" },
-          });
+        // Return cached response immediately if available, otherwise wait for the network.
+        return response || fetchPromise.catch(err => {
+            console.error("Both cache and network failed for:", event.request.url);
+            return new Response('', { status: 503, statusText: 'Service Unavailable' });
+        });
       });
     })
   );
