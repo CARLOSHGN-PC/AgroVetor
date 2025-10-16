@@ -1,9 +1,9 @@
 // CAPACITOR: Importa os plugins
-import { Capacitor } from "./libs/capacitor.js";
-import { StatusBar } from "./libs/status-bar.js";
-import { Geolocation } from "./libs/geolocation.js";
-import { PushNotifications } from "./libs/push-notifications.js";
-import { Network } from "./libs/network.js";
+import { Capacitor } from "https://unpkg.com/@capacitor/core@latest/dist/index.js";
+import { StatusBar } from "https://unpkg.com/@capacitor/status-bar@latest/dist/index.js";
+import { Geolocation } from "https://unpkg.com/@capacitor/geolocation@latest/dist/index.js";
+import { PushNotifications } from "https://unpkg.com/@capacitor/push-notifications@latest/dist/index.js";
+import { Network } from "https://unpkg.com/@capacitor/network@latest/dist/index.js";
 
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
@@ -11,7 +11,7 @@ import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, upda
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
-import { openDB } from './libs/idb.js';
+import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
