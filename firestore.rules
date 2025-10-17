@@ -107,6 +107,8 @@ service cloud.firestore {
                        (
                          getUserRole() == 'admin' ||
                          getUserRole() == 'administrador' ||
+                         getUserRole() == 'Lider' ||
+                         getUserRole() == 'Supervisor' ||
                          getUserRole() == 'super-admin' ||
                          request.auth.uid == resource.data.instaladoPor
                        );
@@ -114,7 +116,13 @@ service cloud.firestore {
       // --- Legacy Data Cleanup Rules ---
       // Allow admins/super-admins to delete legacy records that have an invalid or missing companyId.
       // This is specifically for the data cleanup tool.
-      allow delete: if (getUserRole() == 'admin' || getUserRole() == 'administrador' || getUserRole() == 'super-admin') &&
+      allow delete: if (
+                          getUserRole() == 'admin' ||
+                          getUserRole() == 'administrador' ||
+                          getUserRole() == 'Lider' ||
+                          getUserRole() == 'Supervisor' ||
+                          getUserRole() == 'super-admin'
+                        ) &&
                        (
                          !('companyId' in resource.data) ||
                          resource.data.companyId == null ||
