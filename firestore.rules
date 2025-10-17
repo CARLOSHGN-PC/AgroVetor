@@ -99,12 +99,26 @@ service cloud.firestore {
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
     match /armadilhas/{docId} {
+      // --- Standard Data Rules ---
+      // Rules for documents that have a valid companyId.
       allow read, update: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
-      allow delete: if canAccessCompanyData(resource.data.companyId) && ((getUserRole() == 'admin' || getUserRole() == 'super-admin') || (resource.data.instaladoPor != null && request.auth.uid == resource.data.instaladoPor) || !('instaladoPor' in resource.data));
+      allow delete: if canAccessCompanyData(resource.data.companyId) &&
+                       (
+                         getUserRole() == 'admin' ||
+                         getUserRole() == 'super-admin' ||
+                         request.auth.uid == resource.data.instaladoPor
+                       );
 
-      // Regra para permitir a gestão de armadilhas antigas sem companyId
-      allow update, delete: if !('companyId' in resource.data) && request.auth.uid != null;
+      // --- Legacy Data Cleanup Rules ---
+      // Allow admins/super-admins to delete legacy records that have an invalid or missing companyId.
+      // This is specifically for the data cleanup tool.
+      allow delete: if (getUserRole() == 'admin' || getUserRole() == 'super-admin') &&
+                       (
+                         !('companyId' in resource.data) ||
+                         resource.data.companyId == null ||
+                         resource.data.companyId == ''
+                       );
     }
     match /cigarrinha/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
