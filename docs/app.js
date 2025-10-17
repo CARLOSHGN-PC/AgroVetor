@@ -7663,34 +7663,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 App.ui.setLoading(true, "A guardar armadilha...");
+                let offlineWritePromise = null;
 
                 try {
                     if (navigator.onLine) {
-                        // Converte para Firebase Timestamp apenas no momento do envio online.
                         const dataForFirestore = { ...newTrapData, dataInstalacao: Timestamp.fromDate(installDate) };
-                        const docRef = await App.data.addDocument('armadilhas', dataForFirestore);
-                        this.addOrUpdateTrapMarker({ id: docRef.id, ...dataForFirestore });
-                        App.ui.showAlert(`Armadilha ${docRef.id.substring(0, 5)}... instalada em ${newTrapData.talhaoNome || 'local desconhecido'}.`, "success");
+                        await App.data.addDocument('armadilhas', dataForFirestore);
+                        App.ui.showAlert(`Armadilha instalada com sucesso online.`, "success");
                     } else {
-                        await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
-                        App.ui.showAlert('Armadilha guardada offline. Será enviada quando houver conexão.', 'info');
-                        const tempTrapForMarker = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: installDate };
-                        this.addOrUpdateTrapMarker(tempTrapForMarker);
+                        offlineWritePromise = OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
                     }
                 } catch (error) {
-                    console.error("Erro ao instalar armadilha, a guardar offline:", error);
+                    console.error("Erro ao instalar armadilha online, tentando guardar offline:", error);
+                    offlineWritePromise = OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
+                }
+
+                if (offlineWritePromise) {
                     try {
-                        await OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
-                        App.ui.showAlert('Falha ao conectar. Armadilha guardada offline.', 'warning');
-                        const tempTrapForMarker = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: installDate };
-                        this.addOrUpdateTrapMarker(tempTrapForMarker);
+                        await offlineWritePromise;
+                        App.ui.showAlert('Armadilha guardada offline. Será enviada quando houver conexão.', 'info');
                     } catch (offlineError) {
                         console.error("Falha crítica ao guardar armadilha offline:", offlineError);
                         App.ui.showAlert("Falha crítica ao guardar a armadilha offline.", "error");
                     }
-                } finally {
-                    App.ui.setLoading(false);
                 }
+
+                // UI updates are always attempted, regardless of online/offline status.
+                const tempTrapForMarker = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: installDate };
+                this.addOrUpdateTrapMarker(tempTrapForMarker);
+                App.ui.setLoading(false);
             },
 
             promptCollectTrap(trapId) {
