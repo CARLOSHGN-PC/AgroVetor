@@ -3503,6 +3503,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.shapefileUploadArea) companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
 
+                const btnCleanDuplicateTraps = document.getElementById('btnCleanDuplicateTraps');
+                if (btnCleanDuplicateTraps) {
+                    btnCleanDuplicateTraps.addEventListener('click', () => App.actions.deduplicateTraps());
+                }
+
                 // Event listeners for historical report upload
                 if (companyConfigEls.btnDownloadHistoricalTemplate) {
                     companyConfigEls.btnDownloadHistoricalTemplate.addEventListener('click', () => App.actions.downloadHistoricalReportTemplate());
@@ -6320,24 +6325,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    const tx = db.transaction('offline-writes', 'readwrite');
-                    const store = tx.objectStore('offline-writes');
-                    const totalWrites = await store.count();
+                    // Etapa 1: Ler todos os dados e chaves pendentes de uma só vez
+                    const writesToSync = await db.getAll('offline-writes');
+                    const keysToSync = await db.getAllKeys('offline-writes');
 
-                    if (totalWrites === 0) {
+                    if (writesToSync.length === 0) {
                         console.log("Nenhum registo pendente para sincronizar.");
                         App.state.isSyncing = false;
                         return;
                     }
 
-                    App.ui.showSystemNotification("Sincronização", `A enviar ${totalWrites} registos offline...`, 'info');
+                    App.ui.showSystemNotification("Sincronização", `A enviar ${writesToSync.length} registos offline...`, 'info');
 
-                    let cursor = await store.openCursor();
+                    const successfulKeys = [];
                     let successfulWrites = 0;
                     let failedWrites = 0;
 
-                    while (cursor) {
-                        const write = cursor.value;
+                    // Etapa 2: Iterar sobre os dados em memória e tentar sincronizar
+                    for (let i = 0; i < writesToSync.length; i++) {
+                        const write = writesToSync[i];
+                        const key = keysToSync[i];
                         try {
                             let dataToSync = write.data;
                             if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
@@ -6346,32 +6353,35 @@ document.addEventListener('DOMContentLoaded', () => {
                                     dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao))
                                 };
                             }
+                            // A utilização de setDoc com um ID específico torna esta operação idempotente
                             await App.data.setDocument(write.collection, write.id, dataToSync);
 
                             logEntry.items.push({
-                                status: 'success',
-                                collection: write.collection,
-                                data: write.data,
-                                error: null
+                                status: 'success', collection: write.collection, data: write.data, error: null
                             });
                             successfulWrites++;
-                            cursor.delete();
+                            successfulKeys.push(key);
 
                         } catch (error) {
                             console.error(`Falha ao sincronizar o item:`, { write, error });
                             logEntry.items.push({
-                                status: 'failure',
-                                collection: write.collection,
-                                data: write.data,
-                                error: error.message || 'Erro desconhecido'
+                                status: 'failure', collection: write.collection, data: write.data, error: error.message || 'Erro desconhecido'
                             });
                             failedWrites++;
                         }
-                        cursor = await cursor.continue();
                     }
 
-                    await tx.done;
+                    // Etapa 3: Apagar todos os registos sincronizados com sucesso numa única transação
+                    if (successfulKeys.length > 0) {
+                        const deleteTx = db.transaction('offline-writes', 'readwrite');
+                        for (const key of successfulKeys) {
+                            deleteTx.store.delete(key);
+                        }
+                        await deleteTx.done;
+                        console.log(`${successfulKeys.length} registos offline foram apagados com sucesso.`);
+                    }
 
+                    // Etapa 4: Registar o resultado da sincronização
                     if (logEntry.items.length > 0) {
                         if (failedWrites === 0) {
                             logEntry.status = 'success';
@@ -6892,6 +6902,66 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Erro ao notificar administradores sobre novas features:", error);
                     App.ui.showAlert("Ocorreu um erro ao tentar notificar os administradores.", "error");
                 }
+            },
+
+            async deduplicateTraps() {
+                const confirmationMessage = `Tem a certeza que deseja remover as armadilhas duplicadas? Esta ação irá manter apenas a armadilha mais recente em cada talhão e apagar todas as outras. A ação não pode ser desfeita.`;
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A analisar armadilhas duplicadas...");
+                    try {
+                        const allTraps = await App.actions.getConsolidatedData('armadilhas');
+                        const trapsByPlot = new Map();
+
+                        // Agrupar armadilhas por fazenda e talhão
+                        allTraps.forEach(trap => {
+                            const key = `${trap.fazendaNome}-${trap.talhaoNome}`;
+                            if (!trapsByPlot.has(key)) {
+                                trapsByPlot.set(key, []);
+                            }
+                            trapsByPlot.get(key).push(trap);
+                        });
+
+                        const batch = writeBatch(db);
+                        let trapsToDeleteCount = 0;
+
+                        for (const [key, traps] of trapsByPlot.entries()) {
+                            if (traps.length > 1) {
+                                // Ordenar para encontrar a mais recente
+                                traps.sort((a, b) => {
+                                    const dateA = a.dataInstalacao?.toDate ? a.dataInstalacao.toDate() : new Date(a.dataInstalacao);
+                                    const dateB = b.dataInstalacao?.toDate ? b.dataInstalacao.toDate() : new Date(b.dataInstalacao);
+                                    return dateB - dateA;
+                                });
+
+                                const trapToKeep = traps[0];
+                                const trapsToDelete = traps.slice(1);
+
+                                trapsToDelete.forEach(trap => {
+                                    if (trap.id.startsWith('offline_')) {
+                                        console.warn("A tentar apagar uma armadilha duplicada que ainda está offline. Esta ação será ignorada.", trap);
+                                    } else {
+                                        const docRef = doc(db, 'armadilhas', trap.id);
+                                        batch.delete(docRef);
+                                        trapsToDeleteCount++;
+                                    }
+                                });
+                            }
+                        }
+
+                        if (trapsToDeleteCount > 0) {
+                            App.ui.setLoading(true, `A apagar ${trapsToDeleteCount} armadilhas duplicadas...`);
+                            await batch.commit();
+                            App.ui.showAlert(`${trapsToDeleteCount} armadilhas duplicadas foram removidas com sucesso!`, 'success');
+                        } else {
+                            App.ui.showAlert("Nenhuma armadilha duplicada foi encontrada.", 'info');
+                        }
+                    } catch (error) {
+                        console.error("Erro ao remover armadilhas duplicadas:", error);
+                        App.ui.showAlert(`Ocorreu um erro: ${error.message}`, 'error');
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
             },
         },
         gemini: {
