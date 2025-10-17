@@ -99,9 +99,12 @@ service cloud.firestore {
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
     match /armadilhas/{docId} {
-      allow read, update: if canAccessCompanyData(resource.data.companyId) || !('companyId' in resource.data);
+      allow read, update: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
-      allow delete: if (canAccessCompanyData(resource.data.companyId) && ((getUserRole() == 'admin' || getUserRole() == 'super-admin') || (resource.data.instaladoPor != null && request.auth.uid == resource.data.instaladoPor) || !('instaladoPor' in resource.data))) || !('companyId' in resource.data);
+      allow delete: if canAccessCompanyData(resource.data.companyId) && ((getUserRole() == 'admin' || getUserRole() == 'super-admin') || (resource.data.instaladoPor != null && request.auth.uid == resource.data.instaladoPor) || !('instaladoPor' in resource.data));
+
+      // Regra para permitir a gestão de armadilhas antigas sem companyId
+      allow update, delete: if !('companyId' in resource.data) && request.auth.uid != null;
     }
     match /cigarrinha/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
