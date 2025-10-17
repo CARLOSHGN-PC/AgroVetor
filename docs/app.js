@@ -6347,7 +6347,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao))
                                 };
                             }
-                            await App.data.addDocument(write.collection, dataToSync);
+                            // Use setDoc with the pre-generated ID for idempotency
+                            await App.data.setDocument(write.collection, write.id, dataToSync);
 
                             // Sucesso: Adiciona ao log e apaga do IndexedDB
                             logEntry.items.push({
@@ -7622,12 +7623,14 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async installTrap(lat, lng, feature = null) {
-                // Use um objeto Date padrão, que é serializável por IndexedDB.
                 const installDate = new Date();
+                // Generate a unique ID for the trap on the client side.
+                const trapId = `trap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
                 const newTrapData = {
+                    id: trapId, // Include the unique ID in the data
                     latitude: lat,
                     longitude: lng,
-                    // Armazena como ISO string para garantir a serialização
                     dataInstalacao: installDate.toISOString(),
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
