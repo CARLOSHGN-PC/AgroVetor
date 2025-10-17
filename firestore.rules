@@ -99,35 +99,28 @@ service cloud.firestore {
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
     match /armadilhas/{docId} {
-      // --- Standard Data Rules ---
-      // Rules for documents that have a valid companyId.
+      // Read, update, and create rules remain the same.
+      // canAccessCompanyData correctly handles super-admin access for these.
       allow read, update: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
-      allow delete: if canAccessCompanyData(resource.data.companyId) &&
-                       (
-                         getUserRole() == 'admin' ||
-                         getUserRole() == 'administrador' ||
-                         getUserRole() == 'Lider' ||
-                         getUserRole() == 'Supervisor' ||
-                         getUserRole() == 'super-admin' ||
-                         request.auth.uid == resource.data.instaladoPor
-                       );
 
-      // --- Legacy Data Cleanup Rules ---
-      // Allow admins/super-admins to delete legacy records that have an invalid or missing companyId.
-      // This is specifically for the data cleanup tool.
-      allow delete: if (
-                          getUserRole() == 'admin' ||
-                          getUserRole() == 'administrador' ||
-                          getUserRole() == 'Lider' ||
-                          getUserRole() == 'Supervisor' ||
-                          getUserRole() == 'super-admin'
-                        ) &&
-                       (
-                         !('companyId' in resource.data) ||
-                         resource.data.companyId == null ||
-                         resource.data.companyId == ''
-                       );
+      // A single, consolidated delete rule to handle all cases correctly.
+      allow delete: if
+        // Case 1: Super-admin has unrestricted delete access.
+        (getUserRole() == 'super-admin') ||
+        // Case 2: Standard data deletion for other roles.
+        (
+          'companyId' in resource.data && resource.data.companyId != null && resource.data.companyId != '' &&
+          canAccessCompanyData(resource.data.companyId) && (
+            getUserRole() in ['admin', 'administrador', 'Lider', 'Supervisor'] ||
+            request.auth.uid == resource.data.instaladoPor
+          )
+        ) ||
+        // Case 3: Legacy data deletion for other roles.
+        (
+          (!('companyId' in resource.data) || resource.data.companyId == null || resource.data.companyId == '') &&
+          (getUserRole() in ['admin', 'administrador', 'Lider', 'Supervisor'])
+        );
     }
     match /cigarrinha/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
