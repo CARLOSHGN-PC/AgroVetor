@@ -101,7 +101,7 @@ service cloud.firestore {
     match /armadilhas/{docId} {
       allow read, update: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
-      allow delete: if canAccessCompanyData(resource.data.companyId) && ((getUserRole() == 'admin' || getUserRole() == 'super-admin') || (resource.data.instaladoPor != null && request.auth.uid == resource.data.instaladoPor));
+      allow delete: if canAccessCompanyData(resource.data.companyId) && ((getUserRole() == 'admin' || getUserRole() == 'super-admin') || (resource.data.instaladoPor != null && request.auth.uid == resource.data.instaladoPor) || !('instaladoPor' in resource.data));
     }
     match /cigarrinha/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
