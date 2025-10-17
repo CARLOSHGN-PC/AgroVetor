@@ -2534,68 +2534,6 @@ try {
         }
     });
 
-    // Rota para remover armadilhas duplicadas
-    app.post('/admin/deduplicate-traps', async (req, res) => {
-        const { companyId, userId } = req.body;
-
-        if (!companyId || !userId) {
-            return res.status(400).json({ message: "O ID da empresa e do usuário são obrigatórios." });
-        }
-
-        try {
-            // Verificar se o usuário é admin
-            const userDoc = await db.collection('users').doc(userId).get();
-            if (!userDoc.exists || (userDoc.data().role !== 'admin' && userDoc.data().role !== 'super-admin')) {
-                return res.status(403).json({ message: "Acesso negado. Apenas administradores podem executar esta ação." });
-            }
-
-            const trapsRef = db.collection('armadilhas');
-            const snapshot = await trapsRef.where('companyId', '==', companyId).get();
-
-            if (snapshot.empty) {
-                return res.status(200).json({ message: "Nenhuma armadilha encontrada para esta empresa.", duplicatesRemoved: 0 });
-            }
-
-            const trapsByLocation = {};
-            snapshot.forEach(doc => {
-                const trap = { id: doc.id, ...doc.data() };
-                const locationKey = `${trap.fazendaNome}-${trap.talhaoNome}`;
-                if (!trapsByLocation[locationKey]) {
-                    trapsByLocation[locationKey] = [];
-                }
-                trapsByLocation[locationKey].push(trap);
-            });
-
-            let duplicatesRemoved = 0;
-            const batch = db.batch();
-
-            for (const locationKey in trapsByLocation) {
-                const traps = trapsByLocation[locationKey];
-                if (traps.length > 1) {
-                    traps.sort((a, b) => b.dataInstalacao.toDate() - a.dataInstalacao.toDate());
-                    const newestTrap = traps.shift(); // Remove e mantém a mais recente
-
-                    // As restantes são duplicadas e devem ser excluídas
-                    for (const trapToDelete of traps) {
-                        const trapRef = db.collection('armadilhas').doc(trapToDelete.id);
-                        batch.delete(trapRef);
-                        duplicatesRemoved++;
-                    }
-                }
-            }
-
-            if (duplicatesRemoved > 0) {
-                await batch.commit();
-            }
-
-            res.status(200).json({ message: `Limpeza concluída. ${duplicatesRemoved} armadilhas duplicadas foram removidas.`, duplicatesRemoved });
-
-        } catch (error) {
-            console.error("Erro ao remover armadilhas duplicadas:", error);
-            res.status(500).json({ message: "Ocorreu um erro no servidor ao tentar remover as duplicatas." });
-        }
-    });
-
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
