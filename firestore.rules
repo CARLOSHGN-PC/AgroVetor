@@ -96,9 +96,9 @@ service cloud.firestore {
     match /armadilhas/{docId} {
       allow create: if canAccessCompanyData(request.resource.data.companyId);
       allow read, update: if canAccessCompanyData(resource.data.companyId);
-      // Allow delete for admin, supervisor, or users with a specific 'delete' permission
+      // Allow delete for the user who installed it, or for an admin/supervisor.
       allow delete: if canAccessCompanyData(resource.data.companyId) &&
-                       (getUserRole() == 'admin' || getUserRole() == 'supervisor' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.delete == true);
+                       (request.auth.uid == resource.data.instaladoPor || getUserRole() == 'admin' || getUserRole() == 'supervisor');
     }
     match /cigarrinha/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
