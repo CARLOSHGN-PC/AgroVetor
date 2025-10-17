@@ -6307,7 +6307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     userId: App.state.currentUser.uid,
                     username: App.state.currentUser.username || App.state.currentUser.email,
                     companyId: App.state.currentUser.companyId,
-                    timestamp: new Date(), // Use local date for now, will be replaced by serverTimestamp
+                    timestamp: new Date(),
                     status: '',
                     details: '',
                     items: []
@@ -6340,17 +6340,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         const write = cursor.value;
                         try {
                             let dataToSync = write.data;
-                            // Conversão CRÍTICA: Garante que a data da armadilha seja um Timestamp do Firestore antes de enviar
                             if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
                                 dataToSync = {
                                     ...write.data,
                                     dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao))
                                 };
                             }
-                            // Use setDoc with the pre-generated ID for idempotency
                             await App.data.setDocument(write.collection, write.id, dataToSync);
 
-                            // Sucesso: Adiciona ao log e apaga do IndexedDB
                             logEntry.items.push({
                                 status: 'success',
                                 collection: write.collection,
@@ -6358,11 +6355,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 error: null
                             });
                             successfulWrites++;
-                            // A exclusão é a parte chave: acontece na mesma transação, logo após o sucesso.
                             cursor.delete();
 
                         } catch (error) {
-                            // Falha: Adiciona ao log, mas NÃO apaga do IndexedDB
                             console.error(`Falha ao sincronizar o item:`, { write, error });
                             logEntry.items.push({
                                 status: 'failure',
@@ -6372,13 +6367,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                             failedWrites++;
                         }
-                        // Move para o próximo item no cursor
                         cursor = await cursor.continue();
                     }
 
                     await tx.done;
 
-                    // Finaliza e regista o log apenas se houveram tentativas de escrita
                     if (logEntry.items.length > 0) {
                         if (failedWrites === 0) {
                             logEntry.status = 'success';
@@ -6391,11 +6384,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             logEntry.details = `Não foi possível enviar ${failedWrites} registos. Eles permanecerão offline.`;
                         }
 
-                        // Salvar o log permanente no Firestore
                         const permanentLogEntry = { ...logEntry, timestamp: serverTimestamp() };
                         const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
 
-                        // Notifica o utilizador, passando o ID do log para que a notificação seja clicável
                         App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
                     }
 
@@ -7624,11 +7615,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async installTrap(lat, lng, feature = null) {
                 const installDate = new Date();
-                // Generate a unique ID for the trap on the client side.
                 const trapId = `trap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
                 const newTrapData = {
-                    id: trapId, // Include the unique ID in the data
+                    id: trapId,
                     latitude: lat,
                     longitude: lng,
                     dataInstalacao: installDate.toISOString(),
@@ -7640,35 +7630,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 App.ui.setLoading(true, "A guardar armadilha...");
-                let offlineWritePromise = null;
 
                 try {
                     if (navigator.onLine) {
                         const dataForFirestore = { ...newTrapData, dataInstalacao: Timestamp.fromDate(installDate) };
-                        await App.data.addDocument('armadilhas', dataForFirestore);
-                        App.ui.showAlert(`Armadilha instalada com sucesso online.`, "success");
+                        await App.data.setDocument('armadilhas', trapId, dataForFirestore);
+                        this.addOrUpdateTrapMarker({ id: trapId, ...dataForFirestore });
+                        App.ui.showAlert(`Armadilha ${trapId.substring(0, 9)}... instalada com sucesso.`, "success");
                     } else {
-                        offlineWritePromise = OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
+                        await OfflineDB.add('offline-writes', { id: trapId, collection: 'armadilhas', data: newTrapData });
+                        App.ui.showAlert('Armadilha guardada offline. Será enviada quando houver conexão.', 'info');
+                        const tempTrapForMarker = { ...newTrapData, dataInstalacao: installDate };
+                        this.addOrUpdateTrapMarker(tempTrapForMarker);
                     }
                 } catch (error) {
-                    console.error("Erro ao instalar armadilha online, tentando guardar offline:", error);
-                    offlineWritePromise = OfflineDB.add('offline-writes', { collection: 'armadilhas', data: newTrapData });
-                }
-
-                if (offlineWritePromise) {
+                    console.error("Erro ao instalar armadilha, tentando guardar offline:", error);
                     try {
-                        await offlineWritePromise;
-                        App.ui.showAlert('Armadilha guardada offline. Será enviada quando houver conexão.', 'info');
+                        await OfflineDB.add('offline-writes', { id: trapId, collection: 'armadilhas', data: newTrapData });
+                        App.ui.showAlert('Falha ao conectar. Armadilha guardada offline.', 'warning');
+                        const tempTrapForMarker = { ...newTrapData, dataInstalacao: installDate };
+                        this.addOrUpdateTrapMarker(tempTrapForMarker);
                     } catch (offlineError) {
                         console.error("Falha crítica ao guardar armadilha offline:", offlineError);
                         App.ui.showAlert("Falha crítica ao guardar a armadilha offline.", "error");
                     }
+                } finally {
+                    App.ui.setLoading(false);
                 }
-
-                // UI updates are always attempted, regardless of online/offline status.
-                const tempTrapForMarker = { id: `offline_${Date.now()}`, ...newTrapData, dataInstalacao: installDate };
-                this.addOrUpdateTrapMarker(tempTrapForMarker);
-                App.ui.setLoading(false);
             },
 
             promptCollectTrap(trapId) {
