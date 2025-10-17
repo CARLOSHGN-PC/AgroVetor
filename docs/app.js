@@ -6302,8 +6302,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.state.isSyncing = true;
                 console.log("Iniciando a verificação de dados offline...");
+
                 const logEntry = {
-                    timestamp: new Date(),
+                    userId: App.state.currentUser.uid,
+                    username: App.state.currentUser.username || App.state.currentUser.email,
+                    companyId: App.state.currentUser.companyId,
+                    timestamp: new Date(), // Use local date for now, will be replaced by serverTimestamp
                     status: '',
                     details: '',
                     items: []
@@ -6311,50 +6315,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const db = await OfflineDB.dbPromise;
-                    if (!db) return;
-
-                    const writesToSync = await db.getAll('offline-writes');
-
-                    if (writesToSync.length === 0) {
-                        logEntry.status = 'no_data';
-                        logEntry.details = 'Nenhum registo pendente para sincronizar.';
-                        // Não precisa notificar ou salvar log se não há nada para fazer.
+                    if (!db) {
                         App.state.isSyncing = false;
                         return;
                     }
 
-                    App.ui.showSystemNotification("Sincronização", `A enviar ${writesToSync.length} registos offline...`, 'info');
+                    const tx = db.transaction('offline-writes', 'readwrite');
+                    const store = tx.objectStore('offline-writes');
+                    const totalWrites = await store.count();
 
-                    const syncPromises = writesToSync.map(write =>
-                        App.data.addDocument(write.collection, write.data)
-                            .then(() => ({ status: 'fulfilled', originalWrite: write }))
-                            .catch(error => ({ status: 'rejected', error, originalWrite: write }))
-                    );
-
-                    const settledResults = await Promise.allSettled(syncPromises);
-
-                    const syncedKeys = [];
-                    let failureCount = 0;
-
-                    for (const result of settledResults) {
-                        if (result.status === 'fulfilled') {
-                            const syncResult = result.value;
-                            if (syncResult.status === 'fulfilled') {
-                                // A chave para apagar do IndexedDB está no próprio objeto de escrita.
-                                // Assumindo que a chave primária é auto-incrementada e não está no objeto 'value'.
-                                // Vamos precisar buscar as chaves primeiro.
-                                // A abordagem anterior de buscar chaves e valores juntos era melhor. Vamos voltar a ela.
-                                // ESTA IMPLEMENTAÇÃO É MAIS SIMPLES E ROBUSTA.
-                                // Re-implementando o início para ser mais seguro.
-                            }
-                        }
+                    if (totalWrites === 0) {
+                        console.log("Nenhum registo pendente para sincronizar.");
+                        App.state.isSyncing = false;
+                        return;
                     }
-                    // A lógica acima está ficando complexa. Vamos simplificar e tornar mais robusta.
 
-                    const dbTx = await OfflineDB.dbPromise;
-                    const allWrites = await dbTx.getAll('offline-writes');
+                    App.ui.showSystemNotification("Sincronização", `A enviar ${totalWrites} registos offline...`, 'info');
 
-                    const allPromises = allWrites.map(async (write) => {
+                    let cursor = await store.openCursor();
+                    let successfulWrites = 0;
+                    let failedWrites = 0;
+
+                    while (cursor) {
+                        const write = cursor.value;
                         try {
                             let dataToSync = write.data;
                             // Conversão CRÍTICA: Garante que a data da armadilha seja um Timestamp do Firestore antes de enviar
@@ -6365,68 +6348,59 @@ document.addEventListener('DOMContentLoaded', () => {
                                 };
                             }
                             await App.data.addDocument(write.collection, dataToSync);
-                            return { status: 'success', write };
+
+                            // Sucesso: Adiciona ao log e apaga do IndexedDB
+                            logEntry.items.push({
+                                status: 'success',
+                                collection: write.collection,
+                                data: write.data,
+                                error: null
+                            });
+                            successfulWrites++;
+                            // A exclusão é a parte chave: acontece na mesma transação, logo após o sucesso.
+                            cursor.delete();
+
                         } catch (error) {
-                            return { status: 'failure', write, error };
+                            // Falha: Adiciona ao log, mas NÃO apaga do IndexedDB
+                            console.error(`Falha ao sincronizar o item:`, { write, error });
+                            logEntry.items.push({
+                                status: 'failure',
+                                collection: write.collection,
+                                data: write.data,
+                                error: error.message || 'Erro desconhecido'
+                            });
+                            failedWrites++;
                         }
-                    });
-
-                    const allResults = await Promise.all(allPromises);
-
-                    const successfulWrites = allResults.filter(r => r.status === 'success');
-                    const failedWrites = allResults.filter(r => r.status === 'failure');
-
-                    logEntry.items = allResults.map(r => ({
-                        status: r.status,
-                        collection: r.write.collection,
-                        data: r.write.data,
-                        error: r.error ? r.error.message : null
-                    }));
-
-                    // Apagar apenas os que tiveram sucesso
-                    if (successfulWrites.length > 0) {
-                        const deleteTx = (await OfflineDB.dbPromise).transaction('offline-writes', 'readwrite');
-                        const store = deleteTx.objectStore('offline-writes');
-                        // Esta parte é complexa porque não temos as chaves.
-                        // A melhor maneira é limpar tudo e re-adicionar as falhas.
-                        await store.clear();
-                        if (failedWrites.length > 0) {
-                            for (const failed of failedWrites) {
-                                await store.add(failed.write);
-                            }
-                        }
-                        await deleteTx.done;
+                        // Move para o próximo item no cursor
+                        cursor = await cursor.continue();
                     }
 
-                    if (failedWrites.length === 0 && successfulWrites.length > 0) {
-                        logEntry.status = 'success';
-                        logEntry.details = `${successfulWrites.length} registos enviados com sucesso.`;
-                    } else if (successfulWrites.length > 0) {
-                        logEntry.status = 'partial';
-                        logEntry.details = `${successfulWrites.length} registos enviados. ${failedWrites.length} falharam.`;
-                    } else {
-                        logEntry.status = 'failure';
-                        logEntry.details = `Não foi possível enviar ${failedWrites.length} registos.`;
+                    await tx.done;
+
+                    // Finaliza e regista o log apenas se houveram tentativas de escrita
+                    if (logEntry.items.length > 0) {
+                        if (failedWrites === 0) {
+                            logEntry.status = 'success';
+                            logEntry.details = `${successfulWrites} registos enviados com sucesso.`;
+                        } else if (successfulWrites > 0) {
+                            logEntry.status = 'partial';
+                            logEntry.details = `${successfulWrites} registos enviados. ${failedWrites} falharam e permanecerão offline.`;
+                        } else {
+                            logEntry.status = 'failure';
+                            logEntry.details = `Não foi possível enviar ${failedWrites} registos. Eles permanecerão offline.`;
+                        }
+
+                        // Salvar o log permanente no Firestore
+                        const permanentLogEntry = { ...logEntry, timestamp: serverTimestamp() };
+                        const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
+
+                        // Notifica o utilizador, passando o ID do log para que a notificação seja clicável
+                        App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
                     }
-
-                    // Salvar o log permanente no Firestore
-                    const permanentLogEntry = {
-                        userId: App.state.currentUser.uid,
-                        username: App.state.currentUser.username || App.state.currentUser.email,
-                        companyId: App.state.currentUser.companyId,
-                        timestamp: serverTimestamp(),
-                        status: logEntry.status,
-                        details: logEntry.details,
-                        items: logEntry.items
-                    };
-                    const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
-
-                    // Notifica o utilizador, passando o ID do log para que a notificação seja clicável
-                    App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
 
                 } catch (error) {
                     console.error("Ocorreu um erro crítico durante a sincronização:", error);
-                    App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo.", "error");
+                    App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo. Verifique a consola.", "critical_error");
                 } finally {
                     App.state.isSyncing = false;
                     console.log("Processo de sincronização finalizado.");
