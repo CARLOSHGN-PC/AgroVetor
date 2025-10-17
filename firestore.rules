@@ -99,11 +99,8 @@ service cloud.firestore {
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
     match /armadilhas/{docId} {
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
-      allow read, update: if canAccessCompanyData(resource.data.companyId);
-      // Allow delete for the user who installed it, or for an admin/supervisor.
-      allow delete: if canAccessCompanyData(resource.data.companyId) &&
-                       (request.auth.uid == resource.data.instaladoPor || getUserData().role == 'admin' || getUserData().role == 'supervisor');
     }
     match /cigarrinha/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
