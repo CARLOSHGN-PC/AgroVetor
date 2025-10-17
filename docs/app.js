@@ -3536,6 +3536,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
+                const btnDeduplicateTraps = document.getElementById('btnDeduplicateTraps');
+                if (btnDeduplicateTraps) {
+                    btnDeduplicateTraps.addEventListener('click', () => App.actions.deduplicateTraps());
+                }
+
 
                 if (App.elements.cadastros.btnSaveFarm) App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
                 if (App.elements.cadastros.btnDeleteAllFarms) App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
@@ -6795,6 +6800,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     App.ui.setLoading(false);
                 }
+            },
+
+            async deduplicateTraps() {
+                const confirmationMessage = "Tem a certeza que deseja remover as armadilhas duplicadas? Esta ação irá verificar todas as armadilhas da sua empresa, encontrar as que estão no mesmo local e remover as mais antigas, mantendo apenas a mais recente. Esta ação não pode ser desfeita.";
+
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A procurar e remover duplicatas...");
+
+                    try {
+                        const response = await fetch(`${App.config.backendUrl}/admin/deduplicate-traps`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                companyId: App.state.currentUser.companyId,
+                                userId: App.state.currentUser.uid
+                            }),
+                        });
+
+                        const result = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(result.message || 'Erro desconhecido no servidor.');
+                        }
+
+                        App.ui.showAlert(result.message, 'success', 8000);
+
+                    } catch (error) {
+                        App.ui.showAlert(`Erro ao executar a limpeza: ${error.message}`, 'error');
+                        console.error("Erro na limpeza de duplicatas:", error);
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
             },
 
             async notifyAdminsOfNewFeatures(oldConfigs, newConfigs) {
