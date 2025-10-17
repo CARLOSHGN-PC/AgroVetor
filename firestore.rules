@@ -4,13 +4,18 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // --- FUNÇÕES AUXILIARES ---
-    // Estas funções obtêm informações do documento do utilizador que faz a requisição.
+    // Funções para obter dados do documento do utilizador que faz a requisição.
+    // Separar a obtenção do documento da obtenção do campo para evitar recursividade.
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return getUserData().role;
     }
 
     function getUserCompanyId() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId;
+      return getUserData().companyId;
     }
 
     // --- REGRAS GERAIS ---
@@ -98,7 +103,7 @@ service cloud.firestore {
       allow read, update: if canAccessCompanyData(resource.data.companyId);
       // Allow delete for the user who installed it, or for an admin/supervisor.
       allow delete: if canAccessCompanyData(resource.data.companyId) &&
-                       (request.auth.uid == resource.data.instaladoPor || getUserRole() == 'admin' || getUserRole() == 'supervisor');
+                       (request.auth.uid == resource.data.instaladoPor || getUserData().role == 'admin' || getUserData().role == 'supervisor');
     }
     match /cigarrinha/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
@@ -116,7 +121,7 @@ service cloud.firestore {
     // Apenas super-admins podem escrever/alterar as configurações.
     match /global_configs/{docId} {
       allow read: if request.auth.uid != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super-admin';
+      allow write: if getUserRole() == 'super-admin';
     }
 
     // sync_history_store: Logs detalhados de sincronização
