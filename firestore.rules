@@ -98,7 +98,7 @@ service cloud.firestore {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-    match /armadilhas/{docId} {
+    match /armadilhas/{trapId} {
       // Read, update, and create rules remain the same.
       // canAccessCompanyData correctly handles super-admin access for these.
       allow read, update: if canAccessCompanyData(resource.data.companyId);
@@ -121,6 +121,12 @@ service cloud.firestore {
           (!('companyId' in resource.data) || resource.data.companyId == null || resource.data.companyId == '') &&
           (getUserRole() in ['admin', 'administrador', 'Lider', 'Supervisor'])
         );
+
+      // Rule for the 'coletas' subcollection.
+      // Allows access if the user can access the parent trap document.
+      match /coletas/{coletaId} {
+        allow read, write, delete: if canAccessCompanyData(get(/databases/$(database)/documents/armadilhas/$(trapId)).data.companyId);
+      }
     }
     match /cigarrinha/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
