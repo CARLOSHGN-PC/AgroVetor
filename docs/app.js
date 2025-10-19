@@ -8086,9 +8086,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     mostRecentInstallDate.setHours(0, 0, 0, 0); // Set to start of the day for consistent comparison
 
-                    const activeTrapsOnFarm = trapsOnFarm.filter(t => t.status === 'Ativa');
-                    if (activeTrapsOnFarm.length === 0) return;
-
                     const highCountTraps = collectedTraps.filter(t => {
                         const collectionDate = t.dataColeta?.toDate ? t.dataColeta.toDate() : new Date(t.dataColeta);
                         // Check collections for this farm that occurred on or after the most recent installation
@@ -8097,8 +8094,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                t.contagemMariposas >= 6;
                     });
 
-                    if (activeTrapsOnFarm.length > 0) {
-                        const riskPercentage = (highCountTraps.length / activeTrapsOnFarm.length) * 100;
+                    // CORREÇÃO: A base para o cálculo da percentagem deve ser o número TOTAL de armadilhas na fazenda,
+                    // não apenas as ativas. A fazenda ainda apresenta risco mesmo que todas as armadilhas tenham sido coletadas.
+                    if (trapsOnFarm.length > 0) {
+                        const riskPercentage = (highCountTraps.length / trapsOnFarm.length) * 100;
                         if (riskPercentage > 30) {
                             farmsInRisk.add(farm.name);
                         }
