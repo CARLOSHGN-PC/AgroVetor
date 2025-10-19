@@ -7427,7 +7427,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             App.state.selectedMapFeature = clickedFeature;
                             map.setFeatureState({ source: sourceId, id: clickedFeature.id }, { selected: true });
-                            this.showTalhaoInfo(clickedFeature);
+
+                            let riskPercentage = null;
+                            if (App.state.riskViewActive) {
+                                const farmCode = this._findProp(clickedFeature, ['FUNDO_AGR']);
+                                if (App.state.farmRiskPercentages && App.state.farmRiskPercentages[farmCode] !== undefined) {
+                                    riskPercentage = App.state.farmRiskPercentages[farmCode];
+                                }
+                            }
+                            this.showTalhaoInfo(clickedFeature, riskPercentage);
                         }
                     }
                 });
@@ -7450,12 +7458,19 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             // ALTERAÇÃO PONTO 5: Melhoria na busca de propriedades do Shapefile
-            showTalhaoInfo(feature) { // feature is now a GeoJSON feature
+            showTalhaoInfo(feature, riskPercentage = null) { // feature is now a GeoJSON feature
                 const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
                 const fazendaNome = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
                 const talhaoNome = this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
                 const areaHa = this._findProp(feature, ['AREA_HA', 'AREA', 'HECTARES']);
                 const variedade = this._findProp(feature, ['VARIEDADE', 'CULTURA']);
+
+                const riskInfoHTML = riskPercentage !== null ? `
+                    <div class="info-item risk-info">
+                        <span class="label"><i class="fas fa-exclamation-triangle"></i> Risco de Aplicação</span>
+                        <span class="value">${riskPercentage.toFixed(2)}%</span>
+                    </div>
+                ` : '';
 
                 const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
                 contentEl.innerHTML = `
@@ -7463,6 +7478,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <i class="fas fa-map-marker-alt"></i>
                         <span>Informações do Talhão</span>
                     </div>
+                    ${riskInfoHTML}
                     <div class="info-item">
                         <span class="label">Fundo Agrícola</span>
                         <span class="value">${fundoAgricola}</span>
@@ -8044,6 +8060,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const map = App.state.mapboxMap;
                 if (!map || !App.state.geoJsonData) return;
 
+                console.log("--- [START] calculateAndApplyRiskView ---");
+
                 if (map.riskFarmFeatureIds) {
                     map.riskFarmFeatureIds.forEach(id => {
                         map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: false });
@@ -8051,9 +8069,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 map.riskFarmFeatureIds = [];
 
+                // Define original paint properties for easy reset
+                const originalFillOpacity = [
+                    'case',
+                    ['boolean', ['feature-state', 'risk'], false], 0.5,
+                    ['boolean', ['feature-state', 'selected'], false], 0.85,
+                    ['boolean', ['feature-state', 'hover'], false], 0.60,
+                    0.0
+                ];
+                const originalLineOpacity = 0.9;
+
                 if (!App.state.riskViewActive) {
                     App.elements.monitoramentoAereo.btnToggleRiskView.classList.remove('active');
+
+                    // Reset paint properties to default view
+                    map.setPaintProperty('talhoes-layer', 'fill-opacity', originalFillOpacity);
+                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', originalLineOpacity);
+
                     this.loadTraps();
+                    console.log("Risk view is not active. Reverting to default view.");
+                    console.log("--- [END] calculateAndApplyRiskView ---");
                     return;
                 }
 
@@ -8061,22 +8096,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 Object.values(App.state.mapboxTrapMarkers).forEach(marker => marker.remove());
                 App.state.mapboxTrapMarkers = {};
 
+                // Set paint properties to isolate at-risk farms, but still allow interaction within them
+                map.setPaintProperty('talhoes-layer', 'fill-opacity', [
+                    'case',
+                    ['boolean', ['feature-state', 'risk'], false],
+                    [
+                        'case',
+                        ['boolean', ['feature-state', 'selected'], false], 0.85,
+                        ['boolean', ['feature-state', 'hover'], false], 0.6,
+                        0.5 // Default for at-risk
+                    ],
+                    0.0 // Invisible otherwise
+                ]);
+                map.setPaintProperty('talhoes-border-layer', 'line-opacity', [
+                    'case',
+                    ['boolean', ['feature-state', 'risk'], false], 0.9, // Visible if at risk
+                    0.0 // Invisible otherwise
+                ]);
+
                 const currentUserCompanyId = App.state.currentUser.companyId;
+                console.log(`Company ID: ${currentUserCompanyId}`);
                 if (!currentUserCompanyId && App.state.currentUser.role !== 'super-admin') {
                     App.ui.showAlert("A sua conta não está associada a uma empresa.", "error");
+                    console.error("User has no companyId.");
+                    console.log("--- [END] calculateAndApplyRiskView ---");
                     return;
                 }
 
                 const farmsInRisk = new Set();
+                const farmRiskPercentages = {}; // Store percentages
+
                 const allFarms = App.state.fazendas.filter(f => f.companyId === currentUserCompanyId);
                 const companyTraps = App.state.armadilhas.filter(t => t.companyId === currentUserCompanyId);
                 const collectedTraps = companyTraps.filter(t => t.status === 'Coletada');
 
-                allFarms.forEach(farm => {
-                    const trapsOnFarm = companyTraps.filter(t => t.fazendaNome === farm.name);
-                    if (trapsOnFarm.length === 0) return;
+                console.log(`Found ${allFarms.length} farms, ${companyTraps.length} total traps, ${collectedTraps.length} collected traps for this company.`);
 
-                    // Find the most recent installation date for this specific farm
+                allFarms.forEach(farm => {
+                    console.log(`Processing Farm: ${farm.name} (Code: ${farm.code})`);
+                    const trapsOnFarm = companyTraps.filter(t => t.fazendaNome === farm.name);
+                    if (trapsOnFarm.length === 0) {
+                        console.log(" -> No traps on this farm. Skipping.");
+                        return;
+                    }
+                    console.log(` -> Found ${trapsOnFarm.length} traps.`);
+
                     let mostRecentInstallDate = new Date(0);
                     trapsOnFarm.forEach(trap => {
                         const installDate = trap.dataInstalacao?.toDate ? trap.dataInstalacao.toDate() : new Date(trap.dataInstalacao);
@@ -8084,35 +8148,41 @@ document.addEventListener('DOMContentLoaded', () => {
                             mostRecentInstallDate = installDate;
                         }
                     });
-                    mostRecentInstallDate.setHours(0, 0, 0, 0); // Set to start of the day for consistent comparison
+                    mostRecentInstallDate.setHours(0, 0, 0, 0);
+                    console.log(` -> Most recent installation date on this farm: ${mostRecentInstallDate.toISOString().split('T')[0]}`);
 
                     const highCountTraps = collectedTraps.filter(t => {
                         const collectionDate = t.dataColeta?.toDate ? t.dataColeta.toDate() : new Date(t.dataColeta);
-                        // Check collections for this farm that occurred on or after the most recent installation
-                        return t.fazendaNome === farm.name &&
-                               collectionDate >= mostRecentInstallDate &&
-                               t.contagemMariposas >= 6;
+                        const isHighCount = t.fazendaNome === farm.name &&
+                                       collectionDate >= mostRecentInstallDate &&
+                                       t.contagemMariposas >= 6;
+                        return isHighCount;
                     });
+                    console.log(` -> Found ${highCountTraps.length} collections with high counts since the last install.`);
 
-                    // CORREÇÃO: A base para o cálculo da percentagem deve ser o número TOTAL de armadilhas na fazenda,
-                    // não apenas as ativas. A fazenda ainda apresenta risco mesmo que todas as armadilhas tenham sido coletadas.
                     if (trapsOnFarm.length > 0) {
                         const riskPercentage = (highCountTraps.length / trapsOnFarm.length) * 100;
+                        farmRiskPercentages[farm.code] = riskPercentage; // Store percentage
+                        console.log(` -> Risk Percentage: (${highCountTraps.length} / ${trapsOnFarm.length}) * 100 = ${riskPercentage.toFixed(2)}%`);
                         if (riskPercentage > 30) {
-                            // CORREÇÃO: Usar o código da fazenda (único) em vez do nome para evitar problemas de correspondência.
                             farmsInRisk.add(farm.code);
+                            console.log(` -> !!! FARM AT RISK !!!`);
                         }
                     }
                 });
 
+                App.state.farmRiskPercentages = farmRiskPercentages; // Save to global state
+                console.log("Final set of at-risk farm codes:", farmsInRisk);
+
                 if (farmsInRisk.size > 0) {
                     const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
-                        // CORREÇÃO: Fazer a correspondência usando o código do fundo agrícola do SHP.
                         const farmCode = this._findProp(feature, ['FUNDO_AGR', 'COD_IMOVEL', 'CD_IMOVEL']);
                         return farmsInRisk.has(String(farmCode));
                     });
+                    console.log(`Found ${featuresToHighlight.length} map features to highlight.`);
 
                     const featureIds = featuresToHighlight.map(f => f.id);
+                    console.log("Applying 'risk' state to feature IDs:", featureIds);
                     featureIds.forEach(id => {
                         map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: true });
                     });
@@ -8121,6 +8191,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     App.ui.showAlert('Nenhuma fazenda em risco foi identificada no período.', 'success');
                 }
+                console.log("--- [END] calculateAndApplyRiskView ---");
             },
 
             centerOnTrap(trapId) {
