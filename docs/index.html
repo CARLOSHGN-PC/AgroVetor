@@ -981,6 +981,10 @@
       #btnAddTrap:hover {
           background-color: var(--color-primary-dark);
       }
+      .map-control-btn.active {
+        background-color: var(--color-danger);
+        color: var(--color-white);
+      }
 
       /* [REDESIGN] Estilos para o InfoBox do Talhão e Armadilha */
       .info-box {
@@ -2717,6 +2721,9 @@
                     </button>
                      <button id="btnHistory" class="map-control-btn" title="Histórico de Rastreio">
                         <i class="fas fa-history"></i>
+                    </button>
+                    <button id="btnToggleRiskView" class="map-control-btn" title="Visualização de Risco" style="display: none;">
+                        <i class="fas fa-biohazard"></i>
                     </button>
                     <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
                         <i class="fas fa-plus"></i>

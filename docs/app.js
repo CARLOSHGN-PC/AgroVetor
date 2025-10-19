@@ -199,6 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
             locationWatchId: null,
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
+            riskViewActive: false,
         },
         
         elements: {
@@ -596,6 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnAddTrap: document.getElementById('btnAddTrap'),
                 btnCenterMap: document.getElementById('btnCenterMap'),
                 btnHistory: document.getElementById('btnHistory'),
+                btnToggleRiskView: document.getElementById('btnToggleRiskView'),
                 infoBox: document.getElementById('talhao-info-box'),
                 infoBoxContent: document.getElementById('talhao-info-box-content'),
                 infoBoxCloseBtn: document.getElementById('close-info-box'),
@@ -3739,6 +3741,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
+                if (monitoramentoAereoEls.btnToggleRiskView) monitoramentoAereoEls.btnToggleRiskView.addEventListener('click', () => App.mapModule.toggleRiskView());
 
 
                 const trapModal = App.elements.trapPlacementModal;
@@ -7340,12 +7343,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'fill',
                         source: sourceId,
                         paint: {
-                            'fill-color': themeColors.primary,
+                            'fill-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f',
+                                themeColors.primary
+                            ],
                             'fill-opacity': [
                                 'case',
+                                ['boolean', ['feature-state', 'risk'], false], 0.5,
                                 ['boolean', ['feature-state', 'selected'], false], 0.85,
                                 ['boolean', ['feature-state', 'hover'], false], 0.60,
-                                0.20
+                                0.0
                             ]
                         }
                     });
@@ -7393,6 +7401,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     hoveredFeatureId = null;
                 });
 
+                App.elements.monitoramentoAereo.btnToggleRiskView.style.display = 'flex';
                 map.on('click', layerId, (e) => {
                     // Impede que o clique no talhão seja acionado se um marcador (armadilha) for clicado
                     if (e.originalEvent.target.closest('.mapboxgl-marker')) {
@@ -7647,7 +7656,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.trapPlacementData = { features: data };
                         break;
                     case 'failure':
-                        content = `<p>Não foi possível detetar o talhão automaticamente. Por favor, selecione manualmente no mapa ou tente novamente.</p>`;
+                        content = `<p style="text-align: center;"><i class="fas fa-exclamation-triangle fa-2x" style="color: var(--color-warning); margin-bottom: 10px;"></i><br>Você precisa estar <strong>dentro de um talhão</strong> para a instalação automática.<br><br>Se necessário, use a opção de seleção manual.</p>`;
                         break;
                     case 'manual_confirm':
                         const manualFeature = data.feature;
@@ -8024,6 +8033,75 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Remover automaticamente após um tempo
                 setTimeout(dismiss, 10000);
+            },
+
+            toggleRiskView() {
+                App.state.riskViewActive = !App.state.riskViewActive;
+                this.calculateAndApplyRiskView();
+            },
+
+            calculateAndApplyRiskView() {
+                const map = App.state.mapboxMap;
+                if (!map || !App.state.geoJsonData) return;
+
+                const fifteenDaysAgo = new Date();
+                fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+
+
+                if (map.riskFarmFeatureIds) {
+                    map.riskFarmFeatureIds.forEach(id => {
+                        map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: false });
+                    });
+                }
+                map.riskFarmFeatureIds = [];
+
+                if (!App.state.riskViewActive) {
+                    App.elements.monitoramentoAereo.btnToggleRiskView.classList.remove('active');
+                    this.loadTraps();
+                    return;
+                }
+
+                App.elements.monitoramentoAereo.btnToggleRiskView.classList.add('active');
+                Object.values(App.state.mapboxTrapMarkers).forEach(marker => marker.remove());
+                App.state.mapboxTrapMarkers = {};
+
+                const farmsInRisk = new Set();
+                const allFarms = App.state.fazendas;
+                const collectedTraps = App.state.armadilhas.filter(t => t.status === 'Coletada');
+
+                allFarms.forEach(farm => {
+                    const activeTrapsOnFarm = App.state.armadilhas.filter(t => t.status === 'Ativa' && t.fazendaNome === farm.name);
+                    if (activeTrapsOnFarm.length === 0) return;
+
+                    const highCountTraps = collectedTraps.filter(t => {
+                        const collectionDate = t.dataColeta?.toDate ? t.dataColeta.toDate() : new Date(t.dataColeta);
+                        return t.fazendaNome === farm.name &&
+                               collectionDate >= fifteenDaysAgo &&
+                               t.contagemMariposas >= 6;
+                    });
+
+                    const riskPercentage = (highCountTraps.length / activeTrapsOnFarm.length) * 100;
+
+                    if (riskPercentage > 30) {
+                        farmsInRisk.add(farm.name);
+                    }
+                });
+
+                if (farmsInRisk.size > 0) {
+                    const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
+                        const farmName = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
+                        return farmsInRisk.has(farmName);
+                    });
+
+                    const featureIds = featuresToHighlight.map(f => f.id);
+                    featureIds.forEach(id => {
+                        map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: true });
+                    });
+                    map.riskFarmFeatureIds = featureIds;
+                    App.ui.showAlert(`${farmsInRisk.size} fazenda(s) em risco foram destacadas.`, 'info');
+                } else {
+                    App.ui.showAlert('Nenhuma fazenda em risco foi identificada no período.', 'success');
+                }
             },
 
             centerOnTrap(trapId) {
