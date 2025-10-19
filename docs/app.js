@@ -8044,10 +8044,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const map = App.state.mapboxMap;
                 if (!map || !App.state.geoJsonData) return;
 
-                const fifteenDaysAgo = new Date();
-                fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-
-
                 if (map.riskFarmFeatureIds) {
                     map.riskFarmFeatureIds.forEach(id => {
                         map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: false });
@@ -8070,13 +8066,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 const collectedTraps = App.state.armadilhas.filter(t => t.status === 'Coletada');
 
                 allFarms.forEach(farm => {
-                    const activeTrapsOnFarm = App.state.armadilhas.filter(t => t.status === 'Ativa' && t.fazendaNome === farm.name);
+                    const trapsOnFarm = App.state.armadilhas.filter(t => t.fazendaNome === farm.name);
+                    if (trapsOnFarm.length === 0) return;
+
+                    // Find the most recent installation date for this specific farm
+                    let mostRecentInstallDate = new Date(0);
+                    trapsOnFarm.forEach(trap => {
+                        const installDate = trap.dataInstalacao?.toDate ? trap.dataInstalacao.toDate() : new Date(trap.dataInstalacao);
+                        if (installDate > mostRecentInstallDate) {
+                            mostRecentInstallDate = installDate;
+                        }
+                    });
+                    mostRecentInstallDate.setHours(0, 0, 0, 0); // Set to start of the day for consistent comparison
+
+                    const activeTrapsOnFarm = trapsOnFarm.filter(t => t.status === 'Ativa');
                     if (activeTrapsOnFarm.length === 0) return;
 
                     const highCountTraps = collectedTraps.filter(t => {
                         const collectionDate = t.dataColeta?.toDate ? t.dataColeta.toDate() : new Date(t.dataColeta);
+                        // Check collections for this farm that occurred on or after the most recent installation
                         return t.fazendaNome === farm.name &&
-                               collectionDate >= fifteenDaysAgo &&
+                               collectionDate >= mostRecentInstallDate &&
                                t.contagemMariposas >= 6;
                     });
 
