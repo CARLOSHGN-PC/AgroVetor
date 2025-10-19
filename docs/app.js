@@ -8061,12 +8061,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 Object.values(App.state.mapboxTrapMarkers).forEach(marker => marker.remove());
                 App.state.mapboxTrapMarkers = {};
 
+                const currentUserCompanyId = App.state.currentUser.companyId;
+                if (!currentUserCompanyId && App.state.currentUser.role !== 'super-admin') {
+                    App.ui.showAlert("A sua conta não está associada a uma empresa.", "error");
+                    return;
+                }
+
                 const farmsInRisk = new Set();
-                const allFarms = App.state.fazendas;
-                const collectedTraps = App.state.armadilhas.filter(t => t.status === 'Coletada');
+                const allFarms = App.state.fazendas.filter(f => f.companyId === currentUserCompanyId);
+                const companyTraps = App.state.armadilhas.filter(t => t.companyId === currentUserCompanyId);
+                const collectedTraps = companyTraps.filter(t => t.status === 'Coletada');
 
                 allFarms.forEach(farm => {
-                    const trapsOnFarm = App.state.armadilhas.filter(t => t.fazendaNome === farm.name);
+                    const trapsOnFarm = companyTraps.filter(t => t.fazendaNome === farm.name);
                     if (trapsOnFarm.length === 0) return;
 
                     // Find the most recent installation date for this specific farm
@@ -8090,10 +8097,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                t.contagemMariposas >= 6;
                     });
 
-                    const riskPercentage = (highCountTraps.length / activeTrapsOnFarm.length) * 100;
-
-                    if (riskPercentage > 30) {
-                        farmsInRisk.add(farm.name);
+                    if (activeTrapsOnFarm.length > 0) {
+                        const riskPercentage = (highCountTraps.length / activeTrapsOnFarm.length) * 100;
+                        if (riskPercentage > 30) {
+                            farmsInRisk.add(farm.name);
+                        }
                     }
                 });
 
