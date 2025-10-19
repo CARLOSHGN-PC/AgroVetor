@@ -8099,15 +8099,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (trapsOnFarm.length > 0) {
                         const riskPercentage = (highCountTraps.length / trapsOnFarm.length) * 100;
                         if (riskPercentage > 30) {
-                            farmsInRisk.add(farm.name);
+                            // CORREÇÃO: Usar o código da fazenda (único) em vez do nome para evitar problemas de correspondência.
+                            farmsInRisk.add(farm.code);
                         }
                     }
                 });
 
                 if (farmsInRisk.size > 0) {
                     const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
-                        const farmName = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
-                        return farmsInRisk.has(farmName);
+                        // CORREÇÃO: Fazer a correspondência usando o código do fundo agrícola do SHP.
+                        const farmCode = this._findProp(feature, ['FUNDO_AGR', 'COD_IMOVEL', 'CD_IMOVEL']);
+                        return farmsInRisk.has(String(farmCode));
                     });
 
                     const featureIds = featuresToHighlight.map(f => f.id);
