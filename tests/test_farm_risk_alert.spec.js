@@ -47,11 +47,11 @@ test.describe('Farm Risk Alert Feature', () => {
 
 
             window.App.state.armadilhas = [
-                // Traps for the at-risk farm
-                { id: 'trap-1', fazendaNome: 'FARM AT RISK', companyId: companyId, status: 'Coletada', dataInstalacao: oldInstallDate, dataColeta: new Date(), contagemMariposas: 2 },
-                { id: 'trap-2', fazendaNome: 'FARM AT RISK', companyId: companyId, status: 'Coletada', dataInstalacao: lastInstallDate, dataColeta: new Date(), contagemMariposas: 10 }, // High count after recent install
+                // Traps for the at-risk farm - Using the new `fazendaCode` for matching
+                { id: 'trap-1', fazendaCode: atRiskFarmCode, fazendaNome: 'FARM AT RISK', companyId: companyId, status: 'Coletada', dataInstalacao: oldInstallDate, dataColeta: new Date(), contagemMariposas: 2 },
+                { id: 'trap-2', fazendaCode: atRiskFarmCode, fazendaNome: 'FARM AT RISK', companyId: companyId, status: 'Coletada', dataInstalacao: lastInstallDate, dataColeta: new Date(), contagemMariposas: 10 }, // High count after recent install
 
-                // Trap for the safe farm
+                // Trap for the safe farm - Using legacy `fazendaNome` for matching to ensure fallback works
                 { id: 'trap-3', fazendaNome: 'FARM NOT AT RISK', companyId: companyId, status: 'Coletada', dataInstalacao: lastInstallDate, dataColeta: new Date(), contagemMariposas: 3 },
             ];
 
