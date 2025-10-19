@@ -7720,6 +7720,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
                     fazendaNome: feature ? this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : 'Não identificado',
+                    fazendaCode: feature ? this._findProp(feature, ['FUNDO_AGR']) : null,
                     talhaoNome: feature ? this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) : 'Não identificado',
                     companyId: App.state.currentUser.companyId
                 };
@@ -8134,7 +8135,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 allFarms.forEach(farm => {
                     console.log(`Processing Farm: ${farm.name} (Code: ${farm.code})`);
-                    const trapsOnFarm = companyTraps.filter(t => t.fazendaNome === farm.name);
+                    // Robust matching: Use fazendaCode first, fallback to fazendaNome for legacy data.
+                    const trapsOnFarm = companyTraps.filter(t => t.fazendaCode ? String(t.fazendaCode) === String(farm.code) : t.fazendaNome === farm.name);
                     if (trapsOnFarm.length === 0) {
                         console.log(" -> No traps on this farm. Skipping.");
                         return;
@@ -8153,7 +8155,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const highCountTraps = collectedTraps.filter(t => {
                         const collectionDate = t.dataColeta?.toDate ? t.dataColeta.toDate() : new Date(t.dataColeta);
-                        const isHighCount = t.fazendaNome === farm.name &&
+                        // Robust matching for high count traps
+                        const matchesFarm = t.fazendaCode ? String(t.fazendaCode) === String(farm.code) : t.fazendaNome === farm.name;
+                        const isHighCount = matchesFarm &&
                                        collectionDate >= mostRecentInstallDate &&
                                        t.contagemMariposas >= 6;
                         return isHighCount;
