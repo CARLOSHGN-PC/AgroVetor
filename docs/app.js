@@ -7430,7 +7430,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['boolean', ['feature-state', 'searched'], false], 4,
                                 2
                             ],
-                            'line-opacity': 0.9 // Always visible
+                            'line-opacity': 0.9
                         }
                     });
                 }
@@ -8211,8 +8211,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         ['case', ['boolean', ['feature-state', 'selected'], false], 0.85, ['boolean', ['feature-state', 'hover'], false], 0.6, 0.5],
                         0.0 // Invisível se não estiver em risco
                     ]);
-                    // When risk view is on, all borders should be visible.
-                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', 0.9);
+                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', [
+                        'case',
+                        ['boolean', ['feature-state', 'risk'], false], 0.9,
+                        0.0 // Invisível se não estiver em risco
+                    ]);
 
                     const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
                         const farmCode = this._findProp(feature, ['FUNDO_AGR', 'FAZENDA']);
