@@ -599,7 +599,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnCenterMap: document.getElementById('btnCenterMap'),
                 btnHistory: document.getElementById('btnHistory'),
                 btnToggleRiskView: document.getElementById('btnToggleRiskView'),
-                btnToggleTracking: document.getElementById('btnToggleTracking'),
                 infoBox: document.getElementById('talhao-info-box'),
                 infoBoxContent: document.getElementById('talhao-info-box-content'),
                 infoBoxCloseBtn: document.getElementById('close-info-box'),
@@ -1312,9 +1311,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderMenu();
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
-                // App.actions.startGpsTracking(); // O rastreamento agora é manual
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
                 App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
+                App.actions.startGpsTracking(); // O rastreamento agora é manual
             },
             renderSpecificContent(collectionName) {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
@@ -3744,7 +3743,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
                 if (monitoramentoAereoEls.btnToggleRiskView) monitoramentoAereoEls.btnToggleRiskView.addEventListener('click', () => App.mapModule.toggleRiskView());
-                if (monitoramentoAereoEls.btnToggleTracking) monitoramentoAereoEls.btnToggleTracking.addEventListener('click', () => App.mapModule.toggleGpsTracking());
 
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
@@ -6491,62 +6489,71 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             startGpsTracking() {
-                if (App.state.isTracking) return;
+                const startTrackingLogic = () => {
+                    if (App.state.isTracking) return;
 
-                if ('geolocation' in navigator && 'watchPosition' in navigator.geolocation) {
-                    App.state.isTracking = true;
-                    App.ui.showAlert("Rastreamento GPS iniciado.", "success");
+                    if ('geolocation' in navigator && 'watchPosition' in navigator.geolocation) {
+                        App.state.isTracking = true;
+                        App.ui.showAlert("Rastreamento GPS iniciado.", "success");
 
-                    const map = App.state.mapboxMap;
-                    const routeSource = map.getSource('gps-route');
-                    if (!routeSource) {
-                        map.addSource('gps-route', {
-                            'type': 'geojson',
-                            'data': {
-                                'type': 'Feature',
-                                'geometry': {
-                                    'type': 'LineString',
-                                    'coordinates': []
+                        const map = App.state.mapboxMap;
+                        const routeSource = map.getSource('gps-route');
+                        if (!routeSource) {
+                            map.addSource('gps-route', {
+                                'type': 'geojson',
+                                'data': {
+                                    'type': 'Feature',
+                                    'geometry': {
+                                        'type': 'LineString',
+                                        'coordinates': []
+                                    }
                                 }
-                            }
-                        });
-                        map.addLayer({
-                            'id': 'gps-route-layer',
-                            'type': 'line',
-                            'source': 'gps-route',
-                            'layout': {
-                                'line-join': 'round',
-                                'line-cap': 'round'
+                            });
+                            map.addLayer({
+                                'id': 'gps-route-layer',
+                                'type': 'line',
+                                'source': 'gps-route',
+                                'layout': {
+                                    'line-join': 'round',
+                                    'line-cap': 'round'
+                                },
+                                'paint': {
+                                    'line-color': '#3887be',
+                                    'line-width': 5,
+                                    'line-opacity': 0.75
+                                }
+                            });
+                        }
+
+                        App.state.locationWatchId = navigator.geolocation.watchPosition(
+                            (position) => {
+                                const { latitude, longitude } = position.coords;
+                                App.state.lastKnownPosition = { latitude, longitude };
+
+                                const source = map.getSource('gps-route');
+                                const data = source._data;
+                                data.geometry.coordinates.push([longitude, latitude]);
+                                source.setData(data);
                             },
-                            'paint': {
-                                'line-color': '#3887be',
-                                'line-width': 5,
-                                'line-opacity': 0.75
-                            }
-                        });
+                            (error) => {
+                                console.warn("Erro no rastreamento de localização:", error.message);
+                                App.ui.showAlert("Erro ao obter localização: " + error.message, "error");
+                            },
+                            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                        );
+
+                        App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
+                        console.log("Rastreamento de localização iniciado.");
+                    } else {
+                        App.ui.showAlert("Rastreamento de localização não é suportado neste navegador.", "error");
                     }
+                };
 
-                    App.state.locationWatchId = navigator.geolocation.watchPosition(
-                        (position) => {
-                            const { latitude, longitude } = position.coords;
-                            App.state.lastKnownPosition = { latitude, longitude };
-
-                            const source = map.getSource('gps-route');
-                            const data = source._data;
-                            data.geometry.coordinates.push([longitude, latitude]);
-                            source.setData(data);
-                        },
-                        (error) => {
-                            console.warn("Erro no rastreamento de localização:", error.message);
-                            App.ui.showAlert("Erro ao obter localização: " + error.message, "error");
-                        },
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                    );
-
-                    App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
-                    console.log("Rastreamento de localização iniciado.");
+                const map = App.state.mapboxMap;
+                if (map.isStyleLoaded()) {
+                    startTrackingLogic();
                 } else {
-                    App.ui.showAlert("Rastreamento de localização não é suportado neste navegador.", "error");
+                    map.once('styledata', startTrackingLogic);
                 }
             },
 
@@ -8347,23 +8354,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }, 8000);
-            },
-
-            toggleGpsTracking() {
-                const btn = App.elements.monitoramentoAereo.btnToggleTracking;
-                const icon = btn.querySelector('i');
-
-                if (App.state.isTracking) {
-                    App.actions.stopGpsTracking();
-                    btn.classList.remove('active');
-                    btn.title = "Iniciar Rastreamento GPS";
-                    icon.className = 'fas fa-route';
-                } else {
-                    App.actions.startGpsTracking();
-                    btn.classList.add('active');
-                    btn.title = "Parar Rastreamento GPS";
-                    icon.className = 'fas fa-stop-circle';
-                }
             },
         },
 
