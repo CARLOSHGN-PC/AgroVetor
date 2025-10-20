@@ -7514,8 +7514,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // ALTERAÇÃO PONTO 5: Melhoria na busca de propriedades do Shapefile
             showTalhaoInfo(feature, riskPercentage = null) { // feature is now a GeoJSON feature
-                const fundoAgricola = this._findProp(feature, ['FUNDO_AGR', 'FAZENDA']);
-                const fazendaNome = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN']);
+                const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
+                const fazendaNome = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
                 const talhaoNome = this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
                 const areaHa = this._findProp(feature, ['AREA_HA', 'AREA', 'HECTARES']);
                 const variedade = this._findProp(feature, ['VARIEDADE', 'CULTURA']);
@@ -8218,7 +8218,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ]);
 
                     const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
-                        const farmCode = this._findProp(feature, ['FUNDO_AGR', 'FAZENDA']);
+                        const farmCode = this._findProp(feature, ['FUNDO_AGR']);
                         // FIX: Normalize the shapefile farm code as well for a reliable match.
                         return farmsInRisk.has(parseInt(String(farmCode).trim(), 10));
                     });
