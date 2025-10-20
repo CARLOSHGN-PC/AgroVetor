@@ -200,6 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
             locationUpdateIntervalId: null,
             lastKnownPosition: null,
             riskViewActive: false,
+            isTracking: false,
         },
         
         elements: {
@@ -598,6 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnCenterMap: document.getElementById('btnCenterMap'),
                 btnHistory: document.getElementById('btnHistory'),
                 btnToggleRiskView: document.getElementById('btnToggleRiskView'),
+                btnToggleTracking: document.getElementById('btnToggleTracking'),
                 infoBox: document.getElementById('talhao-info-box'),
                 infoBoxContent: document.getElementById('talhao-info-box-content'),
                 infoBoxCloseBtn: document.getElementById('close-info-box'),
@@ -927,7 +929,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await signOut(auth);
                 }
                 App.data.cleanupListeners();
-                App.actions.stopRealtimeTracking(); // Parar o rastreamento
+                App.actions.stopGpsTracking(); // Parar o rastreamento
                 App.state.currentUser = null;
 
                 // Limpar estado de personificação ao sair
@@ -1310,7 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderMenu();
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
-                App.actions.startRealtimeTracking(); // Iniciar o rastreamento
+                // App.actions.startGpsTracking(); // O rastreamento agora é manual
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
                 App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
             },
@@ -3742,7 +3744,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
                 if (monitoramentoAereoEls.btnToggleRiskView) monitoramentoAereoEls.btnToggleRiskView.addEventListener('click', () => App.mapModule.toggleRiskView());
-
+                if (monitoramentoAereoEls.btnToggleTracking) monitoramentoAereoEls.btnToggleTracking.addEventListener('click', () => App.mapModule.toggleGpsTracking());
 
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
@@ -6488,33 +6490,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem(`draft_${formType}`);
             },
 
-            startRealtimeTracking() {
+            startGpsTracking() {
+                if (App.state.isTracking) return;
+
                 if ('geolocation' in navigator && 'watchPosition' in navigator.geolocation) {
-                    if (App.state.locationWatchId) {
-                        navigator.geolocation.clearWatch(App.state.locationWatchId);
-                    }
-                    if (App.state.locationUpdateIntervalId) {
-                        clearInterval(App.state.locationUpdateIntervalId);
+                    App.state.isTracking = true;
+                    App.ui.showAlert("Rastreamento GPS iniciado.", "success");
+
+                    const map = App.state.mapboxMap;
+                    const routeSource = map.getSource('gps-route');
+                    if (!routeSource) {
+                        map.addSource('gps-route', {
+                            'type': 'geojson',
+                            'data': {
+                                'type': 'Feature',
+                                'geometry': {
+                                    'type': 'LineString',
+                                    'coordinates': []
+                                }
+                            }
+                        });
+                        map.addLayer({
+                            'id': 'gps-route-layer',
+                            'type': 'line',
+                            'source': 'gps-route',
+                            'layout': {
+                                'line-join': 'round',
+                                'line-cap': 'round'
+                            },
+                            'paint': {
+                                'line-color': '#3887be',
+                                'line-width': 5,
+                                'line-opacity': 0.75
+                            }
+                        });
                     }
 
                     App.state.locationWatchId = navigator.geolocation.watchPosition(
                         (position) => {
-                            App.state.lastKnownPosition = {
-                                latitude: position.coords.latitude,
-                                longitude: position.coords.longitude
-                            };
-                            // console.log('Location updated:', App.state.lastKnownPosition);
+                            const { latitude, longitude } = position.coords;
+                            App.state.lastKnownPosition = { latitude, longitude };
+
+                            const source = map.getSource('gps-route');
+                            const data = source._data;
+                            data.geometry.coordinates.push([longitude, latitude]);
+                            source.setData(data);
                         },
                         (error) => {
                             console.warn("Erro no rastreamento de localização:", error.message);
+                            App.ui.showAlert("Erro ao obter localização: " + error.message, "error");
                         },
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
 
-                    App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000); // Envia a cada 60 segundos
+                    App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
                     console.log("Rastreamento de localização iniciado.");
                 } else {
-                    console.warn("Rastreamento de localização não é suportado neste navegador.");
+                    App.ui.showAlert("Rastreamento de localização não é suportado neste navegador.", "error");
                 }
             },
 
@@ -6544,7 +6576,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            stopRealtimeTracking() {
+            stopGpsTracking() {
+                if (!App.state.isTracking) return;
+
                 if (App.state.locationWatchId) {
                     navigator.geolocation.clearWatch(App.state.locationWatchId);
                     App.state.locationWatchId = null;
@@ -6553,7 +6587,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearInterval(App.state.locationUpdateIntervalId);
                     App.state.locationUpdateIntervalId = null;
                 }
-                App.state.lastKnownPosition = null;
+
+                const map = App.state.mapboxMap;
+                const routeSource = map.getSource('gps-route');
+                if (routeSource) {
+                    routeSource.setData({
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'LineString',
+                            'coordinates': []
+                        }
+                    });
+                }
+
+                App.state.isTracking = false;
+                App.ui.showAlert("Rastreamento GPS parado.", "info");
                 console.log("Rastreamento de localização parado.");
             },
 
@@ -8063,6 +8111,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 console.log("--- [START] calculateAndApplyRiskView ---");
 
+                // Limpa o estado de risco de features anteriormente destacadas
                 if (map.riskFarmFeatureIds) {
                     map.riskFarmFeatureIds.forEach(id => {
                         map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: false });
@@ -8070,131 +8119,127 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 map.riskFarmFeatureIds = [];
 
-                // Define original paint properties for easy reset
-                const originalFillOpacity = [
+                // Define as propriedades de pintura padrão para a visualização normal
+                const defaultFillOpacity = [
                     'case',
-                    ['boolean', ['feature-state', 'risk'], false], 0.5,
                     ['boolean', ['feature-state', 'selected'], false], 0.85,
                     ['boolean', ['feature-state', 'hover'], false], 0.60,
-                    0.0
+                    0.0 // Por padrão, os talhões são transparentes
                 ];
-                const originalLineOpacity = 0.9;
+                const defaultLineOpacity = 0.9;
 
                 if (!App.state.riskViewActive) {
                     App.elements.monitoramentoAereo.btnToggleRiskView.classList.remove('active');
-
-                    // Reset paint properties to default view
-                    map.setPaintProperty('talhoes-layer', 'fill-opacity', originalFillOpacity);
-                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', originalLineOpacity);
-
+                    map.setPaintProperty('talhoes-layer', 'fill-color', App.ui._getThemeColors().primary);
+                    map.setPaintProperty('talhoes-layer', 'fill-opacity', defaultFillOpacity);
+                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', defaultLineOpacity);
                     this.loadTraps();
-                    console.log("Risk view is not active. Reverting to default view.");
+                    console.log("Risk view desativada. Revertendo para a visualização padrão.");
                     console.log("--- [END] calculateAndApplyRiskView ---");
                     return;
                 }
 
+                // Se a visualização de risco está ativa, preparamos o UI
                 App.elements.monitoramentoAereo.btnToggleRiskView.classList.add('active');
                 Object.values(App.state.mapboxTrapMarkers).forEach(marker => marker.remove());
                 App.state.mapboxTrapMarkers = {};
 
-                // Set paint properties to isolate at-risk farms, but still allow interaction within them
-                map.setPaintProperty('talhoes-layer', 'fill-opacity', [
-                    'case',
-                    ['boolean', ['feature-state', 'risk'], false],
-                    [
-                        'case',
-                        ['boolean', ['feature-state', 'selected'], false], 0.85,
-                        ['boolean', ['feature-state', 'hover'], false], 0.6,
-                        0.5 // Default for at-risk
-                    ],
-                    0.0 // Invisible otherwise
-                ]);
-                map.setPaintProperty('talhoes-border-layer', 'line-opacity', [
-                    'case',
-                    ['boolean', ['feature-state', 'risk'], false], 0.9, // Visible if at risk
-                    0.0 // Invisible otherwise
-                ]);
-
+                // --- 1. CALCULAR O RISCO PRIMEIRO ---
                 const currentUserCompanyId = App.state.currentUser.companyId;
-                console.log(`Company ID: ${currentUserCompanyId}`);
                 if (!currentUserCompanyId && App.state.currentUser.role !== 'super-admin') {
                     App.ui.showAlert("A sua conta não está associada a uma empresa.", "error");
-                    console.error("User has no companyId.");
                     console.log("--- [END] calculateAndApplyRiskView ---");
                     return;
                 }
 
                 const farmsInRisk = new Set();
-                const farmRiskPercentages = {}; // Store percentages
+                const farmRiskPercentages = {};
 
                 const allFarms = App.state.fazendas.filter(f => f.companyId === currentUserCompanyId);
                 const companyTraps = App.state.armadilhas.filter(t => t.companyId === currentUserCompanyId);
                 const collectedTraps = companyTraps.filter(t => t.status === 'Coletada');
 
-                console.log(`Found ${allFarms.length} farms, ${companyTraps.length} total traps, ${collectedTraps.length} collected traps for this company.`);
+                console.log(`[RISK_DEBUG] Encontradas ${allFarms.length} fazendas, ${companyTraps.length} armadilhas no total, ${collectedTraps.length} armadilhas coletadas para a empresa.`);
 
                 allFarms.forEach(farm => {
-                    console.log(`Processing Farm: ${farm.name} (Code: ${farm.code})`);
-                    // Robust matching: Use fazendaCode first, fallback to fazendaNome for legacy data.
-                    const trapsOnFarm = companyTraps.filter(t => t.fazendaCode ? String(t.fazendaCode) === String(farm.code) : t.fazendaNome === farm.name);
-                    if (trapsOnFarm.length === 0) {
-                        console.log(" -> No traps on this farm. Skipping.");
-                        return;
-                    }
-                    console.log(` -> Found ${trapsOnFarm.length} traps.`);
+                    const trapsOnFarm = companyTraps.filter(t => (t.fazendaCode ? String(t.fazendaCode) === String(farm.code) : t.fazendaNome === farm.name));
+                    if (trapsOnFarm.length === 0) return;
 
                     let mostRecentInstallDate = new Date(0);
                     trapsOnFarm.forEach(trap => {
                         const installDate = trap.dataInstalacao?.toDate ? trap.dataInstalacao.toDate() : new Date(trap.dataInstalacao);
-                        if (installDate > mostRecentInstallDate) {
-                            mostRecentInstallDate = installDate;
-                        }
+                        if (installDate > mostRecentInstallDate) mostRecentInstallDate = installDate;
                     });
                     mostRecentInstallDate.setHours(0, 0, 0, 0);
-                    console.log(` -> Most recent installation date on this farm: ${mostRecentInstallDate.toISOString().split('T')[0]}`);
 
                     const highCountTraps = collectedTraps.filter(t => {
                         const collectionDate = t.dataColeta?.toDate ? t.dataColeta.toDate() : new Date(t.dataColeta);
-                        // Robust matching for high count traps
-                        const matchesFarm = t.fazendaCode ? String(t.fazendaCode) === String(farm.code) : t.fazendaNome === farm.name;
-                        const isHighCount = matchesFarm &&
-                                       collectionDate >= mostRecentInstallDate &&
-                                       t.contagemMariposas >= 6;
-                        return isHighCount;
+                        const matchesFarm = (t.fazendaCode ? String(t.fazendaCode) === String(farm.code) : t.fazendaNome === farm.name);
+                        return matchesFarm && collectionDate >= mostRecentInstallDate && t.contagemMariposas >= 6;
                     });
-                    console.log(` -> Found ${highCountTraps.length} collections with high counts since the last install.`);
 
-                    if (trapsOnFarm.length > 0) {
-                        const riskPercentage = (highCountTraps.length / trapsOnFarm.length) * 100;
-                        farmRiskPercentages[farm.code] = riskPercentage; // Store percentage
-                        console.log(` -> Risk Percentage: (${highCountTraps.length} / ${trapsOnFarm.length}) * 100 = ${riskPercentage.toFixed(2)}%`);
-                        if (riskPercentage > 30) {
-                            farmsInRisk.add(farm.code);
-                            console.log(` -> !!! FARM AT RISK !!!`);
-                        }
+                    const riskPercentage = (highCountTraps.length / trapsOnFarm.length) * 100;
+                    farmRiskPercentages[farm.code] = riskPercentage;
+                    if (riskPercentage > 30) {
+                        farmsInRisk.add(String(farm.code));
                     }
                 });
 
-                App.state.farmRiskPercentages = farmRiskPercentages; // Save to global state
-                console.log("Final set of at-risk farm codes:", farmsInRisk);
+                App.state.farmRiskPercentages = farmRiskPercentages;
+                console.log("[RISK_DEBUG] Códigos de fazendas em risco calculados:", Array.from(farmsInRisk));
 
+                // --- 2. APLICAR ESTILOS COM BASE NOS RESULTADOS ---
                 if (farmsInRisk.size > 0) {
+                    console.log("[RISK_DEBUG] Fazendas em risco encontradas. Aplicando estilo de isolamento.");
+                    // Isola as fazendas em risco, permitindo interação com elas
+                    map.setPaintProperty('talhoes-layer', 'fill-color', [
+                        'case',
+                        ['boolean', ['feature-state', 'risk'], false], '#d32f2f', // Vermelho para risco
+                        App.ui._getThemeColors().primary // Cor padrão (será invisível)
+                    ]);
+                    map.setPaintProperty('talhoes-layer', 'fill-opacity', [
+                        'case',
+                        ['boolean', ['feature-state', 'risk'], false],
+                        ['case', ['boolean', ['feature-state', 'selected'], false], 0.85, ['boolean', ['feature-state', 'hover'], false], 0.6, 0.5],
+                        0.0 // Invisível se não estiver em risco
+                    ]);
+                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', [
+                        'case',
+                        ['boolean', ['feature-state', 'risk'], false], 0.9,
+                        0.0 // Invisível se não estiver em risco
+                    ]);
+
                     const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
-                        const farmCode = this._findProp(feature, ['FUNDO_AGR', 'COD_IMOVEL', 'CD_IMOVEL']);
+                        const farmCode = this._findProp(feature, ['FUNDO_AGR']);
                         return farmsInRisk.has(String(farmCode));
                     });
-                    console.log(`Found ${featuresToHighlight.length} map features to highlight.`);
 
-                    const featureIds = featuresToHighlight.map(f => f.id);
-                    console.log("Applying 'risk' state to feature IDs:", featureIds);
-                    featureIds.forEach(id => {
-                        map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: true });
-                    });
-                    map.riskFarmFeatureIds = featureIds;
-                    App.ui.showAlert(`${farmsInRisk.size} fazenda(s) em risco foram destacadas.`, 'info');
+                    if (featuresToHighlight.length > 0) {
+                        const featureIds = featuresToHighlight.map(f => f.id);
+                        featureIds.forEach(id => {
+                            map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: true });
+                        });
+                        map.riskFarmFeatureIds = featureIds;
+                        App.ui.showAlert(`${farmsInRisk.size} fazenda(s) em risco foram destacadas.`, 'info');
+                    } else {
+                         // Isso pode acontecer se o código da fazenda em risco não corresponder a nenhuma feature do mapa
+                        console.warn("[RISK_DEBUG] Fazendas em risco calculadas, mas nenhuma feature correspondente encontrada no mapa.");
+                        App.ui.showAlert('Nenhuma fazenda em risco foi identificada no mapa.', 'success');
+                         // Reverte para a visualização padrão para evitar um mapa em branco
+                        map.setPaintProperty('talhoes-layer', 'fill-color', App.ui._getThemeColors().primary);
+                        map.setPaintProperty('talhoes-layer', 'fill-opacity', defaultFillOpacity);
+                        map.setPaintProperty('talhoes-border-layer', 'line-opacity', defaultLineOpacity);
+                    }
+
                 } else {
+                    console.log("[RISK_DEBUG] Nenhuma fazenda em risco encontrada. Exibindo todos os talhões normalmente.");
                     App.ui.showAlert('Nenhuma fazenda em risco foi identificada no período.', 'success');
+                    // Garante que o mapa não fique em branco, revertendo para a visualização padrão
+                    map.setPaintProperty('talhoes-layer', 'fill-color', App.ui._getThemeColors().primary);
+                    map.setPaintProperty('talhoes-layer', 'fill-opacity', defaultFillOpacity);
+                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', defaultLineOpacity);
                 }
+
                 console.log("--- [END] calculateAndApplyRiskView ---");
             },
 
@@ -8302,6 +8347,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }, 8000);
+            },
+
+            toggleGpsTracking() {
+                const btn = App.elements.monitoramentoAereo.btnToggleTracking;
+                const icon = btn.querySelector('i');
+
+                if (App.state.isTracking) {
+                    App.actions.stopGpsTracking();
+                    btn.classList.remove('active');
+                    btn.title = "Iniciar Rastreamento GPS";
+                    icon.className = 'fas fa-route';
+                } else {
+                    App.actions.startGpsTracking();
+                    btn.classList.add('active');
+                    btn.title = "Parar Rastreamento GPS";
+                    icon.className = 'fas fa-stop-circle';
+                }
             },
         },
 
