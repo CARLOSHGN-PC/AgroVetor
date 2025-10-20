@@ -8188,7 +8188,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const riskPercentage = (highCountTraps.length / trapsOnFarm.length) * 100;
                     farmRiskPercentages[farm.code] = riskPercentage;
                     if (riskPercentage > 30) {
-                        farmsInRisk.add(String(farm.code));
+                        // FIX: Normalize by parsing to integer to avoid "0123" vs "123" mismatches.
+                        farmsInRisk.add(parseInt(String(farm.code).trim(), 10));
                     }
                 });
 
@@ -8218,7 +8219,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
                         const farmCode = this._findProp(feature, ['FUNDO_AGR']);
-                        return farmsInRisk.has(String(farmCode));
+                        // FIX: Normalize the shapefile farm code as well for a reliable match.
+                        return farmsInRisk.has(parseInt(String(farmCode).trim(), 10));
                     });
 
                     if (featuresToHighlight.length > 0) {
