@@ -6520,38 +6520,63 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async startGpsTracking() {
-                try {
-                    const { Geolocation } = Capacitor.Plugins;
-                    if (App.state.isTracking) return;
+                if (App.state.isTracking) return;
 
-                    // Ask for permission first
-                    const permissions = await Geolocation.requestPermissions();
-                    if (permissions.location !== 'granted') {
-                        console.warn("Permissão de localização não concedida.");
-                        return;
-                    }
+                // Verifica se está a correr como uma aplicação nativa Capacitor
+                if (window.Capacitor && Capacitor.isNativePlatform()) {
+                    try {
+                        const { Geolocation } = Capacitor.Plugins;
+                        const permissions = await Geolocation.requestPermissions();
+                        if (permissions.location !== 'granted') {
+                            console.warn("Permissão de localização do Capacitor não concedida.");
+                            return;
+                        }
 
-                    App.state.isTracking = true;
-
-                    App.state.locationWatchId = await Geolocation.watchPosition(
-                        { enableHighAccuracy: true },
-                        (position, err) => {
+                        App.state.isTracking = true;
+                        App.state.locationWatchId = await Geolocation.watchPosition({ enableHighAccuracy: true }, (position, err) => {
                             if (err) {
-                                console.warn("Erro no rastreamento de localização:", err.message);
+                                console.warn("Erro no rastreamento de localização do Capacitor:", err.message);
                                 return;
                             }
                             if (position) {
                                 const { latitude, longitude } = position.coords;
                                 App.state.lastKnownPosition = { latitude, longitude };
                             }
+                        });
+                        App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
+                        console.log("Rastreamento de localização em segundo plano (Capacitor) iniciado.");
+                    } catch (e) {
+                        console.error("Falha ao iniciar o rastreamento de localização do Capacitor:", e);
+                    }
+                } else if ('geolocation' in navigator) {
+                    // Fallback para a API de geolocalização da Web (PWA no navegador)
+                    navigator.geolocation.getCurrentPosition(
+                        () => { // Callback de sucesso para verificar a permissão
+                            App.state.isTracking = true;
+                            App.state.locationWatchId = navigator.geolocation.watchPosition(
+                                (position) => {
+                                    const { latitude, longitude } = position.coords;
+                                    App.state.lastKnownPosition = { latitude, longitude };
+                                },
+                                (err) => {
+                                    console.warn("Erro no rastreamento de localização (Web):", err.message);
+                                },
+                                { enableHighAccuracy: true }
+                            );
+                            App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
+                            console.log("Rastreamento de localização (Web) iniciado.");
+                        },
+                        (error) => { // Callback de erro para verificar a permissão
+                            if (error.code === error.PERMISSION_DENIED) {
+                                console.warn("Permissão de localização (Web) não concedida.");
+                                App.ui.showAlert("Para rastreamento de localização, por favor, ative os serviços de localização no seu navegador.", "info");
+                            } else {
+                                console.error("Falha ao obter permissão de localização (Web):", error.message);
+                            }
                         }
                     );
-
-                    App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
-                    console.log("Rastreamento de localização em segundo plano iniciado.");
-
-                } catch (e) {
-                    console.error("Falha ao iniciar o rastreamento de localização do Capacitor:", e);
+                } else {
+                    console.error("Geolocalização não é suportada neste navegador.");
                 }
             },
 
@@ -6591,10 +6616,18 @@ document.addEventListener('DOMContentLoaded', () => {
             stopGpsTracking() {
                 if (!App.state.isTracking) return;
 
-                if (App.state.locationWatchId) {
-                    navigator.geolocation.clearWatch(App.state.locationWatchId);
-                    App.state.locationWatchId = null;
+                if (window.Capacitor && Capacitor.isNativePlatform()) {
+                    if (App.state.locationWatchId) {
+                        Capacitor.Plugins.Geolocation.clearWatch({ id: App.state.locationWatchId });
+                        App.state.locationWatchId = null;
+                    }
+                } else { // Web Geolocation
+                    if (App.state.locationWatchId) {
+                        navigator.geolocation.clearWatch(App.state.locationWatchId);
+                        App.state.locationWatchId = null;
+                    }
                 }
+
                 if (App.state.locationUpdateIntervalId) {
                     clearInterval(App.state.locationUpdateIntervalId);
                     App.state.locationUpdateIntervalId = null;
@@ -8209,9 +8242,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         0.0 // Invisível se não estiver em risco
                     ]);
 
-                    const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
+                    const allSourceFeatures = map.querySourceFeatures('talhoes-source');
+                    const featuresToHighlight = allSourceFeatures.filter(feature => {
                         const farmCode = this._findProp(feature, ['FUNDO_AGR']);
-                        // FIX: Normalize the shapefile farm code as well for a reliable match.
                         return farmsInRisk.has(parseInt(String(farmCode).trim(), 10));
                     });
 
