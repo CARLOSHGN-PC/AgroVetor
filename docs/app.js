@@ -668,6 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     this.configureStatusBar();
                     this.registerPushNotifications(); // Add this call
+                    this.startAutomaticGpsTracking();
                 }
             },
 
@@ -802,7 +803,82 @@ document.addEventListener('DOMContentLoaded', () => {
                     // com base nos dados da notificação.
                     // Ex: if (notification.notification.data.goToPage) { ... }
                 });
-            }
+            },
+
+            async startAutomaticGpsTracking() {
+                // Prevent starting if already running
+                if (App.state.isTracking) {
+                    console.log("GPS tracking is already active.");
+                    return;
+                }
+
+                const { Geolocation } = Capacitor.Plugins;
+                let permStatus = await Geolocation.checkPermissions();
+
+                if (permStatus.location === 'prompt') {
+                    permStatus = await Geolocation.requestPermissions();
+                }
+
+                if (permStatus.location !== 'granted') {
+                    App.ui.showAlert('A permissão para localização não foi concedida. O rastreamento automático está desativado.', 'warning');
+                    return;
+                }
+
+                this.watchLocation((position) => {
+                    if (!position) return;
+
+                    const { latitude, longitude } = position.coords;
+                    App.state.lastKnownPosition = { latitude, longitude };
+
+                    // Send update to the backend
+                    this.sendLocationUpdate(latitude, longitude);
+
+                    // Update the route on the map if the map is visible
+                    if (App.state.mapboxMap && App.state.mapboxMap.isStyleLoaded()) {
+                        const map = App.state.mapboxMap;
+                        const source = map.getSource('gps-route');
+                        if (source) {
+                            const data = source._data;
+                            data.geometry.coordinates.push([longitude, latitude]);
+                            source.setData(data);
+                        }
+                    }
+                }).then(watchId => {
+                    if (watchId) {
+                        App.state.locationWatchId = watchId;
+                        App.state.isTracking = true;
+                        console.log("Automatic GPS tracking started successfully.", `Watch ID: ${watchId}`);
+                    }
+                });
+            },
+
+            stopAutomaticGpsTracking() {
+                if (!App.state.isTracking || !App.state.locationWatchId) {
+                    return;
+                }
+                const { Geolocation } = Capacitor.Plugins;
+                Geolocation.clearWatch({ id: App.state.locationWatchId }).then(() => {
+                    App.state.isTracking = false;
+                    App.state.locationWatchId = null;
+                    console.log("Automatic GPS tracking stopped.");
+                });
+            },
+
+            sendLocationUpdate(latitude, longitude) {
+                if (App.state.currentUser) {
+                    const { uid } = App.state.currentUser;
+                    fetch(`${App.config.backendUrl}/api/track`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: uid,
+                            latitude,
+                            longitude,
+                            companyId: App.state.currentUser.companyId
+                        }),
+                    }).catch(error => console.error('Falha ao enviar atualização de localização:', error));
+                }
+            },
         },
         
         auth: {
@@ -928,7 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await signOut(auth);
                 }
                 App.data.cleanupListeners();
-                App.actions.stopGpsTracking(); // Parar o rastreamento
+                App.native.stopAutomaticGpsTracking();
                 App.state.currentUser = null;
 
                 // Limpar estado de personificação ao sair
@@ -1313,7 +1389,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.resetInactivityTimer();
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
                 App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
-                App.actions.startGpsTracking(); // O rastreamento agora é manual
             },
             renderSpecificContent(collectionName) {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
@@ -1648,27 +1723,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const mapContainer = App.elements.monitoramentoAereo.container;
+                const mainContent = App.elements.content;
+
+                // Hide all tab content sections first
+                document.querySelectorAll('.tab-content').forEach(tab => {
+                    tab.classList.remove('active');
+                    tab.hidden = true;
+                });
+
                 if (id === 'monitoramentoAereo') {
+                    // When showing the map, hide the main content area and show the map container
+                    mainContent.style.display = 'none';
                     mapContainer.classList.add('active');
+                    mapContainer.hidden = false;
                     if (App.state.mapboxMap) {
-                        // Força o redimensionamento do mapa para o contêiner visível
+                        // Force map to resize to fit its container, which is now visible
                         setTimeout(() => App.state.mapboxMap.resize(), 0);
                     }
                 } else {
+                    // For any other tab, show the main content area and hide the map container
+                    mainContent.style.display = 'block';
                     mapContainer.classList.remove('active');
-                }
+                    mapContainer.hidden = true;
 
-                document.querySelectorAll('.tab-content').forEach(tab => {
-                    if (tab.id !== 'monitoramentoAereo-container') {
-                        tab.classList.remove('active');
-                        tab.hidden = true;
+                    // Show the specific tab inside the main content area
+                    const tab = document.getElementById(id);
+                    if (tab) {
+                        tab.classList.add('active');
+                        tab.hidden = false;
                     }
-                });
-
-                const tab = document.getElementById(id);
-                if (tab) {
-                    tab.classList.add('active');
-                    tab.hidden = false;
                 }
                 
                 if (id === 'dashboard') {
@@ -6488,129 +6571,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem(`draft_${formType}`);
             },
 
-            startGpsTracking() {
-                const startTrackingLogic = () => {
-                    if (App.state.isTracking) return;
-
-                    if ('geolocation' in navigator && 'watchPosition' in navigator.geolocation) {
-                        App.state.isTracking = true;
-                        App.ui.showAlert("Rastreamento GPS iniciado.", "success");
-
-                        const map = App.state.mapboxMap;
-                        const routeSource = map.getSource('gps-route');
-                        if (!routeSource) {
-                            map.addSource('gps-route', {
-                                'type': 'geojson',
-                                'data': {
-                                    'type': 'Feature',
-                                    'geometry': {
-                                        'type': 'LineString',
-                                        'coordinates': []
-                                    }
-                                }
-                            });
-                            map.addLayer({
-                                'id': 'gps-route-layer',
-                                'type': 'line',
-                                'source': 'gps-route',
-                                'layout': {
-                                    'line-join': 'round',
-                                    'line-cap': 'round'
-                                },
-                                'paint': {
-                                    'line-color': '#3887be',
-                                    'line-width': 5,
-                                    'line-opacity': 0.75
-                                }
-                            });
-                        }
-
-                        App.state.locationWatchId = navigator.geolocation.watchPosition(
-                            (position) => {
-                                const { latitude, longitude } = position.coords;
-                                App.state.lastKnownPosition = { latitude, longitude };
-
-                                const source = map.getSource('gps-route');
-                                const data = source._data;
-                                data.geometry.coordinates.push([longitude, latitude]);
-                                source.setData(data);
-                            },
-                            (error) => {
-                                console.warn("Erro no rastreamento de localização:", error.message);
-                                App.ui.showAlert("Erro ao obter localização: " + error.message, "error");
-                            },
-                            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                        );
-
-                        App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
-                        console.log("Rastreamento de localização iniciado.");
-                    } else {
-                        App.ui.showAlert("Rastreamento de localização não é suportado neste navegador.", "error");
-                    }
-                };
-
-                const map = App.state.mapboxMap;
-                if (map.isStyleLoaded()) {
-                    startTrackingLogic();
-                } else {
-                    map.once('styledata', startTrackingLogic);
-                }
-            },
-
-            sendLocationUpdate() {
-                if (App.state.lastKnownPosition && App.state.currentUser) {
-                    const { latitude, longitude } = App.state.lastKnownPosition;
-                    const { uid } = App.state.currentUser;
-
-                    fetch(`${App.config.backendUrl}/api/track`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userId: uid,
-                            latitude,
-                            longitude,
-                            companyId: App.state.currentUser.companyId
-                        }),
-                    })
-                    .then(response => {
-                        if(response.ok) {
-                            // console.log("Localização enviada com sucesso.");
-                        } else {
-                             console.error("Falha ao enviar localização.");
-                        }
-                    })
-                    .catch(error => console.error('Falha ao enviar atualização de localização:', error));
-                }
-            },
-
-            stopGpsTracking() {
-                if (!App.state.isTracking) return;
-
-                if (App.state.locationWatchId) {
-                    navigator.geolocation.clearWatch(App.state.locationWatchId);
-                    App.state.locationWatchId = null;
-                }
-                if (App.state.locationUpdateIntervalId) {
-                    clearInterval(App.state.locationUpdateIntervalId);
-                    App.state.locationUpdateIntervalId = null;
-                }
-
-                const map = App.state.mapboxMap;
-                const routeSource = map.getSource('gps-route');
-                if (routeSource) {
-                    routeSource.setData({
-                        'type': 'Feature',
-                        'geometry': {
-                            'type': 'LineString',
-                            'coordinates': []
-                        }
-                    });
-                }
-
-                App.state.isTracking = false;
-                App.ui.showAlert("Rastreamento GPS parado.", "info");
-                console.log("Rastreamento de localização parado.");
-            },
 
             async viewHistory() {
                 const { userSelect, startDate, endDate } = App.elements.historyFilterModal;
@@ -7203,6 +7163,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.watchUserPosition();
                         this.loadShapesOnMap();
                         this.loadTraps();
+
+                        // Add source and layer for GPS route tracking
+                        App.state.mapboxMap.addSource('gps-route', {
+                            'type': 'geojson',
+                            'data': {
+                                'type': 'Feature',
+                                'geometry': {
+                                    'type': 'LineString',
+                                    'coordinates': []
+                                }
+                            }
+                        });
+                        App.state.mapboxMap.addLayer({
+                            'id': 'gps-route-layer',
+                            'type': 'line',
+                            'source': 'gps-route',
+                            'layout': {
+                                'line-join': 'round',
+                                'line-cap': 'round'
+                            },
+                            'paint': {
+                                'line-color': '#3887be',
+                                'line-width': 5,
+                                'line-opacity': 0.75
+                            }
+                        });
                     });
 
                 } catch (e) {
@@ -7369,8 +7355,10 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             loadShapesOnMap() {
+                console.log("[MAP_DEBUG] Entering loadShapesOnMap");
                 const mapContainer = document.getElementById('map-container');
                 if (!App.state.mapboxMap || !App.state.geoJsonData) {
+                    console.log("[MAP_DEBUG] Exiting early. mapboxMap:", !!App.state.mapboxMap, "geoJsonData:", !!App.state.geoJsonData);
                     if (mapContainer) mapContainer.classList.remove('loading');
                     return;
                 }
@@ -7422,12 +7410,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         paint: {
                             'line-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'searched'], false], '#FFEB3B', // Amarelo Brilhante para pesquisado
-                                '#FFD700' // Cor original
+                                // 1. Risco tem a maior prioridade
+                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f',
+                                // 2. Pesquisa vem em seguida
+                                ['boolean', ['feature-state', 'searched'], false], '#FFEB3B',
+                                // 3. Cor padrão
+                                '#FFD700'
                             ],
                             'line-width': [
                                 'case',
-                                ['boolean', ['feature-state', 'searched'], false], 4,
+                                // Linha mais grossa para risco ou pesquisa
+                                ['any', ['boolean', ['feature-state', 'risk'], false], ['boolean', ['feature-state', 'searched'], false]], 4,
+                                // Largura padrão
                                 2
                             ],
                             'line-opacity': 0.9
@@ -7456,6 +7450,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     hoveredFeatureId = null;
                 });
 
+                console.log("[MAP_DEBUG] About to show the risk view button.");
                 App.elements.monitoramentoAereo.btnToggleRiskView.style.display = 'flex';
                 map.on('click', layerId, (e) => {
                     // Impede que o clique no talhão seja acionado se um marcador (armadilha) for clicado
@@ -8218,8 +8213,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     ]);
 
                     const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
-                        const farmCode = this._findProp(feature, ['FUNDO_AGR']);
-                        // FIX: Normalize the shapefile farm code as well for a reliable match.
+                        // CORREÇÃO: Verifica múltiplos campos para encontrar o código da fazenda.
+                        const farmCode = this._findProp(feature, ['FUNDO_AGR', 'FAZENDA']);
+                        // FIX: Normaliza o código da fazenda do shapefile para uma correspondência confiável.
                         return farmsInRisk.has(parseInt(String(farmCode).trim(), 10));
                     });
 
