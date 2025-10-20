@@ -8169,7 +8169,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`[RISK_DEBUG] Encontradas ${allFarms.length} fazendas, ${companyTraps.length} armadilhas no total, ${collectedTraps.length} armadilhas coletadas para a empresa.`);
 
                 allFarms.forEach(farm => {
-                    const trapsOnFarm = companyTraps.filter(t => (t.fazendaCode ? String(t.fazendaCode) === String(farm.code) : t.fazendaNome === farm.name));
+                    const trapsOnFarm = companyTraps.filter(t => (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name));
                     if (trapsOnFarm.length === 0) return;
 
                     let mostRecentInstallDate = new Date(0);
@@ -8181,7 +8181,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const highCountTraps = collectedTraps.filter(t => {
                         const collectionDate = t.dataColeta?.toDate ? t.dataColeta.toDate() : new Date(t.dataColeta);
-                        const matchesFarm = (t.fazendaCode ? String(t.fazendaCode) === String(farm.code) : t.fazendaNome === farm.name);
+                        const matchesFarm = (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name);
                         return matchesFarm && collectionDate >= mostRecentInstallDate && t.contagemMariposas >= 6;
                     });
 
