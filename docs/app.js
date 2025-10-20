@@ -1,7 +1,7 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 4 for the new notifications store
-            this.dbPromise = openDB('agrovetor-offline-storage', 4, {
+            // Version 5 for the new gps-locations store
+            this.dbPromise = openDB('agrovetor-offline-storage', 5, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -66,6 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (oldVersion < 4) {
                         db.createObjectStore('notifications', { autoIncrement: true });
+                    }
+                    if (oldVersion < 5) {
+                        db.createObjectStore('gps-locations', { autoIncrement: true });
                     }
                 },
             });
@@ -898,7 +901,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     // Força a persistência da sessão apenas para a aba atual.
                     // Isso fará com que o usuário seja deslogado ao fechar o app.
-                    await setPersistence(auth, browserSessionPersistence);
+                    await setPersistence(auth, browserLocalPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -6309,6 +6312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.state.isSyncing = true;
+                this.syncGpsLocations(); // Sync GPS data
                 console.log("Iniciando a verificação de dados offline...");
 
                 const logEntry = {
@@ -6412,6 +6416,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+        async syncGpsLocations() {
+            const locationsToSync = await OfflineDB.getAll('gps-locations');
+            if (locationsToSync.length === 0) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${App.config.backendUrl}/api/track/batch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ locations: locationsToSync }),
+                });
+
+                if (response.ok) {
+                    const db = await OfflineDB.dbPromise;
+                    const tx = db.transaction('gps-locations', 'readwrite');
+                    await tx.store.clear();
+                    await tx.done;
+                    console.log(`${locationsToSync.length} localizações GPS offline foram sincronizadas e limpas.`);
+                } else {
+                    console.error("Falha ao sincronizar localizações GPS em lote.");
+                }
+            } catch (error) {
+                console.error("Erro de rede ao sincronizar localizações GPS:", error);
+            }
+        },
+
             async checkForDraft() {
                 const userId = App.state.currentUser.uid;
                 try {
@@ -6488,98 +6519,72 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem(`draft_${formType}`);
             },
 
-            startGpsTracking() {
-                const startTrackingLogic = () => {
+            async startGpsTracking() {
+                try {
+                    const { Geolocation } = Capacitor.Plugins;
                     if (App.state.isTracking) return;
 
-                    if ('geolocation' in navigator && 'watchPosition' in navigator.geolocation) {
-                        App.state.isTracking = true;
-                        App.ui.showAlert("Rastreamento GPS iniciado.", "success");
+                    // Ask for permission first
+                    const permissions = await Geolocation.requestPermissions();
+                    if (permissions.location !== 'granted') {
+                        console.warn("Permissão de localização não concedida.");
+                        return;
+                    }
 
-                        const map = App.state.mapboxMap;
-                        const routeSource = map.getSource('gps-route');
-                        if (!routeSource) {
-                            map.addSource('gps-route', {
-                                'type': 'geojson',
-                                'data': {
-                                    'type': 'Feature',
-                                    'geometry': {
-                                        'type': 'LineString',
-                                        'coordinates': []
-                                    }
-                                }
-                            });
-                            map.addLayer({
-                                'id': 'gps-route-layer',
-                                'type': 'line',
-                                'source': 'gps-route',
-                                'layout': {
-                                    'line-join': 'round',
-                                    'line-cap': 'round'
-                                },
-                                'paint': {
-                                    'line-color': '#3887be',
-                                    'line-width': 5,
-                                    'line-opacity': 0.75
-                                }
-                            });
-                        }
+                    App.state.isTracking = true;
 
-                        App.state.locationWatchId = navigator.geolocation.watchPosition(
-                            (position) => {
+                    App.state.locationWatchId = await Geolocation.watchPosition(
+                        { enableHighAccuracy: true },
+                        (position, err) => {
+                            if (err) {
+                                console.warn("Erro no rastreamento de localização:", err.message);
+                                return;
+                            }
+                            if (position) {
                                 const { latitude, longitude } = position.coords;
                                 App.state.lastKnownPosition = { latitude, longitude };
+                            }
+                        }
+                    );
 
-                                const source = map.getSource('gps-route');
-                                const data = source._data;
-                                data.geometry.coordinates.push([longitude, latitude]);
-                                source.setData(data);
-                            },
-                            (error) => {
-                                console.warn("Erro no rastreamento de localização:", error.message);
-                                App.ui.showAlert("Erro ao obter localização: " + error.message, "error");
-                            },
-                            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                        );
+                    App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
+                    console.log("Rastreamento de localização em segundo plano iniciado.");
 
-                        App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
-                        console.log("Rastreamento de localização iniciado.");
-                    } else {
-                        App.ui.showAlert("Rastreamento de localização não é suportado neste navegador.", "error");
-                    }
-                };
-
-                const map = App.state.mapboxMap;
-                if (map.isStyleLoaded()) {
-                    startTrackingLogic();
-                } else {
-                    map.once('styledata', startTrackingLogic);
+                } catch (e) {
+                    console.error("Falha ao iniciar o rastreamento de localização do Capacitor:", e);
                 }
             },
 
-            sendLocationUpdate() {
+            async sendLocationUpdate() {
                 if (App.state.lastKnownPosition && App.state.currentUser) {
                     const { latitude, longitude } = App.state.lastKnownPosition;
                     const { uid } = App.state.currentUser;
+                    const locationData = {
+                        userId: uid,
+                        latitude,
+                        longitude,
+                        companyId: App.state.currentUser.companyId,
+                        timestamp: new Date().toISOString()
+                    };
 
-                    fetch(`${App.config.backendUrl}/api/track`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userId: uid,
-                            latitude,
-                            longitude,
-                            companyId: App.state.currentUser.companyId
-                        }),
-                    })
-                    .then(response => {
-                        if(response.ok) {
-                            // console.log("Localização enviada com sucesso.");
-                        } else {
-                             console.error("Falha ao enviar localização.");
+                    if (navigator.onLine) {
+                        try {
+                            const response = await fetch(`${App.config.backendUrl}/api/track`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(locationData),
+                            });
+                            if (!response.ok) {
+                                console.error("Falha ao enviar localização. Guardando offline.");
+                                await OfflineDB.add('gps-locations', locationData);
+                            }
+                        } catch (error) {
+                            console.error('Falha ao enviar atualização de localização, guardando offline:', error);
+                            await OfflineDB.add('gps-locations', locationData);
                         }
-                    })
-                    .catch(error => console.error('Falha ao enviar atualização de localização:', error));
+                    } else {
+                        await OfflineDB.add('gps-locations', locationData);
+                    }
                 }
             },
 
@@ -6595,20 +6600,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.locationUpdateIntervalId = null;
                 }
 
-                const map = App.state.mapboxMap;
-                const routeSource = map.getSource('gps-route');
-                if (routeSource) {
-                    routeSource.setData({
-                        'type': 'Feature',
-                        'geometry': {
-                            'type': 'LineString',
-                            'coordinates': []
-                        }
-                    });
-                }
-
                 App.state.isTracking = false;
-                App.ui.showAlert("Rastreamento GPS parado.", "info");
                 console.log("Rastreamento de localização parado.");
             },
 
