@@ -8164,17 +8164,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trapsOnFarm = companyTraps.filter(t => (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name));
                     if (trapsOnFarm.length === 0) return;
 
-                    let mostRecentInstallDate = new Date(0);
-                    trapsOnFarm.forEach(trap => {
-                        const installDate = trap.dataInstalacao?.toDate ? trap.dataInstalacao.toDate() : new Date(trap.dataInstalacao);
-                        if (installDate > mostRecentInstallDate) mostRecentInstallDate = installDate;
-                    });
-                    mostRecentInstallDate.setHours(0, 0, 0, 0);
+                    const collectedTrapsOnFarm = collectedTraps.filter(t =>
+                        (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name)
+                    );
 
-                    const highCountTraps = collectedTraps.filter(t => {
+                    if (collectedTrapsOnFarm.length === 0) return; // No collected traps, no risk.
+
+                    // Find the most recent collection date for this specific farm
+                    const mostRecentCollectionDate = collectedTrapsOnFarm.reduce((latest, trap) => {
+                        const collectionDate = trap.dataColeta?.toDate ? trap.dataColeta.toDate() : new Date(trap.dataColeta);
+                        return collectionDate > latest ? collectionDate : latest;
+                    }, new Date(0));
+
+                    // Filter for traps collected in the most recent cycle that are high-count
+                    const highCountTraps = collectedTrapsOnFarm.filter(t => {
                         const collectionDate = t.dataColeta?.toDate ? t.dataColeta.toDate() : new Date(t.dataColeta);
-                        const matchesFarm = (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name);
-                        return matchesFarm && collectionDate >= mostRecentInstallDate && t.contagemMariposas >= 6;
+                        // Compare only the date part, ignoring time
+                        return collectionDate.toDateString() === mostRecentCollectionDate.toDateString() && t.contagemMariposas >= 6;
                     });
 
                     const riskPercentage = (highCountTraps.length / trapsOnFarm.length) * 100;
@@ -8209,24 +8215,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         0.0 // Invisível se não estiver em risco
                     ]);
 
-                    const featuresToHighlight = App.state.geoJsonData.features.filter(feature => {
+                    // FIX: Get features directly from the map source to ensure we have Mapbox-generated IDs
+                    const allMapFeatures = map.querySourceFeatures('talhoes-source');
+
+                    const featuresToHighlight = allMapFeatures.filter(feature => {
                         const farmCode = this._findProp(feature, ['FUNDO_AGR']);
-                        // FIX: Normalize the shapefile farm code as well for a reliable match.
+                        // Normalize the shapefile farm code as well for a reliable match.
                         return farmsInRisk.has(parseInt(String(farmCode).trim(), 10));
                     });
 
                     if (featuresToHighlight.length > 0) {
                         const featureIds = featuresToHighlight.map(f => f.id);
                         featureIds.forEach(id => {
-                            map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: true });
+                            if (id !== null && id !== undefined) {
+                                map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: true });
+                            }
                         });
-                        map.riskFarmFeatureIds = featureIds;
+                        map.riskFarmFeatureIds = featureIds.filter(id => id !== null && id !== undefined);
                         App.ui.showAlert(`${farmsInRisk.size} fazenda(s) em risco foram destacadas.`, 'info');
                     } else {
-                         // Isso pode acontecer se o código da fazenda em risco não corresponder a nenhuma feature do mapa
+                        // Isso pode acontecer se o código da fazenda em risco não corresponder a nenhuma feature do mapa
                         console.warn("[RISK_DEBUG] Fazendas em risco calculadas, mas nenhuma feature correspondente encontrada no mapa.");
                         App.ui.showAlert('Nenhuma fazenda em risco foi identificada no mapa.', 'success');
-                         // Reverte para a visualização padrão para evitar um mapa em branco
+                        // Reverte para a visualização padrão para evitar um mapa em branco
                         map.setPaintProperty('talhoes-layer', 'fill-color', App.ui._getThemeColors().primary);
                         map.setPaintProperty('talhoes-layer', 'fill-opacity', defaultFillOpacity);
                         map.setPaintProperty('talhoes-border-layer', 'line-opacity', defaultLineOpacity);
