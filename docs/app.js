@@ -8573,7 +8573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
                         const x = chart.getDatasetMeta(0).data[0].x;
-                        const y = chart.getDatasetMeta(0).data[0].y;
+                        const y = chart.getDatasetMeta(0).data[0].y - 15; // Move the text up
                         ctx.fillText(`${percentage.toFixed(1)}%`, x, y);
                     }
                 }
@@ -9021,10 +9021,17 @@ document.addEventListener('DOMContentLoaded', () => {
             async renderPlantioDashboardCharts() {
                 const startDateEl = document.getElementById('plantioDashboardInicio');
                 const endDateEl = document.getElementById('plantioDashboardFim');
+                const culturaEl = document.getElementById('plantioDashboardCultura');
                 App.actions.saveDashboardDates('plantio', startDateEl.value, endDateEl.value);
 
                 const consolidatedData = await App.actions.getConsolidatedData('apontamentosPlantio');
-                const data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
+                let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
+
+                // Apply the new culture filter
+                const selectedCulture = culturaEl.value;
+                if (selectedCulture) {
+                    data = data.filter(item => item.culture === selectedCulture);
+                }
 
                 // 1. Calculate KPIs
                 const totalAreaPlantada = data.reduce((sum, item) => sum + item.totalArea, 0);
@@ -9041,27 +9048,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiaria.toFixed(2)} ha/dia`;
 
                 // 3. Render Charts
-                this.renderAreaPlantadaPorDia(data);
+                this.renderAreaPlantadaPorMes(data); // Changed from renderAreaPlantadaPorDia
                 this.renderProdutividadePorFrente(data);
                 this.renderEvolucaoAreaPlantada(data);
                 this.renderConclusaoPlantio(totalAreaPlantada, metaPlantio);
             },
 
-            renderAreaPlantadaPorDia(data) {
-                const dataByDay = data.reduce((acc, item) => {
-                    const date = item.date;
-                    acc[date] = (acc[date] || 0) + item.totalArea;
+            renderAreaPlantadaPorMes(data) { // Renamed from renderAreaPlantadaPorDia and logic updated
+                const dataByMonth = data.reduce((acc, item) => {
+                    const date = new Date(item.date + 'T03:00:00Z');
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    acc[monthKey] = (acc[monthKey] || 0) + item.totalArea;
                     return acc;
                 }, {});
 
-                const sortedDays = Object.keys(dataByDay).sort();
-                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
-                const chartData = sortedDays.map(date => dataByDay[date]);
+                const sortedMonths = Object.keys(dataByMonth).sort();
+                const labels = sortedMonths.map(monthKey => {
+                    const [year, month] = monthKey.split('-');
+                    return new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
+                });
+                const chartData = sortedMonths.map(monthKey => dataByMonth[monthKey]);
+                const totalPlantedInRange = chartData.reduce((sum, value) => sum + value, 0);
 
-                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
+                const commonOptions = this._getCommonChartOptions();
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoAreaPlantadaPorDia', {
+                this._createOrUpdateChart('graficoAreaPlantadaPorDia', { // Canvas ID is still the same
                     type: 'bar',
                     data: {
                         labels,
@@ -9079,9 +9091,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             datalabels: {
                                 color: datalabelColor,
                                 anchor: 'end',
-                                align: 'end',
+                                align: 'top',
                                 font: { weight: 'bold' },
-                                formatter: value => `${value.toFixed(2)} ha`
+                                formatter: (value) => {
+                                    const percentage = totalPlantedInRange > 0 ? (value / totalPlantedInRange) * 100 : 0;
+                                    return `${value.toFixed(2)} ha (${percentage.toFixed(1)}%)`;
+                                }
                             }
                         }
                     }

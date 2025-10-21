@@ -1879,6 +1879,13 @@
                                 <input type="date" id="plantioDashboardInicio">
                                 <label for="plantioDashboardFim">Até:</label>
                                 <input type="date" id="plantioDashboardFim">
+                                <label for="plantioDashboardCultura" style="margin-left: 10px;">Cultura:</label>
+                                <select id="plantioDashboardCultura" style="padding: 6px 10px; font-size: 13px; max-width: 150px; margin-top:0;">
+                                    <option value="">Todas</option>
+                                    <option value="Cana-de-açúcar">Cana-de-açúcar</option>
+                                    <option value="Soja">Soja</option>
+                                    <option value="Milho">Milho</option>
+                                </select>
                                 <button id="btnFiltrarPlantioDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
                             </div>
                         </div>
@@ -1916,7 +1923,7 @@
                     </div>
                     <div class="dashboard-grid">
                         <div class="chart-card">
-                            <h3 class="chart-title">Área Plantada por Dia</h3>
+                            <h3 class="chart-title">Área Plantada por Mês</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoAreaPlantadaPorDia"><i class="fas fa-expand-alt"></i></button>
                             <div class="chart-container"><canvas id="graficoAreaPlantadaPorDia"></canvas></div>
                         </div>
