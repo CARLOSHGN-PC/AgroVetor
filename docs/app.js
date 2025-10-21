@@ -133,8 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
-                        { label: 'Receituário', icon: 'fas fa-file-medical-alt', target: 'receituario', permission: 'receituario' },
-                        { label: 'Gerir Produtos', icon: 'fas fa-box-open', target: 'gerenciarProdutos', permission: 'gerenciarProdutos' },
                         { label: 'Frente de Plantio', icon: 'fas fa-tractor', target: 'frenteDePlantio', permission: 'frenteDePlantio' },
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
@@ -152,8 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, gerenciarProdutos: true, receituario: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, gerenciarProdutos: true, receituario: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
                 user: { dashboard: true }
@@ -161,8 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         state: {
-            produtos: [],
-            receituarios: [],
             isImpersonating: false,
             originalUser: null,
             isSyncing: false,
@@ -407,30 +403,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 obs: document.getElementById('frenteDePlantioObs'),
                 btnSave: document.getElementById('btnSaveFrenteDePlantio'),
                 list: document.getElementById('frenteDePlantioList'),
-            },
-            gerenciarProdutos: {
-                id: document.getElementById('produtoId'),
-                nome: document.getElementById('produtoNome'),
-                unidade: document.getElementById('produtoUnidade'),
-                preco: document.getElementById('produtoPreco'),
-                btnSave: document.getElementById('btnSaveProduto'),
-                list: document.getElementById('produtosList'),
-            },
-            receituario: {
-                modal: document.getElementById('receituarioModal'),
-                modalTitle: document.getElementById('receituarioModalTitle'),
-                closeBtn: document.getElementById('receituarioModalCloseBtn'),
-                id: document.getElementById('receituarioId'),
-                fazenda: document.getElementById('receituarioFazenda'),
-                data: document.getElementById('receituarioData'),
-                praga: document.getElementById('receituarioPraga'),
-                area: document.getElementById('receituarioArea'),
-                produtosContainer: document.getElementById('receituarioProdutosContainer'),
-                addProdutoBtn: document.getElementById('btnAddProdutoReceituario'),
-                custoTotal: document.getElementById('receituarioCustoTotal'),
-                saveBtn: document.getElementById('btnSaveReceituario'),
-                list: document.getElementById('receituariosList'),
-                btnNovo: document.getElementById('btnNovoReceituario'),
             },
             apontamentoPlantio: {
                 form: document.getElementById('formApontamentoPlantio'),
@@ -1149,7 +1121,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'produtos', 'receituarios'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1381,16 +1353,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.renderFrenteDePlantioList();
                         }
                         this.populateFrenteDePlantioSelect();
-                        break;
-                    case 'produtos':
-                        if (activeTab === 'gerenciarProdutos') {
-                            this.renderProdutosList();
-                        }
-                        break;
-                    case 'receituarios':
-                        if (activeTab === 'receituario') {
-                            this.renderReceituariosList();
-                        }
                         break;
                     case 'apontamentosPlantio':
                         // This collection is for storing data, no direct render action needed on snapshot
@@ -1759,8 +1721,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
-                if(id === 'gerenciarProdutos') this.renderProdutosList();
-                if(id === 'receituario') this.renderReceituariosList();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
@@ -2397,163 +2357,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 list.appendChild(table);
             },
-
-            renderProdutosList() {
-                const { list } = App.elements.gerenciarProdutos;
-                list.innerHTML = '';
-                if (App.state.produtos.length === 0) {
-                    list.innerHTML = '<p>Nenhum produto cadastrado.</p>';
-                    return;
-                }
-                const table = document.createElement('table');
-                table.id = 'produtosTable';
-                table.className = 'harvestPlanTable';
-                table.innerHTML = `<thead><tr><th>Nome</th><th>Unidade</th><th>Preço</th><th>Ações</th></tr></thead><tbody></tbody>`;
-                const tbody = table.querySelector('tbody');
-                App.state.produtos.sort((a,b) => a.nome.localeCompare(b.nome)).forEach(p => {
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td data-label="Nome">${p.nome}</td>
-                        <td data-label="Unidade">${p.unidade}</td>
-                        <td data-label="Preço">R$ ${p.preco.toFixed(2)}</td>
-                        <td data-label="Ações">
-                            <div style="display: flex; justify-content: flex-end; gap: 5px;">
-                                <button class="btn-excluir" style="background:var(--color-info)" data-action="edit-produto" data-id="${p.id}"><i class="fas fa-edit"></i></button>
-                                <button class="btn-excluir" data-action="delete-produto" data-id="${p.id}"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </td>
-                    `;
-                });
-                list.appendChild(table);
-            },
-
-            renderReceituariosList() {
-                const { list } = App.elements.receituario;
-                list.innerHTML = '';
-                if (App.state.receituarios.length === 0) {
-                    list.innerHTML = '<p>Nenhuma receita agronômica cadastrada.</p>';
-                    return;
-                }
-
-                App.state.receituarios.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao)).forEach(r => {
-                    const card = document.createElement('div');
-                    card.className = 'plano-card'; // Reutilizando o estilo
-
-                    const totalCost = r.produtosAplicados.reduce((sum, p) => sum + (p.custoUnitario * p.dosagem * r.areaTotalAplicar), 0);
-
-                    card.innerHTML = `
-                        <div class="plano-header">
-                            <span class="plano-title"><i class="fas fa-file-medical-alt"></i> ${r.fazendaNome}</span>
-                            <span class="plano-status pendente">${r.status}</span>
-                        </div>
-                        <div class="plano-details">
-                            <div><i class="fas fa-calendar-day"></i> Criado em: ${new Date(r.dataCriacao + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
-                            <div><i class="fas fa-calendar-alt"></i> Aplicação em: ${new Date(r.dataRecomendadaAplicacao + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
-                            <div><i class="fas fa-bug"></i> Alvo: ${r.pragaAlvo}</div>
-                            <div><i class="fas fa-ruler-combined"></i> Área: ${r.areaTotalAplicar.toFixed(2)} ha</div>
-                            <div><i class="fas fa-dollar-sign"></i> Custo Total: R$ ${totalCost.toFixed(2)}</div>
-                        </div>
-                        <div class="plano-actions">
-                            <button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="edit-receituario" data-id="${r.id}"><i class="fas fa-edit"></i> Editar</button>
-                            <button class="btn-excluir" data-action="delete-receituario" data-id="${r.id}"><i class="fas fa-trash"></i> Excluir</button>
-                        </div>
-                    `;
-                    list.appendChild(card);
-                });
-            },
-
-            openReceituarioModal(receitaId = null) {
-                const { modal, modalTitle, id, fazenda, data, praga, area, produtosContainer, custoTotal } = App.elements.receituario;
-
-                // Reset form
-                id.value = '';
-                fazenda.value = '';
-                data.value = new Date().toISOString().split('T')[0];
-                praga.value = 'Broca';
-                area.value = '';
-                produtosContainer.innerHTML = '';
-                custoTotal.textContent = 'Custo Total: R$ 0,00';
-
-                this.populateFazendaSelects(); // Garante que o select de fazendas está atualizado
-
-                if (receitaId) {
-                    const receita = App.state.receituarios.find(r => r.id === receitaId);
-                    if (receita) {
-                        modalTitle.textContent = 'Editar Receita Agronômica';
-                        id.value = receita.id;
-                        fazenda.value = receita.fazendaId;
-                        data.value = receita.dataRecomendadaAplicacao;
-                        praga.value = receita.pragaAlvo;
-                        area.value = receita.areaTotalAplicar;
-
-                        receita.produtosAplicados.forEach(produto => {
-                            this.addProdutoToReceituario(produto.produtoId, produto.dosagem);
-                        });
-                        this.calculateReceituarioCusto();
-                    }
-                } else {
-                    modalTitle.textContent = 'Nova Receita Agronômica';
-                    // Adiciona uma linha de produto por defeito
-                    this.addProdutoToReceituario();
-                }
-
-                modal.classList.add('show');
-            },
-
-            closeReceituarioModal() {
-                App.elements.receituario.modal.classList.remove('show');
-            },
-
-            addProdutoToReceituario(produtoId = '', dosagem = '') {
-                const container = App.elements.receituario.produtosContainer;
-                const row = document.createElement('div');
-                row.className = 'form-row';
-
-                const produtoOptions = App.state.produtos.map(p => `<option value="${p.id}" ${p.id === produtoId ? 'selected' : ''}>${p.nome} (${p.unidade})</option>`).join('');
-
-                row.innerHTML = `
-                    <div class="form-col" style="flex-grow: 3;">
-                        <label>Produto:</label>
-                        <select class="receituario-produto-select">
-                            <option value="">Selecione...</option>
-                            ${produtoOptions}
-                        </select>
-                    </div>
-                    <div class="form-col">
-                        <label>Dosagem:</label>
-                        <input type="number" class="receituario-dosagem-input" placeholder="0.00" value="${dosagem}">
-                    </div>
-                    <div class="form-col" style="justify-content: flex-end;">
-                        <button type="button" class="btn-remover-amostra" title="Remover Produto">&times;</button>
-                    </div>
-                `;
-
-                container.appendChild(row);
-            },
-
-            calculateReceituarioCusto() {
-                const { area, produtosContainer, custoTotal } = App.elements.receituario;
-                const areaAplicar = parseFloat(area.value) || 0;
-                let totalCost = 0;
-
-                produtosContainer.querySelectorAll('.form-row').forEach(row => {
-                    const produtoSelect = row.querySelector('.receituario-produto-select');
-                    const dosagemInput = row.querySelector('.receituario-dosagem-input');
-
-                    const produtoId = produtoSelect.value;
-                    const dosagem = parseFloat(dosagemInput.value) || 0;
-
-                    if (produtoId && dosagem > 0) {
-                        const produto = App.state.produtos.find(p => p.id === produtoId);
-                        if (produto) {
-                            totalCost += produto.preco * dosagem * areaAplicar;
-                        }
-                    }
-                });
-
-                custoTotal.textContent = `Custo Total: R$ ${totalCost.toFixed(2)}`;
-            },
-
 
             populateFrenteDePlantioSelect() {
                 const selects = [App.elements.apontamentoPlantio.frente, App.elements.relatorioPlantio.frente];
@@ -4069,64 +3872,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     apontamentoEls.farmName.addEventListener('change', () => this.updateAllTalhaoSelects());
                 }
 
-                const produtosEls = App.elements.gerenciarProdutos;
-                if (produtosEls.btnSave) {
-                    produtosEls.btnSave.addEventListener('click', () => App.actions.saveProduto());
-                }
-                if (produtosEls.list) {
-                    produtosEls.list.addEventListener('click', e => {
-                        const btn = e.target.closest('button');
-                        if (!btn) return;
-                        const { action, id } = btn.dataset;
-                        if (action === 'edit-produto') App.actions.editProduto(id);
-                        if (action === 'delete-produto') App.actions.deleteProduto(id);
-                    });
-                }
-
-                const receituarioEls = App.elements.receituario;
-                if (receituarioEls.btnNovo) {
-                    receituarioEls.btnNovo.addEventListener('click', () => App.ui.openReceituarioModal());
-                }
-                if (receituarioEls.closeBtn) {
-                    receituarioEls.closeBtn.addEventListener('click', () => App.ui.closeReceituarioModal());
-                }
-                if (receituarioEls.addProdutoBtn) {
-                    receituarioEls.addProdutoBtn.addEventListener('click', () => App.ui.addProdutoToReceituario());
-                }
-                if (receituarioEls.saveBtn) {
-                    receituarioEls.saveBtn.addEventListener('click', () => App.actions.saveReceituario());
-                }
-                if (receituarioEls.modal) {
-                    receituarioEls.modal.addEventListener('input', e => {
-                        if (e.target.matches('.receituario-produto-select, .receituario-dosagem-input, #receituarioArea')) {
-                            App.ui.calculateReceituarioCusto();
-                        }
-                    });
-                    receituarioEls.produtosContainer.addEventListener('click', e => {
-                        if (e.target.matches('.btn-remover-amostra')) {
-                            e.target.closest('.form-row').remove();
-                            App.ui.calculateReceituarioCusto();
-                        }
-                    });
-                }
-                if (receituarioEls.list) {
-                    receituarioEls.list.addEventListener('click', e => {
-                        const btn = e.target.closest('button[data-action]');
-                        if (!btn) return;
-                        const { action, id } = btn.dataset;
-                        if (action === 'edit-receituario') {
-                            App.ui.openReceituarioModal(id);
-                        }
-                        if (action === 'delete-receituario') {
-                            App.ui.showConfirmationModal("Tem a certeza que deseja excluir esta receita?", async () => {
-                                await App.data.deleteDocument('receituarios', id);
-                                App.ui.showAlert('Receita excluída com sucesso.', 'info');
-                            });
-                        }
-                    });
-                }
-
-
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
@@ -4767,148 +4512,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal("Are you sure you want to delete this Frente de Plantio?", async () => {
                     await App.data.deleteDocument('frentesDePlantio', frenteId);
                     App.ui.showAlert('Frente de Plantio deleted successfully.', 'info');
-                });
-            },
-
-            async saveProduto() {
-                const { id, nome, unidade, preco } = App.elements.gerenciarProdutos;
-                const nomeValue = nome.value.trim();
-                const unidadeValue = unidade.value;
-                const precoValue = parseFloat(preco.value);
-
-                if (!nomeValue || !unidadeValue || isNaN(precoValue)) {
-                    App.ui.showAlert("Todos os campos do produto são obrigatórios.", "error");
-                    return;
-                }
-
-                const existingId = id.value;
-                const data = {
-                    nome: nomeValue,
-                    unidade: unidadeValue,
-                    preco: precoValue,
-                    companyId: App.state.currentUser.companyId
-                };
-
-                const confirmationMessage = existingId
-                    ? `Tem a certeza que deseja atualizar o produto "${nomeValue}"?`
-                    : `Tem a certeza que deseja guardar o novo produto "${nomeValue}"?`;
-
-                App.ui.showConfirmationModal(confirmationMessage, async () => {
-                    App.ui.setLoading(true, "A guardar produto...");
-                    try {
-                        if (existingId) {
-                            await App.data.updateDocument('produtos', existingId, data);
-                            App.ui.showAlert("Produto atualizado com sucesso!");
-                        } else {
-                            await App.data.addDocument('produtos', data);
-                            App.ui.showAlert("Produto guardado com sucesso!");
-                        }
-                        id.value = '';
-                        nome.value = '';
-                        unidade.value = 'Litro';
-                        preco.value = '';
-                    } catch (error) {
-                        console.error("Erro ao guardar Produto:", error);
-                        App.ui.showAlert(`Erro ao guardar produto: ${error.message}.`, "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                });
-            },
-
-            editProduto(produtoId) {
-                const { id, nome, unidade, preco } = App.elements.gerenciarProdutos;
-                const produto = App.state.produtos.find(p => p.id == produtoId);
-                if (produto) {
-                    id.value = produto.id;
-                    nome.value = produto.nome;
-                    unidade.value = produto.unidade;
-                    preco.value = produto.preco;
-                    nome.focus();
-                }
-            },
-
-            deleteProduto(produtoId) {
-                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este produto?", async () => {
-                    await App.data.deleteDocument('produtos', produtoId);
-                    App.ui.showAlert('Produto excluído com sucesso.', 'info');
-                });
-            },
-
-            async saveReceituario() {
-                const { id, fazenda, data, praga, area } = App.elements.receituario;
-                const fazendaId = fazenda.value;
-                const dataValue = data.value;
-                const pragaValue = praga.value.trim();
-                const areaValue = parseFloat(area.value);
-
-                if (!fazendaId || !dataValue || !pragaValue || isNaN(areaValue)) {
-                    App.ui.showAlert("Todos os campos da receita são obrigatórios.", "error");
-                    return;
-                }
-
-                const produtosContainer = App.elements.receituario.produtosContainer;
-                const produtosRows = produtosContainer.querySelectorAll('.form-row');
-                if (produtosRows.length === 0) {
-                    App.ui.showAlert("Adicione pelo menos um produto à receita.", "error");
-                    return;
-                }
-
-                const produtosAplicados = [];
-                for (const row of produtosRows) {
-                    const produtoSelect = row.querySelector('select');
-                    const dosagemInput = row.querySelector('input');
-                    const produtoId = produtoSelect.value;
-                    const dosagem = parseFloat(dosagemInput.value);
-
-                    if (!produtoId || isNaN(dosagem)) {
-                        App.ui.showAlert("Preencha todos os campos de todos os produtos.", "error");
-                        return;
-                    }
-
-                    const produto = App.state.produtos.find(p => p.id === produtoId);
-                    produtosAplicados.push({
-                        produtoId: produto.id,
-                        nomeProduto: produto.nome,
-                        dosagem: dosagem,
-                        unidade: produto.unidade,
-                        custoUnitario: produto.preco
-                    });
-                }
-
-                const newEntry = {
-                    fazendaId: fazendaId,
-                    fazendaNome: fazenda.options[fazenda.selectedIndex].text,
-                    dataCriacao: new Date().toISOString().split('T')[0],
-                    dataRecomendadaAplicacao: dataValue,
-                    pragaAlvo: pragaValue,
-                    areaTotalAplicar: areaValue,
-                    status: 'Rascunho',
-                    instaladoPor: App.state.currentUser.uid,
-                    companyId: App.state.currentUser.companyId,
-                    produtosAplicados: produtosAplicados
-                };
-
-                const entryId = id.value;
-                const confirmationMessage = entryId ? "Tem a certeza que deseja atualizar esta receita?" : "Tem a certeza que deseja guardar esta receita?";
-
-                App.ui.showConfirmationModal(confirmationMessage, async () => {
-                    App.ui.setLoading(true, "A guardar receita...");
-                    try {
-                        if (entryId) {
-                            await App.data.updateDocument('receituarios', entryId, newEntry);
-                            App.ui.showAlert("Receita atualizada com sucesso!");
-                        } else {
-                            await App.data.addDocument('receituarios', newEntry);
-                            App.ui.showAlert("Receita guardada com sucesso!");
-                        }
-                        App.ui.closeReceituarioModal();
-                    } catch (error) {
-                        console.error("Erro ao guardar Receita:", error);
-                        App.ui.showAlert(`Erro ao guardar receita: ${error.message}.`, "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
                 });
             },
 
@@ -7925,17 +7528,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (const key in feature.properties) {
                     props[key.toUpperCase()] = feature.properties[key];
                 }
-
+                
                 for (const key of keys) {
                     if (props[key.toUpperCase()] !== undefined) {
-                        const value = props[key.toUpperCase()];
-                        if (key.toUpperCase() === 'FUNDO_AGR') {
-                            const intValue = parseInt(value, 10);
-                            if (!isNaN(intValue)) {
-                                return intValue;
-                            }
-                        }
-                        return value;
+                        return props[key.toUpperCase()];
                     }
                 }
                 return 'Não identificado';
@@ -7949,30 +7545,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const areaHa = this._findProp(feature, ['AREA_HA', 'AREA', 'HECTARES']);
                 const variedade = this._findProp(feature, ['VARIEDADE', 'CULTURA']);
 
-                let riskInfoHTML = '';
-                let actionsHTML = `
-                    <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
-                        <button class="btn-download-map save" style="width: 100%;">
-                            <i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline
-                        </button>
-                    </div>`;
-
-                if (riskPercentage !== null) {
-                    riskInfoHTML = `
-                        <div class="info-item risk-info" style="background-color: ${riskPercentage > 30 ? 'var(--color-danger-light)' : 'var(--color-success-light)'}; color: ${riskPercentage > 30 ? 'var(--color-danger)' : 'var(--color-success)'};">
-                            <span class="label"><i class="fas fa-exclamation-triangle"></i> Risco de Aplicação</span>
-                            <span class="value">${riskPercentage.toFixed(2)}%</span>
-                        </div>`;
-
-                    if (riskPercentage > 30) {
-                        actionsHTML = `
-                            <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
-                                <button class="btn-create-receita save" style="width: 100%; background-color: var(--color-warning);">
-                                    <i class="fas fa-file-medical-alt"></i> Criar Receita
-                                </button>
-                            </div>`;
-                    }
-                }
+                const riskInfoHTML = riskPercentage !== null ? `
+                    <div class="info-item risk-info">
+                        <span class="label"><i class="fas fa-exclamation-triangle"></i> Risco de Aplicação</span>
+                        <span class="value">${riskPercentage.toFixed(2)}%</span>
+                    </div>
+                ` : '';
 
                 const contentEl = App.elements.monitoramentoAereo.infoBoxContent;
                 contentEl.innerHTML = `
@@ -8001,38 +7579,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="label">Área Total</span>
                         <span class="value">${(typeof areaHa === 'number' ? areaHa : 0).toFixed(2).replace('.',',')} ha</span>
                     </div>
-                    ${actionsHTML}
+                    <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
+                        <button class="btn-download-map save" style="width: 100%;">
+                            <i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline
+                        </button>
+                    </div>
                     <div class="download-progress-container" style="display: none; padding: 0 20px 20px 20px;">
                         <p class="download-progress-text" style="margin-bottom: 5px; font-size: 14px; color: var(--color-text-light);"></p>
                         <progress class="download-progress-bar" value="0" max="100" style="width: 100%;"></progress>
                     </div>
                 `;
 
-                const btnDownload = contentEl.querySelector('.btn-download-map');
-                if (btnDownload) {
-                    btnDownload.addEventListener('click', () => {
-                        this.startOfflineMapDownload(feature);
-                    });
-                }
-
-                const btnCreateReceita = contentEl.querySelector('.btn-create-receita');
-                if (btnCreateReceita) {
-                    btnCreateReceita.addEventListener('click', () => {
-                        const farmCode = this._findProp(feature, ['FUNDO_AGR']);
-                        if (farmCode) {
-                            const farm = App.state.fazendas.find(f => parseInt(f.code) === parseInt(farmCode));
-                            if (farm) {
-                                App.ui.openReceituarioModal(); // Abre o modal em branco primeiro
-                                App.elements.receituario.fazenda.value = farm.id; // Define a fazenda
-                                App.elements.receituario.praga.value = 'Broca'; // Define a praga alvo
-                                App.ui.showAlert("Formulário de receita pré-preenchido.", "info");
-                            } else {
-                                App.ui.showAlert(`Fazenda com código ${farmCode} não encontrada no sistema.`, "error");
-                            }
-                        }
-                    });
-                }
-
+                contentEl.querySelector('.btn-download-map').addEventListener('click', () => {
+                    this.startOfflineMapDownload(feature);
+                });
+                
                 this.hideTrapInfo();
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
@@ -8633,15 +8194,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`[RISK_DEBUG] Encontradas ${allFarms.length} fazendas, ${companyTraps.length} armadilhas no total, ${collectedTraps.length} armadilhas coletadas para a empresa.`);
 
                 allFarms.forEach(farm => {
-                    const collectedTrapsOnFarm = collectedTraps.filter(t => {
-                        const farmCodeMatch = t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : false;
-                        console.log(`[RISK_DEBUG] Trap ${t.id} farmCode: ${t.fazendaCode}, farm.code: ${farm.code}, match: ${farmCodeMatch}`);
-                        return farmCodeMatch || t.fazendaNome === farm.name;
-                    });
+                    const collectedTrapsOnFarm = collectedTraps.filter(t =>
+                        (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name)
+                    );
 
                     if (collectedTrapsOnFarm.length === 0) {
                         farmRiskPercentages[farm.code] = 0;
-                        console.log(`[RISK_DEBUG] Farm ${farm.code} has 0 collected traps.`);
                         return; // Skip if no collections, risk is 0
                     }
 
@@ -8682,8 +8240,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Divisor is the number of traps collected in the latest cycle.
                     const divisor = finalCycleTraps.length;
                     const riskPercentage = divisor > 0 ? (highCountTraps.length / divisor) * 100 : 0;
-
-                    console.log(`[RISK_DEBUG] Farm ${farm.code}: highCountTraps=${highCountTraps.length}, divisor=${divisor}, riskPercentage=${riskPercentage}`);
 
                     farmRiskPercentages[farm.code] = riskPercentage;
                     if (riskPercentage > 30) {

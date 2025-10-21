@@ -51,7 +51,6 @@ def test_risk_view_logic(browser_context):
                     this.setPaintPropertyCalls.push({layer, prop, value});
                 },
                 setFeatureState: function(feature, state) {},
-                querySourceFeatures: () => ([]),
                 isStyleLoaded: () => true,
                 on: () => {},
                 getCanvas: () => ({style: {cursor: ''}}),

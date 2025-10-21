@@ -8,9 +8,3 @@ android/app/google-services.json
 android/app/build/
 android/build/
 android/.gradle/
-
-# Ignorar arquivos de log
-server.log
-
-# Ignorar cache do Python
-__pycache__/
