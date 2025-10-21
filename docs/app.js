@@ -8194,12 +8194,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`[RISK_DEBUG] Encontradas ${allFarms.length} fazendas, ${companyTraps.length} armadilhas no total, ${collectedTraps.length} armadilhas coletadas para a empresa.`);
 
                 allFarms.forEach(farm => {
-                    // Total number of traps on the farm (active or collected) is the denominator
-                    const trapsOnFarm = companyTraps.filter(t => (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name));
-                    if (trapsOnFarm.length === 0) {
-                        return; // Skip farm if it has no traps at all
-                    }
-
                     const collectedTrapsOnFarm = collectedTraps.filter(t =>
                         (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name)
                     );
@@ -8243,8 +8237,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 4. Count high-risk traps within this final, unique set
                     const highCountTraps = finalCycleTraps.filter(t => t.contagemMariposas >= 6);
 
+                    // Divisor is the number of traps collected in the latest cycle.
+                    const divisor = finalCycleTraps.length;
+                    const riskPercentage = divisor > 0 ? (highCountTraps.length / divisor) * 100 : 0;
 
-                    const riskPercentage = (highCountTraps.length / trapsOnFarm.length) * 100;
                     farmRiskPercentages[farm.code] = riskPercentage;
                     if (riskPercentage > 30) {
                         farmsInRisk.add(parseInt(String(farm.code).trim(), 10));
