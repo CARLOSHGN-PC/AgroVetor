@@ -393,6 +393,17 @@
       .dashboard-card#card-perda .icon { color: var(--color-warning); }
       .dashboard-card#card-aerea { border-color: var(--color-info); }
       .dashboard-card#card-aerea .icon { color: var(--color-info); }
+      .dashboard-card#card-plantio { border-color: var(--color-success); }
+      .dashboard-card#card-plantio .icon { color: var(--color-success); }
+      .dashboard-card#card-cigarrinha { border-color: var(--color-purple); }
+      .dashboard-card#card-cigarrinha .icon { color: var(--color-purple); }
+
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
       
       .dashboard-header {
         display: flex;
@@ -1698,10 +1709,20 @@
                         <h3>Perdas</h3>
                         <p>Visualizar perdas por fazenda, tipo de perda e evolução mensal.</p>
                     </div>
+                    <div id="card-plantio" class="dashboard-card">
+                        <i class="icon fas fa-seedling"></i>
+                        <h3>Plantio</h3>
+                        <p>Acompanhar desempenho diário e evolução da frente de plantio.</p>
+                    </div>
                     <div id="card-aerea" class="dashboard-card">
-                        <i class="icon fas fa-plane-departure"></i>
-                        <h3>Aplicação Aérea</h3>
-                        <p>Módulo para gestão e análise de aplicações aéreas.</p>
+                        <i class="icon fas fa-satellite-dish"></i>
+                        <h3>Monitoramento Aéreo</h3>
+                        <p>Monitorar nível de infestação, risco e custos de controle.</p>
+                    </div>
+                    <div id="card-cigarrinha" class="dashboard-card">
+                        <i class="icon fas fa-bug-slash"></i>
+                        <h3>Cigarrinha</h3>
+                        <p>Acompanhar intensidade da praga e eficiência de controle.</p>
                     </div>
                 </div>
 
@@ -1781,17 +1802,208 @@
                     </div>
                 </div>
 
-                <div id="dashboard-aerea" style="display: none;">
-                                <div class="dashboard-header">
-                                    <h2 style="color: var(--color-info);"><i class="fas fa-plane-departure"></i> Dashboard de Aplicação Aérea</h2>
-                                    <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
-                                </div>
-                                <div class="card">
-                                  <p style="text-align:center; padding: 40px; font-size: 18px; color: var(--color-text-light);">
-                                      <i class="fas fa-cogs fa-2x" style="margin-bottom: 15px;"></i><br>
-                                      Este módulo ainda está em desenvolvimento.
-                                    </p>
-                                </div>
+                <div id="dashboard-aerea" class="dashboard-view" style="display: none;">
+                    <div class="dashboard-header">
+                         <div class="dashboard-header-main">
+                            <h2 style="color: var(--color-info);"><i class="fas fa-satellite-dish"></i> Dashboard de Monitoramento Aéreo</h2>
+                            <div class="dashboard-filters">
+                                <label for="aereoDashboardInicio">De:</label>
+                                <input type="date" id="aereoDashboardInicio">
+                                <label for="aereoDashboardFim">Até:</label>
+                                <input type="date" id="aereoDashboardFim">
+                                <button id="btnFiltrarAereoDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
+                            </div>
+                        </div>
+                        <button id="btn-back-to-selector-aerea" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    </div>
+                    <div class="kpi-grid">
+                        <div class="kpi-card" style="border-left-color: var(--color-info);">
+                            <div class="icon" style="background-color: var(--color-info);"><i class="fas fa-tractor"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-aereo-fazendas-monitoradas">0</p>
+                                <p class="label">Fazendas Monitoradas</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-danger);">
+                            <div class="icon" style="background-color: var(--color-danger);"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-aereo-fazendas-risco">0%</p>
+                                <p class="label">% de Fazendas em Risco (>30%)</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-warning);">
+                             <div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-bug"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-aereo-infestacao-media">0</p>
+                                <p class="label">Média de Mariposas / Armadilha</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-success);">
+                           <div class="icon" style="background-color: var(--color-success);"><i class="fas fa-dollar-sign"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-aereo-custo-total">R$ 0,00</p>
+                                <p class="label">Custo Total (Placeholder)</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="chart-card">
+                            <h3 class="chart-title">Proporção de Fazendas em Risco</h3>
+                             <button class="btn-expand-chart" data-chart-id="graficoFazendasRisco"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoFazendasRisco"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Nível de Risco por Fazenda (%)</h3>
+                             <button class="btn-expand-chart" data-chart-id="graficoRiscoPorFazenda"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoRiscoPorFazenda"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Tendência da Infestação (Média de Mariposas/Dia)</h3>
+                             <button class="btn-expand-chart" data-chart-id="graficoTendenciaAerea"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoTendenciaAerea"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Custo por Fazenda (Placeholder)</h3>
+                             <button class="btn-expand-chart" data-chart-id="graficoCustoAereo"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoCustoAereo"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dashboard-plantio" class="dashboard-view" style="display: none;">
+                    <div class="dashboard-header">
+                        <div class="dashboard-header-main">
+                            <h2 style="color: var(--color-success);"><i class="fas fa-seedling"></i> Dashboard de Plantio</h2>
+                            <div class="dashboard-filters">
+                                <label for="plantioDashboardInicio">De:</label>
+                                <input type="date" id="plantioDashboardInicio">
+                                <label for="plantioDashboardFim">Até:</label>
+                                <input type="date" id="plantioDashboardFim">
+                                <button id="btnFiltrarPlantioDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
+                            </div>
+                        </div>
+                        <button id="btn-back-to-selector-plantio" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    </div>
+                    <div class="kpi-grid">
+                        <div class="kpi-card" style="border-left-color: var(--color-success);">
+                            <div class="icon" style="background-color: var(--color-success);"><i class="fas fa-ruler-combined"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-plantio-area-total">0 ha</p>
+                                <p class="label">Área Total Plantada</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-info);">
+                            <div class="icon" style="background-color: var(--color-info);"><i class="fas fa-bullseye"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-plantio-meta">1.000 ha</p>
+                                <p class="label">Meta de Plantio</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-accent);">
+                            <div class="icon" style="background-color: var(--color-accent);"><i class="fas fa-tasks"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-plantio-percentual">0%</p>
+                                <p class="label">Percentual Concluído</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-purple);">
+                            <div class="icon" style="background-color: var(--color-purple);"><i class="fas fa-chart-line"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-plantio-media-diaria">0 ha/dia</p>
+                                <p class="label">Média Diária</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="chart-card">
+                            <h3 class="chart-title">Área Plantada por Dia</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoAreaPlantadaPorDia"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoAreaPlantadaPorDia"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Produtividade por Frente de Plantio</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoProdutividadePorFrente"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoProdutividadePorFrente"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Evolução Acumulada da Área Plantada</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoEvolucaoAreaPlantada"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoEvolucaoAreaPlantada"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Percentual Total de Conclusão</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoConclusaoPlantio"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoConclusaoPlantio"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dashboard-cigarrinha" class="dashboard-view" style="display: none;">
+                    <div class="dashboard-header">
+                        <div class="dashboard-header-main">
+                            <h2 style="color: var(--color-purple);"><i class="fas fa-bug-slash"></i> Dashboard de Cigarrinha</h2>
+                            <div class="dashboard-filters">
+                                <label for="cigarrinhaDashboardInicio">De:</label>
+                                <input type="date" id="cigarrinhaDashboardInicio">
+                                <label for="cigarrinhaDashboardFim">Até:</label>
+                                <input type="date" id="cigarrinhaDashboardFim">
+                                <button id="btnFiltrarCigarrinhaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
+                            </div>
+                        </div>
+                        <button id="btn-back-to-selector-cigarrinha" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    </div>
+                    <div class="kpi-grid">
+                        <div class="kpi-card" style="border-left-color: var(--color-purple);">
+                            <div class="icon" style="background-color: var(--color-purple);"><i class="fas fa-leaf"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-cigarrinha-infestacao-media">0.0</p>
+                                <p class="label">Infestação Média</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-info);">
+                            <div class="icon" style="background-color: var(--color-info);"><i class="fas fa-th-large"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-cigarrinha-talhoes-avaliados">0</p>
+                                <p class="label">Talhões Avaliados</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-success);">
+                            <div class="icon" style="background-color: var(--color-success);"><i class="fas fa-shield-alt"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-cigarrinha-eficiencia-controle">N/A</p>
+                                <p class="label">Eficiência de Controle</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-danger);">
+                            <div class="icon" style="background-color: var(--color-danger);"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-cigarrinha-talhoes-alerta">0</p>
+                                <p class="label">Talhões em Alerta</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="chart-card">
+                            <h3 class="chart-title">Infestação Média por Talhão</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoInfestacaoMediaTalhao"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoInfestacaoMediaTalhao"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Tendência da Infestação</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoTendenciaCigarrinha"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoTendenciaCigarrinha"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Eficiência de Controle (Antes vs. Depois)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoEficienciaControle"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoEficienciaControle"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Distribuição por Nível de Infestação</h3>
+                             <button class="btn-expand-chart" data-chart-id="graficoNivelInfestacao"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoNivelInfestacao"></canvas></div>
+                        </div>
+                    </div>
                 </div>
 
             </section>
