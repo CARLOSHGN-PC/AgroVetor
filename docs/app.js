@@ -1208,11 +1208,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 cigarrinhaMethodSelect.value = configData.cigarrinhaCalcMethod || '5';
                             }
 
-                            const plantioGoalInput = document.getElementById('plantioGoal');
-                            if (plantioGoalInput) {
-                                plantioGoalInput.value = configData.plantioGoal || '';
-                            }
-
                             if (configData.shapefileURL) {
                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
                             }
@@ -1935,10 +1930,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (type === 'perda') {
                         App.elements.dashboard.perdaDashboardInicio.value = savedDates.start;
                         App.elements.dashboard.perdaDashboardFim.value = savedDates.end;
-                    } else if (type === 'plantio') {
-                        document.getElementById('plantioDashboardInicio').value = savedDates.start;
-                        document.getElementById('plantioDashboardFim').value = savedDates.end;
-                        document.getElementById('plantioDashboardCultura').value = savedDates.cultura || '';
                     }
                 } else {
                     this.setDefaultDatesForDashboard(type);
@@ -4014,13 +4005,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const btnSaveCompanySettings = document.getElementById('btnSaveCompanySettings');
                 if (btnSaveCompanySettings) {
-                    btnSaveCompanySettings.addEventListener('click', () => {
-                        const plantioGoal = document.getElementById('plantioGoal').value;
-                        if (plantioGoal) {
-                            App.data.setDocument('config', App.state.currentUser.companyId, { plantioGoal: parseFloat(plantioGoal) }, { merge: true });
-                            App.ui.showAlert("Meta de plantio salva com sucesso!", "success");
-                        }
-                    });
+                    // This button is now only for the logo, shapefile, etc.
+                    // The calculation method will save on change.
                 }
 
                 const cigarrinhaCalcMethodSelect = document.getElementById('cigarrinhaCalcMethod');
@@ -4154,18 +4140,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return item.data >= startDate && item.data <= endDate;
                 });
             },
-            saveDashboardDates(type, start, end, cultura) {
+            saveDashboardDates(type, start, end) {
                 localStorage.setItem(`dashboard-${type}-start`, start);
                 localStorage.setItem(`dashboard-${type}-end`, end);
-                if (cultura !== undefined) {
-                    localStorage.setItem(`dashboard-${type}-cultura`, cultura);
-                }
             },
             getDashboardDates(type) {
                 return {
                     start: localStorage.getItem(`dashboard-${type}-start`),
-                    end: localStorage.getItem(`dashboard-${type}-end`),
-                    cultura: localStorage.getItem(`dashboard-${type}-cultura`)
+                    end: localStorage.getItem(`dashboard-${type}-end`)
                 };
             },
             formatDateForInput(dateString) {
@@ -8245,15 +8227,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const allFarms = App.state.fazendas.filter(f => f.companyId === currentUserCompanyId);
                 const companyTraps = App.state.armadilhas.filter(t => t.companyId === currentUserCompanyId);
+                const collectedTraps = companyTraps.filter(t => t.status === 'Coletada');
 
-                console.log(`[RISK_DEBUG] Encontradas ${allFarms.length} fazendas, ${companyTraps.length} armadilhas no total para a empresa.`);
+                console.log(`[RISK_DEBUG] Encontradas ${allFarms.length} fazendas, ${companyTraps.length} armadilhas no total, ${collectedTraps.length} armadilhas coletadas para a empresa.`);
 
                 allFarms.forEach(farm => {
-                    const collectedTrapsOnFarm = companyTraps.filter(t => {
-                        const farmCodeInt = parseInt(String(farm.code).trim(), 10);
-                        const trapCodeInt = t.fazendaCode ? parseInt(String(t.fazendaCode).trim(), 10) : NaN;
-                        return t.status === 'Coletada' && (trapCodeInt === farmCodeInt || t.fazendaNome === farm.name);
-                    });
+                    const collectedTrapsOnFarm = collectedTraps.filter(t =>
+                        (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name)
+                    );
 
                     if (collectedTrapsOnFarm.length === 0) {
                         farmRiskPercentages[farm.code] = 0;
@@ -8280,8 +8261,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 3. Deduplicate collections for the same trap, keeping only the latest one by time
                     const latestUniqueCollections = new Map();
                     latestCycleCollections.forEach(trap => {
-                        // A trap is uniquely identified by its ID.
-                        const trapKey = trap.id;
+                        // A trap is uniquely identified by its position (farm + plot)
+                        const trapKey = `${trap.fazendaCode}-${trap.talhaoNome}`;
                         const existing = latestUniqueCollections.get(trapKey);
                         const collectionDate = trap.dataColeta?.toDate ? trap.dataColeta.toDate() : new Date(trap.dataColeta);
                         if (!existing || collectionDate > (existing.dataColeta?.toDate ? existing.dataColeta.toDate() : new Date(existing.dataColeta))) {
@@ -8592,7 +8573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
                         const x = chart.getDatasetMeta(0).data[0].x;
-                        const y = chart.getDatasetMeta(0).data[0].y + 15;
+                        const y = chart.getDatasetMeta(0).data[0].y;
                         ctx.fillText(`${percentage.toFixed(1)}%`, x, y);
                     }
                 }
@@ -9040,19 +9021,14 @@ document.addEventListener('DOMContentLoaded', () => {
             async renderPlantioDashboardCharts() {
                 const startDateEl = document.getElementById('plantioDashboardInicio');
                 const endDateEl = document.getElementById('plantioDashboardFim');
-                const culturaEl = document.getElementById('plantioDashboardCultura');
-                App.actions.saveDashboardDates('plantio', startDateEl.value, endDateEl.value, culturaEl.value);
+                App.actions.saveDashboardDates('plantio', startDateEl.value, endDateEl.value);
 
                 const consolidatedData = await App.actions.getConsolidatedData('apontamentosPlantio');
-                let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
-
-                if (culturaEl.value) {
-                    data = data.filter(item => item.culture === culturaEl.value);
-                }
+                const data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
 
                 // 1. Calculate KPIs
                 const totalAreaPlantada = data.reduce((sum, item) => sum + item.totalArea, 0);
-                const metaPlantio = App.state.companyConfig?.plantioGoal || 1000;
+                const metaPlantio = 1000; // Hardcoded meta for now
                 const percentualConcluido = metaPlantio > 0 ? (totalAreaPlantada / metaPlantio) * 100 : 0;
 
                 const days = new Set(data.map(item => item.date)).size;
@@ -9065,31 +9041,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiaria.toFixed(2)} ha/dia`;
 
                 // 3. Render Charts
-                this.renderAreaPlantadaPorMes(data);
+                this.renderAreaPlantadaPorDia(data);
                 this.renderProdutividadePorFrente(data);
                 this.renderEvolucaoAreaPlantada(data);
                 this.renderConclusaoPlantio(totalAreaPlantada, metaPlantio);
             },
 
-            renderAreaPlantadaPorMes(data) {
-                const dataByMonth = data.reduce((acc, item) => {
-                    const date = new Date(item.date + 'T03:00:00Z');
-                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                    acc[monthKey] = (acc[monthKey] || 0) + item.totalArea;
+            renderAreaPlantadaPorDia(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    const date = item.date;
+                    acc[date] = (acc[date] || 0) + item.totalArea;
                     return acc;
                 }, {});
 
-                const sortedMonths = Object.keys(dataByMonth).sort();
-                const labels = sortedMonths.map(monthKey => {
-                    const [year, month] = monthKey.split('-');
-                    return new Date(year, month - 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-                });
-                const chartData = sortedMonths.map(monthKey => dataByMonth[monthKey]);
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const chartData = sortedDays.map(date => dataByDay[date]);
 
                 const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoAreaPlantadaPorMes', {
+                this._createOrUpdateChart('graficoAreaPlantadaPorDia', {
                     type: 'bar',
                     data: {
                         labels,
@@ -9185,7 +9157,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             fill: true,
                             borderColor: '#1976d2',
                             backgroundColor: 'rgba(25, 118, 210, 0.2)',
-                            tension: 0.4
+                            tension: 0.3
                         }]
                     },
                      options: {

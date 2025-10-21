@@ -42,12 +42,7 @@ def test_risk_view_logic(browser_context):
 
             window.App.state.mapboxMap = {
                 _paint: {},
-                _sources: {
-                    'talhoes-source': {
-                        _data: window.App.state.geoJsonData,
-                        setData: function(data) { this._data = data; }
-                    }
-                },
+                _sources: {},
                 featureStates: {},
                 setPaintPropertyCalls: [],
                 getLayer: function(id) { return true; },
@@ -56,12 +51,6 @@ def test_risk_view_logic(browser_context):
                     this.setPaintPropertyCalls.push({layer, prop, value});
                 },
                 setFeatureState: function(feature, state) {},
-                querySourceFeatures: function(sourceId, params) {
-                    if (this._sources[sourceId] && this._sources[sourceId]._data) {
-                        return this._sources[sourceId]._data.features;
-                    }
-                    return [];
-                },
                 isStyleLoaded: () => true,
                 on: () => {},
                 getCanvas: () => ({style: {cursor: ''}}),
