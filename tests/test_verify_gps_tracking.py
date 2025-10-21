@@ -6,7 +6,21 @@ from playwright.async_api import async_playwright, expect
 async def test_automatic_gps_tracking():
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        page = await browser.new_page()
+        context = await browser.new_context(permissions=['geolocation'])
+        page = await context.new_page()
+
+        await page.goto("http://localhost:8000")
+
+        await page.add_init_script("""
+            navigator.geolocation.getCurrentPosition = (success, error) => {
+                success({ coords: { latitude: -21.17, longitude: -48.45 } });
+            };
+            navigator.geolocation.watchPosition = (success, error, options) => {
+                const position = { coords: { latitude: -21.17, longitude: -48.45, accuracy: 10, altitude: null, altitudeAccuracy: null, heading: null, speed: null }, timestamp: Date.now() };
+                success(position);
+                return 1; // Return a watchId
+            };
+        """)
 
         await page.goto("http://localhost:8000")
 

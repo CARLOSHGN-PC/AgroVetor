@@ -72,6 +72,12 @@ def test_risk_view_highlights_correct_farm(browser_context):
                     const key = `${feature.source}-${feature.id}`;
                     this.featureStates[key] = { ...this.featureStates[key], ...state };
                 },
+                    querySourceFeatures: function(sourceId, params) {
+                        if (this._sources[sourceId] && this._sources[sourceId]._data) {
+                            return this._sources[sourceId]._data.features;
+                        }
+                        return [];
+                    },
                 riskFarmFeatureIds: [],
                 isStyleLoaded: () => true, // Mock style loaded
                 on: () => {}, // Mock event listener
