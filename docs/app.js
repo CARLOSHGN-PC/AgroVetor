@@ -8194,26 +8194,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`[RISK_DEBUG] Encontradas ${allFarms.length} fazendas, ${companyTraps.length} armadilhas no total, ${collectedTraps.length} armadilhas coletadas para a empresa.`);
 
                 allFarms.forEach(farm => {
+                    // Total number of traps on the farm (active or collected) is the denominator
                     const trapsOnFarm = companyTraps.filter(t => (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name));
-                    if (trapsOnFarm.length === 0) return;
+                    if (trapsOnFarm.length === 0) {
+                        return; // Skip farm if it has no traps at all
+                    }
 
-                    let mostRecentInstallDate = new Date(0);
-                    trapsOnFarm.forEach(trap => {
-                        const installDate = trap.dataInstalacao?.toDate ? trap.dataInstalacao.toDate() : new Date(trap.dataInstalacao);
-                        if (installDate > mostRecentInstallDate) mostRecentInstallDate = installDate;
-                    });
-                    mostRecentInstallDate.setHours(0, 0, 0, 0);
+                    const collectedTrapsOnFarm = collectedTraps.filter(t =>
+                        (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name)
+                    );
 
-                    const highCountTraps = collectedTraps.filter(t => {
-                        const collectionDate = t.dataColeta?.toDate ? t.dataColeta.toDate() : new Date(t.dataColeta);
-                        const matchesFarm = (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name);
-                        return matchesFarm && collectionDate >= mostRecentInstallDate && t.contagemMariposas >= 6;
+                    if (collectedTrapsOnFarm.length === 0) {
+                        farmRiskPercentages[farm.code] = 0;
+                        return; // Skip if no collections, risk is 0
+                    }
+
+                    // 1. Find the most recent collection date on this farm
+                    let mostRecentCollectionDate = new Date(0);
+                    collectedTrapsOnFarm.forEach(trap => {
+                        const collectionDate = trap.dataColeta?.toDate ? trap.dataColeta.toDate() : new Date(trap.dataColeta);
+                        if (collectionDate > mostRecentCollectionDate) {
+                            mostRecentCollectionDate = collectionDate;
+                        }
                     });
+
+                    // 2. Filter to get only collections from that specific day (the monitoring cycle)
+                    const latestCycleCollections = collectedTrapsOnFarm.filter(trap => {
+                        const collectionDate = trap.dataColeta?.toDate ? trap.dataColeta.toDate() : new Date(trap.dataColeta);
+                        return collectionDate.getFullYear() === mostRecentCollectionDate.getFullYear() &&
+                               collectionDate.getMonth() === mostRecentCollectionDate.getMonth() &&
+                               collectionDate.getDate() === mostRecentCollectionDate.getDate();
+                    });
+
+                    // 3. Deduplicate collections for the same trap, keeping only the latest one by time
+                    const latestUniqueCollections = new Map();
+                    latestCycleCollections.forEach(trap => {
+                        // A trap is uniquely identified by its position (farm + plot)
+                        const trapKey = `${trap.fazendaCode}-${trap.talhaoNome}`;
+                        const existing = latestUniqueCollections.get(trapKey);
+                        const collectionDate = trap.dataColeta?.toDate ? trap.dataColeta.toDate() : new Date(trap.dataColeta);
+                        if (!existing || collectionDate > (existing.dataColeta?.toDate ? existing.dataColeta.toDate() : new Date(existing.dataColeta))) {
+                            latestUniqueCollections.set(trapKey, trap);
+                        }
+                    });
+
+                    const finalCycleTraps = Array.from(latestUniqueCollections.values());
+
+                    // 4. Count high-risk traps within this final, unique set
+                    const highCountTraps = finalCycleTraps.filter(t => t.contagemMariposas >= 6);
+
 
                     const riskPercentage = (highCountTraps.length / trapsOnFarm.length) * 100;
                     farmRiskPercentages[farm.code] = riskPercentage;
                     if (riskPercentage > 30) {
-                        // FIX: Normalize by parsing to integer to avoid "0123" vs "123" mismatches.
                         farmsInRisk.add(parseInt(String(farm.code).trim(), 10));
                     }
                 });
