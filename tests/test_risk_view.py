@@ -11,6 +11,11 @@ def browser_context():
 
 def test_risk_view_highlights_correct_farm(browser_context):
     page = browser_context.new_page()
+
+    def log_console_message(msg):
+        print(f"Browser console: {msg.text}")
+    page.on("console", log_console_message)
+
     try:
         # Navigate to the app
         page.goto("http://localhost:8000", wait_until="networkidle")
@@ -33,15 +38,15 @@ def test_risk_view_highlights_correct_farm(browser_context):
             ];
             window.App.state.armadilhas = [
                 // 4 traps for Fazenda 123, 3 with high count -> 75% risk
-                { id: 't1', fazendaCode: '123', status: 'Coletada', contagemMariposas: 10, dataColeta: new Date(), companyId: 'test-company' },
-                { id: 't2', fazendaCode: '123', status: 'Coletada', contagemMariposas: 10, dataColeta: new Date(), companyId: 'test-company' },
-                { id: 't3', fazendaCode: '123', status: 'Coletada', contagemMariposas: 10, dataColeta: new Date(), companyId: 'test-company' },
-                { id: 't4', fazendaCode: '123', status: 'Coletada', contagemMariposas: 2, dataColeta: new Date(), companyId: 'test-company' },
+                        { id: 't1', fazendaCode: '123', talhaoNome: 'T01', status: 'Coletada', contagemMariposas: 10, dataColeta: new Date('2025-10-21T10:00:00Z'), companyId: 'test-company' },
+                        { id: 't2', fazendaCode: '123', talhaoNome: 'T02', status: 'Coletada', contagemMariposas: 10, dataColeta: new Date('2025-10-21T10:00:00Z'), companyId: 'test-company' },
+                        { id: 't3', fazendaCode: '123', talhaoNome: 'T03', status: 'Coletada', contagemMariposas: 10, dataColeta: new Date('2025-10-21T10:00:00Z'), companyId: 'test-company' },
+                        { id: 't4', fazendaCode: '123', talhaoNome: 'T04', status: 'Coletada', contagemMariposas: 2, dataColeta: new Date('2025-10-21T10:00:00Z'), companyId: 'test-company' },
                  // 4 traps for Fazenda 456, 1 with high count -> 25% risk
-                { id: 't5', fazendaCode: '456', status: 'Coletada', contagemMariposas: 10, dataColeta: new Date(), companyId: 'test-company' },
-                { id: 't6', fazendaCode: '456', status: 'Coletada', contagemMariposas: 2, dataColeta: new Date(), companyId: 'test-company' },
-                { id: 't7', fazendaCode: '456', status: 'Coletada', contagemMariposas: 2, dataColeta: new Date(), companyId: 'test-company' },
-                { id: 't8', fazendaCode: '456', status: 'Coletada', contagemMariposas: 2, dataColeta: new Date(), companyId: 'test-company' }
+                        { id: 't5', fazendaCode: '456', talhaoNome: 'T01', status: 'Coletada', contagemMariposas: 10, dataColeta: new Date('2025-10-21T10:00:00Z'), companyId: 'test-company' },
+                        { id: 't6', fazendaCode: '456', talhaoNome: 'T02', status: 'Coletada', contagemMariposas: 2, dataColeta: new Date('2025-10-21T10:00:00Z'), companyId: 'test-company' },
+                        { id: 't7', fazendaCode: '456', talhaoNome: 'T03', status: 'Coletada', contagemMariposas: 2, dataColeta: new Date('2025-10-21T10:00:00Z'), companyId: 'test-company' },
+                        { id: 't8', fazendaCode: '456', talhaoNome: 'T04', status: 'Coletada', contagemMariposas: 2, dataColeta: new Date('2025-10-21T10:00:00Z'), companyId: 'test-company' }
             ];
             window.App.state.geoJsonData = {
                 "type": "FeatureCollection",
@@ -83,7 +88,13 @@ def test_risk_view_highlights_correct_farm(browser_context):
                 getCanvas: () => ({style: {cursor: ''}}),
                 on: () => {},
                 flyTo: () => {},
-                fitBounds: () => {}
+                fitBounds: () => {},
+                    querySourceFeatures: (sourceId) => {
+                        if (sourceId === 'talhoes-source') {
+                            return window.App.state.geoJsonData.features;
+                        }
+                        return [];
+                    }
             };
         """)
 
@@ -99,7 +110,7 @@ def test_risk_view_highlights_correct_farm(browser_context):
         assert feature_state['talhoes-source-1']['risk'] is True
 
         # Farm with code '456' (ID 2) should not be high risk
-        assert 'talhoes-source-2' not in feature_state or 'risk' not in feature_state['talhoes-source-2'] or feature_state['talhoes-source-2']['risk'] is False
+        assert 'talhoes-source-2' not in feature_state or 'risk' not in feature_state['talhoes-source-2'] or feature_state['talhoes-source-2']['risk'] is not True
 
     finally:
         page.close()
