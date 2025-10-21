@@ -2704,6 +2704,44 @@
                 <h3><i class="fas fa-list-ul"></i> Frentes Cadastradas</h3>
                 <div id="frenteDePlantioList" class="table-responsive"></div>
             </section>
+
+            <section id="gerenciarProdutos" class="tab-content card" aria-label="Gerir Produtos" tabindex="0" hidden>
+                <h2><i class="fas fa-box-open"></i> Gerir Produtos e Custos</h2>
+                <div class="card" style="border-left-color: var(--color-success);">
+                    <h3><i class="fas fa-plus-circle"></i> Adicionar/Editar Produto</h3>
+                    <input type="hidden" id="produtoId">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="produtoNome" class="required">Nome do Produto:</label>
+                            <input type="text" id="produtoNome" placeholder="Ex: Inseticida XPTO">
+                        </div>
+                        <div class="form-col">
+                            <label for="produtoUnidade" class="required">Unidade:</label>
+                            <select id="produtoUnidade">
+                                <option value="Litro">Litro (L)</option>
+                                <option value="Kilo">Quilograma (Kg)</option>
+                                <option value="Unidade">Unidade (Un)</option>
+                            </select>
+                        </div>
+                        <div class="form-col">
+                            <label for="produtoPreco" class="required">Preço (R$):</label>
+                            <input type="number" id="produtoPreco" placeholder="Ex: 150.50">
+                        </div>
+                    </div>
+                    <button id="btnSaveProduto" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Guardar Produto</button>
+                </div>
+                <h3><i class="fas fa-list-ul"></i> Produtos Cadastrados</h3>
+                <div id="produtosList" class="table-responsive"></div>
+            </section>
+
+            <section id="receituario" class="tab-content card" aria-label="Receituário Agronômico" tabindex="0" hidden>
+                <h2><i class="fas fa-file-medical-alt"></i> Receituário Agronômico</h2>
+                <div class="card" style="border-left-color: var(--color-primary);">
+                    <button id="btnNovoReceituario" class="save" style="max-width: 300px;"><i class="fas fa-plus"></i> Criar Nova Receita</button>
+                    <h3 style="margin-top: 20px;"><i class="fas fa-list-ul"></i> Receitas Criadas</h3>
+                    <div id="receituariosList"></div>
+                </div>
+            </section>
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
@@ -2975,6 +3013,43 @@
                 </div>
                 <div class="modal-footer">
                     <button id="configHistoryModalCancelBtn" class="btn-secondary">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="receituarioModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h2 id="receituarioModalTitle">Criar Nova Receita</h2>
+                    <button id="receituarioModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <input type="hidden" id="receituarioId">
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="receituarioFazenda" class="required">Fazenda:</label>
+                        <select id="receituarioFazenda" required></select>
+                    </div>
+                    <div class="form-col">
+                        <label for="receituarioData" class="required">Data da Aplicação:</label>
+                        <input type="date" id="receituarioData" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="receituarioPraga" class="required">Praga Alvo:</label>
+                        <input type="text" id="receituarioPraga" placeholder="Ex: Broca" required>
+                    </div>
+                    <div class="form-col">
+                        <label for="receituarioArea" class="required">Área a Aplicar (ha):</label>
+                        <input type="number" id="receituarioArea" required>
+                    </div>
+                </div>
+                <h3>Produtos</h3>
+                <div id="receituarioProdutosContainer"></div>
+                <button id="btnAddProdutoReceituario" class="btn-secondary" style="max-width: 250px;"><i class="fas fa-plus"></i> Adicionar Produto</button>
+                <div class="resultado" id="receituarioCustoTotal" style="margin-top: 20px;"></div>
+                <div class="modal-footer">
+                    <button id="btnSaveReceituario" class="save"><i class="fas fa-save"></i> Guardar Receita</button>
                 </div>
             </div>
         </div>
