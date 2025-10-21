@@ -204,6 +204,8 @@ document.addEventListener('DOMContentLoaded', () => {
             lastKnownPosition: null,
             riskViewActive: false,
             isTracking: false,
+            plantio: [], // Placeholder for Plantio data
+            cigarrinha: [], // Placeholder for Cigarrinha data
         },
         
         elements: {
@@ -333,12 +335,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 brocaView: document.getElementById('dashboard-broca'),
                 perdaView: document.getElementById('dashboard-perda'),
                 aereaView: document.getElementById('dashboard-aerea'),
+                plantioView: document.getElementById('dashboard-plantio'),
+                cigarrinhaView: document.getElementById('dashboard-cigarrinha'),
                 cardBroca: document.getElementById('card-broca'),
                 cardPerda: document.getElementById('card-perda'),
                 cardAerea: document.getElementById('card-aerea'),
+                cardPlantio: document.getElementById('card-plantio'),
+                cardCigarrinha: document.getElementById('card-cigarrinha'),
                 btnBackToSelectorBroca: document.getElementById('btn-back-to-selector-broca'),
                 btnBackToSelectorPerda: document.getElementById('btn-back-to-selector-perda'),
                 btnBackToSelectorAerea: document.getElementById('btn-back-to-selector-aerea'),
+                btnBackToSelectorPlantio: document.getElementById('btn-back-to-selector-plantio'),
+                btnBackToSelectorCigarrinha: document.getElementById('btn-back-to-selector-cigarrinha'),
                 brocaDashboardInicio: document.getElementById('brocaDashboardInicio'),
                 brocaDashboardFim: document.getElementById('brocaDashboardFim'),
                 btnFiltrarBrocaDashboard: document.getElementById('btnFiltrarBrocaDashboard'),
@@ -1823,14 +1831,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showDashboardView(viewName) {
                 const dashEls = App.elements.dashboard;
+                // Hide all views first
                 dashEls.selector.style.display = 'none';
                 dashEls.brocaView.style.display = 'none';
                 dashEls.perdaView.style.display = 'none';
                 dashEls.aereaView.style.display = 'none';
-                
+                dashEls.plantioView.style.display = 'none';
+                dashEls.cigarrinhaView.style.display = 'none';
+
                 App.charts.destroyAll();
 
-                switch(viewName) {
+                switch (viewName) {
                     case 'selector':
                         dashEls.selector.style.display = 'grid';
                         break;
@@ -1846,6 +1857,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'aerea':
                         dashEls.aereaView.style.display = 'block';
+                        this.loadDashboardDates('aereo');
+                        setTimeout(() => App.charts.renderAereoDashboardCharts(), 150);
+                        break;
+                    case 'plantio':
+                        dashEls.plantioView.style.display = 'block';
+                        this.loadDashboardDates('plantio');
+                        setTimeout(() => App.charts.renderPlantioDashboardCharts(), 150);
+                        break;
+                    case 'cigarrinha':
+                        dashEls.cigarrinhaView.style.display = 'block';
+                        this.loadDashboardDates('cigarrinha');
+                        setTimeout(() => App.charts.renderCigarrinhaDashboardCharts(), 150);
                         break;
                 }
             },
@@ -3405,11 +3428,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dashEls.cardBroca) dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
                 if (dashEls.cardPerda) dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
                 if (dashEls.cardAerea) dashEls.cardAerea.addEventListener('click', () => this.showDashboardView('aerea'));
+                if (dashEls.cardPlantio) dashEls.cardPlantio.addEventListener('click', () => this.showDashboardView('plantio'));
+                if (dashEls.cardCigarrinha) dashEls.cardCigarrinha.addEventListener('click', () => this.showDashboardView('cigarrinha'));
+
                 if (dashEls.btnBackToSelectorBroca) dashEls.btnBackToSelectorBroca.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorPerda) dashEls.btnBackToSelectorPerda.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorAerea) dashEls.btnBackToSelectorAerea.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorPlantio) dashEls.btnBackToSelectorPlantio.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorCigarrinha) dashEls.btnBackToSelectorCigarrinha.addEventListener('click', () => this.showDashboardView('selector'));
+
                 if (dashEls.btnFiltrarBrocaDashboard) dashEls.btnFiltrarBrocaDashboard.addEventListener('click', () => App.charts.renderBrocaDashboardCharts());
                 if (dashEls.btnFiltrarPerdaDashboard) dashEls.btnFiltrarPerdaDashboard.addEventListener('click', () => App.charts.renderPerdaDashboardCharts());
+                if (document.getElementById('btnFiltrarPlantioDashboard')) {
+                    document.getElementById('btnFiltrarPlantioDashboard').addEventListener('click', () => App.charts.renderPlantioDashboardCharts());
+                }
+                if (document.getElementById('btnFiltrarAereoDashboard')) {
+                    document.getElementById('btnFiltrarAereoDashboard').addEventListener('click', () => App.charts.renderAereoDashboardCharts());
+                }
+                if (document.getElementById('btnFiltrarCigarrinhaDashboard')) {
+                    document.getElementById('btnFiltrarCigarrinhaDashboard').addEventListener('click', () => App.charts.renderCigarrinhaDashboardCharts());
+                }
                 
                 const chartModal = App.elements.chartModal;
                 if (chartModal.closeBtn) chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
@@ -8504,6 +8542,65 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.expandedChart = null;
                 }
             },
+
+            _createGaugeChart(canvasId, value, maxValue, label) {
+                const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
+                const data = {
+                    labels: [label, 'Restante'],
+                    datasets: [{
+                        data: [value, Math.max(0, maxValue - value)],
+                        backgroundColor: [
+                            '#4caf50',
+                            '#e0e0e0'
+                        ],
+                        borderColor: [
+                            '#4caf50',
+                            '#e0e0e0'
+                        ],
+                        borderWidth: 1,
+                        circumference: 180,
+                        rotation: 270,
+                    }]
+                };
+
+                const textCenter = {
+                    id: 'textCenter',
+                    beforeDatasetsDraw(chart, args, pluginOptions) {
+                        const { ctx, data } = chart;
+                        ctx.save();
+                        ctx.font = 'bolder 30px Poppins';
+                        ctx.fillStyle = '#4caf50';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        const x = chart.getDatasetMeta(0).data[0].x;
+                        const y = chart.getDatasetMeta(0).data[0].y;
+                        ctx.fillText(`${percentage.toFixed(1)}%`, x, y);
+                    }
+                }
+
+                this._createOrUpdateChart(canvasId, {
+                    type: 'doughnut',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                enabled: false
+                            },
+                            datalabels: {
+                                display: false
+                            }
+                        },
+                        cutout: '70%'
+                    },
+                    plugins: [textCenter]
+                });
+            },
+
             openChartModal(chartId) {
                 const originalChart = App.state.charts[chartId];
                 if (!originalChart) return;
@@ -8919,7 +9016,549 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
-            }
+            },
+
+            async renderPlantioDashboardCharts() {
+                const startDateEl = document.getElementById('plantioDashboardInicio');
+                const endDateEl = document.getElementById('plantioDashboardFim');
+                App.actions.saveDashboardDates('plantio', startDateEl.value, endDateEl.value);
+
+                const consolidatedData = await App.actions.getConsolidatedData('apontamentosPlantio');
+                const data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
+
+                // 1. Calculate KPIs
+                const totalAreaPlantada = data.reduce((sum, item) => sum + item.totalArea, 0);
+                const metaPlantio = 1000; // Hardcoded meta for now
+                const percentualConcluido = metaPlantio > 0 ? (totalAreaPlantada / metaPlantio) * 100 : 0;
+
+                const days = new Set(data.map(item => item.date)).size;
+                const mediaDiaria = days > 0 ? totalAreaPlantada / days : 0;
+
+                // 2. Update KPI elements
+                document.getElementById('kpi-plantio-area-total').textContent = `${totalAreaPlantada.toFixed(2)} ha`;
+                document.getElementById('kpi-plantio-meta').textContent = `${metaPlantio.toFixed(2)} ha`;
+                document.getElementById('kpi-plantio-percentual').textContent = `${percentualConcluido.toFixed(1)}%`;
+                document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiaria.toFixed(2)} ha/dia`;
+
+                // 3. Render Charts
+                this.renderAreaPlantadaPorDia(data);
+                this.renderProdutividadePorFrente(data);
+                this.renderEvolucaoAreaPlantada(data);
+                this.renderConclusaoPlantio(totalAreaPlantada, metaPlantio);
+            },
+
+            renderAreaPlantadaPorDia(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    const date = item.date;
+                    acc[date] = (acc[date] || 0) + item.totalArea;
+                    return acc;
+                }, {});
+
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const chartData = sortedDays.map(date => dataByDay[date]);
+
+                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoAreaPlantadaPorDia', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Área Plantada (ha)',
+                            data: chartData,
+                            backgroundColor: '#4caf50',
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                         plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor,
+                                anchor: 'end',
+                                align: 'end',
+                                font: { weight: 'bold' },
+                                formatter: value => `${value.toFixed(2)} ha`
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderProdutividadePorFrente(data) {
+                const dataByFrente = data.reduce((acc, item) => {
+                    const frente = item.frenteDePlantioName || 'N/A';
+                    acc[frente] = (acc[frente] || 0) + item.totalArea;
+                    return acc;
+                }, {});
+
+                const sortedFrentes = Object.entries(dataByFrente).sort(([, a], [, b]) => b - a);
+                const labels = sortedFrentes.map(([name]) => name);
+                const chartData = sortedFrentes.map(([, total]) => total);
+
+                const commonOptions = this._getCommonChartOptions();
+                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoProdutividadePorFrente', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Área Plantada (ha)',
+                            data: chartData,
+                            backgroundColor: this._getVibrantColors(labels.length),
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor,
+                                anchor: 'end',
+                                align: 'top',
+                                font: { weight: 'bold' },
+                                formatter: value => `${value.toFixed(2)} ha`
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderEvolucaoAreaPlantada(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    const date = item.date;
+                    acc[date] = (acc[date] || 0) + item.totalArea;
+                    return acc;
+                }, {});
+
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+
+                let cumulativeTotal = 0;
+                const cumulativeData = sortedDays.map(date => {
+                    cumulativeTotal += dataByDay[date];
+                    return cumulativeTotal;
+                });
+
+                const commonOptions = this._getCommonChartOptions();
+
+                this._createOrUpdateChart('graficoEvolucaoAreaPlantada', {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Área Acumulada (ha)',
+                            data: cumulativeData,
+                            fill: true,
+                            borderColor: '#1976d2',
+                            backgroundColor: 'rgba(25, 118, 210, 0.2)',
+                            tension: 0.3
+                        }]
+                    },
+                     options: {
+                        ...commonOptions,
+                         plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: { display: false }
+                        }
+                    }
+                });
+            },
+
+            renderConclusaoPlantio(totalArea, meta) {
+                this._createGaugeChart('graficoConclusaoPlantio', totalArea, meta, 'Concluído');
+            },
+
+            async renderAereoDashboardCharts() {
+                const startDateEl = document.getElementById('aereoDashboardInicio');
+                const endDateEl = document.getElementById('aereoDashboardFim');
+                App.actions.saveDashboardDates('aereo', startDateEl.value, endDateEl.value);
+
+                const consolidatedData = await App.actions.getConsolidatedData('armadilhas');
+                const collectedTraps = consolidatedData.filter(t => t.status === 'Coletada');
+                const data = App.actions.filterDashboardData(collectedTraps, startDateEl.value, endDateEl.value);
+
+                const farmRiskData = this._calculateRiskForEachFarm(data);
+
+                // KPIs
+                const fazendasMonitoradas = farmRiskData.length;
+                const fazendasEmRisco = farmRiskData.filter(f => f.riskPercentage > 30).length;
+                const percentualFazendasRisco = fazendasMonitoradas > 0 ? (fazendasEmRisco / fazendasMonitoradas) * 100 : 0;
+                const totalMariposas = data.reduce((sum, trap) => sum + (trap.contagemMariposas || 0), 0);
+                const infestacaoMedia = data.length > 0 ? totalMariposas / data.length : 0;
+
+                document.getElementById('kpi-aereo-fazendas-monitoradas').textContent = fazendasMonitoradas;
+                document.getElementById('kpi-aereo-fazendas-risco').textContent = `${percentualFazendasRisco.toFixed(1)}%`;
+                document.getElementById('kpi-aereo-infestacao-media').textContent = `${infestacaoMedia.toFixed(1)}`;
+                document.getElementById('kpi-aereo-custo-total').textContent = 'R$ 0,00'; // Placeholder
+
+                // Charts
+                this.renderFazendasRiscoChart(fazendasMonitoradas, fazendasEmRisco);
+                this.renderRiscoPorFazendaChart(farmRiskData);
+                this.renderTendenciaAereaChart(data);
+                this.renderCustoAereoChart(); // Placeholder chart
+            },
+
+            _calculateRiskForEachFarm(data) {
+                const farms = App.state.fazendas;
+                const farmRiskData = [];
+
+                const trapsByFarm = data.reduce((acc, trap) => {
+                    const farmCode = trap.fazendaCode;
+                    if (!acc[farmCode]) {
+                        acc[farmCode] = [];
+                    }
+                    acc[farmCode].push(trap);
+                    return acc;
+                }, {});
+
+
+                for (const farmCode in trapsByFarm) {
+                    const farmTraps = trapsByFarm[farmCode];
+                    const farmInfo = farms.find(f => String(f.code) === String(farmCode));
+
+                    if (farmTraps.length > 0) {
+                        const highCountTraps = farmTraps.filter(t => t.contagemMariposas >= 6).length;
+                        const riskPercentage = (highCountTraps / farmTraps.length) * 100;
+                        farmRiskData.push({
+                            farmName: farmInfo ? `${farmInfo.code} - ${farmInfo.name}`: `Fazenda ${farmCode}`,
+                            riskPercentage: riskPercentage
+                        });
+                    }
+                }
+
+                return farmRiskData.sort((a, b) => b.riskPercentage - a.riskPercentage);
+            },
+
+            renderFazendasRiscoChart(totalFarms, riskFarms) {
+                const commonOptions = this._getCommonChartOptions();
+                const labels = ['Em Risco (>30%)', 'Fora de Risco'];
+                 this._createOrUpdateChart('graficoFazendasRisco', {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Proporção de Fazendas',
+                            data: [riskFarms, totalFarms - riskFarms],
+                            backgroundColor: ['#d32f2f', '#388e3c'],
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                             ...commonOptions.plugins,
+                            datalabels: {
+                                color: '#FFFFFF',
+                                font: { weight: 'bold', size: 16 },
+                                formatter: (value, context) => {
+                                    const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? (value / total * 100) : 0;
+                                    return `${percentage.toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderRiscoPorFazendaChart(farmRiskData) {
+                const top10Farms = farmRiskData.slice(0, 10);
+                const labels = top10Farms.map(f => f.farmName);
+                const data = top10Farms.map(f => f.riskPercentage);
+
+                const commonOptions = this._getCommonChartOptions({hasLongLabels: true});
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoRiscoPorFazenda', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Nível de Risco (%)',
+                            data,
+                            backgroundColor: data.map(risk => risk > 30 ? '#d32f2f' : '#388e3c'),
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                             ...commonOptions.plugins,
+                             legend: { display: false },
+                             datalabels: {
+                                 color: datalabelColor,
+                                 anchor: 'end',
+                                 align: 'top',
+                                 font: { weight: 'bold' },
+                                 formatter: value => `${value.toFixed(1)}%`
+                             }
+                        }
+                    }
+                });
+            },
+
+            renderTendenciaAereaChart(data) {
+                const dataByDay = data.reduce((acc, trap) => {
+                    const date = trap.dataColeta?.toDate ? trap.dataColeta.toDate().toISOString().split('T')[0] : new Date(trap.dataColeta).toISOString().split('T')[0];
+                    if (!acc[date]) {
+                        acc[date] = { totalMoths: 0, count: 0 };
+                    }
+                    acc[date].totalMoths += trap.contagemMariposas || 0;
+                    acc[date].count++;
+                    return acc;
+                }, {});
+
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const chartData = sortedDays.map(date => dataByDay[date].totalMoths / dataByDay[date].count);
+
+                const commonOptions = this._getCommonChartOptions();
+
+                this._createOrUpdateChart('graficoTendenciaAerea', {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Média de Mariposas / Dia',
+                            data: chartData,
+                            borderColor: '#f57c00',
+                            backgroundColor: 'rgba(245, 124, 0, 0.2)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                         plugins: {
+                             ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: { display: false }
+                        }
+                    }
+                });
+            },
+
+            renderCustoAereoChart() {
+                // Placeholder chart
+                const commonOptions = this._getCommonChartOptions();
+                 this._createOrUpdateChart('graficoCustoAereo', {
+                    type: 'bar',
+                    data: {
+                        labels: ['Fazenda A', 'Fazenda B', 'Fazenda C'],
+                        datasets: [{
+                            label: 'Custo Total',
+                            data: [1200, 1900, 800],
+                            backgroundColor: '#1976d2'
+                        }, {
+                            label: 'Custo Médio',
+                            data: [300, 475, 200],
+                            backgroundColor: '#689f38'
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                         scales: { ...commonOptions.scales, x: { ...commonOptions.scales.x, stacked: true }, y: { ...commonOptions.scales.y, stacked: true } }
+                    }
+                });
+            },
+
+            async renderCigarrinhaDashboardCharts() {
+                const startDateEl = document.getElementById('cigarrinhaDashboardInicio');
+                const endDateEl = document.getElementById('cigarrinhaDashboardFim');
+                App.actions.saveDashboardDates('cigarrinha', startDateEl.value, endDateEl.value);
+
+                const cigarrinhaData = await App.actions.getConsolidatedData('cigarrinha');
+                const amostragemData = await App.actions.getConsolidatedData('cigarrinhaAmostragem');
+                const combinedData = [...cigarrinhaData, ...amostragemData];
+                const data = App.actions.filterDashboardData(combinedData, startDateEl.value, endDateEl.value);
+
+                const dataByTalhao = data.reduce((acc, item) => {
+                    const talhaoKey = `${item.codigo}-${item.talhao}`;
+                    if (!acc[talhaoKey]) {
+                        acc[talhaoKey] = [];
+                    }
+                    acc[talhaoKey].push(item.resultado);
+                    return acc;
+                }, {});
+
+                const talhaoAverages = Object.entries(dataByTalhao).map(([key, results]) => {
+                    const avg = results.reduce((sum, r) => sum + r, 0) / results.length;
+                    return { talhao: key, avgResult: avg };
+                });
+
+                // KPIs
+                const totalResultado = talhaoAverages.reduce((sum, t) => sum + t.avgResult, 0);
+                const infestacaoMedia = talhaoAverages.length > 0 ? totalResultado / talhaoAverages.length : 0;
+                const talhoesAvaliados = talhaoAverages.length;
+                const talhoesEmAlerta = talhaoAverages.filter(t => t.avgResult >= 2.0).length;
+
+                document.getElementById('kpi-cigarrinha-infestacao-media').textContent = infestacaoMedia.toFixed(2);
+                document.getElementById('kpi-cigarrinha-talhoes-avaliados').textContent = talhoesAvaliados;
+                document.getElementById('kpi-cigarrinha-eficiencia-controle').textContent = 'N/A';
+                document.getElementById('kpi-cigarrinha-talhoes-alerta').textContent = talhoesEmAlerta;
+
+                // Charts
+                this.renderInfestacaoMediaTalhao(talhaoAverages);
+                this.renderTendenciaCigarrinha(data);
+                this.renderEficienciaControleChart(); // Placeholder
+                this.renderNivelInfestacaoChart(talhaoAverages);
+            },
+
+            renderInfestacaoMediaTalhao(talhaoAverages) {
+                const sortedData = [...talhaoAverages].sort((a, b) => b.avgResult - a.avgResult).slice(0, 15);
+                const labels = sortedData.map(item => item.talhao);
+                const data = sortedData.map(item => item.avgResult);
+
+                const getBarColor = (value) => {
+                    if (value >= 2.0) return '#d32f2f'; // Red for high
+                    if (value >= 1.0) return '#f57c00'; // Orange for medium
+                    return '#388e3c'; // Green for low
+                };
+
+                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y', hasLongLabels: true });
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoInfestacaoMediaTalhao', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Infestação Média',
+                            data,
+                            backgroundColor: data.map(getBarColor)
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                             datalabels: {
+                                color: datalabelColor,
+                                anchor: 'end',
+                                align: 'end',
+                                font: { weight: 'bold' },
+                                formatter: value => value.toFixed(2)
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderTendenciaCigarrinha(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    const date = item.data;
+                    if (!acc[date]) {
+                        acc[date] = [];
+                    }
+                    acc[date].push(item.resultado);
+                    return acc;
+                }, {});
+
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const chartData = sortedDays.map(date => {
+                    const results = dataByDay[date];
+                    return results.reduce((sum, r) => sum + r, 0) / results.length;
+                });
+
+                const commonOptions = this._getCommonChartOptions();
+
+                this._createOrUpdateChart('graficoTendenciaCigarrinha', {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Infestação Média Diária',
+                            data: chartData,
+                            borderColor: '#7b1fa2',
+                            backgroundColor: 'rgba(123, 31, 162, 0.2)',
+                            fill: true,
+                            tension: 0.4 // For smooth area chart
+                        }]
+                    },
+                     options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: { display: false }
+                        }
+                    }
+                });
+            },
+
+            renderEficienciaControleChart() {
+                 const commonOptions = this._getCommonChartOptions();
+                 this._createOrUpdateChart('graficoEficienciaControle', {
+                    type: 'bar',
+                    data: {
+                        labels: ['Talhão A', 'Talhão B', 'Talhão C', 'Talhão D'],
+                        datasets: [{
+                            label: 'Antes da Aplicação',
+                            data: [2.5, 3.1, 1.8, 2.9],
+                            backgroundColor: '#f57c00'
+                        }, {
+                            label: 'Depois da Aplicação',
+                            data: [0.8, 1.0, 0.5, 1.2],
+                            backgroundColor: '#388e3c'
+                        }]
+                    },
+                    options: commonOptions
+                });
+            },
+
+            renderNivelInfestacaoChart(talhaoAverages) {
+                const niveis = {
+                    'Baixa (<1.0)': 0,
+                    'Média (1.0-1.9)': 0,
+                    'Alta (>=2.0)': 0
+                };
+
+                talhaoAverages.forEach(item => {
+                    if (item.avgResult >= 2.0) {
+                        niveis['Alta (>=2.0)']++;
+                    } else if (item.avgResult >= 1.0) {
+                        niveis['Média (1.0-1.9)']++;
+                    } else {
+                        niveis['Baixa (<1.0)']++;
+                    }
+                });
+
+                const commonOptions = this._getCommonChartOptions();
+
+                this._createOrUpdateChart('graficoNivelInfestacao', {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(niveis),
+                        datasets: [{
+                            data: Object.values(niveis),
+                            backgroundColor: ['#388e3c', '#f57c00', '#d32f2f']
+                        }]
+                    },
+                     options: {
+                        ...commonOptions,
+                        plugins: {
+                             ...commonOptions.plugins,
+                            datalabels: {
+                                color: '#FFFFFF',
+                                font: { weight: 'bold', size: 16 },
+                                formatter: (value, context) => {
+                                    const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? (value / total * 100) : 0;
+                                     return percentage > 0 ? `${percentage.toFixed(1)}%` : '';
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
         },
 
         reports: {
