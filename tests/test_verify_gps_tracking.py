@@ -10,19 +10,6 @@ async def test_automatic_gps_tracking():
 
         await page.goto("http://localhost:8000")
 
-        # Mock geolocation API
-        await page.evaluate("""() => {
-            navigator.geolocation.watchPosition = (success) => {
-                const position = { coords: { latitude: -21.17, longitude: -48.45 } };
-                success(position);
-                return 1; // Return a watchId
-            };
-            navigator.geolocation.getCurrentPosition = (success) => {
-                const position = { coords: { latitude: -21.17, longitude: -48.45 } };
-                success(position);
-            };
-        }""")
-
         # Mock the currentUser and trigger the app screen
         await page.evaluate("""() => {
             window.App.state.currentUser = {
@@ -36,8 +23,8 @@ async def test_automatic_gps_tracking():
             window.App.ui.showAppScreen();
         }""")
 
-        # Use wait_for_function to poll for the state change
-        await page.wait_for_function("() => window.App.state.isTracking === true", timeout=5000)
+        # Wait for the app to initialize and check the tracking state
+        await page.wait_for_timeout(2000) # Give it a moment to run the startup logic
 
         is_tracking = await page.evaluate("() => window.App.state.isTracking")
         assert is_tracking is True, "GPS tracking did not start automatically"
