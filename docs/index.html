@@ -1879,13 +1879,6 @@
                                 <input type="date" id="plantioDashboardInicio">
                                 <label for="plantioDashboardFim">Até:</label>
                                 <input type="date" id="plantioDashboardFim">
-                                <label for="plantioDashboardCultura">Cultura:</label>
-                                <select id="plantioDashboardCultura">
-                                    <option value="">Todas</option>
-                                    <option value="Cana-de-açúcar">Cana-de-açúcar</option>
-                                    <option value="Soja">Soja</option>
-                                    <option value="Milho">Milho</option>
-                                </select>
                                 <button id="btnFiltrarPlantioDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
                             </div>
                         </div>
@@ -1903,7 +1896,7 @@
                             <div class="icon" style="background-color: var(--color-info);"><i class="fas fa-bullseye"></i></div>
                             <div class="text">
                                 <p class="value" id="kpi-plantio-meta">1.000 ha</p>
-                                <p class="label">Meta de Plantio <i id="edit-plantio-meta" class="fas fa-edit" style="cursor: pointer;"></i></p>
+                                <p class="label">Meta de Plantio</p>
                             </div>
                         </div>
                         <div class="kpi-card" style="border-left-color: var(--color-accent);">
@@ -1923,7 +1916,7 @@
                     </div>
                     <div class="dashboard-grid">
                         <div class="chart-card">
-                            <h3 class="chart-title">Área Plantada por Mês</h3>
+                            <h3 class="chart-title">Área Plantada por Dia</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoAreaPlantadaPorDia"><i class="fas fa-expand-alt"></i></button>
                             <div class="chart-container"><canvas id="graficoAreaPlantadaPorDia"></canvas></div>
                         </div>

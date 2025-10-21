@@ -3442,10 +3442,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (document.getElementById('btnFiltrarPlantioDashboard')) {
                     document.getElementById('btnFiltrarPlantioDashboard').addEventListener('click', () => App.charts.renderPlantioDashboardCharts());
                 }
-                const editPlantioMetaIcon = document.getElementById('edit-plantio-meta');
-                if (editPlantioMetaIcon) {
-                    editPlantioMetaIcon.addEventListener('click', () => App.actions.editPlantioMeta());
-                }
                 if (document.getElementById('btnFiltrarAereoDashboard')) {
                     document.getElementById('btnFiltrarAereoDashboard').addEventListener('click', () => App.charts.renderAereoDashboardCharts());
                 }
@@ -6356,30 +6352,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.isSyncing = true;
                 this.syncGpsLocations(); // Sync GPS data
                 console.log("Iniciando a verificação de dados offline...");
-            },
-
-            editPlantioMeta() {
-                const currentMeta = App.state.companyConfig?.plantioMeta || 1000;
-                App.ui.showConfirmationModal(
-                    'Por favor, insira a nova meta de plantio (em hectares).',
-                    async (inputs) => {
-                        const newMeta = parseFloat(inputs.newMeta);
-                        if (isNaN(newMeta) || newMeta <= 0) {
-                            App.ui.showAlert("Por favor, insira um valor numérico válido para a meta.", "error");
-                            return;
-                        }
-
-                        try {
-                            await App.data.setDocument('config', App.state.currentUser.companyId, { plantioMeta: newMeta }, { merge: true });
-                            App.ui.showAlert('Meta de plantio atualizada com sucesso!');
-                            // A UI irá atualizar automaticamente devido ao listener onSnapshot
-                        } catch (error) {
-                            App.ui.showAlert('Erro ao atualizar a meta.', 'error');
-                            console.error("Erro ao salvar a meta de plantio:", error);
-                        }
-                    },
-                    [{ id: 'newMeta', placeholder: 'Nova Meta (ha)', type: 'number', value: currentMeta, required: true }]
-                );
 
                 const logEntry = {
                     userId: App.state.currentUser.uid,
@@ -8602,7 +8574,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.textBaseline = 'middle';
                         const x = chart.getDatasetMeta(0).data[0].x;
                         const y = chart.getDatasetMeta(0).data[0].y;
-                        ctx.fillText(`${percentage.toFixed(1)}%`, x, y - 20);
+                        ctx.fillText(`${percentage.toFixed(1)}%`, x, y);
                     }
                 }
 
@@ -9049,19 +9021,14 @@ document.addEventListener('DOMContentLoaded', () => {
             async renderPlantioDashboardCharts() {
                 const startDateEl = document.getElementById('plantioDashboardInicio');
                 const endDateEl = document.getElementById('plantioDashboardFim');
-                const culturaEl = document.getElementById('plantioDashboardCultura');
                 App.actions.saveDashboardDates('plantio', startDateEl.value, endDateEl.value);
 
                 const consolidatedData = await App.actions.getConsolidatedData('apontamentosPlantio');
-                let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
-
-                if (culturaEl.value) {
-                    data = data.filter(item => item.culture === culturaEl.value);
-                }
+                const data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
 
                 // 1. Calculate KPIs
                 const totalAreaPlantada = data.reduce((sum, item) => sum + item.totalArea, 0);
-                const metaPlantio = App.state.companyConfig?.plantioMeta || 1000;
+                const metaPlantio = 1000; // Hardcoded meta for now
                 const percentualConcluido = metaPlantio > 0 ? (totalAreaPlantada / metaPlantio) * 100 : 0;
 
                 const days = new Set(data.map(item => item.date)).size;
@@ -9074,35 +9041,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiaria.toFixed(2)} ha/dia`;
 
                 // 3. Render Charts
-                this.renderAreaPlantadaPorMes(data);
+                this.renderAreaPlantadaPorDia(data);
                 this.renderProdutividadePorFrente(data);
                 this.renderEvolucaoAreaPlantada(data);
                 this.renderConclusaoPlantio(totalAreaPlantada, metaPlantio);
             },
 
-            renderAreaPlantadaPorMes(data) {
-                const dataByMonth = data.reduce((acc, item) => {
-                    if (!item.date) return acc;
-                    const date = new Date(item.date + 'T03:00:00Z');
-                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                    const monthLabel = date.toLocaleString('pt-BR', { month: 'short', year: 'numeric' });
-
-                    if (!acc[monthKey]) {
-                        acc[monthKey] = { totalArea: 0, label: monthLabel };
-                    }
-                    acc[monthKey].totalArea += item.totalArea;
+            renderAreaPlantadaPorDia(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    const date = item.date;
+                    acc[date] = (acc[date] || 0) + item.totalArea;
                     return acc;
                 }, {});
 
-                const sortedMonths = Object.keys(dataByMonth).sort();
-                const labels = sortedMonths.map(key => dataByMonth[key].label);
-                const chartData = sortedMonths.map(key => dataByMonth[key].totalArea);
-
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const chartData = sortedDays.map(date => dataByDay[date]);
 
                 const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
-                this._createOrUpdateChart('graficoAreaPlantadaPorDia', { // Still uses the same canvas ID
+                this._createOrUpdateChart('graficoAreaPlantadaPorDia', {
                     type: 'bar',
                     data: {
                         labels,
@@ -9198,7 +9157,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             fill: true,
                             borderColor: '#1976d2',
                             backgroundColor: 'rgba(25, 118, 210, 0.2)',
-                            tension: 0.4
+                            tension: 0.3
                         }]
                     },
                      options: {
