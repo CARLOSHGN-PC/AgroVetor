@@ -414,6 +414,24 @@ try {
         return codeA - codeB;
     };
 
+    const safeToDate = (dateInput) => {
+        if (!dateInput) return null;
+        // Se for um objeto Timestamp do Firestore, use toDate()
+        if (dateInput && typeof dateInput.toDate === 'function') {
+            return dateInput.toDate();
+        }
+        // Se já for um objeto Date do JS
+        if (dateInput instanceof Date) {
+            return dateInput;
+        }
+        // Se for uma string ou número, tenta criar uma nova Data
+        const date = new Date(dateInput);
+        if (!isNaN(date.getTime())) {
+            return date;
+        }
+        return null; // Retorna nulo se não conseguir converter
+    };
+
     const getFilteredData = async (collectionName, filters) => {
         // Validação de Segurança: Garante que o companyId foi fornecido.
         if (!filters.companyId) {
@@ -2198,18 +2216,22 @@ try {
             
             let enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
-                const dataInstalacao = trap.dataInstalacao.toDate();
-                const dataColeta = trap.dataColeta.toDate();
-                const diffTime = Math.abs(dataColeta - dataInstalacao);
-                const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const dataInstalacao = safeToDate(trap.dataInstalacao);
+                const dataColeta = safeToDate(trap.dataColeta);
+
+                let diasEmCampo = 'N/A';
+                if (dataInstalacao && dataColeta) {
+                    const diffTime = Math.abs(dataColeta - dataInstalacao);
+                    diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                }
 
                 return {
                     ...trap,
                     fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
                     fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
                     talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
-                    dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
-                    dataColetaFmt: dataColeta.toLocaleDateString('pt-BR'),
+                    dataInstalacaoFmt: dataInstalacao ? dataInstalacao.toLocaleDateString('pt-BR') : 'N/A',
+                    dataColetaFmt: dataColeta ? dataColeta.toLocaleDateString('pt-BR') : 'N/A',
                     diasEmCampo: diasEmCampo,
                     instaladoPorNome: usersMap[trap.instaladoPor] || 'Desconhecido',
                     coletadoPorNome: usersMap[trap.coletadoPor] || 'Desconhecido',
@@ -2290,17 +2312,21 @@ try {
 
             let enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
-                const dataInstalacao = trap.dataInstalacao.toDate();
-                const dataColeta = trap.dataColeta.toDate();
-                const diffTime = Math.abs(dataColeta - dataInstalacao);
-                const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const dataInstalacao = safeToDate(trap.dataInstalacao);
+                const dataColeta = safeToDate(trap.dataColeta);
+
+                let diasEmCampo = 'N/A';
+                if (dataInstalacao && dataColeta) {
+                    const diffTime = Math.abs(dataColeta - dataInstalacao);
+                    diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                }
 
                 return {
                     fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
                     fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
                     talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
-                    dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
-                    dataColeta: dataColeta.toLocaleDateString('pt-BR'),
+                    dataInstalacao: dataInstalacao ? dataInstalacao.toLocaleDateString('pt-BR') : 'N/A',
+                    dataColeta: dataColeta ? dataColeta.toLocaleDateString('pt-BR') : 'N/A',
                     diasEmCampo: diasEmCampo,
                     contagemMariposas: trap.contagemMariposas || 0,
                     instaladoPor: usersMap[trap.instaladoPor] || 'Desconhecido',
@@ -2389,20 +2415,27 @@ try {
 
             let enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
-                const dataInstalacao = trap.dataInstalacao.toDate();
-                const diffTime = Math.abs(new Date() - dataInstalacao);
-                const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const dataInstalacao = safeToDate(trap.dataInstalacao);
 
-                const previsaoRetirada = new Date(dataInstalacao);
-                previsaoRetirada.setDate(previsaoRetirada.getDate() + 7);
+                let diasEmCampo = 'N/A';
+                let previsaoRetiradaFmt = 'N/A';
+
+                if (dataInstalacao) {
+                    const diffTime = Math.abs(new Date() - dataInstalacao);
+                    diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    const previsaoRetirada = new Date(dataInstalacao);
+                    previsaoRetirada.setDate(previsaoRetirada.getDate() + 7);
+                    previsaoRetiradaFmt = previsaoRetirada.toLocaleDateString('pt-BR');
+                }
 
                 return {
                     ...trap,
                     fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
                     fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
                     talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
-                    dataInstalacaoFmt: dataInstalacao.toLocaleDateString('pt-BR'),
-                    previsaoRetiradaFmt: previsaoRetirada.toLocaleDateString('pt-BR'),
+                    dataInstalacaoFmt: dataInstalacao ? dataInstalacao.toLocaleDateString('pt-BR') : 'N/A',
+                    previsaoRetiradaFmt: previsaoRetiradaFmt,
                     diasEmCampo: diasEmCampo,
                     instaladoPorNome: usersMap[trap.instaladoPor] || 'Desconhecido',
                 };
@@ -2480,19 +2513,24 @@ try {
 
             let enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
-                const dataInstalacao = trap.dataInstalacao.toDate();
-                const diffTime = Math.abs(new Date() - dataInstalacao);
-                const diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const dataInstalacao = safeToDate(trap.dataInstalacao);
+                let diasEmCampo = 'N/A';
+                let previsaoRetiradaFmt = 'N/A';
 
-                const previsaoRetirada = new Date(dataInstalacao);
-                previsaoRetirada.setDate(previsaoRetirada.getDate() + 7);
+                if (dataInstalacao) {
+                    const diffTime = Math.abs(new Date() - dataInstalacao);
+                    diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const previsaoRetirada = new Date(dataInstalacao);
+                    previsaoRetirada.setDate(previsaoRetirada.getDate() + 7);
+                    previsaoRetiradaFmt = previsaoRetirada.toLocaleDateString('pt-BR');
+                }
 
                 return {
                     fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
                     fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
                     talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
-                    dataInstalacao: dataInstalacao.toLocaleDateString('pt-BR'),
-                    previsaoRetirada: previsaoRetirada.toLocaleDateString('pt-BR'),
+                    dataInstalacao: dataInstalacao ? dataInstalacao.toLocaleDateString('pt-BR') : 'N/A',
+                    previsaoRetirada: previsaoRetiradaFmt,
                     diasEmCampo: diasEmCampo,
                     instaladoPor: usersMap[trap.instaladoPor] || 'Desconhecido',
                     observacoes: trap.observacoes || ''
