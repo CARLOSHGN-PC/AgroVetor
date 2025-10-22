@@ -4527,7 +4527,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Apenas tenta guardar offline se for uma nova entrada e se o erro for de rede
                         if (!existingId && !navigator.onLine) {
                             try {
-                                await OfflineDB.add('offline-writes', { collection: 'frentesDePlantio', data: data });
+                                const entryId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                await OfflineDB.add('offline-writes', { id: entryId, collection: 'frentesDePlantio', data: data });
                                 App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
                                 id.value = ''; name.value = ''; provider.value = ''; obs.value = '';
                             } catch (offlineError) {
@@ -4564,7 +4565,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async saveApontamentoOffline(newEntry, els) {
                 try {
-                    await OfflineDB.add('offline-writes', { collection: 'apontamentosPlantio', data: newEntry });
+                    const entryId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    await OfflineDB.add('offline-writes', { id: entryId, collection: 'apontamentosPlantio', data: newEntry });
                     App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
                     App.ui.clearForm(els.form);
                     els.recordsContainer.innerHTML = '';
@@ -5538,13 +5540,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                     this.verificarEAtualizarPlano(formType, newEntry.codigo, newEntry.talhao);
                                 }
                             } else {
-                                await OfflineDB.add('offline-writes', { collection: collectionName, data: newEntry });
+                                const entryId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                await OfflineDB.add('offline-writes', { id: entryId, collection: collectionName, data: newEntry });
                                 App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
                             }
                         } catch (e) {
                             App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
                             console.error(`Erro ao salvar ${formType}, salvando offline:`, e);
-                            await OfflineDB.add('offline-writes', { collection: collectionName, data: newEntry });
+                            const entryId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                            await OfflineDB.add('offline-writes', { id: entryId, collection: collectionName, data: newEntry });
                         } finally {
                             App.ui.setLoading(false);
                         }
@@ -5663,13 +5667,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                 await App.data.addDocument('cigarrinhaAmostragem', newEntry);
                                 App.ui.showAlert("Lançamento de amostragem guardado com sucesso!");
                             } else {
-                                await OfflineDB.add('offline-writes', { collection: 'cigarrinhaAmostragem', data: newEntry });
+                                const entryId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                await OfflineDB.add('offline-writes', { id: entryId, collection: 'cigarrinhaAmostragem', data: newEntry });
                                 App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
                             }
                         } catch (e) {
                             App.ui.showAlert('Erro ao guardar. A guardar offline.', "error");
                             console.error(`Erro ao salvar cigarrinhaAmostragem, salvando offline:`, e);
-                            await OfflineDB.add('offline-writes', { collection: 'cigarrinhaAmostragem', data: newEntry });
+                            const entryId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                            await OfflineDB.add('offline-writes', { id: entryId, collection: 'cigarrinhaAmostragem', data: newEntry });
                         } finally {
                             App.ui.setLoading(false);
                         }
@@ -6407,7 +6413,16 @@ document.addEventListener('DOMContentLoaded', () => {
                                     dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao))
                                 };
                             }
-                            // A utilização de setDoc com um ID específico torna esta operação idempotente
+
+                            if (!write.id) {
+                                console.error("FATAL: Offline write object is missing an ID. Skipping.", write);
+                                logEntry.items.push({
+                                    status: 'failure', collection: write.collection, data: write.data, error: "Offline object was missing a unique ID."
+                                });
+                                failedWrites++;
+                                continue;
+                            }
+
                             await App.data.setDocument(write.collection, write.id, dataToSync);
 
                             logEntry.items.push({
