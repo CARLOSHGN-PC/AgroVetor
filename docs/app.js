@@ -9255,8 +9255,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const dailyGoal = App.state.companyConfig.dailyPlantingGoal || 0;
                 let cumulativeGoal = 0;
+                const plantingGoals = App.state.companyConfig.plantingGoals || {};
+                const selectedCulture = document.getElementById('plantioDashboardCultura').value;
+                let metaPlantio;
+                if (selectedCulture) {
+                    metaPlantio = plantingGoals[selectedCulture] || 0;
+                } else {
+                    metaPlantio = Object.values(plantingGoals).reduce((sum, goal) => sum + (typeof goal === 'number' ? goal : 0), 0);
+                }
+                 if (metaPlantio === 0 && !selectedCulture) metaPlantio = 1000;
+
+
                 const cumulativeGoalData = sortedDays.map(() => {
-                    cumulativeGoal += dailyGoal;
+                    if (dailyGoal > 0 && cumulativeGoal < metaPlantio) {
+                        cumulativeGoal = Math.min(metaPlantio, cumulativeGoal + dailyGoal);
+                    }
                     return cumulativeGoal;
                 });
 
@@ -9290,7 +9303,25 @@ document.addEventListener('DOMContentLoaded', () => {
                          plugins: {
                             ...commonOptions.plugins,
                             legend: { display: true },
-                            datalabels: { display: false }
+                            datalabels: {
+                                display: (context) => {
+                                    // Display labels only for the first dataset ('Área Acumulada')
+                                    return context.datasetIndex === 0;
+                                },
+                                anchor: 'end',
+                                align: 'top',
+                                offset: 8,
+                                backgroundColor: 'rgba(25, 118, 210, 0.8)',
+                                borderRadius: 4,
+                                color: 'white',
+                                font: {
+                                    weight: 'bold'
+                                },
+                                padding: 6,
+                                formatter: (value) => {
+                                    return value.toFixed(1) + ' ha';
+                                }
+                            }
                         }
                     }
                 });
