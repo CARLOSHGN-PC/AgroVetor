@@ -3437,6 +3437,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dashEls.btnBackToSelectorPlantio) dashEls.btnBackToSelectorPlantio.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorCigarrinha) dashEls.btnBackToSelectorCigarrinha.addEventListener('click', () => this.showDashboardView('selector'));
 
+                const btnEditPlantingGoal = document.getElementById('btnEditPlantingGoal');
+                if (btnEditPlantingGoal) {
+                    btnEditPlantingGoal.addEventListener('click', () => App.actions.updatePlantingGoal());
+                }
+
                 if (dashEls.btnFiltrarBrocaDashboard) dashEls.btnFiltrarBrocaDashboard.addEventListener('click', () => App.charts.renderBrocaDashboardCharts());
                 if (dashEls.btnFiltrarPerdaDashboard) dashEls.btnFiltrarPerdaDashboard.addEventListener('click', () => App.charts.renderPerdaDashboardCharts());
                 if (document.getElementById('btnFiltrarPlantioDashboard')) {
@@ -7084,6 +7089,52 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
+
+            updatePlantingGoal() {
+                const culturaEl = document.getElementById('plantioDashboardCultura');
+                const selectedCulture = culturaEl.value;
+
+                // Safeguard: Do not allow editing if "Todas" is selected
+                if (!selectedCulture) {
+                    App.ui.showAlert("Selecione uma cultura específica para definir uma meta.", "warning");
+                    return;
+                }
+
+                const currentGoals = App.state.companyConfig.plantingGoals || {};
+                const currentValue = currentGoals[selectedCulture] || 0;
+
+                App.ui.showConfirmationModal(
+                    `Definir nova meta de plantio para ${selectedCulture === 'total' ? 'Total' : selectedCulture}:`,
+                    async (results) => {
+                        const newGoal = results.newGoalInput;
+                        const goalValue = parseFloat(newGoal);
+                        if (isNaN(goalValue) || goalValue < 0) {
+                            App.ui.showAlert("Por favor, insira um valor numérico válido para a meta.", "error");
+                            return;
+                        }
+
+                        const updatedGoals = { ...currentGoals, [selectedCulture]: goalValue };
+
+                        try {
+                            await App.data.setDocument('config', App.state.currentUser.companyId, { plantingGoals: updatedGoals });
+                            // Manually update the state so the UI reflects the change immediately
+                            if (!App.state.companyConfig) App.state.companyConfig = {};
+                            App.state.companyConfig.plantingGoals = updatedGoals;
+                            App.ui.showAlert("Meta de plantio atualizada com sucesso!");
+                            App.charts.renderPlantioDashboardCharts(); // Re-render charts with the new goal
+                        } catch (error) {
+                            App.ui.showAlert("Erro ao atualizar a meta de plantio.", "error");
+                            console.error("Error updating planting goal:", error);
+                        }
+                    },
+                    [{
+                        id: 'newGoalInput',
+                        type: 'number',
+                        value: currentValue,
+                        required: true
+                    }]
+                );
+            },
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
@@ -9027,7 +9078,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const consolidatedData = await App.actions.getConsolidatedData('apontamentosPlantio');
                 let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
 
-                // Apply the new culture filter
                 const selectedCulture = culturaEl.value;
                 if (selectedCulture) {
                     data = data.filter(item => item.culture === selectedCulture);
@@ -9035,7 +9085,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 1. Calculate KPIs
                 const totalAreaPlantada = data.reduce((sum, item) => sum + item.totalArea, 0);
-                const metaPlantio = 1000; // Hardcoded meta for now
+
+                // Load the correct goal based on the selected culture
+                const plantingGoals = App.state.companyConfig.plantingGoals || {};
+                let metaPlantio;
+                const btnEditPlantingGoal = document.getElementById('btnEditPlantingGoal');
+                if (selectedCulture) {
+                    metaPlantio = plantingGoals[selectedCulture] || 0; // Default to 0 if no specific goal is set
+                    if (btnEditPlantingGoal) btnEditPlantingGoal.style.display = 'inline-block';
+                } else {
+                    // If 'Total' is selected, sum up all goals
+                    metaPlantio = Object.values(plantingGoals).reduce((sum, goal) => sum + (typeof goal === 'number' ? goal : 0), 0);
+                    if (btnEditPlantingGoal) btnEditPlantingGoal.style.display = 'none';
+                }
+                 if (metaPlantio === 0 && !selectedCulture) metaPlantio = 1000; // Default fallback only for total view
+
                 const percentualConcluido = metaPlantio > 0 ? (totalAreaPlantada / metaPlantio) * 100 : 0;
 
                 const days = new Set(data.map(item => item.date)).size;
@@ -9048,7 +9112,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiaria.toFixed(2)} ha/dia`;
 
                 // 3. Render Charts
-                this.renderAreaPlantadaPorMes(data); // Changed from renderAreaPlantadaPorDia
+                this.renderAreaPlantadaPorMes(data);
                 this.renderProdutividadePorFrente(data);
                 this.renderEvolucaoAreaPlantada(data);
                 this.renderConclusaoPlantio(totalAreaPlantada, metaPlantio);
