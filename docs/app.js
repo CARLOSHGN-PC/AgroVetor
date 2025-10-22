@@ -7120,26 +7120,42 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             setupPlantingGoals() {
-                const container = document.getElementById('plantingGoalsContainer');
+                const container = document.getElementById('planting-goals-container');
                 if (!container) return;
 
                 const cultures = ['CANADEACUCAR', 'SOJA', 'MILHO', 'ALGODAO', 'SORGO'];
                 const currentGoals = App.state.companyConfig.plantingGoals || {};
                 container.innerHTML = '';
 
+                const goalsGrid = document.createElement('div');
+                goalsGrid.className = 'permission-grid'; // Use a suitable existing grid style
+                goalsGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
+
+
                 cultures.forEach(culture => {
                     const goal = currentGoals[culture] || '';
-                    // Format culture name for display
-                    const formattedCulture = culture.replace(/_/g, ' ').charAt(0).toUpperCase() + culture.slice(1).toLowerCase().replace(/_/g, ' ');
+                    const formattedCulture = culture.replace(/_/g, ' ').charAt(0).toUpperCase() + culture.slice(1).toLowerCase();
 
                     const inputGroup = document.createElement('div');
-                    inputGroup.className = 'form-col'; // Reusing existing form styling
+                    inputGroup.className = 'form-col';
                     inputGroup.innerHTML = `
                         <label for="goal-${culture}">${formattedCulture}</label>
                         <input type="number" id="goal-${culture}" data-culture="${culture}" value="${goal}" placeholder="0 ha">
                     `;
-                    container.appendChild(inputGroup);
+                    goalsGrid.appendChild(inputGroup);
                 });
+
+                container.appendChild(goalsGrid);
+
+                const buttonContainer = document.createElement('div');
+                buttonContainer.style.marginTop = '20px';
+                buttonContainer.innerHTML = `
+                    <button id="btnSavePlantingGoals" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Salvar Metas</button>
+                `;
+                container.appendChild(buttonContainer);
+
+                // Re-attach event listener since we are overwriting innerHTML
+                document.getElementById('btnSavePlantingGoals').addEventListener('click', () => App.actions.savePlantingGoals());
             },
 
             async savePlantingGoals() {
@@ -9312,7 +9328,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             ...commonOptions.plugins,
                             legend: { display: true },
                             datalabels: {
-                                display: true,
+                                display: function(context) {
+                                    // Only display the label for the last data point
+                                    return context.dataIndex === context.dataset.data.length - 1;
+                                },
                                 anchor: 'end',
                                 align: 'top',
                                 offset: 8,
@@ -9326,7 +9345,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                     return value.toFixed(1) + ' ha';
                                 },
                                 backgroundColor: function(context) {
-                                    // Use blue for the actual progress and red for the goal line
                                     return context.datasetIndex === 0 ? 'rgba(25, 118, 210, 0.8)' : 'rgba(211, 47, 47, 0.8)';
                                 }
                             }
