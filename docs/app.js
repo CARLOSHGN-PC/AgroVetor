@@ -1751,6 +1751,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 }
+                if (id === 'configuracoesEmpresa') {
+                    this.setupPlantingGoals();
+                }
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio'].includes(id)) this.setDefaultDatesForEntryForms();
@@ -7128,19 +7131,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.innerHTML = '';
 
                 const goalsGrid = document.createElement('div');
-                goalsGrid.className = 'permission-grid'; // Use a suitable existing grid style
-                goalsGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
-
+                goalsGrid.className = 'permission-grid';
+                goalsGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(300px, 1fr))';
 
                 cultures.forEach(culture => {
-                    const goal = currentGoals[culture] || '';
+                    const cultureGoals = currentGoals[culture] || { total: '', daily: '' };
                     const formattedCulture = culture.replace(/_/g, ' ').charAt(0).toUpperCase() + culture.slice(1).toLowerCase();
 
                     const inputGroup = document.createElement('div');
-                    inputGroup.className = 'form-col';
+                    inputGroup.className = 'card';
+                    inputGroup.style.borderLeftColor = 'var(--color-success)';
+                    inputGroup.style.padding = '15px';
+
                     inputGroup.innerHTML = `
-                        <label for="goal-${culture}">${formattedCulture}</label>
-                        <input type="number" id="goal-${culture}" data-culture="${culture}" value="${goal}" placeholder="0 ha">
+                        <h4 style="margin-bottom: 10px; color: var(--color-primary);">${formattedCulture}</h4>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="goal-total-${culture}">Meta Total (ha)</label>
+                                <input type="number" id="goal-total-${culture}" data-culture="${culture}" data-type="total" value="${cultureGoals.total || ''}" placeholder="0">
+                            </div>
+                            <div class="form-col">
+                                <label for="goal-daily-${culture}">Meta Diária (ha)</label>
+                                <input type="number" id="goal-daily-${culture}" data-culture="${culture}" data-type="daily" value="${cultureGoals.daily || ''}" placeholder="0">
+                            </div>
+                        </div>
                     `;
                     goalsGrid.appendChild(inputGroup);
                 });
@@ -7154,25 +7168,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 container.appendChild(buttonContainer);
 
-                // Re-attach event listener since we are overwriting innerHTML
                 document.getElementById('btnSavePlantingGoals').addEventListener('click', () => App.actions.savePlantingGoals());
             },
 
             async savePlantingGoals() {
-                const container = document.getElementById('plantingGoalsContainer');
+                const container = document.getElementById('planting-goals-container');
                 if (!container) return;
 
                 const newGoals = {};
                 container.querySelectorAll('input[type="number"]').forEach(input => {
                     const culture = input.dataset.culture;
+                    const type = input.dataset.type;
                     const value = parseFloat(input.value);
-                    if (culture && !isNaN(value) && value > 0) {
-                        newGoals[culture] = value;
+
+                    if (culture && type && !isNaN(value) && value > 0) {
+                        if (!newGoals[culture]) {
+                            newGoals[culture] = {};
+                        }
+                        newGoals[culture][type] = value;
                     }
                 });
 
                 try {
-                    // Using setDocument with merge:true is safer and also works for creation
                     await App.data.setDocument('config', App.state.currentUser.companyId, { plantingGoals: newGoals }, { merge: true });
                     App.ui.showAlert("Metas de plantio guardadas com sucesso!", "success");
                 } catch (error) {
@@ -9114,6 +9131,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            normalizeCultureKey(cultureString) {
+                if (!cultureString) return '';
+                // Converts to uppercase, removes accents, and then removes any character that is not A-Z or 0-9.
+                return cultureString.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, '');
+            },
             async renderPlantioDashboardCharts() {
                 const startDateEl = document.getElementById('plantioDashboardInicio');
                 const endDateEl = document.getElementById('plantioDashboardFim');
@@ -9277,19 +9299,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     return cumulativeTotal;
                 });
 
-                const dailyGoal = App.state.companyConfig.dailyPlantingGoal || 0;
-                let cumulativeGoal = 0;
                 const plantingGoals = App.state.companyConfig.plantingGoals || {};
                 const selectedCulture = document.getElementById('plantioDashboardCultura').value;
-                let metaPlantio;
+
+                let dailyGoal = 0;
+                let metaPlantio = 0;
+
                 if (selectedCulture) {
-                    metaPlantio = plantingGoals[selectedCulture] || 0;
+                    const normalizedCultureKey = this.normalizeCultureKey(selectedCulture);
+                    const cultureGoals = plantingGoals[normalizedCultureKey];
+                    if (cultureGoals) {
+                        dailyGoal = cultureGoals.daily || 0;
+                        metaPlantio = cultureGoals.total || 0;
+                    }
                 } else {
-                    metaPlantio = Object.values(plantingGoals).reduce((sum, goal) => sum + (typeof goal === 'number' ? goal : 0), 0);
+                    // Sum up all daily and total goals if 'Todas' is selected
+                    for (const cultureKey in plantingGoals) {
+                        dailyGoal += plantingGoals[cultureKey].daily || 0;
+                        metaPlantio += plantingGoals[cultureKey].total || 0;
+                    }
                 }
-                 if (metaPlantio === 0 && !selectedCulture) metaPlantio = 1000;
 
+                if (metaPlantio === 0 && !selectedCulture) metaPlantio = 1000; // Default fallback for total view if no goals are set
 
+                let cumulativeGoal = 0;
                 const cumulativeGoalData = sortedDays.map(() => {
                     if (dailyGoal > 0 && cumulativeGoal < metaPlantio) {
                         cumulativeGoal = Math.min(metaPlantio, cumulativeGoal + dailyGoal);
