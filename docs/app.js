@@ -3442,9 +3442,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dashEls.btnBackToSelectorPlantio) dashEls.btnBackToSelectorPlantio.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorCigarrinha) dashEls.btnBackToSelectorCigarrinha.addEventListener('click', () => this.showDashboardView('selector'));
 
-                const btnEditPlantingGoal = document.getElementById('btnEditPlantingGoal');
-                if (btnEditPlantingGoal) {
-                    btnEditPlantingGoal.addEventListener('click', () => App.actions.updatePlantingGoal());
+                const btnSavePlantingGoals = document.getElementById('btnSavePlantingGoals');
+                if (btnSavePlantingGoals) {
+                    btnSavePlantingGoals.addEventListener('click', () => App.actions.savePlantingGoals());
                 }
 
                 if (dashEls.btnFiltrarBrocaDashboard) dashEls.btnFiltrarBrocaDashboard.addEventListener('click', () => App.charts.renderBrocaDashboardCharts());
@@ -7119,50 +7119,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            updatePlantingGoal() {
-                const culturaEl = document.getElementById('plantioDashboardCultura');
-                const selectedCulture = culturaEl.value;
+            setupPlantingGoals() {
+                const container = document.getElementById('plantingGoalsContainer');
+                if (!container) return;
 
-                // Safeguard: Do not allow editing if "Todas" is selected
-                if (!selectedCulture) {
-                    App.ui.showAlert("Selecione uma cultura específica para definir uma meta.", "warning");
-                    return;
-                }
-
+                const cultures = ['CANADEACUCAR', 'SOJA', 'MILHO', 'ALGODAO', 'SORGO'];
                 const currentGoals = App.state.companyConfig.plantingGoals || {};
-                const currentValue = currentGoals[selectedCulture] || 0;
+                container.innerHTML = '';
 
-                App.ui.showConfirmationModal(
-                    `Definir nova meta de plantio para ${selectedCulture === 'total' ? 'Total' : selectedCulture}:`,
-                    async (results) => {
-                        const newGoal = results.newGoalInput;
-                        const goalValue = parseFloat(newGoal);
-                        if (isNaN(goalValue) || goalValue < 0) {
-                            App.ui.showAlert("Por favor, insira um valor numérico válido para a meta.", "error");
-                            return;
-                        }
+                cultures.forEach(culture => {
+                    const goal = currentGoals[culture] || '';
+                    // Format culture name for display
+                    const formattedCulture = culture.replace(/_/g, ' ').charAt(0).toUpperCase() + culture.slice(1).toLowerCase().replace(/_/g, ' ');
 
-                        const updatedGoals = { ...currentGoals, [selectedCulture]: goalValue };
+                    const inputGroup = document.createElement('div');
+                    inputGroup.className = 'form-col'; // Reusing existing form styling
+                    inputGroup.innerHTML = `
+                        <label for="goal-${culture}">${formattedCulture}</label>
+                        <input type="number" id="goal-${culture}" data-culture="${culture}" value="${goal}" placeholder="0 ha">
+                    `;
+                    container.appendChild(inputGroup);
+                });
+            },
 
-                        try {
-                            await App.data.setDocument('config', App.state.currentUser.companyId, { plantingGoals: updatedGoals });
-                            // Manually update the state so the UI reflects the change immediately
-                            if (!App.state.companyConfig) App.state.companyConfig = {};
-                            App.state.companyConfig.plantingGoals = updatedGoals;
-                            App.ui.showAlert("Meta de plantio atualizada com sucesso!");
-                            App.charts.renderPlantioDashboardCharts(); // Re-render charts with the new goal
-                        } catch (error) {
-                            App.ui.showAlert("Erro ao atualizar a meta de plantio.", "error");
-                            console.error("Error updating planting goal:", error);
-                        }
-                    },
-                    [{
-                        id: 'newGoalInput',
-                        type: 'number',
-                        value: currentValue,
-                        required: true
-                    }]
-                );
+            async savePlantingGoals() {
+                const container = document.getElementById('plantingGoalsContainer');
+                if (!container) return;
+
+                const newGoals = {};
+                container.querySelectorAll('input[type="number"]').forEach(input => {
+                    const culture = input.dataset.culture;
+                    const value = parseFloat(input.value);
+                    if (culture && !isNaN(value) && value > 0) {
+                        newGoals[culture] = value;
+                    }
+                });
+
+                try {
+                    // Using setDocument with merge:true is safer and also works for creation
+                    await App.data.setDocument('config', App.state.currentUser.companyId, { plantingGoals: newGoals }, { merge: true });
+                    App.ui.showAlert("Metas de plantio guardadas com sucesso!", "success");
+                } catch (error) {
+                    App.ui.showAlert("Erro ao guardar as metas de plantio.", "error");
+                    console.error("Error saving planting goals:", error);
+                }
             },
         },
         gemini: {
@@ -9112,6 +9112,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     data = data.filter(item => item.culture === selectedCulture);
                 }
 
+                const normalizeCultureKey = (cultureString) => {
+                    if (!cultureString) return '';
+                    // Converts to uppercase, removes accents, and then removes any character that is not A-Z or 0-9.
+                    return cultureString.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, '');
+                };
+
+
                 // 1. Calculate KPIs
                 const totalAreaPlantada = data.reduce((sum, item) => sum + item.totalArea, 0);
 
@@ -9120,7 +9127,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let metaPlantio;
                 const btnEditPlantingGoal = document.getElementById('btnEditPlantingGoal');
                 if (selectedCulture) {
-                    metaPlantio = plantingGoals[selectedCulture] || 0; // Default to 0 if no specific goal is set
+                    const normalizedKey = normalizeCultureKey(selectedCulture);
+                    metaPlantio = plantingGoals[normalizedKey] || 0; // Default to 0 if no specific goal is set
                     if (btnEditPlantingGoal) btnEditPlantingGoal.style.display = 'inline-block';
                 } else {
                     // If 'Total' is selected, sum up all goals
@@ -9304,14 +9312,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             ...commonOptions.plugins,
                             legend: { display: true },
                             datalabels: {
-                                display: (context) => {
-                                    // Display labels only for the first dataset ('Área Acumulada')
-                                    return context.datasetIndex === 0;
-                                },
+                                display: true,
                                 anchor: 'end',
                                 align: 'top',
                                 offset: 8,
-                                backgroundColor: 'rgba(25, 118, 210, 0.8)',
                                 borderRadius: 4,
                                 color: 'white',
                                 font: {
@@ -9320,6 +9324,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 padding: 6,
                                 formatter: (value) => {
                                     return value.toFixed(1) + ' ha';
+                                },
+                                backgroundColor: function(context) {
+                                    // Use blue for the actual progress and red for the goal line
+                                    return context.datasetIndex === 0 ? 'rgba(25, 118, 210, 0.8)' : 'rgba(211, 47, 47, 0.8)';
                                 }
                             }
                         }
