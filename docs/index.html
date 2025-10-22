@@ -2708,6 +2708,20 @@
                     </div>
                 </div>
 
+                <div class="card" style="border-left-color: var(--color-success); margin-top: 30px;">
+                    <h3><i class="fas fa-bullseye"></i> Metas de Plantio</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="dailyPlantingGoal">Meta Diária de Plantio (ha):</label>
+                            <input type="number" id="dailyPlantingGoal" placeholder="Ex: 10">
+                            <small>Define a meta diária em hectares para o gráfico de evolução de plantio.</small>
+                        </div>
+                    </div>
+                    <div class="button-group" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                         <button id="btnSaveDailyPlantingGoal" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-save"></i> Guardar Meta Diária</button>
+                    </div>
+                </div>
+
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
                     <h3><i class="fas fa-map"></i> Contornos dos Talhões (Shapefile)</h3>
                     <p>Importe os limites geográficos das suas fazendas e talhões. Faça o upload de um arquivo <strong>.zip</strong> contendo os arquivos .shp, .shx e .dbf.</p>

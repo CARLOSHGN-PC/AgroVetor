@@ -1211,6 +1211,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (configData.shapefileURL) {
                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
                             }
+
+                            const dailyPlantingGoalInput = document.getElementById('dailyPlantingGoal');
+                            if (dailyPlantingGoalInput) {
+                                dailyPlantingGoalInput.value = configData.dailyPlantingGoal || '';
+                            }
                         } else {
                             App.state.companyLogo = null;
                             App.state.companyConfig = {};
@@ -4020,6 +4025,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnSaveCalcMethod) {
                     btnSaveCalcMethod.addEventListener('click', () => App.actions.saveCalcMethodWithAudit());
                 }
+
+                const btnSaveDailyPlantingGoal = document.getElementById('btnSaveDailyPlantingGoal');
+                if (btnSaveDailyPlantingGoal) {
+                    btnSaveDailyPlantingGoal.addEventListener('click', () => App.actions.saveDailyPlantingGoal());
+                }
+
                 const btnViewCalcHistory = document.getElementById('btnViewCalcHistory');
                 if (btnViewCalcHistory) {
                     btnViewCalcHistory.addEventListener('click', () => App.actions.viewConfigHistory());
@@ -7090,6 +7101,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            async saveDailyPlantingGoal() {
+                const dailyGoalInput = document.getElementById('dailyPlantingGoal');
+                const dailyGoal = parseFloat(dailyGoalInput.value);
+
+                if (isNaN(dailyGoal) || dailyGoal < 0) {
+                    App.ui.showAlert("Por favor, insira um valor numérico válido para a meta diária.", "error");
+                    return;
+                }
+
+                try {
+                    await App.data.setDocument('config', App.state.currentUser.companyId, { dailyPlantingGoal: dailyGoal });
+                    App.ui.showAlert("Meta diária de plantio guardada com sucesso!", "success");
+                } catch (error) {
+                    App.ui.showAlert("Erro ao guardar a meta diária.", "error");
+                    console.error("Error saving daily planting goal:", error);
+                }
+            },
+
             updatePlantingGoal() {
                 const culturaEl = document.getElementById('plantioDashboardCultura');
                 const selectedCulture = culturaEl.value;
@@ -9224,26 +9253,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     return cumulativeTotal;
                 });
 
+                const dailyGoal = App.state.companyConfig.dailyPlantingGoal || 0;
+                let cumulativeGoal = 0;
+                const cumulativeGoalData = sortedDays.map(() => {
+                    cumulativeGoal += dailyGoal;
+                    return cumulativeGoal;
+                });
+
                 const commonOptions = this._getCommonChartOptions();
 
                 this._createOrUpdateChart('graficoEvolucaoAreaPlantada', {
                     type: 'line',
                     data: {
                         labels,
-                        datasets: [{
+                        datasets: [
+                        {
                             label: 'Área Acumulada (ha)',
                             data: cumulativeData,
                             fill: true,
                             borderColor: '#1976d2',
                             backgroundColor: 'rgba(25, 118, 210, 0.2)',
                             tension: 0.3
-                        }]
+                        },
+                        {
+                            label: 'Meta Acumulada (ha)',
+                            data: cumulativeGoalData,
+                            fill: false,
+                            borderColor: '#d32f2f',
+                            borderDash: [5, 5],
+                            tension: 0.3
+                        }
+                    ]
                     },
                      options: {
                         ...commonOptions,
                          plugins: {
                             ...commonOptions.plugins,
-                            legend: { display: false },
+                            legend: { display: true },
                             datalabels: { display: false }
                         }
                     }
