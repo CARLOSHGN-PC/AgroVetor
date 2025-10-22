@@ -1212,10 +1212,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
                             }
 
-                            const dailyPlantingGoalInput = document.getElementById('dailyPlantingGoal');
-                            if (dailyPlantingGoalInput) {
-                                dailyPlantingGoalInput.value = configData.dailyPlantingGoal || '';
-                            }
                         } else {
                             App.state.companyLogo = null;
                             App.state.companyConfig = {};
@@ -4027,9 +4023,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const btnSaveDailyPlantingGoal = document.getElementById('btnSaveDailyPlantingGoal');
-                if (btnSaveDailyPlantingGoal) {
-                    btnSaveDailyPlantingGoal.addEventListener('click', () => App.actions.saveDailyPlantingGoal());
-                }
 
                 const btnViewCalcHistory = document.getElementById('btnViewCalcHistory');
                 if (btnViewCalcHistory) {
@@ -7101,23 +7094,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            async saveDailyPlantingGoal() {
-                const dailyGoalInput = document.getElementById('dailyPlantingGoal');
-                const dailyGoal = parseFloat(dailyGoalInput.value);
-
-                if (isNaN(dailyGoal) || dailyGoal < 0) {
-                    App.ui.showAlert("Por favor, insira um valor numérico válido para a meta diária.", "error");
-                    return;
-                }
-
-                try {
-                    await App.data.setDocument('config', App.state.currentUser.companyId, { dailyPlantingGoal: dailyGoal });
-                    App.ui.showAlert("Meta diária de plantio guardada com sucesso!", "success");
-                } catch (error) {
-                    App.ui.showAlert("Erro ao guardar a meta diária.", "error");
-                    console.error("Error saving daily planting goal:", error);
-                }
-            },
 
             setupPlantingGoals() {
                 const container = document.getElementById('planting-goals-container');
@@ -7125,55 +7101,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const cultures = ['CANADEACUCAR', 'SOJA', 'MILHO', 'ALGODAO', 'SORGO'];
                 const currentGoals = App.state.companyConfig.plantingGoals || {};
-                container.innerHTML = '';
+                container.innerHTML = ''; // Limpa o container
 
                 const goalsGrid = document.createElement('div');
-                goalsGrid.className = 'permission-grid'; // Use a suitable existing grid style
-                goalsGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
-
+                goalsGrid.className = 'permission-grid'; // Reutiliza um estilo de grid existente
+                goalsGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(300px, 1fr))';
+                goalsGrid.style.gap = '20px';
 
                 cultures.forEach(culture => {
-                    const goal = currentGoals[culture] || '';
+                    const goalData = currentGoals[culture] || { total: '', daily: '' };
                     const formattedCulture = culture.replace(/_/g, ' ').charAt(0).toUpperCase() + culture.slice(1).toLowerCase();
 
-                    const inputGroup = document.createElement('div');
-                    inputGroup.className = 'form-col';
-                    inputGroup.innerHTML = `
-                        <label for="goal-${culture}">${formattedCulture}</label>
-                        <input type="number" id="goal-${culture}" data-culture="${culture}" value="${goal}" placeholder="0 ha">
+                    const cultureCard = document.createElement('div');
+                    cultureCard.className = 'form-col'; // Um card simples para agrupar os inputs
+                    cultureCard.style.border = '1px solid var(--color-border)';
+                    cultureCard.style.borderRadius = '8px';
+                    cultureCard.style.padding = '15px';
+
+                    cultureCard.innerHTML = `
+                        <h4 style="margin-top: 0; margin-bottom: 15px; color: var(--color-primary);">${formattedCulture}</h4>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="goal-total-${culture}">Meta Total (ha)</label>
+                                <input type="number" id="goal-total-${culture}" data-culture="${culture}" data-type="total" value="${goalData.total}" placeholder="0 ha">
+                            </div>
+                            <div class="form-col">
+                                <label for="goal-daily-${culture}">Meta Diária (ha)</label>
+                                <input type="number" id="goal-daily-${culture}" data-culture="${culture}" data-type="daily" value="${goalData.daily}" placeholder="0 ha/dia">
+                            </div>
+                        </div>
                     `;
-                    goalsGrid.appendChild(inputGroup);
+                    goalsGrid.appendChild(cultureCard);
                 });
 
                 container.appendChild(goalsGrid);
-
-                const buttonContainer = document.createElement('div');
-                buttonContainer.style.marginTop = '20px';
-                buttonContainer.innerHTML = `
-                    <button id="btnSavePlantingGoals" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Salvar Metas</button>
-                `;
-                container.appendChild(buttonContainer);
-
-                // Re-attach event listener since we are overwriting innerHTML
-                document.getElementById('btnSavePlantingGoals').addEventListener('click', () => App.actions.savePlantingGoals());
             },
 
             async savePlantingGoals() {
-                const container = document.getElementById('plantingGoalsContainer');
+                const container = document.getElementById('planting-goals-container');
                 if (!container) return;
 
                 const newGoals = {};
                 container.querySelectorAll('input[type="number"]').forEach(input => {
                     const culture = input.dataset.culture;
+                    const type = input.dataset.type; // 'total' or 'daily'
                     const value = parseFloat(input.value);
-                    if (culture && !isNaN(value) && value > 0) {
-                        newGoals[culture] = value;
+
+                    if (culture && type && !isNaN(value) && value > 0) {
+                        if (!newGoals[culture]) {
+                            newGoals[culture] = {};
+                        }
+                        newGoals[culture][type] = value;
                     }
                 });
 
                 try {
-                    // Using setDocument with merge:true is safer and also works for creation
+                    const currentConfig = App.state.companyConfig || {};
+                    const updatedConfig = { ...currentConfig, plantingGoals: newGoals };
+
                     await App.data.setDocument('config', App.state.currentUser.companyId, { plantingGoals: newGoals }, { merge: true });
+
+                    // ATUALIZAÇÃO IMEDIATA DO ESTADO LOCAL
+                    App.state.companyConfig.plantingGoals = newGoals;
+
                     App.ui.showAlert("Metas de plantio guardadas com sucesso!", "success");
                 } catch (error) {
                     App.ui.showAlert("Erro ao guardar as metas de plantio.", "error");
@@ -8697,25 +8687,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            openChartModal(chartId) {
-                const originalChart = App.state.charts[chartId];
-                if (!originalChart) return;
+            openChartModal(chartId) {
+                const originalChart = App.state.charts[chartId];
+                if (!originalChart) return;
 
-                const modal = App.elements.chartModal;
-                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).closest('.chart-card').querySelector('.chart-title').textContent;
-                
-                modal.title.textContent = originalTitle;
-                modal.overlay.classList.add('show');
-                
-                const config = JSON.parse(JSON.stringify(originalChart.config._config));
-                config.options.maintainAspectRatio = false;
-                
-                if (originalChart.config.options.plugins.datalabels.formatter) {
-                    config.options.plugins.datalabels.formatter = originalChart.config.options.plugins.datalabels.formatter;
-                }
+                const modal = App.elements.chartModal;
+                const originalTitle = document.querySelector(`.chart-card [data-chart-id="${chartId}"]`).closest('.chart-card').querySelector('.chart-title').textContent;
 
-                this._createOrUpdateChart(chartId, config, true);
-            },
+                modal.title.textContent = originalTitle;
+                modal.overlay.classList.add('show');
+
+                // Reutiliza a configuração original diretamente para preservar funções
+                const config = originalChart.config._config;
+                config.options.maintainAspectRatio = false; // Ajuste para o modal
+
+                // Limpa o canvas anterior antes de criar um novo gráfico
+                if (App.state.expandedChart) {
+                    App.state.expandedChart.destroy();
+                    App.state.expandedChart = null;
+                }
+
+                this._createOrUpdateChart(chartId, config, true);
+            },
             closeChartModal() {
                 const modal = App.elements.chartModal;
                 modal.overlay.classList.remove('show');
@@ -9140,35 +9133,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Load the correct goal based on the selected culture
                 const plantingGoals = App.state.companyConfig.plantingGoals || {};
-                let metaPlantio;
-                const btnEditPlantingGoal = document.getElementById('btnEditPlantingGoal');
+                let totalGoal = 0;
+                let dailyGoalTotal = 0;
+
                 if (selectedCulture) {
                     const normalizedKey = normalizeCultureKey(selectedCulture);
-                    metaPlantio = plantingGoals[normalizedKey] || 0; // Default to 0 if no specific goal is set
-                    if (btnEditPlantingGoal) btnEditPlantingGoal.style.display = 'inline-block';
+                    const goalData = plantingGoals[normalizedKey];
+                    if (goalData) {
+                        totalGoal = goalData.total || 0;
+                        dailyGoalTotal = goalData.daily || 0;
+                    }
                 } else {
-                    // If 'Total' is selected, sum up all goals
-                    metaPlantio = Object.values(plantingGoals).reduce((sum, goal) => sum + (typeof goal === 'number' ? goal : 0), 0);
-                    if (btnEditPlantingGoal) btnEditPlantingGoal.style.display = 'none';
+                    // Se "Todas" estiver selecionado, soma as metas de todas as culturas
+                    for (const culture in plantingGoals) {
+                        totalGoal += plantingGoals[culture].total || 0;
+                        dailyGoalTotal += plantingGoals[culture].daily || 0;
+                    }
                 }
-                 if (metaPlantio === 0 && !selectedCulture) metaPlantio = 1000; // Default fallback only for total view
+                if (totalGoal === 0 && !selectedCulture) totalGoal = 1000; // Fallback
 
-                const percentualConcluido = metaPlantio > 0 ? (totalAreaPlantada / metaPlantio) * 100 : 0;
-
-                const days = new Set(data.map(item => item.date)).size;
-                const mediaDiaria = days > 0 ? totalAreaPlantada / days : 0;
+                const percentualConcluido = totalGoal > 0 ? (totalAreaPlantada / totalGoal) * 100 : 0;
+                const daysInRange = (new Date(endDateEl.value) - new Date(startDateEl.value)) / (1000 * 60 * 60 * 24) + 1;
+                const mediaDiariaReal = daysInRange > 0 ? totalAreaPlantada / daysInRange : 0;
 
                 // 2. Update KPI elements
                 document.getElementById('kpi-plantio-area-total').textContent = `${totalAreaPlantada.toFixed(2)} ha`;
-                document.getElementById('kpi-plantio-meta').textContent = `${metaPlantio.toFixed(2)} ha`;
+                document.getElementById('kpi-plantio-meta').textContent = `${totalGoal.toFixed(2)} ha`;
                 document.getElementById('kpi-plantio-percentual').textContent = `${percentualConcluido.toFixed(1)}%`;
-                document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiaria.toFixed(2)} ha/dia`;
+                document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiariaReal.toFixed(2)} ha/dia`;
 
                 // 3. Render Charts
                 this.renderAreaPlantadaPorMes(data);
                 this.renderProdutividadePorFrente(data);
                 this.renderEvolucaoAreaPlantada(data);
-                this.renderConclusaoPlantio(totalAreaPlantada, metaPlantio);
+                this.renderConclusaoPlantio(totalAreaPlantada, totalGoal);
             },
 
             renderAreaPlantadaPorMes(data) { // Renamed from renderAreaPlantadaPorDia and logic updated
@@ -9277,25 +9275,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     return cumulativeTotal;
                 });
 
-                const dailyGoal = App.state.companyConfig.dailyPlantingGoal || 0;
-                let cumulativeGoal = 0;
+                // Lógica de cálculo da meta diária
                 const plantingGoals = App.state.companyConfig.plantingGoals || {};
                 const selectedCulture = document.getElementById('plantioDashboardCultura').value;
-                let metaPlantio;
+                const normalizeCultureKey = (cultureString) => {
+                    if (!cultureString) return '';
+                    return cultureString.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, '');
+                };
+
+                let dailyGoal = 0;
+                let totalGoal = 0; // Usado para limitar a linha da meta
+
                 if (selectedCulture) {
-                    metaPlantio = plantingGoals[selectedCulture] || 0;
+                    const normalizedKey = normalizeCultureKey(selectedCulture);
+                    const goalData = plantingGoals[normalizedKey];
+                    if (goalData) {
+                        dailyGoal = goalData.daily || 0;
+                        totalGoal = goalData.total || 0;
+                    }
                 } else {
-                    metaPlantio = Object.values(plantingGoals).reduce((sum, goal) => sum + (typeof goal === 'number' ? goal : 0), 0);
+                    // Se "Todas" estiver selecionado, soma as metas diárias de todas as culturas
+                    dailyGoal = Object.values(plantingGoals).reduce((sum, goal) => sum + (goal.daily || 0), 0);
+                    totalGoal = Object.values(plantingGoals).reduce((sum, goal) => sum + (goal.total || 0), 0);
                 }
-                 if (metaPlantio === 0 && !selectedCulture) metaPlantio = 1000;
+                 if (totalGoal === 0 && !selectedCulture) totalGoal = 1000;
 
 
+                let cumulativeGoal = 0;
                 const cumulativeGoalData = sortedDays.map(() => {
-                    if (dailyGoal > 0 && cumulativeGoal < metaPlantio) {
-                        cumulativeGoal = Math.min(metaPlantio, cumulativeGoal + dailyGoal);
+                    if (dailyGoal > 0 && cumulativeGoal < totalGoal) {
+                        cumulativeGoal = Math.min(totalGoal, cumulativeGoal + dailyGoal);
+                    } else if (dailyGoal > 0) {
+                        cumulativeGoal = totalGoal; // Trava a linha no total da meta
                     }
                     return cumulativeGoal;
                 });
+
 
                 const commonOptions = this._getCommonChartOptions();
 
