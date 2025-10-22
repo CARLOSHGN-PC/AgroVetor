@@ -1903,7 +1903,7 @@
                             <div class="icon" style="background-color: var(--color-info);"><i class="fas fa-bullseye"></i></div>
                             <div class="text">
                                 <p class="value" id="kpi-plantio-meta">1.000 ha</p>
-                                <p class="label">Meta de Plantio <i id="btnEditPlantingGoal" class="fas fa-edit" style="cursor: pointer; font-size: 14px; margin-left: 8px;"></i></p>
+                                <p class="label">Meta de Plantio</p>
                             </div>
                         </div>
                         <div class="kpi-card" style="border-left-color: var(--color-accent);">
@@ -2719,6 +2719,17 @@
                     </div>
                     <div class="button-group" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
                          <button id="btnSaveDailyPlantingGoal" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-save"></i> Guardar Meta Diária</button>
+                    </div>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-success); margin-top: 30px;">
+                    <h3><i class="fas fa-bullseye"></i> Metas de Plantio por Cultura</h3>
+                    <p>Defina a meta total (em hectares) para cada cultura. Estas metas serão usadas nos KPIs e gráficos do dashboard de plantio.</p>
+                    <div id="planting-goals-container" style="margin-top: 15px;">
+                        <!-- Inputs para as metas por cultura serão inseridos aqui dinamicamente -->
+                    </div>
+                    <div class="button-group" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button id="btnSavePlantingGoals" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-save"></i> Guardar Metas de Cultura</button>
                     </div>
                 </div>
 

@@ -47,6 +47,9 @@ def test_risk_view_logic(browser_context):
                 setPaintPropertyCalls: [],
                 getLayer: function(id) { return true; },
                 getSource: function(id) { return this._sources[id]; },
+                querySourceFeatures: function(sourceId, filter) {
+                    return window.App.state.geoJsonData.features;
+                },
                 setPaintProperty: function(layer, prop, value) {
                     this.setPaintPropertyCalls.push({layer, prop, value});
                 },

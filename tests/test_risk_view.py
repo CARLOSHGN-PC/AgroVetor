@@ -81,6 +81,9 @@ def test_risk_view_highlights_correct_farm(browser_context):
                     this._layers[layer.id] = layer;
                 },
                 getCanvas: () => ({style: {cursor: ''}}),
+                querySourceFeatures: function(sourceId, filter) {
+                    return window.App.state.geoJsonData.features;
+                },
                 on: () => {},
                 flyTo: () => {},
                 fitBounds: () => {}
