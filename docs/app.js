@@ -1730,6 +1730,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
+                if (id === 'configuracoesEmpresa') App.actions.setupPlantingGoals();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
@@ -3445,6 +3446,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (dashEls.btnFiltrarBrocaDashboard) dashEls.btnFiltrarBrocaDashboard.addEventListener('click', () => App.charts.renderBrocaDashboardCharts());
                 if (dashEls.btnFiltrarPerdaDashboard) dashEls.btnFiltrarPerdaDashboard.addEventListener('click', () => App.charts.renderPerdaDashboardCharts());
+
+                const btnSavePlantingGoals = document.getElementById('btnSavePlantingGoals');
+                if (btnSavePlantingGoals) {
+                    btnSavePlantingGoals.addEventListener('click', () => App.actions.savePlantingGoals());
+                }
+
                 if (document.getElementById('btnFiltrarPlantioDashboard')) {
                     document.getElementById('btnFiltrarPlantioDashboard').addEventListener('click', () => App.charts.renderPlantioDashboardCharts());
                 }
