@@ -7157,23 +7157,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!container) return;
 
                 const newGoals = {};
-                container.querySelectorAll('input[type="number"]').forEach(input => {
-                    const culture = input.dataset.culture;
-                    const type = input.dataset.type; // 'total' or 'daily'
-                    const value = parseFloat(input.value);
+                const cultures = ['CANADEACUCAR', 'SOJA', 'MILHO', 'ALGODAO', 'SORGO'];
+                cultures.forEach(culture => {
+                    const totalInput = container.querySelector(`input[data-culture="${culture}"][data-type="total"]`);
+                    const dailyInput = container.querySelector(`input[data-culture="${culture}"][data-type="daily"]`);
 
-                    if (culture && type && !isNaN(value) && value > 0) {
-                        if (!newGoals[culture]) {
-                            newGoals[culture] = {};
-                        }
-                        newGoals[culture][type] = value;
+                    const totalValue = totalInput ? parseFloat(totalInput.value) : 0;
+                    const dailyValue = dailyInput ? parseFloat(dailyInput.value) : 0;
+
+                    // Only add the culture to the goals object if there's a valid value (including 0)
+                    if (!isNaN(totalValue) || !isNaN(dailyValue)) {
+                        newGoals[culture] = {
+                            total: !isNaN(totalValue) ? Math.max(0, totalValue) : 0,
+                            daily: !isNaN(dailyValue) ? Math.max(0, dailyValue) : 0
+                        };
                     }
                 });
 
                 try {
-                    const currentConfig = App.state.companyConfig || {};
-                    const updatedConfig = { ...currentConfig, plantingGoals: newGoals };
-
+                    // By constructing a new object and setting it, we overwrite the old one.
+                    // The setDocument function with merge:true will replace the plantingGoals field entirely.
                     await App.data.setDocument('config', App.state.currentUser.companyId, { plantingGoals: newGoals }, { merge: true });
 
                     // ATUALIZAÇÃO IMEDIATA DO ESTADO LOCAL
@@ -8721,9 +8724,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.title.textContent = originalTitle;
                 modal.overlay.classList.add('show');
 
-                // Reutiliza a configuração original diretamente para preservar funções
-                const config = originalChart.config._config;
-                config.options.maintainAspectRatio = false; // Ajuste para o modal
+                // Cria uma cópia da configuração para não modificar o gráfico original
+                const config = {
+                    ...originalChart.config._config,
+                    options: {
+                        ...originalChart.config._config.options,
+                        maintainAspectRatio: false
+                    }
+                };
 
                 // Limpa o canvas anterior antes de criar um novo gráfico
                 if (App.state.expandedChart) {
