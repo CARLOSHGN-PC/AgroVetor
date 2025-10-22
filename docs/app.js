@@ -8014,6 +8014,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.hideTrapInfo();
                 App.ui.showAlert("Coleta registrada com sucesso!", "success");
 
+            // Otimização: Atualiza o estado local imediatamente para remover a notificação
+            const trapIndex = App.state.armadilhas.findIndex(t => t.id === trapId);
+            if (trapIndex > -1) {
+                App.state.armadilhas[trapIndex].status = "Coletada";
+            }
+            // Re-executa a verificação para limpar a notificação da UI instantaneamente
+            this.checkTrapStatusAndNotify();
+
+
                 try {
                     await App.data.updateDocument('armadilhas', trapId, updateData);
                     // A UI já foi atualizada, o onSnapshot irá eventualmente confirmar o estado.
@@ -8362,8 +8371,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 3. Deduplicate collections for the same trap, keeping only the latest one by time
                     const latestUniqueCollections = new Map();
                     latestCycleCollections.forEach(trap => {
-                        // A trap is uniquely identified by its position (farm + plot)
-                        const trapKey = `${trap.fazendaCode}-${trap.talhaoNome}`;
+                        // A trap is uniquely identified by its ID
+                        const trapKey = trap.id;
                         const existing = latestUniqueCollections.get(trapKey);
                         const collectionDate = trap.dataColeta?.toDate ? trap.dataColeta.toDate() : new Date(trap.dataColeta);
                         if (!existing || collectionDate > (existing.dataColeta?.toDate ? existing.dataColeta.toDate() : new Date(existing.dataColeta))) {
