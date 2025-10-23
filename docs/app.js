@@ -9189,20 +9189,79 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (totalGoal === 0 && !selectedCulture) totalGoal = 1000; // Fallback
 
                 const percentualConcluido = totalGoal > 0 ? (totalAreaPlantada / totalGoal) * 100 : 0;
-                const daysInRange = (new Date(endDateEl.value) - new Date(startDateEl.value)) / (1000 * 60 * 60 * 24) + 1;
-                const mediaDiariaReal = daysInRange > 0 ? totalAreaPlantada / daysInRange : 0;
+                const areaRestante = totalGoal - totalAreaPlantada;
+
+                const plantingDays = new Set(data.map(item => item.date));
+                const numberOfPlantingDays = plantingDays.size;
+                const mediaDiariaReal = numberOfPlantingDays > 0 ? totalAreaPlantada / numberOfPlantingDays : 0;
+
 
                 // 2. Update KPI elements
                 document.getElementById('kpi-plantio-area-total').textContent = `${totalAreaPlantada.toFixed(2)} ha`;
                 document.getElementById('kpi-plantio-meta').textContent = `${totalGoal.toFixed(2)} ha`;
                 document.getElementById('kpi-plantio-percentual').textContent = `${percentualConcluido.toFixed(1)}%`;
                 document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiariaReal.toFixed(2)} ha/dia`;
+                document.getElementById('kpi-plantio-area-restante').textContent = `${areaRestante.toFixed(2)} ha`;
 
                 // 3. Render Charts
                 this.renderAreaPlantadaPorMes(data);
                 this.renderProdutividadePorFrente(data);
                 this.renderEvolucaoAreaPlantada(data);
                 this.renderConclusaoPlantio(totalAreaPlantada, totalGoal);
+                this.renderChuvaPorFazenda(data);
+            },
+
+            renderChuvaPorFazenda(data) {
+                const dataByFarm = data.reduce((acc, item) => {
+                    const farmName = item.farmName || 'N/A';
+                    if (!acc[farmName]) {
+                        acc[farmName] = { totalChuva: 0, count: 0 };
+                    }
+                    if (item.chuva && !isNaN(parseFloat(item.chuva))) {
+                        acc[farmName].totalChuva += parseFloat(item.chuva);
+                        acc[farmName].count++;
+                    }
+                    return acc;
+                }, {});
+
+                const sortedFarms = Object.entries(dataByFarm)
+                    .map(([name, { totalChuva, count }]) => ({
+                        name,
+                        avgChuva: count > 0 ? totalChuva / count : 0
+                    }))
+                    .sort((a, b) => b.avgChuva - a.avgChuva);
+
+                const labels = sortedFarms.map(item => item.name);
+                const chartData = sortedFarms.map(item => item.avgChuva);
+
+                const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoChuvaPorFazenda', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Média de Chuva (mm)',
+                            data: chartData,
+                            backgroundColor: this._getVibrantColors(labels.length),
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor,
+                                anchor: 'end',
+                                align: 'top',
+                                font: { weight: 'bold' },
+                                formatter: value => `${value.toFixed(1)} mm`
+                            }
+                        }
+                    }
+                });
             },
 
             renderAreaPlantadaPorMes(data) { // Renamed from renderAreaPlantadaPorDia and logic updated
