@@ -2582,6 +2582,159 @@ try {
         }
     });
 
+    // --- [NOVO] ROTAS DE RELATÓRIO DE MONITORAMENTO AÉREO ---
+
+    const getAreaClassificationData = async (filters) => {
+        if (!filters.companyId) {
+            console.error("Attempt to access getAreaClassificationData without companyId.");
+            return [];
+        }
+
+        let query = db.collection('areaClassifications').where('companyId', '==', filters.companyId);
+
+        // Adicionar outros filtros se necessário (ex: por data, por tipo de classificação)
+        // if (filters.startDate) {
+        //     query = query.where('classifiedAt', '>=', filters.startDate);
+        // }
+        // if (filters.classification) {
+        //     query = query.where('classification', '==', filters.classification);
+        // }
+
+        const snapshot = await query.get();
+        let data = [];
+        snapshot.forEach(doc => {
+            data.push({ id: doc.id, ...doc.data() });
+        });
+
+        return data;
+    };
+
+    app.get('/reports/aerial-monitoring/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_areas_classificadas.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getAreaClassificationData(filters);
+            const title = 'Relatório de Classificação de Áreas';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title, filters.companyId);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            const headers = ['Fazenda', 'Talhão', 'Classificação', 'Área (ha)', 'Data'];
+            const columnWidths = [200, 150, 150, 100, 150];
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            let totalAreaGeral = 0;
+            const dataByClassification = {};
+
+            data.forEach(item => {
+                if (!dataByClassification[item.classification]) {
+                    dataByClassification[item.classification] = [];
+                }
+                dataByClassification[item.classification].push(item);
+            });
+
+            for (const classification of Object.keys(dataByClassification).sort()) {
+                let totalAreaClassification = 0;
+
+                // Adiciona um cabeçalho para a classificação
+                currentY = await checkPageBreak(doc, currentY, title);
+                doc.y = currentY;
+                doc.fontSize(12).font('Helvetica-Bold').text(classification, doc.page.margins.left, currentY + 5);
+                currentY = doc.y + 5;
+
+
+                const classificationRecords = dataByClassification[classification];
+                classificationRecords.sort((a,b) => (a.farmName > b.farmName) ? 1 : ((b.farmName > a.farmName) ? -1 : 0));
+
+
+                for (const record of classificationRecords) {
+                    currentY = await checkPageBreak(doc, currentY, title);
+                     const classifiedAt = safeToDate(record.classifiedAt);
+                    const row = [
+                        `${record.farmCode} - ${record.farmName}`,
+                        record.plotName,
+                        record.classification,
+                        formatNumber(record.area),
+                        classifiedAt ? classifiedAt.toLocaleDateString('pt-BR') : 'N/A'
+                    ];
+                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                    totalAreaClassification += record.area;
+                }
+
+                currentY = await checkPageBreak(doc, currentY, title);
+                const subtotalRow = ['', '', 'SUB TOTAL', formatNumber(totalAreaClassification), ''];
+                currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
+                currentY += 10;
+                totalAreaGeral += totalAreaClassification;
+            }
+
+            currentY = await checkPageBreak(doc, currentY, title);
+            const totalRow = ['', '', 'TOTAL GERAL', formatNumber(totalAreaGeral), ''];
+            drawRow(doc, totalRow, currentY, false, true, columnWidths);
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Classificação de Áreas:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/aerial-monitoring/csv', async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getAreaClassificationData(filters);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `classificacao_areas_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'farmName', title: 'Fazenda' },
+                    { id: 'plotName', title: 'Talhão' },
+                    { id: 'classification', title: 'Classificação' },
+                    { id: 'area', title: 'Área (ha)' },
+                    { id: 'classifiedAt', title: 'Data' }
+                ]
+            });
+
+            const records = data.map(record => {
+                const classifiedAt = safeToDate(record.classifiedAt);
+                return {
+                    farmName: `${record.farmCode} - ${record.farmName}`,
+                    plotName: record.plotName,
+                    classification: record.classification,
+                    area: record.area,
+                    classifiedAt: classifiedAt ? classifiedAt.toLocaleDateString('pt-BR') : 'N/A'
+                }
+            });
+
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Classificação de Áreas:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));

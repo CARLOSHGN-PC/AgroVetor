@@ -139,6 +139,11 @@ service cloud.firestore {
       allow read, write: if request.auth.uid == userId;
     }
 
+    match /areaClassifications/{docId} {
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
+    }
+
     // Coleção de Configurações Globais
     // Qualquer utilizador autenticado pode ler as configurações para renderizar o menu corretamente.
     // Apenas super-admins podem escrever/alterar as configurações.

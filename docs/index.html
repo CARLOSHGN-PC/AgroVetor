@@ -2312,6 +2312,28 @@
                 </div>
             </section>
 
+            <section id="relatorioClassificacao" class="tab-content card" aria-label="Relatório de Classificação de Áreas" tabindex="0" hidden>
+                <h2 style="color: var(--color-info);"><i class="fas fa-ruler-combined"></i> Relatório de Classificação de Áreas</h2>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="classificacaoFazendaFiltro">Filtrar por Fazenda:</label>
+                        <select id="classificacaoFazendaFiltro"><option value="">Todas</option></select>
+                    </div>
+                    <div class="form-col">
+                        <label for="classificacaoInicio" class="required">Data Início:</label>
+                        <input type="date" id="classificacaoInicio" />
+                    </div>
+                    <div class="form-col">
+                        <label for="classificacaoFim" class="required">Data Fim:</label>
+                        <input type="date" id="classificacaoFim" />
+                    </div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFClassificacao" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelClassificacao" type="button"><i class="fas fa-file-excel"></i> Exportar para CSV</button>
+                </div>
+            </section>
+
             <section id="lancamentoPerda" class="tab-content card" aria-label="Lançamento Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-dollar-sign"></i> Lançamento Perda</h2>
                 <div class="form-row">
@@ -2970,7 +2992,21 @@
                     <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
                         <i class="fas fa-plus"></i>
                     </button>
+                    <button id="btnFilterMap" class="map-control-btn" title="Filtrar Classificações">
+                        <i class="fas fa-filter"></i>
+                    </button>
                 </div>
+
+                <div id="map-filter-box" class="info-box">
+                    <div class="info-title">
+                        <i class="fas fa-filter"></i>
+                        <span>Filtrar por Classificação</span>
+                    </div>
+                    <div id="map-filter-options" class="info-box-content" style="padding: 10px 20px;">
+                        <!-- Checkboxes serão inseridos aqui -->
+                    </div>
+                </div>
+
                 <div id="talhao-info-box" class="info-box">
                     <button id="close-info-box" class="modal-close-btn">&times;</button>
                     <div id="talhao-info-box-content"></div>
