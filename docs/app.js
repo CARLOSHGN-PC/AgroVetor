@@ -9377,6 +9377,33 @@ document.addEventListener('DOMContentLoaded', () => {
                          plugins: {
                             ...commonOptions.plugins,
                             legend: { display: true },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(tooltipItem) {
+                                        const dataIndex = tooltipItem.dataIndex;
+                                        // Se for o gráfico de "Área Acumulada"
+                                        if (tooltipItem.datasetIndex === 0) {
+                                            const dateKey = sortedDays[dataIndex];
+                                            const dailyValue = dataByDay[dateKey] || 0;
+                                            const cumulativeValue = tooltipItem.parsed.y || 0;
+
+                                            const dailyLabel = `Área do Dia: ${dailyValue.toFixed(2).replace('.', ',')} ha`;
+                                            const cumulativeLabel = `Acumulado: ${cumulativeValue.toFixed(2).replace('.', ',')} ha`;
+
+                                            return [dailyLabel, cumulativeLabel];
+                                        }
+                                        // Comportamento padrão para outros gráficos (linha da meta)
+                                        let label = tooltipItem.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (tooltipItem.parsed.y !== null) {
+                                            label += tooltipItem.parsed.y.toFixed(2).replace('.', ',') + ' ha';
+                                        }
+                                        return label;
+                                    }
+                                }
+                            },
                             datalabels: {
                                 display: function(context) {
                                     // Only display the label for the last data point
@@ -9392,7 +9419,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 },
                                 padding: 6,
                                 formatter: (value) => {
-                                    return value.toFixed(1) + ' ha';
+                                    return value.toFixed(1).replace('.', ',') + ' ha';
                                 },
                                 backgroundColor: function(context) {
                                     return context.datasetIndex === 0 ? 'rgba(25, 118, 210, 0.8)' : 'rgba(211, 47, 47, 0.8)';
