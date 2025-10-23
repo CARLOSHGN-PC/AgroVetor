@@ -9189,10 +9189,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (totalGoal === 0 && !selectedCulture) totalGoal = 1000; // Fallback
 
                 const percentualConcluido = totalGoal > 0 ? (totalAreaPlantada / totalGoal) * 100 : 0;
-
-                const uniquePlantingDays = new Set(data.map(item => item.date)).size;
-                const mediaDiariaReal = uniquePlantingDays > 0 ? totalAreaPlantada / uniquePlantingDays : 0;
                 const areaRestante = totalGoal - totalAreaPlantada;
+
+                const plantingDays = new Set(data.map(item => item.date));
+                const numberOfPlantingDays = plantingDays.size;
+                const mediaDiariaReal = numberOfPlantingDays > 0 ? totalAreaPlantada / numberOfPlantingDays : 0;
+
 
                 // 2. Update KPI elements
                 document.getElementById('kpi-plantio-area-total').textContent = `${totalAreaPlantada.toFixed(2)} ha`;
@@ -9201,13 +9203,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiariaReal.toFixed(2)} ha/dia`;
                 document.getElementById('kpi-plantio-area-restante').textContent = `${areaRestante.toFixed(2)} ha`;
 
-
                 // 3. Render Charts
-                this.renderChuvaPorFazenda(data);
                 this.renderAreaPlantadaPorMes(data);
                 this.renderProdutividadePorFrente(data);
                 this.renderEvolucaoAreaPlantada(data);
                 this.renderConclusaoPlantio(totalAreaPlantada, totalGoal);
+                this.renderChuvaPorFazenda(data);
             },
 
             renderChuvaPorFazenda(data) {
@@ -9216,23 +9217,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!acc[farmName]) {
                         acc[farmName] = { totalChuva: 0, count: 0 };
                     }
-                    if (item.chuva) {
+                    if (item.chuva && !isNaN(parseFloat(item.chuva))) {
                         acc[farmName].totalChuva += parseFloat(item.chuva);
                         acc[farmName].count++;
                     }
                     return acc;
                 }, {});
 
-                const farmAverages = Object.entries(dataByFarm)
-                    .map(([name, data]) => ({
+                const sortedFarms = Object.entries(dataByFarm)
+                    .map(([name, { totalChuva, count }]) => ({
                         name,
-                        avgChuva: data.count > 0 ? data.totalChuva / data.count : 0
+                        avgChuva: count > 0 ? totalChuva / count : 0
                     }))
-                    .filter(item => item.avgChuva > 0)
                     .sort((a, b) => b.avgChuva - a.avgChuva);
 
-                const labels = farmAverages.map(item => item.name);
-                const chartData = farmAverages.map(item => item.avgChuva);
+                const labels = sortedFarms.map(item => item.name);
+                const chartData = sortedFarms.map(item => item.avgChuva);
 
                 const commonOptions = this._getCommonChartOptions();
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
