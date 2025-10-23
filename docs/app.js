@@ -1689,6 +1689,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.charts.destroyAll(); 
                 }
                 
+                if (id === 'configuracoesEmpresa') {
+                    App.actions.setupPlantingGoals();
+                }
                 if (id === 'syncHistory') this.renderSyncHistory();
                 if (id === 'excluirDados') this.renderExclusao();
                 if (id === 'gerenciarUsuarios') {
