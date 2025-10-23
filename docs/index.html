@@ -1921,7 +1921,7 @@
                             </div>
                         </div>
                         <div class="kpi-card" style="border-left-color: var(--color-warning);">
-                            <div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-hourglass-half"></i></div>
+                            <div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-flag-checkered"></i></div>
                             <div class="text">
                                 <p class="value" id="kpi-plantio-area-restante">0 ha</p>
                                 <p class="label">Área Restante</p>
@@ -1929,6 +1929,11 @@
                         </div>
                     </div>
                     <div class="dashboard-grid">
+                        <div class="chart-card">
+                            <h3 class="chart-title">Chuva por Fazenda (Média mm)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoChuvaPorFazenda"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoChuvaPorFazenda"></canvas></div>
+                        </div>
                         <div class="chart-card">
                             <h3 class="chart-title">Área Plantada por Mês</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoAreaPlantadaPorDia"><i class="fas fa-expand-alt"></i></button>
@@ -1948,11 +1953,6 @@
                             <h3 class="chart-title">Percentual Total de Conclusão</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoConclusaoPlantio"><i class="fas fa-expand-alt"></i></button>
                             <div class="chart-container"><canvas id="graficoConclusaoPlantio"></canvas></div>
-                        </div>
-                        <div class="chart-card">
-                            <h3 class="chart-title">Chuva por Fazenda (Média)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoChuvaPorFazenda"><i class="fas fa-expand-alt"></i></button>
-                            <div class="chart-container"><canvas id="graficoChuvaPorFazenda"></canvas></div>
                         </div>
                     </div>
                 </div>
