@@ -207,8 +207,10 @@ document.addEventListener('DOMContentLoaded', () => {
             isTracking: false,
             plantio: [], // Placeholder for Plantio data
             cigarrinha: [], // Placeholder for Cigarrinha data
+            multiPlotSelectionMode: false,
+            selectedPlotIds: [],
         },
-        
+
         elements: {
             loadingOverlay: document.getElementById('loading-overlay'),
             loadingProgressText: document.getElementById('loading-progress-text'),
@@ -611,6 +613,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnCenterMap: document.getElementById('btnCenterMap'),
                 btnHistory: document.getElementById('btnHistory'),
                 btnToggleRiskView: document.getElementById('btnToggleRiskView'),
+                btnToggleFilter: document.getElementById('btnToggleFilter'),
+                btnToggleMultiPlotSelection: document.getElementById('btnToggleMultiPlotSelection'),
+                multiPlotActionsContainer: document.getElementById('multi-plot-actions-container'),
+                multiPlotStatusSelect: document.getElementById('multi-plot-status-select'),
+                btnApplyMultiPlotStatus: document.getElementById('btn-apply-multi-plot-status'),
+                btnCancelMultiPlotSelection: document.getElementById('btn-cancel-multi-plot-selection'),
                 infoBox: document.getElementById('talhao-info-box'),
                 infoBoxContent: document.getElementById('talhao-info-box-content'),
                 infoBoxCloseBtn: document.getElementById('close-info-box'),
@@ -3794,6 +3802,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
                 if (monitoramentoAereoEls.btnToggleRiskView) monitoramentoAereoEls.btnToggleRiskView.addEventListener('click', () => App.mapModule.toggleRiskView());
+                if (monitoramentoAereoEls.btnToggleFilter) {
+                    monitoramentoAereoEls.btnToggleFilter.addEventListener('click', () => {
+                        const filterContainer = document.getElementById('map-filter-container');
+                        if (filterContainer) {
+                            const isVisible = filterContainer.style.display !== 'none';
+                            filterContainer.style.display = isVisible ? 'none' : 'block';
+                        }
+                    });
+                }
+
+                if (monitoramentoAereoEls.btnToggleMultiPlotSelection) {
+                    monitoramentoAereoEls.btnToggleMultiPlotSelection.addEventListener('click', () => App.mapModule.toggleMultiPlotSelectionMode());
+                }
+                if (monitoramentoAereoEls.btnApplyMultiPlotStatus) {
+                    monitoramentoAereoEls.btnApplyMultiPlotStatus.addEventListener('click', () => App.mapModule.applyMultiPlotStatus());
+                }
+                if (monitoramentoAereoEls.btnCancelMultiPlotSelection) {
+                    monitoramentoAereoEls.btnCancelMultiPlotSelection.addEventListener('click', () => App.mapModule.toggleMultiPlotSelectionMode(false));
+                }
 
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
@@ -7704,30 +7731,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.elements.monitoramentoAereo.btnToggleRiskView.style.display = 'flex';
                 map.on('click', layerId, (e) => {
-                    // Impede que o clique no talhão seja acionado se um marcador (armadilha) for clicado
                     if (e.originalEvent.target.closest('.mapboxgl-marker')) {
                         return;
                     }
-
                     if (e.features.length === 0) return;
-                    const clickedFeature = e.features[0];
-                    const userMarker = App.state.mapboxUserMarker;
 
-                    if (App.state.trapPlacementMode === 'manual_select') {
-                        // Não instala diretamente. Mostra um modal de confirmação primeiro.
+                    const clickedFeature = e.features[0];
+                    const featureId = clickedFeature.id; // Mapbox generateId is a number
+
+                    if (App.state.multiPlotSelectionMode) {
+                        const index = App.state.selectedPlotIds.indexOf(featureId);
+                        if (index > -1) {
+                            // Deselect
+                            App.state.selectedPlotIds.splice(index, 1);
+                            map.setFeatureState({ source: sourceId, id: featureId }, { selected: false });
+                        } else {
+                            // Select
+                            App.state.selectedPlotIds.push(featureId);
+                            map.setFeatureState({ source: sourceId, id: featureId }, { selected: true });
+                        }
+                    } else if (App.state.trapPlacementMode === 'manual_select') {
                         const clickPosition = e.lngLat;
                         this.showTrapPlacementModal('manual_confirm', { feature: clickedFeature, position: clickPosition });
                     } else {
+                        // Single selection logic
                         if (App.state.selectedMapFeature) {
-                             map.setFeatureState({ source: sourceId, id: App.state.selectedMapFeature.id }, { selected: false });
+                            map.setFeatureState({ source: sourceId, id: App.state.selectedMapFeature.id }, { selected: false });
                         }
                         
-                        if (App.state.selectedMapFeature && App.state.selectedMapFeature.id === clickedFeature.id) {
+                        if (App.state.selectedMapFeature && App.state.selectedMapFeature.id === featureId) {
                             App.state.selectedMapFeature = null;
                             this.hideTalhaoInfo();
                         } else {
                             App.state.selectedMapFeature = clickedFeature;
-                            map.setFeatureState({ source: sourceId, id: clickedFeature.id }, { selected: true });
+                            map.setFeatureState({ source: sourceId, id: featureId }, { selected: true });
 
                             let riskPercentage = null;
                             if (App.state.riskViewActive) {
@@ -8673,24 +8710,132 @@ document.addEventListener('DOMContentLoaded', () => {
                 const layerId = 'talhoes-layer';
                 const borderLayerId = 'talhoes-border-layer';
 
-                // Se a camada ainda não existir, não faz nada.
                 if (!map.getLayer(layerId)) {
                     return;
                 }
 
                 if (selectedStatus.length === 0) {
-                    // Esconde tudo se nada estiver selecionado
-                    map.setFilter(layerId, ['boolean', false]);
-                    map.setFilter(borderLayerId, ['boolean', false]);
+                    // Para esconder todas as features, o filtro deve ser 'false'.
+                    map.setFilter(layerId, false);
+                    map.setFilter(borderLayerId, false);
                     return;
                 }
 
-                // O filtro verifica se a propriedade 'status' da feature está no array de status selecionados
-                const filterExpression = ['in', ['get', 'status'], ...selectedStatus];
+                // Usar 'any' com múltiplos '==' é uma forma mais robusta e explícita de criar um filtro "OR".
+                // Ex: ['any', ['==', 'status', 'Plantio'], ['==', 'status', 'Reforma']]
+                const filterConditions = selectedStatus.map(status => ['==', ['get', 'status'], status]);
+                const filterExpression = ['any', ...filterConditions];
 
                 map.setFilter(layerId, filterExpression);
                 map.setFilter(borderLayerId, filterExpression);
             },
+
+            toggleMultiPlotSelectionMode(forceOff = false) {
+                const { btnToggleMultiPlotSelection, multiPlotActionsContainer } = App.elements.monitoramentoAereo;
+                const icon = btnToggleMultiPlotSelection.querySelector('i');
+
+                if (forceOff) {
+                    App.state.multiPlotSelectionMode = false;
+                } else {
+                    App.state.multiPlotSelectionMode = !App.state.multiPlotSelectionMode;
+                }
+
+                if (App.state.multiPlotSelectionMode) {
+                    multiPlotActionsContainer.style.display = 'flex';
+                    icon.className = 'fas fa-check';
+                    btnToggleMultiPlotSelection.classList.add('active');
+                    App.ui.showAlert('Modo de Seleção Múltipla Ativado. Clique nos talhões para selecionar.', 'info', 3000);
+                    this.hideTalhaoInfo();
+                } else {
+                    multiPlotActionsContainer.style.display = 'none';
+                    icon.className = 'fas fa-hand-pointer';
+                    btnToggleMultiPlotSelection.classList.remove('active');
+                    App.ui.showAlert('Modo de Seleção Múltipla Desativado.', 'info', 2000);
+                    this.clearMultiPlotSelection();
+                }
+            },
+
+            clearMultiPlotSelection() {
+                const map = App.state.mapboxMap;
+                if (map && App.state.selectedPlotIds.length > 0) {
+                    App.state.selectedPlotIds.forEach(plotId => {
+                         // As IDs de features do Mapbox podem ser números
+                        map.setFeatureState({ source: 'talhoes-source', id: Number(plotId) }, { selected: false });
+                    });
+                }
+                App.state.selectedPlotIds = [];
+            },
+
+            applyMultiPlotStatus() {
+                const { multiPlotStatusSelect } = App.elements.monitoramentoAereo;
+                const newStatus = multiPlotStatusSelect.value;
+                const plotIdsToUpdate = [...App.state.selectedPlotIds];
+
+                if (!newStatus) {
+                    App.ui.showAlert('Por favor, selecione um status para aplicar.', 'warning');
+                    return;
+                }
+                if (plotIdsToUpdate.length === 0) {
+                    App.ui.showAlert('Nenhum talhão selecionado.', 'warning');
+                    return;
+                }
+
+                const confirmationMessage = `Tem a certeza que deseja aplicar o status "${newStatus}" para os ${plotIdsToUpdate.length} talhões selecionados?`;
+
+                App.ui.showConfirmationModal(confirmationMessage, () => {
+                    App.ui.setLoading(true, `A atualizar ${plotIdsToUpdate.length} talhões...`);
+
+                    // We need to find which farm each plot belongs to.
+                    const updatesByFarm = {};
+                    const allSourceFeatures = App.state.mapboxMap.querySourceFeatures('talhoes-source');
+
+                    plotIdsToUpdate.forEach(plotId => {
+                        const feature = allSourceFeatures.find(f => f.id == plotId);
+                        if (feature) {
+                            const farmCode = this._findProp(feature, ['FUNDO_AGR']);
+                            const talhaoName = this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+
+                            if (!updatesByFarm[farmCode]) {
+                                const farm = App.state.fazendas.find(f => f.code == farmCode);
+                                if (farm) {
+                                    updatesByFarm[farmCode] = {
+                                        farmId: farm.id,
+                                        updatedTalhoes: JSON.parse(JSON.stringify(farm.talhoes)) // Deep copy
+                                    };
+                                }
+                            }
+
+                            if (updatesByFarm[farmCode]) {
+                                const talhaoIndex = updatesByFarm[farmCode].updatedTalhoes.findIndex(t => t.name == talhaoName);
+                                if (talhaoIndex > -1) {
+                                    updatesByFarm[farmCode].updatedTalhoes[talhaoIndex].status = newStatus;
+                                }
+                            }
+                        }
+                    });
+
+                    const batch = writeBatch(db);
+                    Object.values(updatesByFarm).forEach(({ farmId, updatedTalhoes }) => {
+                        const farmRef = doc(db, 'fazendas', farmId);
+                        batch.update(farmRef, { talhoes: updatedTalhoes });
+                    });
+
+                    batch.commit()
+                        .then(() => {
+                            App.ui.showAlert(`${plotIdsToUpdate.length} talhões atualizados com sucesso!`, 'success');
+                            this.toggleMultiPlotSelectionMode(true); // Force-off the mode
+                            // Refresh map to show new colors
+                            this.loadShapesOnMap();
+                        })
+                        .catch(error => {
+                            App.ui.showAlert("Erro ao atualizar os talhões.", "error");
+                            console.error("Error updating multiple talhoes:", error);
+                        })
+                        .finally(() => {
+                            App.ui.setLoading(false);
+                        });
+                });
+            }
         },
 
         charts: {
