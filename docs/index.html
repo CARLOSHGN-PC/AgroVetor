@@ -1917,7 +1917,14 @@
                             <div class="icon" style="background-color: var(--color-purple);"><i class="fas fa-chart-line"></i></div>
                             <div class="text">
                                 <p class="value" id="kpi-plantio-media-diaria">0 ha/dia</p>
-                                <p class="label">Média Diária</p>
+                                <p class="label">Média Diária por Cultura</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: var(--color-warning);">
+                            <div class="icon" style="background-color: var(--color-warning);"><i class="fas fa-hourglass-half"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-plantio-area-restante">0 ha</p>
+                                <p class="label">Área Restante</p>
                             </div>
                         </div>
                     </div>
@@ -1941,6 +1948,11 @@
                             <h3 class="chart-title">Percentual Total de Conclusão</h3>
                             <button class="btn-expand-chart" data-chart-id="graficoConclusaoPlantio"><i class="fas fa-expand-alt"></i></button>
                             <div class="chart-container"><canvas id="graficoConclusaoPlantio"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3 class="chart-title">Chuva por Fazenda (Média)</h3>
+                            <button class="btn-expand-chart" data-chart-id="graficoChuvaPorFazenda"><i class="fas fa-expand-alt"></i></button>
+                            <div class="chart-container"><canvas id="graficoChuvaPorFazenda"></canvas></div>
                         </div>
                     </div>
                 </div>
