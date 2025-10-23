@@ -3020,27 +3020,9 @@
                     <button id="btnToggleRiskView" class="map-control-btn" title="Visualização de Risco" style="display: none;">
                         <i class="fas fa-biohazard"></i>
                     </button>
-                    <button id="btnToggleFilter" class="map-control-btn" title="Filtros e Legenda">
-                        <i class="fas fa-filter"></i>
-                    </button>
-                    <button id="btnToggleMultiPlotSelection" class="map-control-btn" title="Seleção Múltipla de Talhões">
-                        <i class="fas fa-hand-pointer"></i>
-                    </button>
                     <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
                         <i class="fas fa-plus"></i>
                     </button>
-                </div>
-                <div id="multi-plot-actions-container" style="display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 3; background: var(--color-surface); padding: 10px; border-radius: var(--border-radius); box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 10px;">
-                    <select id="multi-plot-status-select" style="width: auto; margin-top: 0;">
-                        <option value="">Selecione um status...</option>
-                        <option value="Falta Colher">Falta Colher</option>
-                        <option value="Plantio">Plantio</option>
-                        <option value="Cana Soca">Cana Soca</option>
-                        <option value="Cana Muda">Cana Muda</option>
-                        <option value="Reforma">Reforma</option>
-                    </select>
-                    <button id="btn-apply-multi-plot-status" class="save" style="margin-top: 0; width: auto;">Aplicar</button>
-                    <button id="btn-cancel-multi-plot-selection" class="btn-secondary" style="margin-top: 0; width: auto; background: var(--color-danger);">Cancelar</button>
                 </div>
                 <div id="talhao-info-box" class="info-box">
                     <button id="close-info-box" class="modal-close-btn">&times;</button>
@@ -3050,7 +3032,7 @@
                     <button id="close-trap-info-box" class="modal-close-btn">&times;</button>
                     <div id="trap-info-box-content"></div>
                 </div>
-                <div id="map-filter-container" class="map-filter-container" style="display: none;">
+                <div id="map-filter-container" class="map-filter-container">
                     <h4>Legenda e Filtros</h4>
                     <div id="map-filter-options">
                         <label><input type="checkbox" value="Falta Colher" checked> <span class="legend-color" style="background-color: #FFC107;"></span> Falta Colher</label>
