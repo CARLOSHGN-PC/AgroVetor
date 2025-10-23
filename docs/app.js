@@ -128,7 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
-                        { label: 'Relatório de Classificação', icon: 'fas fa-tags', target: 'relatorioClassificacao', permission: 'monitoramentoAereo' },
                     ]
                 },
                 {
@@ -628,13 +627,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tipo: document.getElementById('tipoRelatorioPlantio'),
                 btnPDF: document.getElementById('btnPDFPlantio'),
                 btnExcel: document.getElementById('btnExcelPlantio'),
-            },
-            relatorioClassificacao: {
-                fazendaFiltro: document.getElementById('classificacaoFazendaFiltro'),
-                inicio: document.getElementById('classificacaoInicio'),
-                fim: document.getElementById('classificacaoFim'),
-                btnPDF: document.getElementById('btnPDFClassificacao'),
-                btnExcel: document.getElementById('btnExcelClassificacao'),
             },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
@@ -1137,7 +1129,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'areaClassifications'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -3802,9 +3794,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
                 if (monitoramentoAereoEls.btnToggleRiskView) monitoramentoAereoEls.btnToggleRiskView.addEventListener('click', () => App.mapModule.toggleRiskView());
 
-                const btnFilterMap = document.getElementById('btnFilterMap');
-                if (btnFilterMap) btnFilterMap.addEventListener('click', () => App.mapModule.toggleFilterBox());
-
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
                 if (trapModal.cancelBtn) trapModal.cancelBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
@@ -3956,10 +3945,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.reports.generatePlantioTalhaoExcel();
                     }
                 });
-
-                const relatorioClassificacaoEls = App.elements.relatorioClassificacao;
-                if (relatorioClassificacaoEls.btnPDF) relatorioClassificacaoEls.btnPDF.addEventListener('click', () => App.reports.generateClassificacaoPDF());
-                if (relatorioClassificacaoEls.btnExcel) relatorioClassificacaoEls.btnExcel.addEventListener('click', () => App.reports.generateClassificacaoCSV());
 
                 this.enableEnterKeyNavigation('#changePasswordModal');
                 this.enableEnterKeyNavigation('#cadastros');
@@ -7207,35 +7192,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Error saving planting goals:", error);
                 }
             },
-
-            async saveAreaClassification(classificationData) {
-                const dataToSave = {
-                    ...classificationData,
-                    companyId: App.state.currentUser.companyId,
-                    classifiedBy: App.state.currentUser.uid,
-                    classifiedAt: serverTimestamp(),
-                };
-
-                // Use a unique ID based on company, farm, and plot to make the save idempotent
-                const docId = `${dataToSave.companyId}_${dataToSave.farmCode}_${dataToSave.plotName}`.replace(/[^a-zA-Z0-9_]/g, '');
-
-                App.ui.showConfirmationModal(`Tem a certeza que deseja classificar o talhão ${classificationData.plotName} como "${classificationData.classification}"? Uma classificação existente será substituída.`, async () => {
-                    App.ui.setLoading(true, "A guardar classificação...");
-                    try {
-                        // Using setDocument with the generated ID will either create a new document or overwrite an existing one.
-                        await App.data.setDocument('areaClassifications', docId, dataToSave);
-                        App.ui.showAlert("Classificação de área guardada com sucesso!");
-                        App.mapModule.hideTalhaoInfo();
-                        // You might want to trigger a map refresh here to show the new classification color
-                        // e.g., App.mapModule.updatePlotClassificationStyle(docId, classificationData.classification);
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao guardar a classificação.", "error");
-                        console.error("Error saving area classification:", error);
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                });
-            },
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
@@ -7607,22 +7563,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const themeColors = App.ui._getThemeColors();
 
-                // [NOVO] Lógica de classificação de cores
-                const classifications = App.state.areaClassifications || [];
-                const colorMap = {
-                    'Cana Planta': '#76ff03',  // Verde Limão
-                    'Cana Soca': '#795548',    // Marrom
-                    'Reforma': '#f44336',      // Vermelho
-                    'Mudas': '#ffc107',        // Ambar
-                    'Colhido': '#9e9e9e',      // Cinza
-                };
-
-                const matchExpression = ['match', ['get', 'CD_TALHAO']];
-                classifications.forEach(c => {
-                    matchExpression.push(c.plotName, colorMap[c.classification] || themeColors.primary);
-                });
-                matchExpression.push(themeColors.primary); // Cor padrão
-
                 if (!map.getLayer(layerId)) {
                     map.addLayer({
                         id: layerId,
@@ -7632,24 +7572,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             'fill-color': [
                                 'case',
                                 ['boolean', ['feature-state', 'risk'], false], '#d32f2f',
-                                matchExpression // Usa a expressão de match aqui
+                                themeColors.primary
                             ],
                             'fill-opacity': [
                                 'case',
                                 ['boolean', ['feature-state', 'risk'], false], 0.5,
                                 ['boolean', ['feature-state', 'selected'], false], 0.85,
                                 ['boolean', ['feature-state', 'hover'], false], 0.60,
-                                0.45 // Default opacity for classified areas
+                                0.0
                             ]
                         }
                     });
-                } else {
-                    // [NOVO] Atualiza a cor de preenchimento se a camada já existir
-                    map.setPaintProperty(layerId, 'fill-color', [
-                        'case',
-                        ['boolean', ['feature-state', 'risk'], false], '#d32f2f',
-                        matchExpression
-                    ]);
                 }
 
                 if (!map.getLayer(borderLayerId)) {
@@ -7792,32 +7725,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="label">Área Total</span>
                         <span class="value">${(typeof areaHa === 'number' ? areaHa : 0).toFixed(2).replace('.',',')} ha</span>
                     </div>
-
-                    <!-- [NOVO] Seção de Classificação de Área -->
-                    <div class="info-item-divider"></div>
-                    <div class="info-title" style="margin-top: 10px;">
-                        <i class="fas fa-tags"></i>
-                        <span>Classificar Área</span>
-                    </div>
-                    <div class="info-item">
-                         <span class="label" for="area-classification-select">Tipo</span>
-                         <select id="area-classification-select">
-                            <option value="">Selecione...</option>
-                            <option value="Cana Planta">Cana Planta</option>
-                            <option value="Cana Soca">Cana Soca</option>
-                            <option value="Reforma">Reforma</option>
-                            <option value="Mudas">Mudas</option>
-                            <option value="Colhido">Colhido</option>
-                         </select>
-                    </div>
-                     <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
-                        <button id="btn-save-classification" class="save" style="width: 100%;">
-                            <i class="fas fa-save"></i> Guardar Classificação
-                        </button>
-                    </div>
-
-                    <div class="info-item-divider"></div>
-
                     <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
                         <button class="btn-download-map save" style="width: 100%;">
                             <i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline
@@ -7831,26 +7738,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 contentEl.querySelector('.btn-download-map').addEventListener('click', () => {
                     this.startOfflineMapDownload(feature);
-                });
-
-                // [NOVO] Event listener para o botão de salvar classificação
-                contentEl.querySelector('#btn-save-classification').addEventListener('click', () => {
-                    const classification = document.getElementById('area-classification-select').value;
-                    if (!classification) {
-                        App.ui.showAlert("Por favor, selecione um tipo de classificação.", "warning");
-                        return;
-                    }
-
-                    const classificationData = {
-                        farmCode: fundoAgricola,
-                        farmName: fazendaNome,
-                        plotName: talhaoNome,
-                        area: (typeof areaHa === 'number' ? areaHa : 0),
-                        classification: classification,
-                        // Adicionar mais dados se necessário
-                    };
-
-                    App.actions.saveAreaClassification(classificationData);
                 });
                 
                 this.hideTrapInfo();
@@ -8618,83 +8505,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     searchContainer.classList.remove('active');
                     searchBtnIcon.className = 'fas fa-search';
                     searchInput.value = '';
-                }
-            },
-
-            toggleFilterBox() {
-                const filterBox = document.getElementById('map-filter-box');
-                const isOpen = filterBox.classList.toggle('visible');
-
-                if (isOpen) {
-                    this.populateFilterOptions();
-                } else {
-                    this.hideTalhaoInfo();
-                    this.hideTrapInfo();
-                }
-            },
-
-            populateFilterOptions() {
-                const container = document.getElementById('map-filter-options');
-                container.innerHTML = '';
-
-                const classifications = ['Cana Planta', 'Cana Soca', 'Reforma', 'Mudas', 'Colhido'];
-
-                const allCheckbox = document.createElement('div');
-                allCheckbox.innerHTML = `
-                    <label style="display: flex; align-items: center; margin-bottom: 10px; font-weight: bold;">
-                        <input type="checkbox" id="filter-all" checked style="width: 20px; height: 20px; margin-right: 10px;">
-                        Mostrar Todas
-                    </label>
-                `;
-                container.appendChild(allCheckbox);
-
-                classifications.forEach(c => {
-                    const checkbox = document.createElement('div');
-                    checkbox.innerHTML = `
-                        <label style="display: flex; align-items: center; margin-bottom: 5px;">
-                            <input type="checkbox" class="classification-filter" value="${c}" checked style="width: 20px; height: 20px; margin-right: 10px;">
-                            ${c}
-                        </label>
-                    `;
-                    container.appendChild(checkbox);
-                });
-
-                document.getElementById('filter-all').addEventListener('change', (e) => {
-                    document.querySelectorAll('.classification-filter').forEach(cb => {
-                        cb.checked = e.target.checked;
-                    });
-                    this.applyClassificationFilter();
-                });
-
-                container.querySelectorAll('.classification-filter').forEach(cb => {
-                    cb.addEventListener('change', () => {
-                        const allChecked = Array.from(document.querySelectorAll('.classification-filter')).every(c => c.checked);
-                        document.getElementById('filter-all').checked = allChecked;
-                        this.applyClassificationFilter();
-                    });
-                });
-            },
-
-            applyClassificationFilter() {
-                const map = App.state.mapboxMap;
-                if (!map || !map.getSource('talhoes-source')) return;
-
-                const selectedClassifications = Array.from(document.querySelectorAll('.classification-filter:checked')).map(cb => cb.value);
-
-                const classifiedPlots = App.state.areaClassifications.filter(c => selectedClassifications.includes(c.classification)).map(c => c.plotName);
-
-                if (selectedClassifications.length === 5) { // Assuming 5 total classifications
-                    // If all are selected, show everything (remove filter)
-                    map.setFilter('talhoes-layer', null);
-                    map.setFilter('talhoes-border-layer', null);
-                } else if (classifiedPlots.length > 0) {
-                    const filter = ['in', ['get', 'CD_TALHAO'], ['literal', classifiedPlots]];
-                    map.setFilter('talhoes-layer', filter);
-                    map.setFilter('talhoes-border-layer', filter);
-                } else {
-                    // If no classifications are selected, show nothing
-                    map.setFilter('talhoes-layer', ['==', ['get', 'CD_TALHAO'], '']);
-                    map.setFilter('talhoes-border-layer', ['==', ['get', 'CD_TALHAO'], '']);
                 }
             },
 
@@ -10414,32 +10224,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaCodigo: farm ? farm.code : ''
                 };
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
-            },
-
-            generateClassificacaoPDF() {
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioClassificacao;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                this._fetchAndDownloadReport('aerial-monitoring/pdf', filters, 'relatorio_classificacao_area.pdf');
-            },
-
-            generateClassificacaoCSV() {
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioClassificacao;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                this._fetchAndDownloadReport('aerial-monitoring/csv', filters, 'relatorio_classificacao_area.csv');
             }
         },
 
