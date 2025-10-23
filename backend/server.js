@@ -2582,6 +2582,76 @@ try {
         }
     });
 
+    // ROTA PARA RELATÓRIO DE STATUS DE TALHÃO
+    app.get('/reports/status/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_status_talhoes.pdf');
+        doc.pipe(res);
+
+        try {
+            const { companyId, generatedBy } = req.query;
+            if (!companyId) {
+                await generatePdfHeader(doc, 'Erro');
+                doc.text('O ID da empresa não foi fornecido.');
+                doc.end();
+                return;
+            }
+
+            const title = 'Relatório de Status de Talhões';
+            let currentY = await generatePdfHeader(doc, title, companyId);
+
+            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', companyId).get();
+            if (fazendasSnapshot.empty) {
+                doc.text('Nenhuma fazenda encontrada para esta empresa.');
+                generatePdfFooter(doc, generatedBy);
+                doc.end();
+                return;
+            }
+
+            const headers = ['Fazenda', 'Talhão', 'Status'];
+            const columnWidths = [350, 200, 227];
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            let hasData = false;
+            const fazendas = [];
+            fazendasSnapshot.forEach(doc => fazendas.push(doc.data()));
+            fazendas.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+            for (const farm of fazendas) {
+                const talhoesWithStatus = farm.talhoes ? farm.talhoes.filter(t => t.status) : [];
+                if (talhoesWithStatus.length > 0) {
+                    hasData = true;
+                    talhoesWithStatus.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    for (const talhao of talhoesWithStatus) {
+                        currentY = await checkPageBreak(doc, currentY, title);
+                        const rowData = [
+                            `${farm.code} - ${farm.name}`,
+                            talhao.name,
+                            talhao.status
+                        ];
+                        currentY = drawRow(doc, rowData, currentY, false, false, columnWidths);
+                    }
+                }
+            }
+
+            if (!hasData) {
+                doc.text('Nenhum talhão com status definido encontrado.');
+            }
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Status de Talhões:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));

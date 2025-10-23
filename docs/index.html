@@ -1016,6 +1016,51 @@
         display: block;
         transform: translateX(0);
       }
+      #map-filter-container {
+          position: absolute;
+          top: 80px;
+          left: 15px;
+          z-index: 2;
+          background-color: var(--color-surface);
+          border-radius: var(--border-radius-lg);
+          box-shadow: var(--shadow-lg);
+          padding: 15px;
+          width: 250px;
+      }
+      #map-filter-container h4 {
+          margin: 0 0 10px 0;
+          color: var(--color-primary);
+          font-size: 16px;
+          border-bottom: 1px solid var(--color-border);
+          padding-bottom: 5px;
+      }
+      #map-filter-options {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+      }
+      #map-filter-options label {
+          display: flex;
+          align-items: center;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--color-text);
+          margin-top: 0;
+      }
+      #map-filter-options input[type="checkbox"] {
+          margin-right: 10px;
+          width: auto;
+      }
+      .legend-color {
+          width: 15px;
+          height: 15px;
+          border-radius: 50%;
+          margin-right: 8px;
+          display: inline-block;
+          border: 1px solid rgba(0,0,0,0.1);
+          flex-shrink: 0;
+      }
       .info-box-content {
         padding: 0;
       }
@@ -2312,6 +2357,14 @@
                 </div>
             </section>
 
+            <section id="relatorioStatus" class="tab-content card" aria-label="Relatório de Status de Talhões" tabindex="0" hidden>
+                <h2><i class="fas fa-map-marked-alt"></i> Relatório de Status de Talhões</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere um relatório em PDF com o status operacional de cada talhão (Ex: Plantio, Reforma, etc.).</p>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFStatusTalhoes" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório de Status (PDF)</button>
+                </div>
+            </section>
+
             <section id="lancamentoPerda" class="tab-content card" aria-label="Lançamento Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-dollar-sign"></i> Lançamento Perda</h2>
                 <div class="form-row">
@@ -2978,6 +3031,16 @@
                 <div id="trap-info-box" class="info-box">
                     <button id="close-trap-info-box" class="modal-close-btn">&times;</button>
                     <div id="trap-info-box-content"></div>
+                </div>
+                <div id="map-filter-container" class="map-filter-container">
+                    <h4>Legenda e Filtros</h4>
+                    <div id="map-filter-options">
+                        <label><input type="checkbox" value="Falta Colher" checked> <span class="legend-color" style="background-color: #FFC107;"></span> Falta Colher</label>
+                        <label><input type="checkbox" value="Plantio" checked> <span class="legend-color" style="background-color: #4CAF50;"></span> Plantio</label>
+                        <label><input type="checkbox" value="Cana Soca" checked> <span class="legend-color" style="background-color: #9C27B0;"></span> Cana Soca</label>
+                        <label><input type="checkbox" value="Cana Muda" checked> <span class="legend-color" style="background-color: #2196F3;"></span> Cana Muda</label>
+                        <label><input type="checkbox" value="Reforma" checked> <span class="legend-color" style="background-color: #F44336;"></span> Reforma</label>
+                    </div>
                 </div>
             </div>
         </div>

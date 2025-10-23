@@ -127,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
+                        { label: 'Relatório de Status', icon: 'fas fa-map', target: 'relatorioStatus', permission: 'relatorioMonitoramento' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
                     ]
                 },
@@ -3854,6 +3855,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (relatorioMonitoramentoEls.btnPDF) relatorioMonitoramentoEls.btnPDF.addEventListener('click', () => App.reports.generateArmadilhaPDF());
                 if (relatorioMonitoramentoEls.btnExcel) relatorioMonitoramentoEls.btnExcel.addEventListener('click', () => App.reports.generateArmadilhaCSV());
                 
+                document.getElementById('btnPDFStatusTalhoes').addEventListener('click', () => {
+                    if (App.state.currentUser && App.state.currentUser.companyId) {
+                        const url = `/reports/status/pdf?companyId=${App.state.currentUser.companyId}`;
+                        window.open(url, '_blank');
+                    } else {
+                        alert('Por favor, faça login para gerar relatórios.');
+                    }
+                });
+
                 if (App.elements.notificationContainer) App.elements.notificationContainer.addEventListener('click', (e) => {
                     const notification = e.target.closest('.trap-notification');
                     if (notification && notification.dataset.trapId) {
@@ -6877,6 +6887,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            saveTalhaoStatus(farmCode, talhaoName, newStatus) {
+                const farm = App.state.fazendas.find(f => f.code == farmCode);
+                if (!farm) {
+                    App.ui.showAlert("Fazenda não encontrada para salvar o status.", "error");
+                    return;
+                }
+
+                const talhaoIndex = farm.talhoes.findIndex(t => t.name == talhaoName);
+                if (talhaoIndex === -1) {
+                    App.ui.showAlert("Talhão não encontrado para salvar o status.", "error");
+                    return;
+                }
+
+                const updatedTalhoes = [...farm.talhoes];
+                updatedTalhoes[talhaoIndex].status = newStatus;
+
+                App.data.updateDocument('fazendas', farm.id, { talhoes: updatedTalhoes })
+                    .then(() => {
+                        App.ui.showAlert("Status do talhão atualizado com sucesso!", "success");
+                        // Refresh map to show new color
+                        App.mapModule.loadShapesOnMap();
+                    })
+                    .catch(error => {
+                        App.ui.showAlert("Erro ao atualizar o status do talhão.", "error");
+                        console.error("Error updating talhao status:", error);
+                    });
+            },
+
             impersonateCompany(companyId) {
                 if (App.state.currentUser.role !== 'super-admin' || App.state.isImpersonating) {
                     return;
@@ -7374,6 +7412,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.watchUserPosition();
                         this.loadShapesOnMap();
                         this.loadTraps();
+                        this.setupFilterListener(); // Add listener for the new filter
                     });
 
                 } catch (e) {
@@ -7551,15 +7590,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 const layerId = 'talhoes-layer';
                 const borderLayerId = 'talhoes-border-layer';
 
+                // Enrich GeoJSON with status from App.state
+                const enrichedGeoJson = JSON.parse(JSON.stringify(App.state.geoJsonData));
+                enrichedGeoJson.features.forEach(feature => {
+                    const farmCode = this._findProp(feature, ['FUNDO_AGR']);
+                    const talhaoName = this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                    const farm = App.state.fazendas.find(f => f.code == farmCode);
+                    const talhao = farm ? farm.talhoes.find(t => t.name == talhaoName) : null;
+                    feature.properties.status = talhao ? talhao.status : '';
+                });
+
                 if (map.getSource(sourceId)) {
-                    map.getSource(sourceId).setData(App.state.geoJsonData);
+                    map.getSource(sourceId).setData(enrichedGeoJson);
                 } else {
                     map.addSource(sourceId, {
                         type: 'geojson',
-                        data: App.state.geoJsonData,
+                        data: enrichedGeoJson,
                         generateId: true // Important for feature state
                     });
                 }
+
+                const statusColors = {
+                    'Falta Colher': '#FFC107', // Amber
+                    'Plantio': '#4CAF50',     // Green
+                    'Cana Soca': '#9C27B0',    // Purple
+                    'Cana Muda': '#2196F3',    // Blue
+                    'Reforma': '#F44336'      // Red
+                };
 
                 const themeColors = App.ui._getThemeColors();
 
@@ -7570,20 +7627,38 @@ document.addEventListener('DOMContentLoaded', () => {
                         source: sourceId,
                         paint: {
                             'fill-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f',
-                                themeColors.primary
+                                'match',
+                                ['get', 'status'],
+                                'Falta Colher', statusColors['Falta Colher'],
+                                'Plantio', statusColors['Plantio'],
+                                'Cana Soca', statusColors['Cana Soca'],
+                                'Cana Muda', statusColors['Cana Muda'],
+                                'Reforma', statusColors['Reforma'],
+                                /* other */ 'transparent' // Default color for no status or other values
                             ],
                             'fill-opacity': [
                                 'case',
                                 ['boolean', ['feature-state', 'risk'], false], 0.5,
                                 ['boolean', ['feature-state', 'selected'], false], 0.85,
                                 ['boolean', ['feature-state', 'hover'], false], 0.60,
-                                0.0
+                                0.7 // Default opacity for colored areas
                             ]
                         }
                     });
+                } else {
+                    // Update paint properties if layer exists
+                    map.setPaintProperty(layerId, 'fill-color', [
+                        'match',
+                        ['get', 'status'],
+                        'Falta Colher', statusColors['Falta Colher'],
+                        'Plantio', statusColors['Plantio'],
+                        'Cana Soca', statusColors['Cana Soca'],
+                        'Cana Muda', statusColors['Cana Muda'],
+                        'Reforma', statusColors['Reforma'],
+                        /* other */ 'transparent'
+                    ]);
                 }
+
 
                 if (!map.getLayer(borderLayerId)) {
                      map.addLayer({
@@ -7691,6 +7766,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const areaHa = this._findProp(feature, ['AREA_HA', 'AREA', 'HECTARES']);
                 const variedade = this._findProp(feature, ['VARIEDADE', 'CULTURA']);
 
+                const farm = App.state.fazendas.find(f => f.code == fundoAgricola);
+                const talhao = farm ? farm.talhoes.find(t => t.name == talhaoNome) : null;
+                const currentStatus = talhao ? talhao.status : '';
+
+                const statusOptions = ['Falta Colher', 'Plantio', 'Cana Soca', 'Cana Muda', 'Reforma'];
+
                 const riskInfoHTML = riskPercentage !== null ? `
                     <div class="info-item risk-info">
                         <span class="label"><i class="fas fa-exclamation-triangle"></i> Risco de Aplicação</span>
@@ -7725,9 +7806,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="label">Área Total</span>
                         <span class="value">${(typeof areaHa === 'number' ? areaHa : 0).toFixed(2).replace('.',',')} ha</span>
                     </div>
+                    <div class="info-item">
+                        <span class="label">Status da Área</span>
+                        <select id="talhao-status-select" class="form-control" style="width: 100%; padding: 8px; margin-top: 5px;">
+                            <option value="">Sem Status</option>
+                            ${statusOptions.map(s => `<option value="${s}" ${currentStatus === s ? 'selected' : ''}>${s}</option>`).join('')}
+                        </select>
+                    </div>
                     <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
-                        <button class="btn-download-map save" style="width: 100%;">
-                            <i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline
+                        <button id="btn-save-talhao-status" class="save" style="width: 100%;">
+                            <i class="fas fa-save"></i> Salvar Status
                         </button>
                     </div>
                     <div class="download-progress-container" style="display: none; padding: 0 20px 20px 20px;">
@@ -7736,8 +7824,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
 
-                contentEl.querySelector('.btn-download-map').addEventListener('click', () => {
-                    this.startOfflineMapDownload(feature);
+                document.getElementById('btn-save-talhao-status').addEventListener('click', () => {
+                    const newStatus = document.getElementById('talhao-status-select').value;
+                    App.actions.saveTalhaoStatus(fundoAgricola, talhaoNome, newStatus);
                 });
                 
                 this.hideTrapInfo();
@@ -8565,6 +8654,42 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }, 8000);
+            },
+
+            setupFilterListener() {
+                const filterOptions = document.getElementById('map-filter-options');
+                if (filterOptions) {
+                    filterOptions.addEventListener('change', () => this.updateMapFilter());
+                }
+            },
+
+            updateMapFilter() {
+                const map = App.state.mapboxMap;
+                if (!map || !map.isStyleLoaded()) return;
+
+                const checkedOptions = Array.from(document.querySelectorAll('#map-filter-options input[type="checkbox"]:checked'));
+                const selectedStatus = checkedOptions.map(input => input.value);
+
+                const layerId = 'talhoes-layer';
+                const borderLayerId = 'talhoes-border-layer';
+
+                // Se a camada ainda não existir, não faz nada.
+                if (!map.getLayer(layerId)) {
+                    return;
+                }
+
+                if (selectedStatus.length === 0) {
+                    // Esconde tudo se nada estiver selecionado
+                    map.setFilter(layerId, ['boolean', false]);
+                    map.setFilter(borderLayerId, ['boolean', false]);
+                    return;
+                }
+
+                // O filtro verifica se a propriedade 'status' da feature está no array de status selecionados
+                const filterExpression = ['in', ['get', 'status'], ...selectedStatus];
+
+                map.setFilter(layerId, filterExpression);
+                map.setFilter(borderLayerId, filterExpression);
             },
         },
 
