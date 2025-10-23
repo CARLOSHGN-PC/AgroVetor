@@ -4149,7 +4149,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     return data;
                 }
                 return data.filter(item => {
-                    return item.data >= startDate && item.data <= endDate;
+                    const itemDate = item.data || item.date; // Handle both 'data' and 'date' properties
+                    return itemDate >= startDate && itemDate <= endDate;
                 });
             },
             saveDashboardDates(type, start, end) {
