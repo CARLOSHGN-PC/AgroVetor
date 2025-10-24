@@ -6416,14 +6416,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             let dataToSync = write.data;
+                            // Handle trap installation date conversion
                             if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
-                                dataToSync = {
-                                    ...write.data,
-                                    dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao))
-                                };
+                                dataToSync = { ...dataToSync, dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao)) };
+                            }
+                            // Handle trap collection date conversion
+                            if (write.collection === 'armadilhas' && typeof write.data.dataColeta === 'string') {
+                                dataToSync = { ...dataToSync, dataColeta: Timestamp.fromDate(new Date(write.data.dataColeta)) };
                             }
 
-                            await App.data.setDocument(write.collection, write.id, dataToSync);
+                            if (write.type === 'update' && write.docId) {
+                                await App.data.updateDocument(write.collection, write.docId, dataToSync);
+                            } else {
+                                await App.data.setDocument(write.collection, write.id, dataToSync);
+                            }
 
                             logEntry.items.push({
                                 status: 'success', collection: write.collection, data: write.data, error: null
@@ -8003,41 +8009,59 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async collectTrap(trapId, count, observations) {
+                const collectionTime = new Date();
                 const updateData = {
                     status: "Coletada",
-                    dataColeta: Timestamp.fromDate(new Date()),
+                    dataColeta: collectionTime.toISOString(), // Use ISO String for offline storage
                     coletadoPor: App.state.currentUser.uid,
                     contagemMariposas: count,
                     observacoes: observations || null
                 };
 
-                // Otimização da UI: remove o marcador imediatamente
+                // Optimistic UI Update
                 if (App.state.mapboxTrapMarkers[trapId]) {
                     App.state.mapboxTrapMarkers[trapId].remove();
                     delete App.state.mapboxTrapMarkers[trapId];
                 }
-
-                // Esconde a caixa de informações e mostra um alerta de sucesso imediato
                 this.hideTrapInfo();
-                App.ui.showAlert("Coleta registrada com sucesso!", "success");
+                App.ui.showAlert("Coleta registrada. Sincronizando...", "info");
 
-            // Otimização: Atualiza o estado local imediatamente para remover a notificação
-            const trapIndex = App.state.armadilhas.findIndex(t => t.id === trapId);
-            if (trapIndex > -1) {
-                App.state.armadilhas[trapIndex].status = "Coletada";
-            }
-            // Re-executa a verificação para limpar a notificação da UI instantaneamente
-            this.checkTrapStatusAndNotify();
-
+                const trapIndex = App.state.armadilhas.findIndex(t => t.id === trapId);
+                if (trapIndex > -1) {
+                    App.state.armadilhas[trapIndex].status = "Coletada";
+                }
+                this.checkTrapStatusAndNotify();
 
                 try {
-                    await App.data.updateDocument('armadilhas', trapId, updateData);
-                    // A UI já foi atualizada, o onSnapshot irá eventualmente confirmar o estado.
+                    if (!navigator.onLine) {
+                        throw new Error("Offline mode detected");
+                    }
+                    // For online, use Firestore Timestamp
+                    const onlineUpdateData = { ...updateData, dataColeta: Timestamp.fromDate(collectionTime) };
+                    await App.data.updateDocument('armadilhas', trapId, onlineUpdateData);
+                    App.ui.showAlert("Coleta sincronizada com sucesso!", "success");
+
                 } catch (error) {
-                    console.error("Erro ao registrar coleta:", error);
-                    // Se a atualização do servidor falhar, o onSnapshot irá (eventualmente)
-                    // trazer o marcador de volta, o que é o comportamento correto (estado verdadeiro).
-                    App.ui.showAlert("Falha ao sincronizar a coleta. Verifique sua conexão.", "error");
+                    console.error("Erro ao registrar coleta online, salvando offline:", error);
+                    try {
+                        await OfflineDB.add('offline-writes', {
+                            id: `collect_${trapId}_${Date.now()}`, // Unique ID for the write operation
+                            type: 'update', // Specify the operation type
+                            collection: 'armadilhas',
+                            docId: trapId, // The document to update
+                            data: updateData // The data for the update
+                        });
+                        App.ui.showAlert("Coleta salva offline. Será sincronizada quando houver conexão.", "info");
+                    } catch (offlineError) {
+                        console.error("Falha crítica ao salvar coleta offline:", offlineError);
+                        App.ui.showAlert("Falha crítica ao salvar a coleta offline.", "error");
+                        // Revert optimistic UI update if offline save also fails
+                        const trap = App.state.armadilhas.find(t => t.id === trapId);
+                        if (trap) {
+                            trap.status = "Ativa";
+                            this.addOrUpdateTrapMarker(trap);
+                        }
+                    }
                 }
             },
 
