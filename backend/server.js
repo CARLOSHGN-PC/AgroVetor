@@ -939,23 +939,54 @@ try {
             ];
             drawRow(doc, summaryRow, currentY, false, true, columnWidths);
 
-            // Adicionar gráficos ao PDF
-            if (filters.charts) {
-                const charts = JSON.parse(filters.charts);
-                currentY += 20; // Espaço antes dos gráficos
+            // [INÍCIO] LÓGICA PARA ADICIONAR GRÁFICOS AO PDF
+            if (filters.charts && filters.charts.length > '[]'.length) { // Check for non-empty array string
+                try {
+                    const charts = JSON.parse(filters.charts);
+                    if (Array.isArray(charts) && charts.length > 0) {
 
-                for (const chartImage of charts) {
-                    currentY = await checkPageBreak(doc, currentY, title, 200); // Verifica espaço para o gráfico
-                    doc.addPage();
-                    await generatePdfHeader(doc, title, filters.companyId);
-                    currentY = 60;
-                    doc.image(chartImage, {
-                        fit: [500, 400],
-                        align: 'center',
-                        valign: 'center'
-                    });
+                        // Adiciona uma nova página para o anexo de gráficos
+                        doc.addPage({ layout: 'landscape', margin: 30 });
+                        let chartY = await generatePdfHeader(doc, 'Anexo - Gráficos Climatológicos', filters.companyId);
+
+                        const chartWidth = 450;
+                        const chartHeight = 200; // Altura para cada gráfico
+                        const marginX = (doc.page.width - chartWidth) / 2; // Centraliza
+                        const spaceBetween = 20;
+
+                        for (let i = 0; i < charts.length; i++) {
+                            const chartImage = charts[i];
+
+                            // Adiciona uma nova página a cada 2 gráficos
+                            if (i > 0 && i % 2 === 0) {
+                                doc.addPage({ layout: 'landscape', margin: 30 });
+                                chartY = await generatePdfHeader(doc, 'Anexo - Gráficos Climatológicos', filters.companyId);
+                            }
+
+                            const yPos = (i % 2 === 0) ? chartY : chartY + chartHeight + spaceBetween;
+
+                            // Verifica se há espaço, senão cria nova página (segurança)
+                            if (yPos + chartHeight > doc.page.height - doc.page.margins.bottom) {
+                                doc.addPage({ layout: 'landscape', margin: 30 });
+                                chartY = await generatePdfHeader(doc, 'Anexo - Gráficos Climatológicos', filters.companyId);
+                                doc.image(chartImage, marginX, chartY, {
+                                    fit: [chartWidth, chartHeight],
+                                    align: 'center'
+                                });
+                            } else {
+                                doc.image(chartImage, marginX, yPos, {
+                                    fit: [chartWidth, chartHeight],
+                                    align: 'center'
+                                });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Erro ao processar e adicionar imagens de gráficos ao PDF:", e);
+                    // A geração do PDF continua mesmo se os gráficos falharem.
                 }
             }
+            // [FIM] LÓGICA PARA ADICIONAR GRÁFICOS AO PDF
 
 
             generatePdfFooter(doc, filters.generatedBy);

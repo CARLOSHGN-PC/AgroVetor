@@ -10389,16 +10389,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');
             },
 
-            generateClimaPDF() {
+            async generateClimaPDF() {
                 const { inicio, fim, fazenda } = App.elements.relatorioClima;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                if (!inicio.value || !fim.value) {
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    return;
+                }
                 const farm = App.state.fazendas.find(f => f.id === fazenda.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     fazendaId: farm ? farm.id : '',
                 };
-                this._fetchAndDownloadReport('clima/pdf', filters, 'relatorio_clima.pdf');
+
+                App.ui.setLoading(true, "A preparar gráficos para o relatório...");
+
+                try {
+                    // 1. Get chart instances from the dashboard
+                    const chartIds = [
+                        'graficoVariacaoTemperatura',
+                        'graficoAcumuloPluviosidade',
+                        'graficoVelocidadeVento',
+                        'graficoIndiceClimatologico'
+                    ];
+
+                    const chartImages = [];
+                    for (const id of chartIds) {
+                        const chartInstance = App.state.charts[id];
+                        if (chartInstance) {
+                            chartImages.push(chartInstance.toBase64Image());
+                        } else {
+                            console.warn(`Chart with id "${id}" not found. It will be skipped in the PDF.`);
+                        }
+                    }
+
+                    filters.charts = JSON.stringify(chartImages);
+
+                    // 2. Call the report generation
+                    this._fetchAndDownloadReport('clima/pdf', filters, 'relatorio_clima.pdf');
+
+                } catch (error) {
+                    console.error("Erro ao capturar imagens dos gráficos:", error);
+                    App.ui.showAlert("Não foi possível adicionar os gráficos ao relatório. Gerando relatório apenas com dados.", "error");
+                    // Still generate the report without charts if there was an error
+                    this._fetchAndDownloadReport('clima/pdf', filters, 'relatorio_clima.pdf');
+                } finally {
+                    // The loading indicator is handled by _fetchAndDownloadReport
+                }
             },
 
             generateClimaCSV() {
