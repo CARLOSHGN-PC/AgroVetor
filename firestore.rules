@@ -66,10 +66,6 @@ service cloud.firestore {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-    match /apontamentosClima/{docId} {
-      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
-      allow create: if canAccessCompanyData(request.resource.data.companyId);
-    }
     match /apontamentosPlantio/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
