@@ -6410,21 +6410,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         const write = writesToSync[i];
                         const key = keysToSync[i];
                         try {
+                            // ADICIONADO: Verificação de segurança para o objeto de escrita
+                            if (!write || typeof write !== 'object' || !write.collection || !write.data || !write.id) {
+                                throw new Error('Item de sincronização offline malformado ou inválido.');
+                            }
+
                             let dataToSync = write.data;
                             if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
                                 dataToSync = {
                                     ...write.data,
                                     dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao))
                                 };
-                            }
-
-                            if (!write.id) {
-                                console.error("FATAL: Offline write object is missing an ID. Skipping.", write);
-                                logEntry.items.push({
-                                    status: 'failure', collection: write.collection, data: write.data, error: "Offline object was missing a unique ID."
-                                });
-                                failedWrites++;
-                                continue;
                             }
 
                             await App.data.setDocument(write.collection, write.id, dataToSync);
@@ -6437,8 +6433,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         } catch (error) {
                             console.error(`Falha ao sincronizar o item:`, { write, error });
+                            // O log de falha agora é mais robusto
                             logEntry.items.push({
-                                status: 'failure', collection: write.collection, data: write.data, error: error.message || 'Erro desconhecido'
+                                status: 'failure',
+                                collection: write?.collection || 'unknown', // Acesso seguro
+                                data: write?.data || write, // Loga o que tiver disponível
+                                error: error.message || 'Erro desconhecido'
                             });
                             failedWrites++;
                         }
