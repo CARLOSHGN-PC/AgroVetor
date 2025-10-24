@@ -145,8 +145,6 @@
           display: flex; align-items: center; justify-content: space-between; 
           padding: 0 16px; 
           box-shadow: var(--shadow-md); z-index: 1000; user-select: none; 
-          padding-top: env(safe-area-inset-top);
-          height: calc(60px + env(safe-area-inset-top));
       }
       .header-title-container {
           flex-grow: 1;
@@ -201,13 +199,7 @@
       }
       .menu-btn .arrow { margin-left: auto; transition: transform 0.3s ease; font-size: 14px; }
       .submenu-back-btn { font-weight: 600; }
-      main.content {
-          margin-top: calc(60px + env(safe-area-inset-top));
-          padding: 20px;
-          transition: filter 0.3s ease;
-          height: calc(100vh - (60px + env(safe-area-inset-top)));
-          overflow-y: auto;
-      }
+      main.content { margin-top: 70px; padding: 20px; transition: filter 0.3s ease; height: calc(100vh - 70px); overflow-y: auto; }
       .mobile-menu-open main.content, .mobile-menu-open header { filter: blur(4px) brightness(0.7); }
       .tab-content { display: none; animation: fadeIn 0.3s ease-out; }
       .tab-content.active { display: block; }
@@ -911,7 +903,6 @@
           background-color: var(--color-bg);
           z-index: 999;
           display: none;
-          margin-top: env(safe-area-inset-top);
       }
       #monitoramentoAereo-container.active {
           display: flex;

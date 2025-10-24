@@ -685,17 +685,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- Funcionalidade 1: Correção da Barra de Status ---
             configureStatusBar() {
                 try {
-                    // Importa os plugins do Capacitor
-                    const { StatusBar, Style } = Capacitor.Plugins;
+                    // Importa o plugin StatusBar. A variável 'Capacitor' é injetada pelo Capacitor.
+                    const { StatusBar } = Capacitor.Plugins;
 
-                    // Define que a webview PODE se sobrepor à barra de status (para o efeito de tela cheia)
-                    StatusBar.setOverlaysWebView({ overlay: true });
+                    // Esta é a configuração chave.
+                    // `setOverlaysWebView({ overlay: false })` instrui o Capacitor a não deixar
+                    // a WebView (o conteúdo do seu app) sobrepor a barra de status.
+                    // Em vez disso, a barra de status vai empurrar o conteúdo para baixo.
+                    StatusBar.setOverlaysWebView({ overlay: false });
 
-                    // Define a cor dos ícones da barra de status (relógio, bateria) como escura
-                    // já que o fundo do nosso cabeçalho é claro. Use Style.Dark para fundos claros.
-                    StatusBar.setStyle({ style: Style.Dark });
-
-                    console.log("Status bar configurada para sobrepor a webview com ícones escuros.");
+                    console.log("Status bar configurada para não sobrepor a webview.");
 
                 } catch (e) {
                     console.error("Erro ao configurar a StatusBar do Capacitor.", e);
