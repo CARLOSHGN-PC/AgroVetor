@@ -673,18 +673,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         native: {
-            async testEcho() {
-                try {
-                    const { MapboxOffline } = Capacitor.Plugins;
-                    const result = await MapboxOffline.echo({ value: "Hello from JS" });
-                    App.ui.showAlert(`Success from native: ${result.value}`, 'success', 5000);
-                    console.log('Got result from native:', result);
-                } catch (e) {
-                    App.ui.showAlert(`Error calling native: ${e.message}`, 'error', 10000);
-                    console.error('Error calling native echo', e);
-                }
-            },
-
             init() {
                 // This function will be the entry point for all Capacitor-related initializations.
                 // It checks if the app is running in a native Capacitor container.
@@ -3805,11 +3793,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
                 if (monitoramentoAereoEls.btnToggleRiskView) monitoramentoAereoEls.btnToggleRiskView.addEventListener('click', () => App.mapModule.toggleRiskView());
-
-                const btnTestEcho = document.getElementById('btnTestEcho');
-                if (btnTestEcho) {
-                    btnTestEcho.addEventListener('click', () => App.native.testEcho());
-                }
 
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
@@ -7767,88 +7750,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
 
-            startOfflineMapDownload(feature) {
-                // 1. Check if running on native Android
-                if (!window.Capacitor || !Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
-                    App.ui.showAlert("O download de mapas offline só está disponível na aplicação Android.", "warning");
-                    return;
-                }
-
-                const { MapboxOffline } = Capacitor.Plugins;
-
-                // 2. UI Setup: Show progress bar and update text
-                const progressContainer = document.querySelector('#talhao-info-box .download-progress-container');
-                const progressText = document.querySelector('#talhao-info-box .download-progress-text');
-                const progressBar = document.querySelector('#talhao-info-box .download-progress-bar');
-                const downloadButton = document.querySelector('#talhao-info-box .btn-download-map');
-
-
-                if (!progressContainer || !progressText || !progressBar || !downloadButton) {
-                    console.error("UI elements for download progress not found.");
-                    return;
-                }
-
-                downloadButton.disabled = true;
-                progressContainer.style.display = 'block';
-                progressText.textContent = 'A preparar o download...';
-                progressBar.value = 0;
-
-                // 3. Prepare data for the native plugin
-                const bounds = turf.bbox(feature); // [minLng, minLat, maxLng, maxLat]
-                const regionName = this._findProp(feature, ['FUNDO_AGR', 'NM_IMOVEL', 'CD_TALHAO']) || `regiao_${Date.now()}`;
-
-                const downloadOptions = {
-                    name: regionName,
-                    styleURL: App.state.mapboxMap.getStyle().sprite.replace('/sprite', ''), // Get base style URL
-                    bounds: {
-                        northeast: [bounds[3], bounds[2]], // [lat, lng]
-                        southwest: [bounds[1], bounds[0]]  // [lat, lng]
-                    },
-                    minZoom: App.state.mapboxMap.getZoom(),
-                    maxZoom: 16 // A reasonable max zoom for offline farm maps
-                };
-
-                // 4. Setup event listeners for feedback from native code
-                const progressListener = MapboxOffline.addListener('downloadProgress', (info) => {
-                    if (info && typeof info.percentage === 'number') {
-                        const percentage = info.percentage;
-                        progressBar.value = percentage;
-                        progressText.textContent = `A baixar... ${percentage.toFixed(0)}%`;
-                    }
-                });
-
-                const errorListener = MapboxOffline.addListener('downloadError', (error) => {
-                    console.error("Native Download Error:", error);
-                    App.ui.showAlert(`Erro no download: ${error.message || 'Erro desconhecido.'}`, "error");
-                    cleanupListenersAndUI();
-                });
-
-                const cleanupListenersAndUI = () => {
-                    progressListener.remove();
-                    errorListener.remove();
-                    downloadButton.disabled = false;
-                    progressText.textContent = 'Download finalizado!';
-                     setTimeout(() => {
-                        if (progressContainer) { // Check if element still exists
-                            progressContainer.style.display = 'none';
-                        }
-                     }, 5000); // Hide after 5 seconds
-                };
-
-                // 5. Call the native function and handle completion
-                MapboxOffline.downloadRegion(downloadOptions)
-                    .then(result => {
-                        console.log("Download complete:", result);
-                        App.ui.showAlert(result.message || "Mapa baixado com sucesso e pronto para uso offline!", "success");
-                        cleanupListenersAndUI();
-                    })
-                    .catch(e => {
-                         // This catch block handles errors thrown BEFORE the native call starts (e.g., bad arguments)
-                        console.error("Error initiating download:", e);
-                        App.ui.showAlert(`Não foi possível iniciar o download: ${e.message}`, "error");
-                        cleanupListenersAndUI();
-                    });
-            },
+            // The offline map download feature is complex and relies on a specific Google Maps tile URL structure.
+            // Replicating this for Mapbox is non-trivial. Commenting out for now to focus on the core migration.
+            // A proper implementation would use Mapbox's own offline capabilities if needed.
+            /*
+            tileMath: { ... },
+            startOfflineMapDownload(feature) { ... },
+            async downloadTiles(urls) { ... },
+            */
 
             hideTalhaoInfo() {
                 if (App.state.selectedMapFeature) {
