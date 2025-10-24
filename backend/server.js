@@ -641,9 +641,17 @@ try {
     const findTalhaoForTrap = (trap, geojsonData) => {
         const point = [trap.longitude, trap.latitude];
         for (const feature of geojsonData.features) {
-            if (feature.geometry && feature.geometry.type === 'Polygon') {
-                if (pointInPolygon(point, feature.geometry.coordinates[0])) {
-                    return feature.properties;
+            if (feature.geometry) {
+                if (feature.geometry.type === 'Polygon') {
+                    if (pointInPolygon(point, feature.geometry.coordinates[0])) {
+                        return feature.properties;
+                    }
+                } else if (feature.geometry.type === 'MultiPolygon') {
+                    for (const polygon of feature.geometry.coordinates) {
+                        if (pointInPolygon(point, polygon[0])) {
+                            return feature.properties;
+                        }
+                    }
                 }
             }
         }
