@@ -723,6 +723,152 @@ try {
         return data.sort((a, b) => new Date(a.date) - new Date(b.date));
     };
 
+    const getClimaData = async (filters) => {
+        if (!filters.companyId) {
+            console.error("Attempt to access getClimaData without companyId.");
+            return [];
+        }
+
+        let query = db.collection('apontamentosClima').where('companyId', '==', filters.companyId);
+
+        const snapshot = await query.get();
+        let data = [];
+        snapshot.forEach(doc => {
+            data.push({ id: doc.id, ...doc.data() });
+        });
+
+        if (filters.inicio) {
+            data = data.filter(d => d.date >= filters.inicio);
+        }
+        if (filters.fim) {
+            data = data.filter(d => d.date <= filters.fim);
+        }
+        if (filters.fazendaCodigo) {
+            data = data.filter(d => d.farmCode === filters.fazendaCodigo);
+        }
+
+        return data.sort((a, b) => new Date(a.date) - new Date(b.date));
+    };
+
+    app.get('/reports/clima/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_climatologico.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getClimaData(filters);
+            const title = 'Relatório Climatológico';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title, filters.companyId);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            const headers = ['Data', 'Fazenda', 'Talhão', 'Temp. Máx (°C)', 'Temp. Mín (°C)', 'Umidade (%)', 'Chuva (mm)', 'Vento (km/h)', 'Obs'];
+            const columnWidths = [70, 150, 80, 80, 80, 80, 70, 80, 92];
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            let totalTempMax = 0;
+            let totalTempMin = 0;
+            let totalUmidade = 0;
+            let totalChuva = 0;
+            let totalVento = 0;
+
+            for (const item of data) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                const row = [
+                    item.date,
+                    `${item.farmCode} - ${item.farmName}`,
+                    item.talhaoName,
+                    formatNumber(item.tempMax),
+                    formatNumber(item.tempMin),
+                    formatNumber(item.umidade),
+                    formatNumber(item.pluviosidade),
+                    formatNumber(item.vento),
+                    item.obs || ''
+                ];
+                currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+                totalTempMax += item.tempMax || 0;
+                totalTempMin += item.tempMin || 0;
+                totalUmidade += item.umidade || 0;
+                totalChuva += item.pluviosidade || 0;
+                totalVento += item.vento || 0;
+            }
+
+            currentY = await checkPageBreak(doc, currentY, title, 60);
+
+            doc.moveDown(2);
+            doc.fontSize(10).font('Helvetica-Bold').text('Resumo dos Indicadores', { align: 'left' });
+
+            const avgTempMax = data.length > 0 ? totalTempMax / data.length : 0;
+            const avgTempMin = data.length > 0 ? totalTempMin / data.length : 0;
+            const avgUmidade = data.length > 0 ? totalUmidade / data.length : 0;
+            const avgVento = data.length > 0 ? totalVento / data.length : 0;
+
+            doc.fontSize(8).font('Helvetica');
+            doc.text(`- Média de Temperatura Máxima: ${formatNumber(avgTempMax)} °C`);
+            doc.text(`- Média de Temperatura Mínima: ${formatNumber(avgTempMin)} °C`);
+            doc.text(`- Média de Umidade Relativa: ${formatNumber(avgUmidade)} %`);
+            doc.text(`- Média de Velocidade do Vento: ${formatNumber(avgVento)} km/h`);
+            doc.text(`- Total de Pluviosidade: ${formatNumber(totalChuva)} mm`);
+
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF Climatológico:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/clima/csv', async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getClimaData(filters);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `relatorio_clima_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'date', title: 'Data' },
+                    { id: 'farmName', title: 'Fazenda' },
+                    { id: 'talhaoName', title: 'Talhão' },
+                    { id: 'tempMax', title: 'Temperatura Máxima (°C)' },
+                    { id: 'tempMin', title: 'Temperatura Mínima (°C)' },
+                    { id: 'umidade', title: 'Umidade Relativa (%)' },
+                    { id: 'pluviosidade', title: 'Pluviosidade (mm)' },
+                    { id: 'vento', title: 'Velocidade do Vento (km/h)' },
+                    { id: 'obs', title: 'Observações' }
+                ]
+            });
+
+            const records = data.map(item => ({
+                ...item,
+                farmName: `${item.farmCode} - ${item.farmName}`
+            }));
+
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Clima:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
     app.get('/reports/plantio/fazenda/pdf', async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
