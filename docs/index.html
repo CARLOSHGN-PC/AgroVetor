@@ -1724,11 +1724,6 @@
                         <h3>Cigarrinha</h3>
                         <p>Acompanhar intensidade da praga e eficiência de controle.</p>
                     </div>
-                    <div id="card-clima" class="dashboard-card" style="border-color: #2196F3;">
-                        <i class="icon fas fa-cloud-sun-rain" style="color: #2196F3;"></i>
-                        <h3>Clima</h3>
-                        <p>Analisar dados climatológicos como temperatura, chuva e vento.</p>
-                    </div>
                 </div>
 
                 <div id="dashboard-broca" style="display: none;">
@@ -2026,74 +2021,6 @@
                             <h3 class="chart-title">Distribuição por Nível de Infestação</h3>
                              <button class="btn-expand-chart" data-chart-id="graficoNivelInfestacao"><i class="fas fa-expand-alt"></i></button>
                             <div class="chart-container"><canvas id="graficoNivelInfestacao"></canvas></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="dashboard-clima" class="dashboard-view" style="display: none;">
-                    <div class="dashboard-header">
-                        <div class="dashboard-header-main">
-                            <h2 style="color: #2196F3;"><i class="fas fa-cloud-sun-rain"></i> Dashboard Climatológico</h2>
-                            <div class="dashboard-filters">
-                                <label for="climaDashboardInicio">De:</label>
-                                <input type="date" id="climaDashboardInicio">
-                                <label for="climaDashboardFim">Até:</label>
-                                <input type="date" id="climaDashboardFim">
-                                <button id="btnFiltrarClimaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
-                            </div>
-                        </div>
-                        <button id="btn-back-to-selector-clima" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
-                    </div>
-                    <div class="kpi-grid">
-                        <div class="kpi-card" style="border-left-color: #ff9800;">
-                            <div class="icon" style="background-color: #ff9800;"><i class="fas fa-thermometer-three-quarters"></i></div>
-                            <div class="text">
-                                <p class="value" id="kpi-clima-temp-media">0°C</p>
-                                <p class="label">Temperatura Média</p>
-                            </div>
-                        </div>
-                        <div class="kpi-card" style="border-left-color: #2196f3;">
-                            <div class="icon" style="background-color: #2196f3;"><i class="fas fa-cloud-showers-heavy"></i></div>
-                            <div class="text">
-                                <p class="value" id="kpi-clima-pluv-total">0 mm</p>
-                                <p class="label">Pluviosidade Total</p>
-                            </div>
-                        </div>
-                        <div class="kpi-card" style="border-left-color: #4caf50;">
-                            <div class="icon" style="background-color: #4caf50;"><i class="fas fa-wind"></i></div>
-                            <div class="text">
-                                <p class="value" id="kpi-clima-vento-medio">0 km/h</p>
-                                <p class="label">Vento Médio</p>
-                            </div>
-                        </div>
-                        <div class="kpi-card" style="border-left-color: #9c27b0;">
-                            <div class="icon" style="background-color: #9c27b0;"><i class="fas fa-tint"></i></div>
-                            <div class="text">
-                                <p class="value" id="kpi-clima-umidade-media">0%</p>
-                                <p class="label">Umidade Média</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="dashboard-grid">
-                        <div class="chart-card">
-                            <h3 class="chart-title">Variação de Temperatura (°C)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoVariacaoTemperatura"><i class="fas fa-expand-alt"></i></button>
-                            <div class="chart-container"><canvas id="graficoVariacaoTemperatura"></canvas></div>
-                        </div>
-                        <div class="chart-card">
-                            <h3 class="chart-title">Acúmulo de Pluviosidade (mm)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoAcumuloPluviosidade"><i class="fas fa-expand-alt"></i></button>
-                            <div class="chart-container"><canvas id="graficoAcumuloPluviosidade"></canvas></div>
-                        </div>
-                        <div class="chart-card">
-                            <h3 class="chart-title">Média da Velocidade do Vento por Fazenda (km/h)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoVelocidadeVentoFazenda"><i class="fas fa-expand-alt"></i></button>
-                            <div class="chart-container"><canvas id="graficoVelocidadeVentoFazenda"></canvas></div>
-                        </div>
-                        <div class="chart-card">
-                            <h3 class="chart-title">Índice Climatológico Comparativo</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoIndiceClimatologico"><i class="fas fa-expand-alt"></i></button>
-                            <div class="chart-container"><canvas id="graficoIndiceClimatologico"></canvas></div>
                         </div>
                     </div>
                 </div>
@@ -2418,52 +2345,6 @@
             <section id="lancamentoCigarrinhaAmostragem" class="tab-content card" aria-label="Lançamento Cigarrinha por Amostragem" tabindex="0" hidden>
                 <h2><i class="fas fa-vial"></i> Monitoramento de Cigarrinha (Amostragem)</h2>
                 <form id="formCigarrinhaAmostragem">
-            </section>
-
-            <section id="lancamentoClima" class="tab-content card" aria-label="Lançamento Climatológico" tabindex="0" hidden>
-                <h2><i class="fas fa-cloud-sun-rain"></i> Lançamento Climatológico</h2>
-                <div class="form-row">
-                    <div class="form-col">
-                        <label for="dataClima" class="required">Data da Coleta:</label>
-                        <input type="date" id="dataClima" required />
-                    </div>
-                    <div class="form-col">
-                        <label for="fazendaClima" class="required">Fazenda:</label>
-                        <select id="fazendaClima" required></select>
-                    </div>
-                    <div class="form-col">
-                        <label for="talhaoClima" class="required">Talhão:</label>
-                        <input type="text" id="talhaoClima" placeholder="Ex: T-01" required />
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col">
-                        <label for="tempMaxClima" class="required">Temperatura Máxima (°C):</label>
-                        <input type="number" id="tempMaxClima" placeholder="0.0" required />
-                    </div>
-                    <div class="form-col">
-                        <label for="tempMinClima" class="required">Temperatura Mínima (°C):</label>
-                        <input type="number" id="tempMinClima" placeholder="0.0" required />
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col">
-                        <label for="umidadeRelativaClima" class="required">Umidade Relativa (%):</label>
-                        <input type="number" id="umidadeRelativaClima" placeholder="0" required />
-                    </div>
-                    <div class="form-col">
-                        <label for="pluviosidadeClima" class="required">Pluviosidade (mm):</label>
-                        <input type="number" id="pluviosidadeClima" placeholder="0" required />
-                    </div>
-                    <div class="form-col">
-                        <label for="velocidadeVentoClima" class="required">Velocidade do Vento (km/h):</label>
-                        <input type="number" id="velocidadeVentoClima" placeholder="0.0" required />
-                    </div>
-                </div>
-                <label for="obsClima">Observações:</label>
-                <textarea id="obsClima" placeholder="Detalhes adicionais..."></textarea>
-                <button class="save" type="button" id="btnSalvarClima"><i class="fas fa-save"></i> Guardar Apontamento</button>
-            </section>
                     <div class="form-row">
                         <div class="form-col">
                             <label for="dataCigarrinhaAmostragem" class="required">Data:</label>
@@ -2588,19 +2469,6 @@
 <section id="relatorioCigarrinhaAmostragem" class="tab-content card" aria-label="Relatório de Cigarrinha de Amostragem" tabindex="0" hidden>
     <h2><i class="fas fa-file-invoice"></i> Relatório de Monitoramento de Cigarrinha (Amostragem)</h2>
     <div class="form-row">
-
-<section id="relatorioClima" class="tab-content card" aria-label="Relatório Climatológico" tabindex="0" hidden>
-    <h2><i class="fas fa-file-pdf"></i> Relatório Climatológico</h2>
-    <div class="form-row">
-        <div class="form-col"><label for="fazendaFiltroClima">Filtrar por Fazenda:</label><select id="fazendaFiltroClima"><option value="">Todas</option></select></div>
-        <div class="form-col"><label for="inicioClima" class="required">Data Início:</label><input type="date" id="inicioClima" /></div>
-        <div class="form-col"><label for="fimClima" class="required">Data Fim:</label><input type="date" id="fimClima" /></div>
-    </div>
-    <div class="botoes-relatorio">
-        <button id="btnPDFClima" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
-        <button id="btnExcelClima" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
-    </div>
-</section>
         <div class="form-col">
             <label for="tipoRelatorioCigarrinhaAmostragem">Tipo de Relatório:</label>
             <select id="tipoRelatorioCigarrinhaAmostragem">
