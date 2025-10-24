@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
+                { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
@@ -116,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
                         { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
                         { label: 'Apontamento de Plantio', icon: 'fas fa-seedling', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
+                        { label: 'Apontamento Climatológico', icon: 'fas fa-cloud', target: 'lancamentoClima', permission: 'lancamentoClima' },
                     ]
                 },
                 {
@@ -128,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
+                        { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
                     ]
                 },
                 {
@@ -150,10 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
             }
         },
@@ -337,16 +340,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 aereaView: document.getElementById('dashboard-aerea'),
                 plantioView: document.getElementById('dashboard-plantio'),
                 cigarrinhaView: document.getElementById('dashboard-cigarrinha'),
+                climaView: document.getElementById('dashboard-clima'),
                 cardBroca: document.getElementById('card-broca'),
                 cardPerda: document.getElementById('card-perda'),
                 cardAerea: document.getElementById('card-aerea'),
                 cardPlantio: document.getElementById('card-plantio'),
                 cardCigarrinha: document.getElementById('card-cigarrinha'),
+                cardClima: document.getElementById('card-clima'),
                 btnBackToSelectorBroca: document.getElementById('btn-back-to-selector-broca'),
                 btnBackToSelectorPerda: document.getElementById('btn-back-to-selector-perda'),
                 btnBackToSelectorAerea: document.getElementById('btn-back-to-selector-aerea'),
                 btnBackToSelectorPlantio: document.getElementById('btn-back-to-selector-plantio'),
                 btnBackToSelectorCigarrinha: document.getElementById('btn-back-to-selector-cigarrinha'),
+                btnBackToSelectorClima: document.getElementById('btn-back-to-selector-clima'),
                 brocaDashboardInicio: document.getElementById('brocaDashboardInicio'),
                 brocaDashboardFim: document.getElementById('brocaDashboardFim'),
                 btnFiltrarBrocaDashboard: document.getElementById('btnFiltrarBrocaDashboard'),
@@ -628,6 +634,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnPDF: document.getElementById('btnPDFPlantio'),
                 btnExcel: document.getElementById('btnExcelPlantio'),
             },
+                lancamentoClima: {
+                    form: document.getElementById('formLancamentoClima'),
+                    entryId: document.getElementById('climaEntryId'),
+                    data: document.getElementById('climaData'),
+                    fazenda: document.getElementById('climaFazenda'),
+                    talhao: document.getElementById('climaTalhao'),
+                    tempMax: document.getElementById('climaTempMax'),
+                    tempMin: document.getElementById('climaTempMin'),
+                    umidade: document.getElementById('climaUmidade'),
+                    pluviosidade: document.getElementById('climaPluviosidade'),
+                    vento: document.getElementById('climaVento'),
+                    obs: document.getElementById('climaObs'),
+                    btnSave: document.getElementById('btnSaveLancamentoClima'),
+                },
+                relatorioClima: {
+                    fazenda: document.getElementById('climaRelatorioFazenda'),
+                    inicio: document.getElementById('climaRelatorioInicio'),
+                    fim: document.getElementById('climaRelatorioFim'),
+                    btnPDF: document.getElementById('btnPDFClima'),
+                    btnExcel: document.getElementById('btnExcelClima'),
+                },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
                 fazendaFiltro: document.getElementById('monitoramentoFazendaFiltro'),
@@ -1842,6 +1869,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dashEls.aereaView.style.display = 'none';
                 dashEls.plantioView.style.display = 'none';
                 dashEls.cigarrinhaView.style.display = 'none';
+                dashEls.climaView.style.display = 'none';
 
                 App.charts.destroyAll();
 
@@ -1874,6 +1902,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.loadDashboardDates('cigarrinha');
                         setTimeout(() => App.charts.renderCigarrinhaDashboardCharts(), 150);
                         break;
+                    case 'clima':
+                        dashEls.climaView.style.display = 'block';
+                        this.loadDashboardDates('clima');
+                        setTimeout(() => App.charts.renderClimaDashboardCharts(), 150);
+                        break;
                 }
             },
             setDefaultDatesForEntryForms() {
@@ -1883,18 +1916,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.cigarrinha.data.value = today;
                 App.elements.cigarrinhaAmostragem.data.value = today;
                 App.elements.apontamentoPlantio.date.value = today;
+                if (App.elements.lancamentoClima && App.elements.lancamentoClima.data) App.elements.lancamentoClima.data.value = today;
                 App.elements.broca.data.max = today;
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
                 App.elements.cigarrinhaAmostragem.data.max = today;
                 App.elements.apontamentoPlantio.date.min = today;
+                if (App.elements.lancamentoClima && App.elements.lancamentoClima.data) App.elements.lancamentoClima.data.max = today;
             },
             setDefaultDatesForReportForms() {
                 const today = new Date();
                 const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
                 const todayDate = today.toISOString().split('T')[0];
 
-                const reportSections = ['broca', 'perda', 'cigarrinha', 'cigarrinhaAmostragem', 'relatorioMonitoramento'];
+                const reportSections = ['broca', 'perda', 'cigarrinha', 'cigarrinhaAmostragem', 'relatorioMonitoramento', 'relatorioClima'];
 
                 reportSections.forEach(section => {
                     const els = App.elements[section];
@@ -1966,7 +2001,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cigarrinha.filtroFazenda,
                     App.elements.cigarrinhaAmostragem.filtroFazenda,
                     App.elements.relatorioMonitoramento.fazendaFiltro,
-                    App.elements.apontamentoPlantio.farmName
+                    App.elements.apontamentoPlantio.farmName,
+                    App.elements.lancamentoClima.fazenda,
+                    App.elements.relatorioClima.fazenda
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
@@ -3434,12 +3471,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dashEls.cardAerea) dashEls.cardAerea.addEventListener('click', () => this.showDashboardView('aerea'));
                 if (dashEls.cardPlantio) dashEls.cardPlantio.addEventListener('click', () => this.showDashboardView('plantio'));
                 if (dashEls.cardCigarrinha) dashEls.cardCigarrinha.addEventListener('click', () => this.showDashboardView('cigarrinha'));
+                if (dashEls.cardClima) dashEls.cardClima.addEventListener('click', () => this.showDashboardView('clima'));
 
                 if (dashEls.btnBackToSelectorBroca) dashEls.btnBackToSelectorBroca.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorPerda) dashEls.btnBackToSelectorPerda.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorAerea) dashEls.btnBackToSelectorAerea.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorPlantio) dashEls.btnBackToSelectorPlantio.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorCigarrinha) dashEls.btnBackToSelectorCigarrinha.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorClima) dashEls.btnBackToSelectorClima.addEventListener('click', () => this.showDashboardView('selector'));
 
                 const btnSavePlantingGoals = document.getElementById('btnSavePlantingGoals');
                 if (btnSavePlantingGoals) {
@@ -3456,6 +3495,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (document.getElementById('btnFiltrarCigarrinhaDashboard')) {
                     document.getElementById('btnFiltrarCigarrinhaDashboard').addEventListener('click', () => App.charts.renderCigarrinhaDashboardCharts());
+                }
+
+                if (document.getElementById('btnFiltrarClimaDashboard')) {
+                    document.getElementById('btnFiltrarClimaDashboard').addEventListener('click', () => App.charts.renderClimaDashboardCharts());
                 }
                 
                 const chartModal = App.elements.chartModal;
@@ -3919,6 +3962,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     apontamentoEls.farmName.addEventListener('change', () => this.updateAllTalhaoSelects());
                 }
 
+                // Listeners for Apontamento Climatológico
+                const climaEls = App.elements.lancamentoClima;
+                if (climaEls && climaEls.btnSave) {
+                    climaEls.btnSave.addEventListener('click', () => App.actions.saveLancamentoClima());
+                }
+                if (climaEls && climaEls.fazenda) {
+                    climaEls.fazenda.addEventListener('change', (e) => {
+                        const farmId = e.target.value;
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
+                        const talhaoSelect = climaEls.talhao;
+                        talhaoSelect.innerHTML = '<option value="">Selecione...</option>';
+                        if (farm && farm.talhoes) {
+                            farm.talhoes.forEach(talhao => {
+                                talhaoSelect.innerHTML += `<option value="${talhao.name}">${talhao.name}</option>`;
+                            });
+                        }
+                    });
+                }
+
+
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
@@ -3927,6 +3990,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#frenteDePlantio');
                 this.enableEnterKeyNavigation('#apontamentoPlantio');
                 this.enableEnterKeyNavigation('#relatorioPlantio');
+                this.enableEnterKeyNavigation('#lancamentoClima');
 
                 const relatorioPlantioEls = App.elements.relatorioPlantio;
                 if (relatorioPlantioEls.btnPDF) relatorioPlantioEls.btnPDF.addEventListener('click', () => {
@@ -3945,6 +4009,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.reports.generatePlantioTalhaoExcel();
                     }
                 });
+
+                const relatorioClimaEls = App.elements.relatorioClima;
+                if (relatorioClimaEls && relatorioClimaEls.btnPDF) {
+                    relatorioClimaEls.btnPDF.addEventListener('click', () => App.reports.generateClimaPDF());
+                }
+                if (relatorioClimaEls && relatorioClimaEls.btnExcel) {
+                    relatorioClimaEls.btnExcel.addEventListener('click', () => App.reports.generateClimaCSV());
+                }
 
                 this.enableEnterKeyNavigation('#changePasswordModal');
                 this.enableEnterKeyNavigation('#cadastros');
@@ -4683,6 +4755,83 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
+
+            async saveLancamentoClima() {
+                const els = App.elements.lancamentoClima;
+                const requiredFields = ['climaData', 'climaFazenda', 'climaTalhao', 'climaTempMax', 'climaTempMin', 'climaUmidade', 'climaPluviosidade', 'climaVento'];
+
+                if (!App.ui.validateFields(requiredFields)) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
+                if (!farm) {
+                    App.ui.showAlert("Fazenda não encontrada.", "error");
+                    return;
+                }
+
+                const newEntry = {
+                    data: els.data.value,
+                    fazendaId: farm.id,
+                    fazendaNome: farm.name,
+                    talhaoNome: els.talhao.value,
+                    tempMax: parseFloat(els.tempMax.value),
+                    tempMin: parseFloat(els.tempMin.value),
+                    umidade: parseFloat(els.umidade.value),
+                    pluviosidade: parseFloat(els.pluviosidade.value),
+                    vento: parseFloat(els.vento.value),
+                    obs: els.obs.value,
+                    usuario: App.state.currentUser.username,
+                    companyId: App.state.currentUser.companyId
+                };
+
+                const entryId = els.entryId.value;
+                const confirmationMessage = entryId ? "Tem a certeza que deseja atualizar este apontamento climatológico?" : "Tem a certeza que deseja guardar este apontamento climatológico?";
+
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A guardar...");
+                    try {
+                        if (navigator.onLine) {
+                            if (entryId) {
+                                await App.data.updateDocument('clima', entryId, newEntry);
+                                App.ui.showAlert("Apontamento atualizado com sucesso!");
+                            } else {
+                                await App.data.addDocument('clima', newEntry);
+                                App.ui.showAlert("Apontamento guardado com sucesso!");
+                            }
+                        } else {
+                            if (entryId) {
+                                App.ui.showAlert("A edição não está disponível offline.", "warning");
+                                return;
+                            }
+                            const offlineId = `offline_clima_${Date.now()}`;
+                            await OfflineDB.add('offline-writes', { id: offlineId, collection: 'clima', data: newEntry });
+                            App.ui.showAlert('Guardado offline. Será sincronizado quando houver conexão.', 'info');
+                        }
+                        App.ui.clearForm(els.form);
+                        els.entryId.value = '';
+                        App.ui.setDefaultDatesForEntryForms();
+                    } catch (error) {
+                        App.ui.showAlert(`Erro ao guardar: ${error.message}.`, "error");
+                        if (!entryId) {
+                            try {
+                                const offlineId = `offline_clima_${Date.now()}`;
+                                await OfflineDB.add('offline-writes', { id: offlineId, collection: 'clima', data: newEntry });
+                                App.ui.showAlert('Falha ao conectar. Apontamento guardado offline.', 'warning');
+                                App.ui.clearForm(els.form);
+                                els.entryId.value = '';
+                                App.ui.setDefaultDatesForEntryForms();
+                            } catch (offlineError) {
+                                App.ui.showAlert("Falha crítica ao guardar offline.", "error");
+                            }
+                        }
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
 
             async savePersonnel() {
                 const { id, matricula, name } = App.elements.personnel;
@@ -9900,6 +10049,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
+            },
+
+            async renderClimaDashboardCharts() {
+                // This would be the main function to call for the new dashboard
             }
 
         },
@@ -10233,6 +10386,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');
+            },
+
+            generateClimaPDF() {
+                const { inicio, fim, fazenda } = App.elements.relatorioClima;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farm = App.state.fazendas.find(f => f.id === fazenda.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaId: farm ? farm.id : '',
+                };
+                this._fetchAndDownloadReport('clima/pdf', filters, 'relatorio_clima.pdf');
+            },
+
+            generateClimaCSV() {
+                const { inicio, fim, fazenda } = App.elements.relatorioClima;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farm = App.state.fazendas.find(f => f.id === fazenda.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaId: farm ? farm.id : '',
+                };
+                this._fetchAndDownloadReport('clima/csv', filters, 'relatorio_clima.csv');
             },
 
             generateMonitoramentoCSV() { // Now generates Trap Report
