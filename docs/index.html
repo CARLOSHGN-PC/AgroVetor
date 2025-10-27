@@ -1740,6 +1740,10 @@
                                 <input type="date" id="climaDashboardInicio">
                                 <label for="climaDashboardFim">Até:</label>
                                 <input type="date" id="climaDashboardFim">
+                                <label for="climaDashboardFazenda" style="margin-left: 10px;">Fazenda:</label>
+                                <select id="climaDashboardFazenda" style="padding: 6px 10px; font-size: 13px; max-width: 150px; margin-top:0;">
+                                    <option value="">Todas</option>
+                                </select>
                                 <button id="btnFiltrarClimaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
                             </div>
                         </div>
@@ -1765,6 +1769,13 @@
                             <div class="text">
                                 <p class="value" id="kpi-clima-pluviosidade">0 mm</p>
                                 <p class="label">Pluviosidade Acumulada</p>
+                            </div>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: #66bb6a;">
+                            <div class="icon" style="background-color: #66bb6a;"><i class="fas fa-tint"></i></div>
+                            <div class="text">
+                                <p class="value" id="kpi-clima-umidade">0%</p>
+                                <p class="label">Umidade Média</p>
                             </div>
                         </div>
                         <div class="kpi-card" style="border-left-color: var(--color-warning);">
