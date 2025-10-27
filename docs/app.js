@@ -960,6 +960,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAppScreen();
                     App.mapModule.loadOfflineShapes();
                     App.data.listenToAllData();
+                } else {
+                    App.ui.showAlert("Perfil offline não encontrado. Por favor, selecione um utilizador válido.", "error");
                 }
             },
             async logout() {
@@ -1312,15 +1314,13 @@ document.addEventListener('DOMContentLoaded', () => {
             showOfflineUserSelection(profiles) {
                 App.elements.loginForm.style.display = 'none';
                 App.elements.offlineUserSelection.style.display = 'block';
-                const { offlineUserList } = App.elements;
-                offlineUserList.innerHTML = '';
+                const offlineUserSelect = document.getElementById('offlineUserSelect');
+                offlineUserSelect.innerHTML = '<option value="">Selecione seu perfil</option>';
                 profiles.forEach(profile => {
-                    const btn = document.createElement('button');
-                    btn.className = 'offline-user-btn';
-                    btn.dataset.uid = profile.uid;
-                    btn.innerHTML = `<i class="fas fa-user-circle"></i> ${profile.username || profile.email}`;
-                    btn.addEventListener('click', () => App.auth.loginOffline(profile.uid));
-                    offlineUserList.appendChild(btn);
+                    const option = document.createElement('option');
+                    option.value = profile.uid;
+                    option.textContent = profile.username || profile.email;
+                    offlineUserSelect.appendChild(option);
                 });
                 App.elements.loginScreen.style.display = 'flex';
                 App.elements.appScreen.style.display = 'none';
@@ -3405,6 +3405,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setupEventListeners() {
                 if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => App.auth.login());
+                const btnOfflineLogin = document.getElementById('btnOfflineLogin');
+                if (btnOfflineLogin) {
+                    btnOfflineLogin.addEventListener('click', () => {
+                        const userId = document.getElementById('offlineUserSelect').value;
+                        if (userId) {
+                            App.auth.loginOffline(userId);
+                        } else {
+                            App.ui.showAlert("Por favor, selecione um perfil para entrar.", "warning");
+                        }
+                    });
+                }
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
                     document.body.classList.toggle('mobile-menu-open');
@@ -10128,7 +10139,24 @@ document.addEventListener('DOMContentLoaded', () => {
                             tension: 0.4
                         }]
                     },
-                    options: { ...commonOptions, plugins: { ...commonOptions.plugins, datalabels: { display: false } } }
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            datalabels: {
+                                align: 'end',
+                                anchor: 'end',
+                                backgroundColor: (context) => context.dataset.backgroundColor || 'rgba(0, 0, 0, 0.8)',
+                                borderRadius: 4,
+                                color: 'white',
+                                font: {
+                                    weight: 'bold'
+                                },
+                                formatter: (value) => `${value.toFixed(1)}°C`,
+                                padding: 6
+                            }
+                        }
+                    }
                 });
             },
 
@@ -10153,7 +10181,25 @@ document.addEventListener('DOMContentLoaded', () => {
                             backgroundColor: '#1976D2',
                         }]
                     },
-                    options: { ...commonOptions, plugins: { ...commonOptions.plugins, legend: { display: false }, datalabels: { display: false } } }
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                align: 'end',
+                                anchor: 'end',
+                                backgroundColor: 'rgba(25, 118, 210, 0.8)',
+                                borderRadius: 4,
+                                color: 'white',
+                                font: {
+                                    weight: 'bold'
+                                },
+                                formatter: (value) => value > 0 ? `${value.toFixed(1)} mm` : '',
+                                padding: 6
+                            }
+                        }
+                    }
                 });
             },
 
@@ -10173,7 +10219,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const labels = avgByFazenda.map(item => item.name);
                 const chartData = avgByFazenda.map(item => item.avg);
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 const commonOptions = this._getCommonChartOptions({ indexAxis: 'y', hasLongLabels: true });
                 this._createOrUpdateChart('graficoMediaVentoFazenda', {
@@ -10191,11 +10236,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
-                                color: datalabelColor,
-                                anchor: 'end',
                                 align: 'end',
-                                font: { weight: 'bold' },
-                                formatter: value => `${value.toFixed(1)} km/h`
+                                anchor: 'end',
+                                backgroundColor: 'rgba(56, 142, 60, 0.8)',
+                                borderRadius: 4,
+                                color: 'white',
+                                font: {
+                                    weight: 'bold'
+                                },
+                                formatter: (value) => `${value.toFixed(1)} km/h`,
+                                padding: 6
                             }
                         }
                     }
@@ -10242,7 +10292,25 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         },
-                        plugins: { ...commonOptions.plugins, legend: { display: false }, datalabels: { display: false } }
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                backgroundColor: 'rgba(245, 124, 0, 0.8)',
+                                borderRadius: 4,
+                                color: 'white',
+                                font: {
+                                    weight: 'bold'
+                                },
+                                formatter: (value, context) => {
+                                    if (context.dataIndex === 0) return `${avgTemp.toFixed(1)}°C`;
+                                    if (context.dataIndex === 1) return `${avgUmidade.toFixed(1)}%`;
+                                    if (context.dataIndex === 2) return `${avgVento.toFixed(1)} km/h`;
+                                    return '';
+                                },
+                                padding: 6
+                            }
+                        }
                     }
                 });
             }
