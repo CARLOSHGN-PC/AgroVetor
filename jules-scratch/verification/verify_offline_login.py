@@ -1,45 +1,26 @@
 
 import asyncio
-from playwright.async_api import async_playwright, expect
+from playwright.async_api import async_playwright
 
 async def main():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        # Use a clean context
-        context = await browser.new_context(
-            java_script_enabled=True,
-            extra_http_headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
-        )
+        browser = await p.chromium.launch()
+        context = await browser.new_context()
         page = await context.new_page()
 
-        try:
-            # Go to the page
-            await page.goto("http://localhost:8000", wait_until="networkidle")
+        await page.goto("http://localhost:8000")
+        await context.set_offline(True)
+        # This second goto should be intercepted by the service worker
+        await page.goto("http://localhost:8000", wait_until="networkidle")
 
-            # Wait for the App object to be initialized
-            await page.wait_for_function("() => window.App && window.App.ui")
 
-            # Directly trigger the offline UI logic
-            await page.evaluate("() => { window.App.ui.showOfflineUserSelection(); }")
+        # Wait for the offline login form to be visible
+        await page.wait_for_selector("#offlineUserSelection", state="visible", timeout=60000)
 
-            # Expect the offline login screen to be visible
-            offline_form = page.locator("#offlineUserSelection")
-            await expect(offline_form).to_be_visible()
+        # Take a screenshot of the offline login screen
+        await page.screenshot(path="jules-scratch/verification/offline_login_verification.png")
 
-            # Expect the email input to be present
-            email_input = page.locator("#offlineEmail")
-            await expect(email_input).to_be_visible()
-
-            # Take a screenshot
-            await page.screenshot(path="jules-scratch/verification/offline_login_verification.png")
-            print("Screenshot taken successfully.")
-
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            # Save a screenshot on error for debugging
-            await page.screenshot(path="jules-scratch/verification/error_screenshot.png")
-        finally:
-            await browser.close()
+        await browser.close()
 
 if __name__ == "__main__":
     asyncio.run(main())
