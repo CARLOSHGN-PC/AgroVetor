@@ -201,8 +201,24 @@
       .submenu-back-btn { font-weight: 600; }
       main.content { margin-top: 70px; padding: 20px; transition: filter 0.3s ease; height: calc(100vh - 70px); overflow-y: auto; }
       .mobile-menu-open main.content, .mobile-menu-open header { filter: blur(4px) brightness(0.7); }
-      .tab-content { display: none; animation: fadeIn 0.3s ease-out; }
-      .tab-content.active { display: block; }
+      .tab-content, .dashboard-view {
+        display: none;
+        animation: fadeIn 0.5s ease-out;
+      }
+      .tab-content.active, .dashboard-view.active {
+          display: block;
+      }
+      .dashboard-view.fade-out {
+          animation: fadeOut 0.3s ease-out forwards;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fadeOut {
+          from { opacity: 1; transform: translateY(0); }
+          to { opacity: 0; transform: translateY(10px); }
+      }
       .card { background: var(--color-surface); padding: 24px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-sm); font-size: 16px; max-width: 1200px; margin: 0 auto 30px; border-left: 4px solid var(--color-accent); transition: var(--transition); position: relative; }
       .card h2 { color: var(--color-primary); margin-bottom: 24px; font-weight: 600; font-size: 22px; display: flex; align-items: center; gap: 12px; }
       .card h2 i { color: var(--color-accent); }
@@ -1611,7 +1627,7 @@
                     <label for="loginUser">Email</label>
                 </div>
                 <div class="input-field">
-                    <input id="loginPass" type="password" placeholder=" " required autocomplete="current-password" />
+                    <input id="loginPass" type="password" placeholder=" " required autocomplete="new-password" />
                     <label for="loginPass">Senha</label>
                 </div>
                 <button id="btnLogin" aria-label="Botão de login"><i class="fas fa-sign-in-alt"></i> LOGIN</button>

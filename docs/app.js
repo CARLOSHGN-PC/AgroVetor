@@ -1947,51 +1947,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showDashboardView(viewName) {
                 const dashEls = App.elements.dashboard;
-                // Hide all views first
-                dashEls.selector.style.display = 'none';
-                dashEls.brocaView.style.display = 'none';
-                dashEls.perdaView.style.display = 'none';
-                dashEls.aereaView.style.display = 'none';
-                dashEls.plantioView.style.display = 'none';
-                dashEls.cigarrinhaView.style.display = 'none';
-                dashEls.climaView.style.display = 'none';
+                const views = [
+                    dashEls.selector, dashEls.brocaView, dashEls.perdaView,
+                    dashEls.aereaView, dashEls.plantioView, dashEls.cigarrinhaView,
+                    dashEls.climaView
+                ];
+                const targetView = dashEls[`${viewName}View`] || (viewName === 'selector' ? dashEls.selector : null);
 
-                App.charts.destroyAll();
+                if (!targetView) return;
 
-                switch (viewName) {
-                    case 'selector':
-                        dashEls.selector.style.display = 'grid';
-                        break;
-                    case 'broca':
-                        dashEls.brocaView.style.display = 'block';
-                        this.loadDashboardDates('broca');
-                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
-                        break;
-                    case 'perda':
-                        dashEls.perdaView.style.display = 'block';
-                        this.loadDashboardDates('perda');
-                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
-                        break;
-                    case 'aerea':
-                        dashEls.aereaView.style.display = 'block';
-                        this.loadDashboardDates('aereo');
-                        setTimeout(() => App.charts.renderAereoDashboardCharts(), 150);
-                        break;
-                    case 'plantio':
-                        dashEls.plantioView.style.display = 'block';
-                        this.loadDashboardDates('plantio');
-                        setTimeout(() => App.charts.renderPlantioDashboardCharts(), 150);
-                        break;
-                    case 'cigarrinha':
-                        dashEls.cigarrinhaView.style.display = 'block';
-                        this.loadDashboardDates('cigarrinha');
-                        setTimeout(() => App.charts.renderCigarrinhaDashboardCharts(), 150);
-                        break;
-                    case 'clima':
-                        dashEls.climaView.style.display = 'block';
-                        this.loadDashboardDates('clima');
-                        setTimeout(() => App.charts.renderClimaDashboardCharts(), 150);
-                        break;
+                const currentActiveView = views.find(v => v && v.classList.contains('active'));
+
+                const switchViews = () => {
+                    views.forEach(v => {
+                        if (v) {
+                            v.classList.remove('active');
+                            v.style.display = 'none';
+                        }
+                    });
+
+                    targetView.classList.remove('fade-out');
+                    targetView.classList.add('active');
+                    targetView.style.display = viewName === 'selector' ? 'grid' : 'block';
+
+                    App.charts.destroyAll();
+
+                    switch (viewName) {
+                        case 'broca':
+                            this.loadDashboardDates('broca');
+                            App.charts.renderBrocaDashboardCharts();
+                            break;
+                        case 'perda':
+                            this.loadDashboardDates('perda');
+                            App.charts.renderPerdaDashboardCharts();
+                            break;
+                        case 'aerea':
+                            this.loadDashboardDates('aereo');
+                            App.charts.renderAereoDashboardCharts();
+                            break;
+                        case 'plantio':
+                            this.loadDashboardDates('plantio');
+                            App.charts.renderPlantioDashboardCharts();
+                            break;
+                        case 'cigarrinha':
+                            this.loadDashboardDates('cigarrinha');
+                            App.charts.renderCigarrinhaDashboardCharts();
+                            break;
+                        case 'clima':
+                            this.loadDashboardDates('clima');
+                            App.charts.renderClimaDashboardCharts();
+                            break;
+                    }
+                };
+
+                if (currentActiveView && currentActiveView !== targetView) {
+                    currentActiveView.classList.add('fade-out');
+                    setTimeout(switchViews, 300); // Wait for fade-out animation
+                } else {
+                    switchViews();
                 }
             },
             setDefaultDatesForEntryForms() {
@@ -6937,6 +6950,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
+                // Variáveis para o throttling
+                let lastProcessedTime = 0;
+                const processInterval = 2000; // Processar no máximo a cada 2 segundos
+
+                const throttledProcessPosition = (position) => {
+                    const now = Date.now();
+                    if (now - lastProcessedTime > processInterval) {
+                        lastProcessedTime = now;
+                        processPosition(position);
+                    }
+                };
+
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     try {
                         const { Geolocation } = Capacitor.Plugins;
@@ -6952,7 +6977,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 console.warn("Erro no rastreamento de localização do Capacitor:", err.message);
                                 return;
                             }
-                            processPosition(position);
+                            throttledProcessPosition(position);
                         });
                         console.log("Rastreamento de localização (Capacitor) iniciado com throttling.");
                     } catch (e) {
@@ -6963,7 +6988,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         () => {
                             App.state.isTracking = true;
                             App.state.locationWatchId = navigator.geolocation.watchPosition(
-                                processPosition,
+                                throttledProcessPosition, // Usa a função com throttling
                                 (err) => {
                                     console.warn("Erro no rastreamento de localização (Web):", err.message);
                                 },
@@ -8981,6 +9006,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     indexAxis: indexAxis,
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: {
+                        duration: 800,
+                        easing: 'easeInOutQuart'
+                    },
                     scales: {
                         x: {
                             grid: { 
