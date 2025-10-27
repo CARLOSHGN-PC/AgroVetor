@@ -6808,29 +6808,54 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
         async syncGpsLocations() {
-            const locationsToSync = await OfflineDB.getAll('gps-locations');
-            if (locationsToSync.length === 0) {
+            const db = await OfflineDB.dbPromise;
+            const allKeys = await db.getAllKeys('gps-locations');
+
+            if (allKeys.length === 0) {
                 return;
             }
 
-            try {
-                const response = await fetch(`${App.config.backendUrl}/api/track/batch`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ locations: locationsToSync }),
-                });
+            console.log(`[GPS Sync] Iniciando sincronização de ${allKeys.length} localizações GPS.`);
 
-                if (response.ok) {
-                    const db = await OfflineDB.dbPromise;
-                    const tx = db.transaction('gps-locations', 'readwrite');
-                    await tx.store.clear();
-                    await tx.done;
-                    console.log(`${locationsToSync.length} localizações GPS offline foram sincronizadas e limpas.`);
-                } else {
-                    console.error("Falha ao sincronizar localizações GPS em lote.");
+            const CHUNK_SIZE = 100; // Enviar em lotes de 100
+            let successfulKeys = [];
+
+            for (let i = 0; i < allKeys.length; i += CHUNK_SIZE) {
+                const chunkKeys = allKeys.slice(i, i + CHUNK_SIZE);
+                const locationsChunk = await Promise.all(chunkKeys.map(key => db.get('gps-locations', key)));
+
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/track/batch`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ locations: locationsChunk }),
+                    });
+
+                    if (response.ok) {
+                        console.log(`[GPS Sync] Lote de ${locationsChunk.length} localizações sincronizado com sucesso.`);
+                        successfulKeys.push(...chunkKeys);
+                    } else {
+                        // Se a resposta não for OK, o servidor pode estar com problemas.
+                        // É mais seguro parar e tentar novamente mais tarde.
+                        console.error(`[GPS Sync] Falha ao sincronizar lote. Status: ${response.status}. A sincronização será interrompida por agora.`);
+                        break; // Interrompe o loop
+                    }
+                } catch (error) {
+                    // Erro de rede. Também é mais seguro parar.
+                    console.error("[GPS Sync] Erro de rede ao sincronizar lote. A sincronização será interrompida.", error);
+                    break; // Interrompe o loop
                 }
-            } catch (error) {
-                console.error("Erro de rede ao sincronizar localizações GPS:", error);
+            }
+
+            // Após o loop, apaga todas as chaves que foram sincronizadas com sucesso
+            if (successfulKeys.length > 0) {
+                const deleteTx = db.transaction('gps-locations', 'readwrite');
+                for (const key of successfulKeys) {
+                    deleteTx.store.delete(key);
+                }
+                await deleteTx.done;
+                console.log(`[GPS Sync] ${successfulKeys.length} localizações GPS offline foram limpas do banco de dados local.`);
+                App.ui.showSystemNotification("Sincronização GPS", `${successfulKeys.length} pontos de GPS foram enviados.`, "success");
             }
         },
 
@@ -6935,7 +6960,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Configura o intervalo de descarga periódica
                 if (App.state.locationUpdateIntervalId) clearInterval(App.state.locationUpdateIntervalId);
-                App.state.locationUpdateIntervalId = setInterval(() => this.flushGpsBuffer(), 10000); // Descarrega a cada 10 segundos
+                App.state.locationUpdateIntervalId = setInterval(() => this.flushGpsBuffer(), 5000); // Descarrega a cada 5 segundos
 
                 const processPosition = (position) => {
                     if (position && App.state.currentUser) {
