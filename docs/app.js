@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 5 for the new gps-locations store
-            this.dbPromise = openDB('agrovetor-offline-storage', 5, {
+            // Version 6 for the new offline-credentials store
+            this.dbPromise = openDB('agrovetor-offline-storage', 6, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -69,6 +69,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (oldVersion < 5) {
                         db.createObjectStore('gps-locations', { autoIncrement: true });
+                    }
+                    if (oldVersion < 6) {
+                        db.createObjectStore('offline-credentials', { keyPath: 'email' });
                     }
                 },
             });
@@ -952,17 +955,38 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            async loginOffline(email) { // Argument changed to email
-                const localProfiles = App.actions.getLocalUserProfiles();
-                // Find profile by email, case-insensitively
-                const userProfile = localProfiles.find(p => p.email && p.email.toLowerCase() === email.toLowerCase());
-                if (userProfile) {
-                    App.state.currentUser = userProfile;
-                    App.ui.showAppScreen();
-                    App.mapModule.loadOfflineShapes();
-                    App.data.listenToAllData();
-                } else {
-                    App.ui.showAlert("Perfil offline não encontrado. Verifique o e-mail inserido.", "error");
+            async loginOffline(email, password) {
+                if (!email || !password) {
+                    App.ui.showAlert("Por favor, insira e-mail e senha.", "warning");
+                    return;
+                }
+
+                try {
+                    const credentials = await OfflineDB.get('offline-credentials', email.toLowerCase());
+
+                    if (!credentials) {
+                        App.ui.showAlert("Credenciais offline não encontradas para este e-mail. Faça login online primeiro e habilite o acesso offline.", "error");
+                        return;
+                    }
+
+                    const hashedPassword = CryptoJS.PBKDF2(password, credentials.salt, {
+                        keySize: 256 / 32,
+                        iterations: 1000
+                    }).toString();
+
+                    if (hashedPassword === credentials.hashedPassword) {
+                        App.state.currentUser = credentials.userProfile;
+                        App.ui.showAppScreen();
+                        App.mapModule.loadOfflineShapes();
+                        // You might not want to listen to all data if truly offline,
+                        // as it will just use cached data. This is okay for now.
+                        App.data.listenToAllData();
+                    } else {
+                        App.ui.showAlert("Senha offline incorreta.", "error");
+                    }
+                } catch (error) {
+                    App.ui.showAlert("Ocorreu um erro durante o login offline.", "error");
+                    console.error("Erro no login offline:", error);
                 }
             },
             async logout() {
@@ -2969,6 +2993,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.adminPasswordConfirmModal.passwordInput.value = '';
             },
 
+            showEnableOfflineLoginModal() {
+                const modal = document.getElementById('enableOfflineLoginModal');
+                if (modal) {
+                    modal.classList.add('show');
+                    const passwordInput = document.getElementById('enableOfflinePassword');
+                    if (passwordInput) {
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
+                }
+            },
+
+            closeEnableOfflineLoginModal() {
+                const modal = document.getElementById('enableOfflineLoginModal');
+                if (modal) {
+                    modal.classList.remove('show');
+                }
+            },
+
             showImpersonationBanner(companyName) {
                 this.hideImpersonationBanner(); // Limpa qualquer banner anterior
 
@@ -3408,11 +3451,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnOfflineLogin) {
                     btnOfflineLogin.addEventListener('click', () => {
                         const email = document.getElementById('offlineEmail').value.trim();
-                        if (email) {
-                            App.auth.loginOffline(email);
-                        } else {
-                            App.ui.showAlert("Por favor, insira o seu e-mail para entrar.", "warning");
-                        }
+                        const password = document.getElementById('offlinePassword').value;
+                        App.auth.loginOffline(email, password);
+                    });
+                }
+
+                // Event Listeners for enabling offline login
+                const btnEnableOffline = document.getElementById('btnEnableOfflineLogin');
+                if (btnEnableOffline) {
+                    btnEnableOffline.addEventListener('click', () => App.ui.showEnableOfflineLoginModal());
+                }
+
+                const btnConfirmEnableOffline = document.getElementById('btnConfirmEnableOffline');
+                if (btnConfirmEnableOffline) {
+                    btnConfirmEnableOffline.addEventListener('click', () => App.actions.enableOfflineLogin());
+                }
+
+                const offlineModal = document.getElementById('enableOfflineLoginModal');
+                if(offlineModal) {
+                    const closeBtn = offlineModal.querySelector('.modal-close-btn');
+                    const cancelBtn = offlineModal.querySelector('.btn-cancel');
+                    if(closeBtn) closeBtn.addEventListener('click', () => App.ui.closeEnableOfflineLoginModal());
+                    if(cancelBtn) cancelBtn.addEventListener('click', () => App.ui.closeEnableOfflineLoginModal());
+                    offlineModal.addEventListener('click', e => {
+                        if (e.target === offlineModal) App.ui.closeEnableOfflineLoginModal();
                     });
                 }
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
@@ -7363,6 +7425,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     App.ui.showAlert("Erro ao guardar as metas de plantio.", "error");
                     console.error("Error saving planting goals:", error);
+                }
+            },
+
+            async enableOfflineLogin() {
+                const passwordInput = document.getElementById('enableOfflinePassword');
+                const password = passwordInput.value;
+                const currentUser = App.state.currentUser;
+
+                if (!password) {
+                    App.ui.showAlert("Por favor, insira a sua senha atual para confirmar.", "error");
+                    return;
+                }
+
+                if (!navigator.onLine) {
+                    App.ui.showAlert("É preciso estar online para habilitar o login offline pela primeira vez.", "warning");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A verificar senha e a guardar credenciais...");
+
+                try {
+                    // 1. Re-autenticar para verificar a senha
+                    const user = auth.currentUser;
+                    const credential = EmailAuthProvider.credential(user.email, password);
+                    await reauthenticateWithCredential(user, credential);
+
+                    // 2. Gerar "salt" e "hash" da senha
+                    const salt = CryptoJS.lib.WordArray.random(128 / 8).toString();
+                    const hashedPassword = CryptoJS.PBKDF2(password, salt, {
+                        keySize: 256 / 32,
+                        iterations: 1000
+                    }).toString();
+
+                    // 3. Preparar os dados para guardar
+                    const credentialsToStore = {
+                        email: currentUser.email.toLowerCase(),
+                        hashedPassword: hashedPassword,
+                        salt: salt,
+                        userProfile: { ...currentUser } // Guarda uma cópia do perfil do utilizador
+                    };
+
+                    // 4. Guardar no IndexedDB
+                    await OfflineDB.set('offline-credentials', credentialsToStore.email, credentialsToStore);
+
+                    App.ui.showAlert("Login offline habilitado/atualizado com sucesso!", "success");
+                    App.ui.closeEnableOfflineLoginModal();
+
+                } catch (error) {
+                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                        App.ui.showAlert("A senha está incorreta.", "error");
+                    } else {
+                        App.ui.showAlert("Ocorreu um erro ao habilitar o login offline.", "error");
+                        console.error("Erro ao habilitar login offline:", error);
+                    }
+                } finally {
+                    App.ui.setLoading(false);
+                    passwordInput.value = '';
                 }
             },
         },
