@@ -7,4 +7,4 @@ android/app/google-services.json
 # Ignorar pastas de build do Android
 android/app/build/
 android/build/
-android/.gradle/
+android/.gradle/__pycache__/
