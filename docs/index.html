@@ -1620,14 +1620,14 @@
             
             <div id="offlineUserSelection" style="display: none;">
                 <h2><i class="fas fa-wifi-slash"></i> Acesso Offline</h2>
-                <p style="color: var(--color-text-light); margin-bottom: 20px;">Selecione seu perfil para continuar sem conexão.</p>
+                <p style="color: var(--color-text-light); margin-bottom: 20px;">Insira seu e-mail para continuar sem conexão.</p>
                 <div class="input-field">
-                    <select id="offlineUserSelect" required style="display: block; width: 100%; -webkit-appearance: none; -moz-appearance: none; appearance: none;"></select>
-                    <label for="offlineUserSelect" style="top: -10px; font-size: 12px;">Selecione o Utilizador</label>
+                    <input id="offlineEmail" type="email" placeholder=" " required />
+                    <label for="offlineEmail">Email</label>
                 </div>
                 <div class="input-field">
-                    <input id="offlinePassword" type="password" placeholder=" " disabled />
-                    <label for="offlinePassword">Senha (desativado offline)</label>
+                    <input id="offlinePassword" type="password" placeholder=" " />
+                    <label for="offlinePassword">Senha (não validada offline)</label>
                 </div>
                 <button id="btnOfflineLogin" class="save" style="width: 100%; margin-top: 24px; background: var(--color-info);"><i class="fas fa-sign-in-alt"></i> Entrar Offline</button>
             </div>
