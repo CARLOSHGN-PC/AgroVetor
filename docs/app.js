@@ -705,11 +705,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
         native: {
             init() {
-                // This function will be the entry point for all Capacitor-related initializations.
-                // It checks if the app is running in a native Capacitor container.
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     this.configureStatusBar();
-                    this.registerPushNotifications(); // Add this call
+                    this.registerPushNotifications();
+                    this.listenForNetworkChanges(); // Adiciona o listener de rede
+                }
+            },
+
+            // --- Funcionalidade 4: Monitoramento de Rede ---
+            async listenForNetworkChanges() {
+                try {
+                    const { Network } = Capacitor.Plugins;
+
+                    // Exibe o status inicial
+                    const status = await Network.getStatus();
+                    console.log(`Status inicial da rede: ${status.connected ? 'Online' : 'Offline'}`);
+
+                    // Adiciona um 'ouvinte' para quando o status da rede mudar
+                    Network.addListener('networkStatusChange', (status) => {
+                        console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
+                        if (status.connected) {
+                            // Se conectar, dispara um evento 'online' personalizado,
+                            // que a lógica existente do App já sabe como manipular.
+                            window.dispatchEvent(new Event('online'));
+                        }
+                    });
+                } catch (e) {
+                    console.error("Erro ao configurar o monitoramento de rede do Capacitor.", e);
                 }
             },
 
@@ -938,8 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.ui.setLoading(true, "A autenticar...");
                 try {
-                    // Força a persistência da sessão apenas para a aba atual.
-                    // Isso fará com que o usuário seja deslogado ao fechar o app.
+                    // Garante que a sessão persista mesmo após fechar e reabrir o aplicativo.
                     await setPersistence(auth, browserLocalPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
@@ -951,7 +972,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
                     }
                     console.error("Erro de login:", error.code, error.message);
-                } finally {
+                    // Apenas para o loading em caso de erro. Em caso de sucesso, a checkSession cuidará disso.
                     App.ui.setLoading(false);
                 }
             },
@@ -976,11 +997,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (hashedPassword === credentials.hashedPassword) {
                         App.state.currentUser = credentials.userProfile;
-                        App.ui.showAppScreen();
-                        App.mapModule.loadOfflineShapes();
-                        // You might not want to listen to all data if truly offline,
-                        // as it will just use cached data. This is okay for now.
-                        App.data.listenToAllData();
+
+                        App.ui.setLoading(true, "A carregar dados offline...");
+                        try {
+                            const companyId = App.state.currentUser.companyId;
+
+                            // Pré-carrega os dados da empresa a partir do cache offline
+                            if (companyId) {
+                                const companyDoc = await App.data.getDocument('companies', companyId);
+                                if (companyDoc) {
+                                     App.state.companies = [companyDoc];
+                                } else {
+                                    console.warn("Documento da empresa não encontrado no cache offline durante o login.");
+                                }
+                            }
+
+                            // Pré-carrega as configurações globais a partir do cache offline
+                            const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                            if (globalConfigsDoc.exists()) {
+                                App.state.globalConfigs = globalConfigsDoc.data();
+                            } else {
+                                console.warn("Configurações globais não encontradas no cache offline durante o login.");
+                            }
+
+                            // Agora, com os dados essenciais pré-carregados, mostra a tela da aplicação
+                            App.ui.showAppScreen();
+                            App.mapModule.loadOfflineShapes();
+                            App.data.listenToAllData(); // Configura os 'listeners' para futuras atualizações quando estiver online
+
+                        } catch (error) {
+                            console.error("Erro ao pré-carregar dados do cache offline:", error);
+                            // Fallback para o comportamento antigo se o pré-carregamento falhar
+                            App.ui.showAppScreen();
+                            App.mapModule.loadOfflineShapes();
+                            App.data.listenToAllData();
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
                     } else {
                         App.ui.showAlert("Senha offline incorreta.", "error");
                     }
@@ -1007,7 +1060,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
                 localStorage.removeItem('agrovetor_lastActiveTab');
-                App.ui.showLoginScreen();
+                // Em vez de ir diretamente para a tela de login, reavalia a sessão.
+                // Isso mostrará a tela de login offline se o utilizador estiver offline e tiver perfis guardados.
+                this.checkSession();
             },
             initiateUserCreation() {
                 const els = App.elements.users;
@@ -1240,10 +1295,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (doc.exists()) {
                             // Coloca a empresa do utilizador no estado, para que o menu possa ser renderizado corretamente
                             App.state.companies = [{ id: doc.id, ...doc.data() }];
-                        } else {
-                            // Se a empresa for removida, desloga o utilizador para segurança
+                        } else if (navigator.onLine) {
+                            // Se estiver online e a empresa não for encontrada, desloga o utilizador por segurança.
                             console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
                             App.auth.logout();
+                        } else {
+                            // Se estiver offline e o documento da empresa não estiver no cache, permite que a aplicação continue.
+                            // Os módulos podem não ser renderizados corretamente, mas o acesso não é bloqueado.
+                            console.warn(`Documento da empresa com ID ${companyId} não encontrado no cache offline. O menu pode estar incompleto.`);
                         }
                         App.ui.renderMenu(); // Re-renderiza o menu quando os dados da empresa mudam
                     });
@@ -6839,7 +6898,24 @@ document.addEventListener('DOMContentLoaded', () => {
             async startGpsTracking() {
                 if (App.state.isTracking) return;
 
-                // Verifica se está a correr como uma aplicação nativa Capacitor
+                const savePosition = async (position) => {
+                    if (position && App.state.currentUser) {
+                        const { latitude, longitude } = position.coords;
+                        const locationData = {
+                            userId: App.state.currentUser.uid,
+                            latitude,
+                            longitude,
+                            companyId: App.state.currentUser.companyId,
+                            timestamp: new Date(position.timestamp).toISOString()
+                        };
+                        try {
+                            await OfflineDB.add('gps-locations', locationData);
+                        } catch (dbError) {
+                            console.error("Falha ao guardar localização GPS no IndexedDB:", dbError);
+                        }
+                    }
+                };
+
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     try {
                         const { Geolocation } = Capacitor.Plugins;
@@ -6855,35 +6931,28 @@ document.addEventListener('DOMContentLoaded', () => {
                                 console.warn("Erro no rastreamento de localização do Capacitor:", err.message);
                                 return;
                             }
-                            if (position) {
-                                const { latitude, longitude } = position.coords;
-                                App.state.lastKnownPosition = { latitude, longitude };
-                            }
+                            savePosition(position);
                         });
-                        App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
-                        console.log("Rastreamento de localização em segundo plano (Capacitor) iniciado.");
+                        console.log("Rastreamento de localização (Capacitor) iniciado.");
                     } catch (e) {
                         console.error("Falha ao iniciar o rastreamento de localização do Capacitor:", e);
                     }
                 } else if ('geolocation' in navigator) {
-                    // Fallback para a API de geolocalização da Web (PWA no navegador)
                     navigator.geolocation.getCurrentPosition(
-                        () => { // Callback de sucesso para verificar a permissão
+                        () => {
                             App.state.isTracking = true;
                             App.state.locationWatchId = navigator.geolocation.watchPosition(
                                 (position) => {
-                                    const { latitude, longitude } = position.coords;
-                                    App.state.lastKnownPosition = { latitude, longitude };
+                                    savePosition(position);
                                 },
                                 (err) => {
                                     console.warn("Erro no rastreamento de localização (Web):", err.message);
                                 },
                                 { enableHighAccuracy: true }
                             );
-                            App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
                             console.log("Rastreamento de localização (Web) iniciado.");
                         },
-                        (error) => { // Callback de erro para verificar a permissão
+                        (error) => {
                             if (error.code === error.PERMISSION_DENIED) {
                                 console.warn("Permissão de localização (Web) não concedida.");
                                 App.ui.showAlert("Para rastreamento de localização, por favor, ative os serviços de localização no seu navegador.", "info");
@@ -6894,39 +6963,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
                 } else {
                     console.error("Geolocalização não é suportada neste navegador.");
-                }
-            },
-
-            async sendLocationUpdate() {
-                if (App.state.lastKnownPosition && App.state.currentUser) {
-                    const { latitude, longitude } = App.state.lastKnownPosition;
-                    const { uid } = App.state.currentUser;
-                    const locationData = {
-                        userId: uid,
-                        latitude,
-                        longitude,
-                        companyId: App.state.currentUser.companyId,
-                        timestamp: new Date().toISOString()
-                    };
-
-                    if (navigator.onLine) {
-                        try {
-                            const response = await fetch(`${App.config.backendUrl}/api/track`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(locationData),
-                            });
-                            if (!response.ok) {
-                                console.error("Falha ao enviar localização. Guardando offline.");
-                                await OfflineDB.add('gps-locations', locationData);
-                            }
-                        } catch (error) {
-                            console.error('Falha ao enviar atualização de localização, guardando offline:', error);
-                            await OfflineDB.add('gps-locations', locationData);
-                        }
-                    } else {
-                        await OfflineDB.add('gps-locations', locationData);
-                    }
                 }
             },
 
