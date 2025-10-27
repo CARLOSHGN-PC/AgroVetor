@@ -209,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isTracking: false,
             plantio: [], // Placeholder for Plantio data
             cigarrinha: [], // Placeholder for Cigarrinha data
+            clima: [],
         },
         
         elements: {
@@ -1157,7 +1158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -10053,7 +10054,191 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async renderClimaDashboardCharts() {
-                // This would be the main function to call for the new dashboard
+                const startDateEl = document.getElementById('climaDashboardInicio');
+                const endDateEl = document.getElementById('climaDashboardFim');
+                const fazendaEl = document.getElementById('climaDashboardFazenda');
+
+                App.actions.saveDashboardDates('clima', startDateEl.value, endDateEl.value);
+
+                const consolidatedData = await App.actions.getConsolidatedData('clima');
+                let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
+
+                const selectedFazenda = fazendaEl.value;
+                if (selectedFazenda) {
+                    data = data.filter(item => item.fazendaId === selectedFazenda);
+                }
+
+                // KPIs
+                const avgTempMax = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMax, 0) / data.length : 0;
+                const avgTempMin = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMin, 0) / data.length : 0;
+                const totalPluviosidade = data.reduce((sum, item) => sum + item.pluviosidade, 0);
+                const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
+                const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
+
+                document.getElementById('kpi-clima-temp-max').textContent = `${avgTempMax.toFixed(1)}°C`;
+                document.getElementById('kpi-clima-temp-min').textContent = `${avgTempMin.toFixed(1)}°C`;
+                document.getElementById('kpi-clima-pluviosidade').textContent = `${totalPluviosidade.toFixed(1)} mm`;
+                document.getElementById('kpi-clima-umidade').textContent = `${avgUmidade.toFixed(1)}%`;
+                document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
+
+                // Render Charts
+                this.renderVariacaoTemperaturaChart(data);
+                this.renderAcumuloPluviosidadeChart(data);
+                this.renderVelocidadeVentoChart(data);
+                this.renderIndiceClimatologicoChart(data);
+            },
+
+            renderVariacaoTemperaturaChart(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    acc[item.data] = acc[item.data] || { tempsMax: [], tempsMin: [] };
+                    acc[item.data].tempsMax.push(item.tempMax);
+                    acc[item.data].tempsMin.push(item.tempMin);
+                    return acc;
+                }, {});
+
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const avgMaxTemps = sortedDays.map(date => dataByDay[date].tempsMax.reduce((a, b) => a + b, 0) / dataByDay[date].tempsMax.length);
+                const avgMinTemps = sortedDays.map(date => dataByDay[date].tempsMin.reduce((a, b) => a + b, 0) / dataByDay[date].tempsMin.length);
+
+                const commonOptions = this._getCommonChartOptions();
+                this._createOrUpdateChart('graficoVariacaoTemperatura', {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Temp. Máxima (°C)',
+                            data: avgMaxTemps,
+                            borderColor: '#D32F2F',
+                            backgroundColor: 'rgba(211, 47, 47, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Temp. Mínima (°C)',
+                            data: avgMinTemps,
+                            borderColor: '#1976D2',
+                            backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: { ...commonOptions, plugins: { ...commonOptions.plugins, datalabels: { display: false } } }
+                });
+            },
+
+            renderAcumuloPluviosidadeChart(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    acc[item.data] = (acc[item.data] || 0) + item.pluviosidade;
+                    return acc;
+                }, {});
+
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const chartData = sortedDays.map(date => dataByDay[date]);
+
+                const commonOptions = this._getCommonChartOptions();
+                this._createOrUpdateChart('graficoAcumuloPluviosidade', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Pluviosidade (mm)',
+                            data: chartData,
+                            backgroundColor: '#1976D2',
+                        }]
+                    },
+                    options: { ...commonOptions, plugins: { ...commonOptions.plugins, legend: { display: false }, datalabels: { display: false } } }
+                });
+            },
+
+            renderVelocidadeVentoChart(data) {
+                const dataByFazenda = data.reduce((acc, item) => {
+                    const fazenda = item.fazendaNome || 'N/A';
+                    if (!acc[fazenda]) acc[fazenda] = [];
+                    acc[fazenda].push(item.vento);
+                    return acc;
+                }, {});
+
+                const avgByFazenda = Object.entries(dataByFazenda).map(([name, values]) => ({
+                    name,
+                    avg: values.reduce((a, b) => a + b, 0) / values.length
+                })).sort((a, b) => a.avg - b.avg);
+
+
+                const labels = avgByFazenda.map(item => item.name);
+                const chartData = avgByFazenda.map(item => item.avg);
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y', hasLongLabels: true });
+                this._createOrUpdateChart('graficoMediaVentoFazenda', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Velocidade Média do Vento (km/h)',
+                            data: chartData,
+                            backgroundColor: '#388E3C',
+                        }]
+                    },
+                    options: {
+                        ...commonOptions, plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor,
+                                anchor: 'end',
+                                align: 'end',
+                                font: { weight: 'bold' },
+                                formatter: value => `${value.toFixed(1)} km/h`
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderIndiceClimatologicoChart(data) {
+                const avgTemp = data.length > 0 ? data.reduce((sum, item) => sum + (item.tempMax + item.tempMin) / 2, 0) / data.length : 0;
+                const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
+                const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
+
+                // Normalize data for radar chart (0-100 scale)
+                const normalizedTemp = (avgTemp / 50) * 100; // Assuming max temp is 50
+                const normalizedUmidade = avgUmidade;
+                const normalizedVento = (avgVento / 60) * 100; // Assuming max wind is 60km/h
+
+                const commonOptions = this._getCommonChartOptions();
+
+                this._createOrUpdateChart('graficoIndiceClimatologico', {
+                    type: 'radar',
+                    data: {
+                        labels: ['Temperatura', 'Umidade', 'Vento'],
+                        datasets: [{
+                            label: 'Índice Climatológico (Normalizado)',
+                            data: [normalizedTemp, normalizedUmidade, normalizedVento],
+                            fill: true,
+                            backgroundColor: 'rgba(245, 124, 0, 0.2)',
+                            borderColor: '#F57C00',
+                            pointBackgroundColor: '#F57C00',
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+                                max: 100,
+                                grid: { color: commonOptions.scales.y.grid.color },
+                                angleLines: { color: commonOptions.scales.y.grid.color },
+                                pointLabels: { color: commonOptions.scales.y.ticks.color, font: { size: 14 } },
+                                ticks: {
+                                    display: false,
+                                    stepSize: 20
+                                }
+                            }
+                        },
+                        plugins: { ...commonOptions.plugins, legend: { display: false }, datalabels: { display: false } }
+                    }
+                });
             }
 
         },
@@ -10409,7 +10594,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const chartIds = [
                         'graficoVariacaoTemperatura',
                         'graficoAcumuloPluviosidade',
-                        'graficoVelocidadeVento',
+                        'graficoMediaVentoFazenda',
                         'graficoIndiceClimatologico'
                     ];
 
