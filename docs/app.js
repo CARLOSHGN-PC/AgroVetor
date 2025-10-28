@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 5 for the new gps-locations store
-            this.dbPromise = openDB('agrovetor-offline-storage', 5, {
+            // Version 6 for the new offline-credentials store
+            this.dbPromise = openDB('agrovetor-offline-storage', 6, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -70,6 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (oldVersion < 5) {
                         db.createObjectStore('gps-locations', { autoIncrement: true });
                     }
+                    if (oldVersion < 6) {
+                        db.createObjectStore('offline-credentials', { keyPath: 'email' });
+                    }
                 },
             });
         },
@@ -79,8 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
         async getAll(storeName) {
             return (await this.dbPromise).getAll(storeName);
         },
-        async set(storeName, key, val) {
-            return (await this.dbPromise).put(storeName, val, key);
+        async set(storeName, value, key) {
+            return (await this.dbPromise).put(storeName, value, key);
         },
         async add(storeName, val) {
             return (await this.dbPromise).add(storeName, val);
@@ -100,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
+                { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
@@ -116,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
                         { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
                         { label: 'Apontamento de Plantio', icon: 'fas fa-seedling', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
+                        { label: 'Apontamento Climatológico', icon: 'fas fa-cloud', target: 'lancamentoClima', permission: 'lancamentoClima' },
                     ]
                 },
                 {
@@ -128,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
+                        { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
                     ]
                 },
                 {
@@ -150,10 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
             }
         },
@@ -206,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isTracking: false,
             plantio: [], // Placeholder for Plantio data
             cigarrinha: [], // Placeholder for Cigarrinha data
+            clima: [],
         },
         
         elements: {
@@ -337,16 +344,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 aereaView: document.getElementById('dashboard-aerea'),
                 plantioView: document.getElementById('dashboard-plantio'),
                 cigarrinhaView: document.getElementById('dashboard-cigarrinha'),
+                climaView: document.getElementById('dashboard-clima'),
                 cardBroca: document.getElementById('card-broca'),
                 cardPerda: document.getElementById('card-perda'),
                 cardAerea: document.getElementById('card-aerea'),
                 cardPlantio: document.getElementById('card-plantio'),
                 cardCigarrinha: document.getElementById('card-cigarrinha'),
+                cardClima: document.getElementById('card-clima'),
                 btnBackToSelectorBroca: document.getElementById('btn-back-to-selector-broca'),
                 btnBackToSelectorPerda: document.getElementById('btn-back-to-selector-perda'),
                 btnBackToSelectorAerea: document.getElementById('btn-back-to-selector-aerea'),
                 btnBackToSelectorPlantio: document.getElementById('btn-back-to-selector-plantio'),
                 btnBackToSelectorCigarrinha: document.getElementById('btn-back-to-selector-cigarrinha'),
+                btnBackToSelectorClima: document.getElementById('btn-back-to-selector-clima'),
                 brocaDashboardInicio: document.getElementById('brocaDashboardInicio'),
                 brocaDashboardFim: document.getElementById('brocaDashboardFim'),
                 btnFiltrarBrocaDashboard: document.getElementById('btnFiltrarBrocaDashboard'),
@@ -628,6 +638,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnPDF: document.getElementById('btnPDFPlantio'),
                 btnExcel: document.getElementById('btnExcelPlantio'),
             },
+                lancamentoClima: {
+                    form: document.getElementById('formLancamentoClima'),
+                    entryId: document.getElementById('climaEntryId'),
+                    data: document.getElementById('climaData'),
+                    fazenda: document.getElementById('climaFazenda'),
+                    talhao: document.getElementById('climaTalhao'),
+                    tempMax: document.getElementById('climaTempMax'),
+                    tempMin: document.getElementById('climaTempMin'),
+                    umidade: document.getElementById('climaUmidade'),
+                    pluviosidade: document.getElementById('climaPluviosidade'),
+                    vento: document.getElementById('climaVento'),
+                    obs: document.getElementById('climaObs'),
+                    btnSave: document.getElementById('btnSaveLancamentoClima'),
+                },
+                relatorioClima: {
+                    fazenda: document.getElementById('climaRelatorioFazenda'),
+                    inicio: document.getElementById('climaRelatorioInicio'),
+                    fim: document.getElementById('climaRelatorioFim'),
+                    btnPDF: document.getElementById('btnPDFClima'),
+                    btnExcel: document.getElementById('btnExcelClima'),
+                },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
                 fazendaFiltro: document.getElementById('monitoramentoFazendaFiltro'),
@@ -674,11 +705,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
         native: {
             init() {
-                // This function will be the entry point for all Capacitor-related initializations.
-                // It checks if the app is running in a native Capacitor container.
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     this.configureStatusBar();
-                    this.registerPushNotifications(); // Add this call
+                    this.registerPushNotifications();
+                    this.listenForNetworkChanges(); // Adiciona o listener de rede
+                }
+            },
+
+            // --- Funcionalidade 4: Monitoramento de Rede ---
+            async listenForNetworkChanges() {
+                try {
+                    const { Network } = Capacitor.Plugins;
+
+                    // Exibe o status inicial
+                    const status = await Network.getStatus();
+                    console.log(`Status inicial da rede: ${status.connected ? 'Online' : 'Offline'}`);
+
+                    // Adiciona um 'ouvinte' para quando o status da rede mudar
+                    Network.addListener('networkStatusChange', (status) => {
+                        console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
+                        if (status.connected) {
+                            // Se conectar, dispara um evento 'online' personalizado,
+                            // que a lógica existente do App já sabe como manipular.
+                            window.dispatchEvent(new Event('online'));
+                        }
+                    });
+                } catch (e) {
+                    console.error("Erro ao configurar o monitoramento de rede do Capacitor.", e);
                 }
             },
 
@@ -889,7 +942,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         const localProfiles = App.actions.getLocalUserProfiles();
                         if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection(localProfiles);
+                            App.ui.showOfflineUserSelection();
                         } else {
                             App.ui.showLoginScreen();
                         }
@@ -907,8 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.ui.setLoading(true, "A autenticar...");
                 try {
-                    // Força a persistência da sessão apenas para a aba atual.
-                    // Isso fará com que o usuário seja deslogado ao fechar o app.
+                    // Garante que a sessão persista mesmo após fechar e reabrir o aplicativo.
                     await setPersistence(auth, browserLocalPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
@@ -920,18 +972,74 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
                     }
                     console.error("Erro de login:", error.code, error.message);
-                } finally {
+                    // Apenas para o loading em caso de erro. Em caso de sucesso, a checkSession cuidará disso.
                     App.ui.setLoading(false);
                 }
             },
-            async loginOffline(userId) {
-                const localProfiles = App.actions.getLocalUserProfiles();
-                const userProfile = localProfiles.find(p => p.uid === userId);
-                if (userProfile) {
-                    App.state.currentUser = userProfile;
-                    App.ui.showAppScreen();
-                    App.mapModule.loadOfflineShapes();
-                    App.data.listenToAllData();
+            async loginOffline(email, password) {
+                if (!email || !password) {
+                    App.ui.showAlert("Por favor, insira e-mail e senha.", "warning");
+                    return;
+                }
+
+                try {
+                    const credentials = await OfflineDB.get('offline-credentials', email.toLowerCase());
+
+                    if (!credentials) {
+                        App.ui.showAlert("Credenciais offline não encontradas para este e-mail. Faça login online primeiro e habilite o acesso offline.", "error");
+                        return;
+                    }
+
+                    const hashedPassword = CryptoJS.PBKDF2(password, credentials.salt, {
+                        keySize: 256 / 32,
+                        iterations: 1000
+                    }).toString();
+
+                    if (hashedPassword === credentials.hashedPassword) {
+                        App.state.currentUser = credentials.userProfile;
+
+                        App.ui.setLoading(true, "A carregar dados offline...");
+                        try {
+                            const companyId = App.state.currentUser.companyId;
+
+                            // Pré-carrega os dados da empresa a partir do cache offline
+                            if (companyId) {
+                                const companyDoc = await App.data.getDocument('companies', companyId);
+                                if (companyDoc) {
+                                     App.state.companies = [companyDoc];
+                                } else {
+                                    console.warn("Documento da empresa não encontrado no cache offline durante o login.");
+                                }
+                            }
+
+                            // Pré-carrega as configurações globais a partir do cache offline
+                            const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                            if (globalConfigsDoc.exists()) {
+                                App.state.globalConfigs = globalConfigsDoc.data();
+                            } else {
+                                console.warn("Configurações globais não encontradas no cache offline durante o login.");
+                            }
+
+                            // Agora, com os dados essenciais pré-carregados, mostra a tela da aplicação
+                            App.ui.showAppScreen();
+                            App.mapModule.loadOfflineShapes();
+                            App.data.listenToAllData(); // Configura os 'listeners' para futuras atualizações quando estiver online
+
+                        } catch (error) {
+                            console.error("Erro ao pré-carregar dados do cache offline:", error);
+                            // Fallback para o comportamento antigo se o pré-carregamento falhar
+                            App.ui.showAppScreen();
+                            App.mapModule.loadOfflineShapes();
+                            App.data.listenToAllData();
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    } else {
+                        App.ui.showAlert("Senha offline incorreta.", "error");
+                    }
+                } catch (error) {
+                    App.ui.showAlert("Ocorreu um erro durante o login offline.", "error");
+                    console.error("Erro no login offline:", error);
                 }
             },
             async logout() {
@@ -952,7 +1060,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
                 localStorage.removeItem('agrovetor_lastActiveTab');
-                App.ui.showLoginScreen();
+                // Em vez de ir diretamente para a tela de login, reavalia a sessão.
+                // Isso mostrará a tela de login offline se o utilizador estiver offline e tiver perfis guardados.
+                this.checkSession();
             },
             initiateUserCreation() {
                 const els = App.elements.users;
@@ -1129,7 +1239,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1185,10 +1295,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (doc.exists()) {
                             // Coloca a empresa do utilizador no estado, para que o menu possa ser renderizado corretamente
                             App.state.companies = [{ id: doc.id, ...doc.data() }];
-                        } else {
-                            // Se a empresa for removida, desloga o utilizador para segurança
+                        } else if (navigator.onLine) {
+                            // Se estiver online e a empresa não for encontrada, desloga o utilizador por segurança.
                             console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
                             App.auth.logout();
+                        } else {
+                            // Se estiver offline e o documento da empresa não estiver no cache, permite que a aplicação continue.
+                            // Os módulos podem não ser renderizados corretamente, mas o acesso não é bloqueado.
+                            console.warn(`Documento da empresa com ID ${companyId} não encontrado no cache offline. O menu pode estar incompleto.`);
                         }
                         App.ui.renderMenu(); // Re-renderiza o menu quando os dados da empresa mudam
                     });
@@ -1281,19 +1395,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.closeAllMenus();
                 App.ui.setLoading(false);
             },
-            showOfflineUserSelection(profiles) {
+            showOfflineUserSelection() { // Removed profiles argument
                 App.elements.loginForm.style.display = 'none';
                 App.elements.offlineUserSelection.style.display = 'block';
-                const { offlineUserList } = App.elements;
-                offlineUserList.innerHTML = '';
-                profiles.forEach(profile => {
-                    const btn = document.createElement('button');
-                    btn.className = 'offline-user-btn';
-                    btn.dataset.uid = profile.uid;
-                    btn.innerHTML = `<i class="fas fa-user-circle"></i> ${profile.username || profile.email}`;
-                    btn.addEventListener('click', () => App.auth.loginOffline(profile.uid));
-                    offlineUserList.appendChild(btn);
-                });
+                // No longer need to populate a select list
+                const offlineEmailInput = document.getElementById('offlineEmail');
+                if(offlineEmailInput) {
+                    offlineEmailInput.value = ''; // Clear previous entries
+                    offlineEmailInput.focus();
+                }
                 App.elements.loginScreen.style.display = 'flex';
                 App.elements.appScreen.style.display = 'none';
                 App.ui.setLoading(false);
@@ -1842,6 +1952,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dashEls.aereaView.style.display = 'none';
                 dashEls.plantioView.style.display = 'none';
                 dashEls.cigarrinhaView.style.display = 'none';
+                dashEls.climaView.style.display = 'none';
 
                 App.charts.destroyAll();
 
@@ -1874,6 +1985,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.loadDashboardDates('cigarrinha');
                         setTimeout(() => App.charts.renderCigarrinhaDashboardCharts(), 150);
                         break;
+                    case 'clima':
+                        dashEls.climaView.style.display = 'block';
+                        this.loadDashboardDates('clima');
+                        setTimeout(() => App.charts.renderClimaDashboardCharts(), 150);
+                        break;
                 }
             },
             setDefaultDatesForEntryForms() {
@@ -1883,18 +1999,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.cigarrinha.data.value = today;
                 App.elements.cigarrinhaAmostragem.data.value = today;
                 App.elements.apontamentoPlantio.date.value = today;
+                if (App.elements.lancamentoClima && App.elements.lancamentoClima.data) App.elements.lancamentoClima.data.value = today;
                 App.elements.broca.data.max = today;
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
                 App.elements.cigarrinhaAmostragem.data.max = today;
                 App.elements.apontamentoPlantio.date.min = today;
+                if (App.elements.lancamentoClima && App.elements.lancamentoClima.data) App.elements.lancamentoClima.data.max = today;
             },
             setDefaultDatesForReportForms() {
                 const today = new Date();
                 const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
                 const todayDate = today.toISOString().split('T')[0];
 
-                const reportSections = ['broca', 'perda', 'cigarrinha', 'cigarrinhaAmostragem', 'relatorioMonitoramento'];
+                const reportSections = ['broca', 'perda', 'cigarrinha', 'cigarrinhaAmostragem', 'relatorioMonitoramento', 'relatorioClima'];
 
                 reportSections.forEach(section => {
                     const els = App.elements[section];
@@ -1922,6 +2040,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (type === 'perda') {
                     App.elements.dashboard.perdaDashboardInicio.value = firstDayOfYear;
                     App.elements.dashboard.perdaDashboardFim.value = todayDate;
+                } else if (type === 'clima') {
+                    document.getElementById('climaDashboardInicio').value = firstDayOfYear;
+                    document.getElementById('climaDashboardFim').value = todayDate;
                 }
                 App.actions.saveDashboardDates(type, firstDayOfYear, todayDate);
             },
@@ -1934,6 +2055,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (type === 'perda') {
                         App.elements.dashboard.perdaDashboardInicio.value = savedDates.start;
                         App.elements.dashboard.perdaDashboardFim.value = savedDates.end;
+                    } else if (type === 'clima') {
+                        document.getElementById('climaDashboardInicio').value = savedDates.start;
+                        document.getElementById('climaDashboardFim').value = savedDates.end;
                     }
                 } else {
                     this.setDefaultDatesForDashboard(type);
@@ -1966,7 +2090,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cigarrinha.filtroFazenda,
                     App.elements.cigarrinhaAmostragem.filtroFazenda,
                     App.elements.relatorioMonitoramento.fazendaFiltro,
-                    App.elements.apontamentoPlantio.farmName
+                    App.elements.apontamentoPlantio.farmName,
+                    App.elements.lancamentoClima.fazenda,
+                    App.elements.relatorioClima.fazenda,
+                    document.getElementById('climaDashboardFazenda')
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
@@ -2925,6 +3052,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.adminPasswordConfirmModal.passwordInput.value = '';
             },
 
+            showEnableOfflineLoginModal() {
+                const modal = document.getElementById('enableOfflineLoginModal');
+                if (modal) {
+                    modal.classList.add('show');
+                    const passwordInput = document.getElementById('enableOfflinePassword');
+                    if (passwordInput) {
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
+                }
+            },
+
+            closeEnableOfflineLoginModal() {
+                const modal = document.getElementById('enableOfflineLoginModal');
+                if (modal) {
+                    modal.classList.remove('show');
+                }
+            },
+
             showImpersonationBanner(companyName) {
                 this.hideImpersonationBanner(); // Limpa qualquer banner anterior
 
@@ -3360,6 +3506,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setupEventListeners() {
                 if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => App.auth.login());
+                const btnOfflineLogin = document.getElementById('btnOfflineLogin');
+                if (btnOfflineLogin) {
+                    btnOfflineLogin.addEventListener('click', () => {
+                        const email = document.getElementById('offlineEmail').value.trim();
+                        const password = document.getElementById('offlinePassword').value;
+                        App.auth.loginOffline(email, password);
+                    });
+                }
+
+                // Event Listeners for enabling offline login
+                const btnEnableOffline = document.getElementById('btnEnableOfflineLogin');
+                if (btnEnableOffline) {
+                    btnEnableOffline.addEventListener('click', () => App.ui.showEnableOfflineLoginModal());
+                }
+
+                const btnConfirmEnableOffline = document.getElementById('btnConfirmEnableOffline');
+                if (btnConfirmEnableOffline) {
+                    btnConfirmEnableOffline.addEventListener('click', () => App.actions.enableOfflineLogin());
+                }
+
+                const offlineModal = document.getElementById('enableOfflineLoginModal');
+                if(offlineModal) {
+                    const closeBtn = offlineModal.querySelector('.modal-close-btn');
+                    const cancelBtn = offlineModal.querySelector('.btn-cancel');
+                    if(closeBtn) closeBtn.addEventListener('click', () => App.ui.closeEnableOfflineLoginModal());
+                    if(cancelBtn) cancelBtn.addEventListener('click', () => App.ui.closeEnableOfflineLoginModal());
+                    offlineModal.addEventListener('click', e => {
+                        if (e.target === offlineModal) App.ui.closeEnableOfflineLoginModal();
+                    });
+                }
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
                     document.body.classList.toggle('mobile-menu-open');
@@ -3434,12 +3610,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dashEls.cardAerea) dashEls.cardAerea.addEventListener('click', () => this.showDashboardView('aerea'));
                 if (dashEls.cardPlantio) dashEls.cardPlantio.addEventListener('click', () => this.showDashboardView('plantio'));
                 if (dashEls.cardCigarrinha) dashEls.cardCigarrinha.addEventListener('click', () => this.showDashboardView('cigarrinha'));
+                if (dashEls.cardClima) dashEls.cardClima.addEventListener('click', () => this.showDashboardView('clima'));
 
                 if (dashEls.btnBackToSelectorBroca) dashEls.btnBackToSelectorBroca.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorPerda) dashEls.btnBackToSelectorPerda.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorAerea) dashEls.btnBackToSelectorAerea.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorPlantio) dashEls.btnBackToSelectorPlantio.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorCigarrinha) dashEls.btnBackToSelectorCigarrinha.addEventListener('click', () => this.showDashboardView('selector'));
+                if (dashEls.btnBackToSelectorClima) dashEls.btnBackToSelectorClima.addEventListener('click', () => this.showDashboardView('selector'));
 
                 const btnSavePlantingGoals = document.getElementById('btnSavePlantingGoals');
                 if (btnSavePlantingGoals) {
@@ -3456,6 +3634,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (document.getElementById('btnFiltrarCigarrinhaDashboard')) {
                     document.getElementById('btnFiltrarCigarrinhaDashboard').addEventListener('click', () => App.charts.renderCigarrinhaDashboardCharts());
+                }
+
+                if (document.getElementById('btnFiltrarClimaDashboard')) {
+                    document.getElementById('btnFiltrarClimaDashboard').addEventListener('click', () => App.charts.renderClimaDashboardCharts());
                 }
                 
                 const chartModal = App.elements.chartModal;
@@ -3919,6 +4101,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     apontamentoEls.farmName.addEventListener('change', () => this.updateAllTalhaoSelects());
                 }
 
+                // Listeners for Apontamento Climatológico
+                const climaEls = App.elements.lancamentoClima;
+                if (climaEls && climaEls.btnSave) {
+                    climaEls.btnSave.addEventListener('click', () => App.actions.saveLancamentoClima());
+                }
+                if (climaEls && climaEls.fazenda) {
+                    climaEls.fazenda.addEventListener('change', (e) => {
+                        const farmId = e.target.value;
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
+                        const talhaoSelect = climaEls.talhao;
+                        talhaoSelect.innerHTML = '<option value="">Selecione...</option>';
+                        if (farm && farm.talhoes) {
+                            farm.talhoes.forEach(talhao => {
+                                talhaoSelect.innerHTML += `<option value="${talhao.name}">${talhao.name}</option>`;
+                            });
+                        }
+                    });
+                }
+
+
                 this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
@@ -3927,6 +4129,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#frenteDePlantio');
                 this.enableEnterKeyNavigation('#apontamentoPlantio');
                 this.enableEnterKeyNavigation('#relatorioPlantio');
+                this.enableEnterKeyNavigation('#lancamentoClima');
 
                 const relatorioPlantioEls = App.elements.relatorioPlantio;
                 if (relatorioPlantioEls.btnPDF) relatorioPlantioEls.btnPDF.addEventListener('click', () => {
@@ -3945,6 +4148,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.reports.generatePlantioTalhaoExcel();
                     }
                 });
+
+                const relatorioClimaEls = App.elements.relatorioClima;
+                if (relatorioClimaEls && relatorioClimaEls.btnPDF) {
+                    relatorioClimaEls.btnPDF.addEventListener('click', () => App.reports.generateClimaPDF());
+                }
+                if (relatorioClimaEls && relatorioClimaEls.btnExcel) {
+                    relatorioClimaEls.btnExcel.addEventListener('click', () => App.reports.generateClimaCSV());
+                }
 
                 this.enableEnterKeyNavigation('#changePasswordModal');
                 this.enableEnterKeyNavigation('#cadastros');
@@ -4683,6 +4894,83 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
+
+            async saveLancamentoClima() {
+                const els = App.elements.lancamentoClima;
+                const requiredFields = ['climaData', 'climaFazenda', 'climaTalhao', 'climaTempMax', 'climaTempMin', 'climaUmidade', 'climaPluviosidade', 'climaVento'];
+
+                if (!App.ui.validateFields(requiredFields)) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
+                if (!farm) {
+                    App.ui.showAlert("Fazenda não encontrada.", "error");
+                    return;
+                }
+
+                const newEntry = {
+                    data: els.data.value,
+                    fazendaId: farm.id,
+                    fazendaNome: farm.name,
+                    talhaoNome: els.talhao.value,
+                    tempMax: parseFloat(els.tempMax.value),
+                    tempMin: parseFloat(els.tempMin.value),
+                    umidade: parseFloat(els.umidade.value),
+                    pluviosidade: parseFloat(els.pluviosidade.value),
+                    vento: parseFloat(els.vento.value),
+                    obs: els.obs.value,
+                    usuario: App.state.currentUser.username,
+                    companyId: App.state.currentUser.companyId
+                };
+
+                const entryId = els.entryId.value;
+                const confirmationMessage = entryId ? "Tem a certeza que deseja atualizar este apontamento climatológico?" : "Tem a certeza que deseja guardar este apontamento climatológico?";
+
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A guardar...");
+                    try {
+                        if (navigator.onLine) {
+                            if (entryId) {
+                                await App.data.updateDocument('clima', entryId, newEntry);
+                                App.ui.showAlert("Apontamento atualizado com sucesso!");
+                            } else {
+                                await App.data.addDocument('clima', newEntry);
+                                App.ui.showAlert("Apontamento guardado com sucesso!");
+                            }
+                        } else {
+                            if (entryId) {
+                                App.ui.showAlert("A edição não está disponível offline.", "warning");
+                                return;
+                            }
+                            const offlineId = `offline_clima_${Date.now()}`;
+                            await OfflineDB.add('offline-writes', { id: offlineId, collection: 'clima', data: newEntry });
+                            App.ui.showAlert('Guardado offline. Será sincronizado quando houver conexão.', 'info');
+                        }
+                        App.ui.clearForm(els.form);
+                        els.entryId.value = '';
+                        App.ui.setDefaultDatesForEntryForms();
+                    } catch (error) {
+                        App.ui.showAlert(`Erro ao guardar: ${error.message}.`, "error");
+                        if (!entryId) {
+                            try {
+                                const offlineId = `offline_clima_${Date.now()}`;
+                                await OfflineDB.add('offline-writes', { id: offlineId, collection: 'clima', data: newEntry });
+                                App.ui.showAlert('Falha ao conectar. Apontamento guardado offline.', 'warning');
+                                App.ui.clearForm(els.form);
+                                els.entryId.value = '';
+                                App.ui.setDefaultDatesForEntryForms();
+                            } catch (offlineError) {
+                                App.ui.showAlert("Falha crítica ao guardar offline.", "error");
+                            }
+                        }
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
 
             async savePersonnel() {
                 const { id, matricula, name } = App.elements.personnel;
@@ -6351,6 +6639,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     await auth.currentUser.getIdToken(true);
                     console.log("Token de autenticação atualizado com sucesso.");
 
+                    // FIX: Pré-carrega os dados críticos antes de reanexar os listeners para evitar a condição de corrida do menu
+                    const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                    if (globalConfigsDoc.exists()) {
+                        App.state.globalConfigs = globalConfigsDoc.data();
+                    }
+
+                    if (App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
+                        const companyDoc = await App.data.getDocument('companies', App.state.currentUser.companyId);
+                        if (companyDoc) {
+                            App.state.companies = [companyDoc];
+                        }
+                    }
+
+                    // Agora é seguro re-renderizar o menu
+                    App.ui.renderMenu();
+
                     // Reinicia os 'ouvintes' de dados para usar o novo token
                     App.data.listenToAllData();
 
@@ -6594,7 +6898,24 @@ document.addEventListener('DOMContentLoaded', () => {
             async startGpsTracking() {
                 if (App.state.isTracking) return;
 
-                // Verifica se está a correr como uma aplicação nativa Capacitor
+                const savePosition = async (position) => {
+                    if (position && App.state.currentUser) {
+                        const { latitude, longitude } = position.coords;
+                        const locationData = {
+                            userId: App.state.currentUser.uid,
+                            latitude,
+                            longitude,
+                            companyId: App.state.currentUser.companyId,
+                            timestamp: new Date(position.timestamp).toISOString()
+                        };
+                        try {
+                            await OfflineDB.add('gps-locations', locationData);
+                        } catch (dbError) {
+                            console.error("Falha ao guardar localização GPS no IndexedDB:", dbError);
+                        }
+                    }
+                };
+
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     try {
                         const { Geolocation } = Capacitor.Plugins;
@@ -6610,35 +6931,28 @@ document.addEventListener('DOMContentLoaded', () => {
                                 console.warn("Erro no rastreamento de localização do Capacitor:", err.message);
                                 return;
                             }
-                            if (position) {
-                                const { latitude, longitude } = position.coords;
-                                App.state.lastKnownPosition = { latitude, longitude };
-                            }
+                            savePosition(position);
                         });
-                        App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
-                        console.log("Rastreamento de localização em segundo plano (Capacitor) iniciado.");
+                        console.log("Rastreamento de localização (Capacitor) iniciado.");
                     } catch (e) {
                         console.error("Falha ao iniciar o rastreamento de localização do Capacitor:", e);
                     }
                 } else if ('geolocation' in navigator) {
-                    // Fallback para a API de geolocalização da Web (PWA no navegador)
                     navigator.geolocation.getCurrentPosition(
-                        () => { // Callback de sucesso para verificar a permissão
+                        () => {
                             App.state.isTracking = true;
                             App.state.locationWatchId = navigator.geolocation.watchPosition(
                                 (position) => {
-                                    const { latitude, longitude } = position.coords;
-                                    App.state.lastKnownPosition = { latitude, longitude };
+                                    savePosition(position);
                                 },
                                 (err) => {
                                     console.warn("Erro no rastreamento de localização (Web):", err.message);
                                 },
                                 { enableHighAccuracy: true }
                             );
-                            App.state.locationUpdateIntervalId = setInterval(this.sendLocationUpdate, 60000);
                             console.log("Rastreamento de localização (Web) iniciado.");
                         },
-                        (error) => { // Callback de erro para verificar a permissão
+                        (error) => {
                             if (error.code === error.PERMISSION_DENIED) {
                                 console.warn("Permissão de localização (Web) não concedida.");
                                 App.ui.showAlert("Para rastreamento de localização, por favor, ative os serviços de localização no seu navegador.", "info");
@@ -6649,39 +6963,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
                 } else {
                     console.error("Geolocalização não é suportada neste navegador.");
-                }
-            },
-
-            async sendLocationUpdate() {
-                if (App.state.lastKnownPosition && App.state.currentUser) {
-                    const { latitude, longitude } = App.state.lastKnownPosition;
-                    const { uid } = App.state.currentUser;
-                    const locationData = {
-                        userId: uid,
-                        latitude,
-                        longitude,
-                        companyId: App.state.currentUser.companyId,
-                        timestamp: new Date().toISOString()
-                    };
-
-                    if (navigator.onLine) {
-                        try {
-                            const response = await fetch(`${App.config.backendUrl}/api/track`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(locationData),
-                            });
-                            if (!response.ok) {
-                                console.error("Falha ao enviar localização. Guardando offline.");
-                                await OfflineDB.add('gps-locations', locationData);
-                            }
-                        } catch (error) {
-                            console.error('Falha ao enviar atualização de localização, guardando offline:', error);
-                            await OfflineDB.add('gps-locations', locationData);
-                        }
-                    } else {
-                        await OfflineDB.add('gps-locations', locationData);
-                    }
                 }
             },
 
@@ -7198,6 +7479,71 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Error saving planting goals:", error);
                 }
             },
+
+            async enableOfflineLogin() {
+                const passwordInput = document.getElementById('enableOfflinePassword');
+                const password = passwordInput.value;
+                const currentUser = App.state.currentUser;
+
+                if (!password) {
+                    App.ui.showAlert("Por favor, insira a sua senha atual para confirmar.", "error");
+                    return;
+                }
+
+                if (!navigator.onLine) {
+                    App.ui.showAlert("É preciso estar online para habilitar o login offline pela primeira vez.", "warning");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A verificar senha e a guardar credenciais...");
+
+                try {
+                    // 1. Re-autenticar para verificar a senha
+                    const user = auth.currentUser;
+                    const credential = EmailAuthProvider.credential(user.email, password);
+                    await reauthenticateWithCredential(user, credential);
+
+                    // 2. Gerar "salt" e "hash" da senha
+                    const salt = CryptoJS.lib.WordArray.random(128 / 8).toString();
+                    const hashedPassword = CryptoJS.PBKDF2(password, salt, {
+                        keySize: 256 / 32,
+                        iterations: 1000
+                    }).toString();
+
+                    // 3. Preparar os dados para guardar
+                    const userProfileToSave = {
+                        uid: currentUser.uid,
+                        email: currentUser.email,
+                        username: currentUser.username,
+                        role: currentUser.role,
+                        permissions: currentUser.permissions,
+                        companyId: currentUser.companyId,
+                    };
+                    const credentialsToStore = {
+                        email: currentUser.email.toLowerCase(),
+                        hashedPassword: hashedPassword,
+                        salt: salt,
+                        userProfile: userProfileToSave
+                    };
+
+                    // 4. Guardar no IndexedDB
+                    await OfflineDB.set('offline-credentials', credentialsToStore);
+
+                    App.ui.showAlert("Login offline habilitado/atualizado com sucesso!", "success");
+                    App.ui.closeEnableOfflineLoginModal();
+
+                } catch (error) {
+                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
+                        App.ui.showAlert("A senha está incorreta.", "error");
+                    } else {
+                        App.ui.showAlert("Ocorreu um erro ao habilitar o login offline.", "error");
+                        console.error("Erro ao habilitar login offline:", error);
+                    }
+                } finally {
+                    App.ui.setLoading(false);
+                    passwordInput.value = '';
+                }
+            },
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
@@ -7506,7 +7852,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
                     const buffer = await response.arrayBuffer();
 
-                    await OfflineDB.set('shapefile-cache', 'shapefile-zip', buffer);
+                    await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
 
                     console.log("Processando e desenhando os talhões no mapa...");
                     const geojson = await shp(buffer);
@@ -9900,6 +10246,251 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
+            },
+
+            async renderClimaDashboardCharts() {
+                const startDateEl = document.getElementById('climaDashboardInicio');
+                const endDateEl = document.getElementById('climaDashboardFim');
+                const fazendaEl = document.getElementById('climaDashboardFazenda');
+
+                App.actions.saveDashboardDates('clima', startDateEl.value, endDateEl.value);
+
+                const consolidatedData = await App.actions.getConsolidatedData('clima');
+                let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
+
+                const selectedFazenda = fazendaEl.value;
+                if (selectedFazenda) {
+                    data = data.filter(item => item.fazendaId === selectedFazenda);
+                }
+
+                // KPIs
+                const avgTempMax = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMax, 0) / data.length : 0;
+                const avgTempMin = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMin, 0) / data.length : 0;
+                const totalPluviosidade = data.reduce((sum, item) => sum + item.pluviosidade, 0);
+                const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
+                const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
+
+                document.getElementById('kpi-clima-temp-max').textContent = `${avgTempMax.toFixed(1)}°C`;
+                document.getElementById('kpi-clima-temp-min').textContent = `${avgTempMin.toFixed(1)}°C`;
+                document.getElementById('kpi-clima-pluviosidade').textContent = `${totalPluviosidade.toFixed(1)} mm`;
+                document.getElementById('kpi-clima-umidade').textContent = `${avgUmidade.toFixed(1)}%`;
+                document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
+
+                // Render Charts
+                this.renderVariacaoTemperaturaChart(data);
+                this.renderAcumuloPluviosidadeChart(data);
+                this.renderVelocidadeVentoChart(data);
+                this.renderIndiceClimatologicoChart(data);
+            },
+
+            renderVariacaoTemperaturaChart(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    acc[item.data] = acc[item.data] || { tempsMax: [], tempsMin: [] };
+                    acc[item.data].tempsMax.push(item.tempMax);
+                    acc[item.data].tempsMin.push(item.tempMin);
+                    return acc;
+                }, {});
+
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const avgMaxTemps = sortedDays.map(date => dataByDay[date].tempsMax.reduce((a, b) => a + b, 0) / dataByDay[date].tempsMax.length);
+                const avgMinTemps = sortedDays.map(date => dataByDay[date].tempsMin.reduce((a, b) => a + b, 0) / dataByDay[date].tempsMin.length);
+
+                const commonOptions = this._getCommonChartOptions();
+                this._createOrUpdateChart('graficoVariacaoTemperatura', {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Temp. Máxima (°C)',
+                            data: avgMaxTemps,
+                            borderColor: '#D32F2F',
+                            backgroundColor: 'rgba(211, 47, 47, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Temp. Mínima (°C)',
+                            data: avgMinTemps,
+                            borderColor: '#1976D2',
+                            backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            datalabels: {
+                                align: 'end',
+                                anchor: 'end',
+                                backgroundColor: (context) => context.dataset.backgroundColor || 'rgba(0, 0, 0, 0.8)',
+                                borderRadius: 4,
+                                color: 'white',
+                                font: {
+                                    weight: 'bold'
+                                },
+                                formatter: (value) => `${value.toFixed(1)}°C`,
+                                padding: 6
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderAcumuloPluviosidadeChart(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    acc[item.data] = (acc[item.data] || 0) + item.pluviosidade;
+                    return acc;
+                }, {});
+
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const chartData = sortedDays.map(date => dataByDay[date]);
+
+                const commonOptions = this._getCommonChartOptions();
+                this._createOrUpdateChart('graficoAcumuloPluviosidade', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Pluviosidade (mm)',
+                            data: chartData,
+                            backgroundColor: '#1976D2',
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                align: 'end',
+                                anchor: 'end',
+                                backgroundColor: 'rgba(25, 118, 210, 0.8)',
+                                borderRadius: 4,
+                                color: 'white',
+                                font: {
+                                    weight: 'bold'
+                                },
+                                formatter: (value) => value > 0 ? `${value.toFixed(1)} mm` : '',
+                                padding: 6
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderVelocidadeVentoChart(data) {
+                const dataByFazenda = data.reduce((acc, item) => {
+                    const fazenda = item.fazendaNome || 'N/A';
+                    if (!acc[fazenda]) acc[fazenda] = [];
+                    acc[fazenda].push(item.vento);
+                    return acc;
+                }, {});
+
+                const avgByFazenda = Object.entries(dataByFazenda).map(([name, values]) => ({
+                    name,
+                    avg: values.reduce((a, b) => a + b, 0) / values.length
+                })).sort((a, b) => a.avg - b.avg);
+
+
+                const labels = avgByFazenda.map(item => item.name);
+                const chartData = avgByFazenda.map(item => item.avg);
+
+                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y', hasLongLabels: true });
+                this._createOrUpdateChart('graficoMediaVentoFazenda', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Velocidade Média do Vento (km/h)',
+                            data: chartData,
+                            backgroundColor: '#388E3C',
+                        }]
+                    },
+                    options: {
+                        ...commonOptions, plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                align: 'end',
+                                anchor: 'end',
+                                backgroundColor: 'rgba(56, 142, 60, 0.8)',
+                                borderRadius: 4,
+                                color: 'white',
+                                font: {
+                                    weight: 'bold'
+                                },
+                                formatter: (value) => `${value.toFixed(1)} km/h`,
+                                padding: 6
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderIndiceClimatologicoChart(data) {
+                const avgTemp = data.length > 0 ? data.reduce((sum, item) => sum + (item.tempMax + item.tempMin) / 2, 0) / data.length : 0;
+                const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
+                const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
+
+                // Normalize data for radar chart (0-100 scale)
+                const normalizedTemp = (avgTemp / 50) * 100; // Assuming max temp is 50
+                const normalizedUmidade = avgUmidade;
+                const normalizedVento = (avgVento / 60) * 100; // Assuming max wind is 60km/h
+
+                const commonOptions = this._getCommonChartOptions();
+
+                this._createOrUpdateChart('graficoIndiceClimatologico', {
+                    type: 'radar',
+                    data: {
+                        labels: ['Temperatura', 'Umidade', 'Vento'],
+                        datasets: [{
+                            label: 'Índice Climatológico (Normalizado)',
+                            data: [normalizedTemp, normalizedUmidade, normalizedVento],
+                            fill: true,
+                            backgroundColor: 'rgba(245, 124, 0, 0.2)',
+                            borderColor: '#F57C00',
+                            pointBackgroundColor: '#F57C00',
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+                                max: 100,
+                                grid: { color: commonOptions.scales.y.grid.color },
+                                angleLines: { color: commonOptions.scales.y.grid.color },
+                                pointLabels: { color: commonOptions.scales.y.ticks.color, font: { size: 14 } },
+                                ticks: {
+                                    display: false,
+                                    stepSize: 20
+                                }
+                            }
+                        },
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                backgroundColor: 'rgba(245, 124, 0, 0.8)',
+                                borderRadius: 4,
+                                color: 'white',
+                                font: {
+                                    weight: 'bold'
+                                },
+                                formatter: (value, context) => {
+                                    if (context.dataIndex === 0) return `${avgTemp.toFixed(1)}°C`;
+                                    if (context.dataIndex === 1) return `${avgUmidade.toFixed(1)}%`;
+                                    if (context.dataIndex === 2) return `${avgVento.toFixed(1)} km/h`;
+                                    return '';
+                                },
+                                padding: 6
+                            }
+                        }
+                    }
+                });
             }
 
         },
@@ -10235,6 +10826,67 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');
             },
 
+            async generateClimaPDF() {
+                const { inicio, fim, fazenda } = App.elements.relatorioClima;
+                if (!inicio.value || !fim.value) {
+                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    return;
+                }
+                const farm = App.state.fazendas.find(f => f.id === fazenda.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaId: farm ? farm.id : '',
+                };
+
+                App.ui.setLoading(true, "A preparar gráficos para o relatório...");
+
+                try {
+                    // 1. Get chart instances from the dashboard
+                    const chartIds = [
+                        'graficoVariacaoTemperatura',
+                        'graficoAcumuloPluviosidade',
+                        'graficoMediaVentoFazenda',
+                        'graficoIndiceClimatologico'
+                    ];
+
+                    const chartImages = [];
+                    for (const id of chartIds) {
+                        const chartInstance = App.state.charts[id];
+                        if (chartInstance) {
+                            chartImages.push(chartInstance.toBase64Image());
+                        } else {
+                            console.warn(`Chart with id "${id}" not found. It will be skipped in the PDF.`);
+                        }
+                    }
+
+                    filters.charts = JSON.stringify(chartImages);
+
+                    // 2. Call the report generation
+                    this._fetchAndDownloadReport('clima/pdf', filters, 'relatorio_clima.pdf');
+
+                } catch (error) {
+                    console.error("Erro ao capturar imagens dos gráficos:", error);
+                    App.ui.showAlert("Não foi possível adicionar os gráficos ao relatório. Gerando relatório apenas com dados.", "error");
+                    // Still generate the report without charts if there was an error
+                    this._fetchAndDownloadReport('clima/pdf', filters, 'relatorio_clima.pdf');
+                } finally {
+                    // The loading indicator is handled by _fetchAndDownloadReport
+                }
+            },
+
+            generateClimaCSV() {
+                const { inicio, fim, fazenda } = App.elements.relatorioClima;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const farm = App.state.fazendas.find(f => f.id === fazenda.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    fazendaId: farm ? farm.id : '',
+                };
+                this._fetchAndDownloadReport('clima/csv', filters, 'relatorio_clima.csv');
+            },
+
             generateMonitoramentoCSV() { // Now generates Trap Report
                 const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
@@ -10286,7 +10938,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('online', () => {
         console.log("Browser reports 'online'. Starting active connection checks.");
-        App.ui.showAlert("Conexão de rede detetada. A verificar acesso à internet...", "info");
+        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
         // Clear any previous interval just in case
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);

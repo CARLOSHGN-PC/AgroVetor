@@ -8,3 +8,6 @@ android/app/google-services.json
 android/app/build/
 android/build/
 android/.gradle/
+
+# Ignorar caches do Python
+__pycache__/
