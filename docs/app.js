@@ -210,8 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
             lastKnownPosition: null,
             riskViewActive: false,
             isTracking: false,
-            gpsBuffer: [], // Buffer for GPS locations
-            lastGpsFlush: 0, // Timestamp of the last DB flush
             plantio: [], // Placeholder for Plantio data
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
@@ -6897,43 +6895,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem(`draft_${formType}`);
             },
 
-            async flushGpsBuffer() {
-                if (App.state.gpsBuffer.length === 0) return;
-
-                const bufferCopy = [...App.state.gpsBuffer];
-                App.state.gpsBuffer = []; // Limpa o buffer imediatamente
-
-                try {
-                    const db = await OfflineDB.dbPromise;
-                    const tx = db.transaction('gps-locations', 'readwrite');
-                    // Agrupa todas as operações de escrita em um Promise.all
-                    await Promise.all(bufferCopy.map(loc => tx.store.add(loc)));
-                    await tx.done;
-                    console.log(`[GPS Throttling] Descarregou ${bufferCopy.length} pontos de GPS para o IndexedDB.`);
-                } catch (dbError) {
-                    console.error("Falha ao descarregar o buffer de GPS para o IndexedDB:", dbError);
-                    // Se falhar, coloca os dados de volta no buffer para tentar novamente mais tarde
-                    App.state.gpsBuffer.unshift(...bufferCopy);
-                }
-            },
-
             async startGpsTracking() {
                 if (App.state.isTracking) return;
 
-                // Configura o intervalo de descarga periódica
-                if (App.state.locationUpdateIntervalId) clearInterval(App.state.locationUpdateIntervalId);
-                App.state.locationUpdateIntervalId = setInterval(() => this.flushGpsBuffer(), 10000); // Descarrega a cada 10 segundos
-
-                const processPosition = (position) => {
+                const savePosition = async (position) => {
                     if (position && App.state.currentUser) {
                         const { latitude, longitude } = position.coords;
-                        App.state.gpsBuffer.push({
+                        const locationData = {
                             userId: App.state.currentUser.uid,
                             latitude,
                             longitude,
                             companyId: App.state.currentUser.companyId,
                             timestamp: new Date(position.timestamp).toISOString()
-                        });
+                        };
+                        try {
+                            await OfflineDB.add('gps-locations', locationData);
+                        } catch (dbError) {
+                            console.error("Falha ao guardar localização GPS no IndexedDB:", dbError);
+                        }
                     }
                 };
 
@@ -6952,9 +6931,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 console.warn("Erro no rastreamento de localização do Capacitor:", err.message);
                                 return;
                             }
-                            processPosition(position);
+                            savePosition(position);
                         });
-                        console.log("Rastreamento de localização (Capacitor) iniciado com throttling.");
+                        console.log("Rastreamento de localização (Capacitor) iniciado.");
                     } catch (e) {
                         console.error("Falha ao iniciar o rastreamento de localização do Capacitor:", e);
                     }
@@ -6963,13 +6942,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         () => {
                             App.state.isTracking = true;
                             App.state.locationWatchId = navigator.geolocation.watchPosition(
-                                processPosition,
+                                (position) => {
+                                    savePosition(position);
+                                },
                                 (err) => {
                                     console.warn("Erro no rastreamento de localização (Web):", err.message);
                                 },
-                                { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+                                { enableHighAccuracy: true }
                             );
-                            console.log("Rastreamento de localização (Web) iniciado com throttling.");
+                            console.log("Rastreamento de localização (Web) iniciado.");
                         },
                         (error) => {
                             if (error.code === error.PERMISSION_DENIED) {
