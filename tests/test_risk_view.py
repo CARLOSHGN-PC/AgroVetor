@@ -17,61 +17,6 @@ def test_risk_view_highlights_correct_farm(browser_context):
 
         # Mock application state
         page.evaluate("""
-                window.App = window.App || {};
-                window.App.state = window.App.state || {};
-                window.App.ui = window.App.ui || {
-                    showAppScreen: () => {},
-                    showTab: (id) => {
-                        // Mock the behavior of making the tab visible
-                        const tab = document.getElementById(id);
-                        if (tab) {
-                            tab.hidden = false;
-                            tab.classList.add('active');
-                        }
-                         // Also make the map container visible, as it's a separate element
-                        const mapContainer = document.getElementById('monitoramentoAereo-container');
-                        if (mapContainer) {
-                            mapContainer.hidden = false;
-                            mapContainer.classList.add('active');
-                        }
-                    },
-                    showAlert: () => {},
-                    _getThemeColors: () => ({ primary: '#000' })
-                };
-                // Self-contained mock, no external dependencies
-                const mockRiskView = () => {
-                    const farmsInRisk = new Set();
-                    const farmRiskPercentages = {};
-                    const allFarms = window.App.state.fazendas;
-                    const collectedTraps = window.App.state.armadilhas.filter(t => t.status === 'Coletada');
-
-                    allFarms.forEach(farm => {
-                        const collectedTrapsOnFarm = collectedTraps.filter(t => String(t.fazendaCode) === String(farm.code));
-                        if (collectedTrapsOnFarm.length > 0) {
-                            const highCountTraps = collectedTrapsOnFarm.filter(t => t.contagemMariposas >= 6);
-                            const riskPercentage = (highCountTraps.length / collectedTrapsOnFarm.length) * 100;
-                            farmRiskPercentages[farm.code] = riskPercentage;
-                            if (riskPercentage > 30) {
-                                farmsInRisk.add(String(farm.code));
-                            }
-                        }
-                    });
-
-                    const features = window.App.state.geoJsonData.features;
-                    features.forEach(f => {
-                         const farmCode = f.properties.FUNDO_AGR;
-                         if (farmsInRisk.has(String(farmCode))) {
-                            window.App.state.mapboxMap.setFeatureState({ source: 'talhoes-source', id: f.id }, { risk: true });
-                         }
-                    });
-                };
-
-                window.App.mapModule = {
-                    toggleRiskView: mockRiskView, // The button click will now trigger this mock
-                    calculateAndApplyRiskView: mockRiskView // Keep for direct calls if any
-                };
-
-
             window.App.state.currentUser = {
                 uid: 'test-user',
                 companyId: 'test-company',
@@ -83,8 +28,8 @@ def test_risk_view_highlights_correct_farm(browser_context):
             window.App.state.companies = [{id: 'test-company', subscribedModules: ['monitoramentoAereo'] }];
             window.App.state.globalConfigs = { monitoramentoAereo: true };
             window.App.state.fazendas = [
-                    { id: '1', code: '123', name: 'Fazenda Risco Alto', companyId: 'test-company', talhoes: [] },
-                    { id: '2', code: '456', name: 'Fazenda Risco Baixo', companyId: 'test-company', talhoes: [] }
+                { id: '1', code: '123', name: 'Fazenda Risco Alto', companyId: 'test-company', talhoes: [] },
+                { id: '2', code: '456', name: 'Fazenda Risco Baixo', companyId: 'test-company', talhoes: [] }
             ];
             window.App.state.armadilhas = [
                 // 4 traps for Fazenda 123, 3 with high count -> 75% risk
@@ -145,15 +90,8 @@ def test_risk_view_highlights_correct_farm(browser_context):
             };
         """)
 
-        # Run the risk view calculation
-        page.evaluate("""
-            window.App.state.riskViewActive = true;
-            if (window.App.mapModule.calculateAndApplyRiskView) {
-                window.App.mapModule.calculateAndApplyRiskView();
-            } else {
-                console.error('window.App.mapModule.calculateAndApplyRiskView is not a function');
-            }
-        """)
+        # Trigger the risk view toggle
+        page.click("#btnToggleRiskView")
 
         # Check the result from the mock map object
         feature_state = page.evaluate("() => window.App.state.mapboxMap.featureStates")
