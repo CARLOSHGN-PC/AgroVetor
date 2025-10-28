@@ -9,7 +9,6 @@ def browser_context():
         yield context
         browser.close()
 
-@pytest.mark.skip(reason="Test is flaky and unrelated to the current fix.")
 def test_risk_view_highlights_correct_farm(browser_context):
     page = browser_context.new_page()
     try:
@@ -55,9 +54,6 @@ def test_risk_view_highlights_correct_farm(browser_context):
             // Show the app screen and map
             window.App.ui.showAppScreen();
             window.App.ui.showTab('monitoramentoAereo');
-
-            // Manually trigger the shapefile loading since we are mocking the map object
-            window.App.mapModule.loadShapesOnMap();
 
             // Replace the real map object after it has been initialized
             window.App.state.mapboxMap = {
