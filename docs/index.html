@@ -1627,7 +1627,7 @@
                 </div>
                 <div class="input-field">
                     <input id="offlinePassword" type="password" placeholder=" " />
-                    <label for="offlinePassword">Senha</label>
+                    <label for="offlinePassword">Senha (não validada offline)</label>
                 </div>
                 <button id="btnOfflineLogin" class="save" style="width: 100%; margin-top: 24px; background: var(--color-info);"><i class="fas fa-sign-in-alt"></i> Entrar Offline</button>
             </div>
@@ -2882,12 +2882,6 @@
                     </div>
                 </div>
 
-                <div class="card" style="border-left-color: var(--color-warning); margin-top: 30px;">
-                    <h3><i class="fas fa-key"></i> Acesso Offline</h3>
-                    <p>Habilite o acesso offline para poder entrar na aplicação e registar dados mesmo sem internet. Terá de re-autenticar online para atualizar a sua password offline.</p>
-                    <button id="btnEnableOfflineLogin" class="save" style="max-width: 300px; background: var(--color-warning);"><i class="fas fa-wifi"></i> Habilitar/Atualizar Login Offline</button>
-                </div>
-
                 <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid var(--color-border); text-align: right;">
                     <button id="btnSaveCompanySettings" class="save" style="max-width: 300px;"><i class="fas fa-save"></i> Guardar Todas as Configurações</button>
                 </div>
@@ -3384,26 +3378,6 @@
                 </div>
             </div>
         </div>
-
-        <div id="enableOfflineLoginModal" class="modal-overlay">
-            <div class="modal-content" style="max-width: 450px;">
-                <div class="modal-header">
-                    <h3>Habilitar Acesso Offline</h3>
-                    <button id="enableOfflineLoginModalCloseBtn" class="modal-close-btn">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <p>Para habilitar ou atualizar o seu acesso offline, por favor, confirme a sua senha atual. As suas credenciais serão guardadas de forma segura neste dispositivo.</p>
-                    <div class="form-col">
-                        <label for="enableOfflinePassword">Senha Atual:</label>
-                        <input type="password" id="enableOfflinePassword" placeholder="Digite a sua senha">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button id="enableOfflineLoginModalCancelBtn" class="btn-cancel">Cancelar</button>
-                    <button id="btnConfirmEnableOffline" class="btn-save">Confirmar e Habilitar</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Bibliotecas Externas -->
@@ -3419,9 +3393,6 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
     <!-- Turf.js for spatial analysis -->
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
-
-    <!-- Crypto-JS for hashing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
