@@ -852,10 +852,10 @@ try {
         let query = db.collection('clima').where('companyId', '==', filters.companyId);
 
         if (filters.inicio) {
-            query = query.where('data', '>=', filters.inicio);
+            query = query.where('date', '>=', filters.inicio);
         }
         if (filters.fim) {
-            query = query.where('data', '<=', filters.fim);
+            query = query.where('date', '<=', filters.fim);
         }
 
         const snapshot = await query.get();
@@ -868,7 +868,7 @@ try {
             data = data.filter(d => d.fazendaId === filters.fazendaId);
         }
 
-        return data.sort((a, b) => new Date(a.data) - new Date(b.data));
+        return data.sort((a, b) => new Date(a.date) - new Date(b.date));
     };
 
     app.get('/reports/clima/pdf', async (req, res) => {
@@ -907,23 +907,23 @@ try {
             for (const item of data) {
                 currentY = await checkPageBreak(doc, currentY, title);
                 const row = [
-                    item.data,
+                    item.date,
                     item.fazendaNome,
                     item.talhaoNome,
-                    formatNumber(item.tempMax),
-                    formatNumber(item.tempMin),
-                    formatNumber(item.umidade),
+                    formatNumber(item.temperaturaMaxima),
+                    formatNumber(item.temperaturaMinima),
+                    formatNumber(item.umidadeRelativa),
                     formatNumber(item.pluviosidade),
-                    formatNumber(item.vento),
-                    item.obs || ''
+                    formatNumber(item.velocidadeVento),
+                    item.observacoes || ''
                 ];
                 currentY = drawRow(doc, row, currentY, false, false, columnWidths);
 
                 totalPluviosidade += item.pluviosidade || 0;
-                totalTempMax += item.tempMax || 0;
-                totalTempMin += item.tempMin || 0;
-                totalUmidade += item.umidade || 0;
-                totalVento += item.vento || 0;
+                totalTempMax += item.temperaturaMaxima || 0;
+                totalTempMin += item.temperaturaMinima || 0;
+                totalUmidade += item.umidadeRelativa || 0;
+                totalVento += item.velocidadeVento || 0;
                 count++;
             }
 
@@ -1011,15 +1011,15 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'data', title: 'Data' },
+                    { id: 'date', title: 'Data' },
                     { id: 'fazendaNome', title: 'Fazenda' },
                     { id: 'talhaoNome', title: 'Talhão' },
-                    { id: 'tempMax', title: 'Temperatura Máxima (°C)' },
-                    { id: 'tempMin', title: 'Temperatura Mínima (°C)' },
-                    { id: 'umidade', title: 'Umidade Relativa (%)' },
+                    { id: 'temperaturaMaxima', title: 'Temperatura Máxima (°C)' },
+                    { id: 'temperaturaMinima', title: 'Temperatura Mínima (°C)' },
+                    { id: 'umidadeRelativa', title: 'Umidade Relativa (%)' },
                     { id: 'pluviosidade', title: 'Pluviosidade (mm)' },
-                    { id: 'vento', title: 'Velocidade do Vento (km/h)' },
-                    { id: 'obs', title: 'Observações' }
+                    { id: 'velocidadeVento', title: 'Velocidade do Vento (km/h)' },
+                    { id: 'observacoes', title: 'Observações' }
                 ]
             });
 
