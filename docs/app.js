@@ -3,8 +3,24 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebas
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
-// Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
-import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
+import { debounce } from './js/utils/debounce.js';
+import { timeSince, formatDateForInput, formatDateForDisplay } from './js/utils/date.js';
+import { registerServiceWorker } from './js/utils/pwa.js';
+import { OfflineDB } from './js/utils/offlineDB.js';
+import { ui, initUI } from './js/ui.js';
+import {
+    initAuth,
+    checkSession,
+    login,
+    loginOffline,
+    logout,
+    initiateUserCreation,
+    executeAdminAction,
+    deleteUser,
+    toggleUserStatus,
+    resetUserPassword,
+    saveUserChanges
+} from './js/auth.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -46,50 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     Chart.register(ChartDataLabels);
     Chart.defaults.font.family = "'Poppins', sans-serif";
-
-    // Módulo para gerenciar o banco de dados local (IndexedDB)
-    const OfflineDB = {
-        dbPromise: null,
-        async init() {
-            if (this.dbPromise) return;
-            // Version 5 for the new gps-locations store
-            this.dbPromise = openDB('agrovetor-offline-storage', 5, {
-                upgrade(db, oldVersion) {
-                    if (oldVersion < 1) {
-                        db.createObjectStore('shapefile-cache');
-                    }
-                    if (oldVersion < 2) {
-                        db.createObjectStore('offline-writes', { autoIncrement: true });
-                    }
-                    if (oldVersion < 3) {
-                        db.createObjectStore('sync-history', { keyPath: 'timestamp' });
-                    }
-                    if (oldVersion < 4) {
-                        db.createObjectStore('notifications', { autoIncrement: true });
-                    }
-                    if (oldVersion < 5) {
-                        db.createObjectStore('gps-locations', { autoIncrement: true });
-                    }
-                },
-            });
-        },
-        async get(storeName, key) {
-            return (await this.dbPromise).get(storeName, key);
-        },
-        async getAll(storeName) {
-            return (await this.dbPromise).getAll(storeName);
-        },
-        async set(storeName, key, val) {
-            return (await this.dbPromise).put(storeName, val, key);
-        },
-        async add(storeName, val) {
-            return (await this.dbPromise).add(storeName, val);
-        },
-        async delete(storeName, key) {
-            return (await this.dbPromise).delete(storeName, key);
-        },
-    };
-
 
     const App = {
         config: {
@@ -681,23 +653,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return App.state.globalConfigs[featureKey] === true;
         },
 
-        debounce(func, delay = 1000) {
-            let timeout;
-            return (...args) => {
-                clearTimeout(timeout);
-                timeout = setTimeout(() => {
-                    func.apply(this, args);
-                }, delay);
-            };
-        },
-
         init() {
             OfflineDB.init();
+            initAuth(this, db, auth, secondaryAuth); // Initialize the auth module
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
-            this.auth.checkSession();
-            this.pwa.registerServiceWorker();
+            checkSession(); // Use the new imported function
+            registerServiceWorker(this);
         },
 
         native: {
@@ -844,290 +807,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         
-        auth: {
-            async checkSession() {
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        App.ui.setLoading(true, "A carregar dados do utilizador...");
-                        const userDoc = await App.data.getUserData(user.uid);
-
-                        if (userDoc && userDoc.active) {
-                            let companyDoc = null;
-                            // Bloqueia o login se a empresa do utilizador estiver inativa
-                            if (userDoc.role !== 'super-admin' && userDoc.companyId) {
-                                companyDoc = await App.data.getDocument('companies', userDoc.companyId);
-                                if (!companyDoc || companyDoc.active === false) {
-                                    App.auth.logout();
-                                    App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
-                                    return;
-                                }
-                            }
-
-                            App.state.currentUser = { ...user, ...userDoc };
-
-                            // Validação CRÍTICA para o modelo multi-empresa
-                            if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
-                                App.auth.logout();
-                                App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
-                                return;
-                            }
-
-                            // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
-                            App.ui.setLoading(true, "A carregar configurações...");
-                            try {
-                                // 1. Carregar configurações globais
-                                const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                                if (globalConfigsDoc.exists()) {
-                                    App.state.globalConfigs = globalConfigsDoc.data();
-                                } else {
-                                    console.warn("Documento de configurações globais 'main' não encontrado.");
-                                    App.state.globalConfigs = {};
-                                }
-
-                                // 2. Pré-popular os dados da empresa (se já foram carregados)
-                                if (companyDoc) {
-                                    App.state.companies = [companyDoc];
-                                }
-
-                                // 3. Agora é seguro mostrar a tela principal
-                                App.actions.saveUserProfileLocally(App.state.currentUser);
-                                App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
-                                App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
-
-                                const draftRestored = await App.actions.checkForDraft();
-                                if (!draftRestored) {
-                                    const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
-                                    App.ui.showTab(lastTab || 'dashboard');
-                                }
-
-                                if (navigator.onLine) {
-                                    App.actions.syncOfflineWrites();
-                                }
-
-                            } catch (error) {
-                                console.error("Falha crítica ao carregar dados iniciais:", error);
-                                App.auth.logout();
-                                App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
-                            }
-
-                        } else {
-                            this.logout();
-                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
-                        }
-                    } else {
-                        const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection(localProfiles);
-                        } else {
-                            App.ui.showLoginScreen();
-                        }
-                    }
-                    App.ui.setLoading(false);
-                });
-            },
-
-            async login() {
-                const email = App.elements.loginUser.value.trim();
-                const password = App.elements.loginPass.value;
-                if (!email || !password) {
-                    App.ui.showLoginMessage("Preencha e-mail e senha.");
-                    return;
-                }
-                App.ui.setLoading(true, "A autenticar...");
-                try {
-                    // Força a persistência da sessão apenas para a aba atual.
-                    // Isso fará com que o usuário seja deslogado ao fechar o app.
-                    await setPersistence(auth, browserLocalPersistence);
-                    await signInWithEmailAndPassword(auth, email, password);
-                } catch (error) {
-                    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                        App.ui.showLoginMessage("E-mail ou senha inválidos.");
-                    } else if (error.code === 'auth/network-request-failed') {
-                        App.ui.showLoginMessage("Erro de rede. Verifique sua conexão e tente novamente.");
-                    } else {
-                        App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
-                    }
-                    console.error("Erro de login:", error.code, error.message);
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-            async loginOffline(userId) {
-                const localProfiles = App.actions.getLocalUserProfiles();
-                const userProfile = localProfiles.find(p => p.uid === userId);
-                if (userProfile) {
-                    App.state.currentUser = userProfile;
-                    App.ui.showAppScreen();
-                    App.mapModule.loadOfflineShapes();
-                    App.data.listenToAllData();
-                }
-            },
-            async logout() {
-                if (navigator.onLine) {
-                    await signOut(auth);
-                }
-                App.data.cleanupListeners();
-                App.actions.stopGpsTracking(); // Parar o rastreamento
-                App.state.currentUser = null;
-
-                // Limpar estado de personificação ao sair
-                if (App.state.isImpersonating) {
-                    App.state.isImpersonating = false;
-                    App.state.originalUser = null;
-                    App.ui.hideImpersonationBanner();
-                }
-
-                clearTimeout(App.state.inactivityTimer);
-                clearTimeout(App.state.inactivityWarningTimer);
-                localStorage.removeItem('agrovetor_lastActiveTab');
-                App.ui.showLoginScreen();
-            },
-            initiateUserCreation() {
-                const els = App.elements.users;
-                const email = els.username.value.trim();
-                const password = els.password.value;
-                const role = els.role.value;
-                if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
-
-                const permissions = {};
-                els.permissionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    permissions[cb.dataset.permission] = cb.checked;
-                });
-
-                // Define the action to be executed upon confirmation
-                const userCreationAction = async () => {
-                    let targetCompanyId = App.state.currentUser.companyId;
-                    if (App.state.currentUser.role === 'super-admin') {
-                        targetCompanyId = App.elements.users.adminTargetCompanyUsers.value;
-                        if (!targetCompanyId) {
-                            throw new Error("Como Super Admin, você deve selecionar uma empresa alvo para criar o utilizador.");
-                        }
-                    }
-
-                    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-                    const newUser = userCredential.user;
-                    await signOut(secondaryAuth);
-
-                    const userData = {
-                        username: email.split('@')[0], email, role, active: true, permissions, companyId: targetCompanyId
-                    };
-                    await App.data.createUserData(newUser.uid, userData);
-                    
-                    App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
-                    els.username.value = '';
-                    els.password.value = '';
-                    els.role.value = 'user';
-                    App.ui.updatePermissionsForRole('user');
-                };
-
-                // Store the action and show the modal
-                App.state.adminAction = userCreationAction;
-                App.ui.showAdminPasswordConfirmModal();
-            },
-
-            async executeAdminAction() {
-                const adminPassword = App.elements.adminPasswordConfirmModal.passwordInput.value;
-                if (!App.state.adminAction || typeof App.state.adminAction !== 'function') { return; }
-
-                // Se estiver offline, confia no papel do utilizador já logado
-                if (!navigator.onLine) {
-                    const userRole = App.state.currentUser?.role;
-                    if (userRole === 'admin' || userRole === 'super-admin') {
-                        App.ui.setLoading(true, "A executar ação offline...");
-                        try {
-                            await App.state.adminAction();
-                            App.ui.closeAdminPasswordConfirmModal();
-                        } catch (error) {
-                            App.ui.showAlert(`Erro ao executar ação offline: ${error.message}`, "error");
-                        } finally {
-                            App.state.adminAction = null;
-                            App.elements.adminPasswordConfirmModal.passwordInput.value = '';
-                            App.ui.setLoading(false);
-                        }
-                        return;
-                    }
-                }
-
-                // Fluxo online normal com verificação de senha
-                if (!adminPassword) { App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error"); return; }
-                App.ui.setLoading(true, "A autenticar e executar ação...");
-
-                try {
-                    const adminUser = auth.currentUser;
-                    const credential = EmailAuthProvider.credential(adminUser.email, adminPassword);
-                    await reauthenticateWithCredential(adminUser, credential);
-
-                    // Se a reautenticação for bem-sucedida, executa a ação armazenada
-                    await App.state.adminAction();
-                    App.ui.closeAdminPasswordConfirmModal();
-
-                } catch (error) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
-                        App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
-                    } else if (error.code === 'auth/email-already-in-use') {
-                        App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
-                    } else if (error.code === 'auth/weak-password') {
-                        App.ui.showAlert("A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
-                    } else {
-                        App.ui.showAlert(`Erro ao executar ação: ${error.message}`, "error");
-                        console.error("Erro na ação de administrador:", error);
-                    }
-                } finally {
-                    App.state.adminAction = null; // Limpa a ação após a execução
-                    App.elements.adminPasswordConfirmModal.passwordInput.value = '';
-                    App.ui.setLoading(false);
-                }
-            },
-            async deleteUser(userId) {
-                const userToDelete = App.state.users.find(u => u.id === userId);
-                if (!userToDelete) return;
-                
-                App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
-                    try {
-                        await App.data.updateDocument('users', userId, { active: false });
-                        App.actions.removeUserProfileLocally(userId);
-                        App.ui.showAlert(`Utilizador ${userToDelete.username} desativado.`);
-                        App.ui.closeUserEditModal();
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao desativar utilizador.", "error");
-                    }
-                });
-            },
-            async toggleUserStatus(userId) {
-                const user = App.state.users.find(u => u.id === userId);
-                if (!user) return;
-                const newStatus = !user.active;
-                await App.data.updateDocument('users', userId, { active: newStatus });
-                App.ui.showAlert(`Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
-            },
-            async resetUserPassword(userId) {
-                const user = App.state.users.find(u => u.id === userId);
-                if (!user || !user.email) return;
-
-                App.ui.showConfirmationModal(`Deseja enviar um e-mail de redefinição de senha para ${user.email}?`, async () => {
-                    try {
-                        await sendPasswordResetEmail(auth, user.email);
-                        App.ui.showAlert(`E-mail de redefinição enviado para ${user.email}.`, 'success');
-                    } catch (error) {
-                        App.ui.showAlert("Erro ao enviar e-mail de redefinição.", "error");
-                        console.error(error);
-                    }
-                });
-            },
-            async saveUserChanges(userId) {
-                const modalEls = App.elements.userEditModal;
-                const role = modalEls.role.value;
-                const permissions = {};
-                modalEls.permissionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    permissions[cb.dataset.permission] = cb.checked;
-                });
-                
-                await App.data.updateDocument('users', userId, { role, permissions });
-                App.ui.showAlert("Alterações guardadas com sucesso!");
-                App.ui.closeUserEditModal();
-            }
-        },
-
         data: {
             cleanupListeners() {
                 App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
@@ -1216,7 +895,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             // Se a empresa for removida, desloga o utilizador para segurança
                             console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
-                            App.auth.logout();
+                            logout();
                         }
                         App.ui.renderMenu(); // Re-renderiza o menu quando os dados da empresa mudam
                     });
@@ -1319,7 +998,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.className = 'offline-user-btn';
                     btn.dataset.uid = profile.uid;
                     btn.innerHTML = `<i class="fas fa-user-circle"></i> ${profile.username || profile.email}`;
-                    btn.addEventListener('click', () => App.auth.loginOffline(profile.uid));
+                    btn.addEventListener('click', () => loginOffline(profile.uid));
                     offlineUserList.appendChild(btn);
                 });
                 App.elements.loginScreen.style.display = 'flex';
@@ -3404,8 +3083,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             setupEventListeners() {
-                if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => App.auth.login());
-                if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
+                if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => login());
+                if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => logout());
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
                     document.body.classList.toggle('mobile-menu-open');
                     App.elements.menu.classList.toggle('open');
@@ -3522,29 +3201,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (App.elements.users.role) App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
                 
-                if (App.elements.users.btnCreate) App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
+                if (App.elements.users.btnCreate) App.elements.users.btnCreate.addEventListener('click', () => initiateUserCreation());
                 
                 if (App.elements.users.list) App.elements.users.list.addEventListener('click', e => {
                     const button = e.target.closest('button[data-action]');
                     if (!button) return;
                     const { action, id } = button.dataset;
                     if (action === 'edit') this.openUserEditModal(id);
-                    if (action === 'toggle') App.auth.toggleUserStatus(id);
+                    if (action === 'toggle') toggleUserStatus(id);
                 });
 
                 const adminModal = App.elements.adminPasswordConfirmModal;
                 if (adminModal.closeBtn) adminModal.closeBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
                 if (adminModal.cancelBtn) adminModal.cancelBtn.addEventListener('click', () => this.closeAdminPasswordConfirmModal());
-                if (adminModal.confirmBtn) adminModal.confirmBtn.addEventListener('click', () => App.auth.executeAdminAction());
+                if (adminModal.confirmBtn) adminModal.confirmBtn.addEventListener('click', () => executeAdminAction());
                 if (adminModal.overlay) adminModal.overlay.addEventListener('click', e => { if(e.target === adminModal.overlay) this.closeAdminPasswordConfirmModal(); });
 
 
                 const modalEls = App.elements.userEditModal;
                 if (modalEls.closeBtn) modalEls.closeBtn.addEventListener('click', () => this.closeUserEditModal());
                 if (modalEls.overlay) modalEls.overlay.addEventListener('click', e => { if(e.target === modalEls.overlay) this.closeUserEditModal(); });
-                if (modalEls.btnSaveChanges) modalEls.btnSaveChanges.addEventListener('click', () => App.auth.saveUserChanges(modalEls.editingUserId.value));
-                if (modalEls.btnResetPassword) modalEls.btnResetPassword.addEventListener('click', () => App.auth.resetUserPassword(modalEls.editingUserId.value));
-                if (modalEls.btnDeleteUser) modalEls.btnDeleteUser.addEventListener('click', () => App.auth.deleteUser(modalEls.editingUserId.value));
+                if (modalEls.btnSaveChanges) modalEls.btnSaveChanges.addEventListener('click', () => saveUserChanges(modalEls.editingUserId.value));
+                if (modalEls.btnResetPassword) modalEls.btnResetPassword.addEventListener('click', () => resetUserPassword(modalEls.editingUserId.value));
+                if (modalEls.btnDeleteUser) modalEls.btnDeleteUser.addEventListener('click', () => deleteUser(modalEls.editingUserId.value));
                 if (modalEls.role) modalEls.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value, '#editUserPermissionGrid'));
                 
                 const companyEls = App.elements.companyManagement;
@@ -3709,7 +3388,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     harvestEls.btnOptimize.addEventListener('click', () => App.gemini.getOptimizedHarvestSequence());
                 }
 
-                const debouncedAtrPrediction = App.debounce(() => App.actions.getAtrPrediction());
+                const debouncedAtrPrediction = debounce(() => App.actions.getAtrPrediction());
                 if (harvestEls.fazenda) harvestEls.fazenda.addEventListener('change', debouncedAtrPrediction);
 
                 if (harvestEls.tableBody) {
@@ -4083,13 +3762,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Listeners para salvar rascunhos de formulários automaticamente
-                const debouncedSaveBroca = App.debounce(() => App.actions.saveFormDraft('broca'), 1000);
+                const debouncedSaveBroca = debounce(() => App.actions.saveFormDraft('broca'), 1000);
                 if (App.elements.broca.form) App.elements.broca.form.addEventListener('input', debouncedSaveBroca);
 
-                const debouncedSavePerda = App.debounce(() => App.actions.saveFormDraft('perda'), 1000);
+                const debouncedSavePerda = debounce(() => App.actions.saveFormDraft('perda'), 1000);
                 if (App.elements.perda.form) App.elements.perda.form.addEventListener('input', debouncedSavePerda);
 
-                const debouncedSaveCigarrinha = App.debounce(() => App.actions.saveFormDraft('cigarrinha'), 1000);
+                const debouncedSaveCigarrinha = debounce(() => App.actions.saveFormDraft('cigarrinha'), 1000);
                 if (App.elements.cigarrinha.form) App.elements.cigarrinha.form.addEventListener('input', debouncedSaveCigarrinha);
 
                 const btnSaveCompanySettings = document.getElementById('btnSaveCompanySettings');
@@ -4303,7 +3982,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
                     App.state.inactivityTimer = setTimeout(() => {
                         App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
-                        App.auth.logout();
+                        logout();
                     }, App.config.inactivityTimeout);
                 }
             },
@@ -10409,7 +10088,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const farm = App.state.fazendas.find(f => f.id === farmId);
                     const filters = {
                         inicio: filtroInicio.value,
-                        fim: filtroFim.value,
+                        fim: fim.value,
                         fazendaCodigo: farm ? farm.code : '',
                         tipoRelatorio: document.getElementById('tipoRelatorioCigarrinhaAmostragem').value
                     };
@@ -10656,29 +10335,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
             }
         },
-
-        pwa: {
-            registerServiceWorker() {
-                if ('serviceWorker' in navigator) {
-                    window.addEventListener('load', () => {
-                        navigator.serviceWorker.register('./service-worker.js')
-                            .then(registration => {
-                                console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                            })
-                            .catch(error => {
-                                console.log('ServiceWorker registration failed: ', error);
-                            });
-                    });
-
-                    window.addEventListener('beforeinstallprompt', (e) => {
-                        e.preventDefault();
-                        App.state.deferredInstallPrompt = e;
-                        App.elements.installAppBtn.style.display = 'flex';
-                        console.log(`'beforeinstallprompt' event was fired.`);
-                    });
-                }
-            }
-        }
     };
 
     window.addEventListener('offline', () => {
