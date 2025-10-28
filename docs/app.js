@@ -917,7 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         const localProfiles = App.actions.getLocalUserProfiles();
                         if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection();
+                            App.ui.showOfflineUserSelection(localProfiles);
                         } else {
                             App.ui.showLoginScreen();
                         }
@@ -952,17 +952,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            async loginOffline(email) { // Argument changed to email
+            async loginOffline(userId) {
                 const localProfiles = App.actions.getLocalUserProfiles();
-                // Find profile by email, case-insensitively
-                const userProfile = localProfiles.find(p => p.email && p.email.toLowerCase() === email.toLowerCase());
+                const userProfile = localProfiles.find(p => p.uid === userId);
                 if (userProfile) {
                     App.state.currentUser = userProfile;
                     App.ui.showAppScreen();
                     App.mapModule.loadOfflineShapes();
                     App.data.listenToAllData();
                 } else {
-                    App.ui.showAlert("Perfil offline não encontrado. Verifique o e-mail inserido.", "error");
+                    App.ui.showAlert("Perfil offline não encontrado. Por favor, selecione um utilizador válido.", "error");
                 }
             },
             async logout() {
@@ -1312,15 +1311,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.closeAllMenus();
                 App.ui.setLoading(false);
             },
-            showOfflineUserSelection() { // Removed profiles argument
+            showOfflineUserSelection(profiles) {
                 App.elements.loginForm.style.display = 'none';
                 App.elements.offlineUserSelection.style.display = 'block';
-                // No longer need to populate a select list
-                const offlineEmailInput = document.getElementById('offlineEmail');
-                if(offlineEmailInput) {
-                    offlineEmailInput.value = ''; // Clear previous entries
-                    offlineEmailInput.focus();
-                }
+                const offlineUserSelect = document.getElementById('offlineUserSelect');
+                offlineUserSelect.innerHTML = '<option value="">Selecione seu perfil</option>';
+                profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile.uid;
+                    option.textContent = profile.username || profile.email;
+                    offlineUserSelect.appendChild(option);
+                });
                 App.elements.loginScreen.style.display = 'flex';
                 App.elements.appScreen.style.display = 'none';
                 App.ui.setLoading(false);
@@ -3407,11 +3408,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const btnOfflineLogin = document.getElementById('btnOfflineLogin');
                 if (btnOfflineLogin) {
                     btnOfflineLogin.addEventListener('click', () => {
-                        const email = document.getElementById('offlineEmail').value.trim();
-                        if (email) {
-                            App.auth.loginOffline(email);
+                        const userId = document.getElementById('offlineUserSelect').value;
+                        if (userId) {
+                            App.auth.loginOffline(userId);
                         } else {
-                            App.ui.showAlert("Por favor, insira o seu e-mail para entrar.", "warning");
+                            App.ui.showAlert("Por favor, selecione um perfil para entrar.", "warning");
                         }
                     });
                 }
