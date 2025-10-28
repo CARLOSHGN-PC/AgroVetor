@@ -6580,22 +6580,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     await auth.currentUser.getIdToken(true);
                     console.log("Token de autenticação atualizado com sucesso.");
 
-                    // FIX: Pré-carrega os dados críticos antes de reanexar os listeners para evitar a condição de corrida do menu
-                    const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                    if (globalConfigsDoc.exists()) {
-                        App.state.globalConfigs = globalConfigsDoc.data();
-                    }
-
-                    if (App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
-                        const companyDoc = await App.data.getDocument('companies', App.state.currentUser.companyId);
-                        if (companyDoc) {
-                            App.state.companies = [companyDoc];
-                        }
-                    }
-
-                    // Agora é seguro re-renderizar o menu
-                    App.ui.renderMenu();
-
                     // Reinicia os 'ouvintes' de dados para usar o novo token
                     App.data.listenToAllData();
 
@@ -10902,7 +10886,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('online', () => {
         console.log("Browser reports 'online'. Starting active connection checks.");
-        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
+        App.ui.showAlert("Conexão de rede detetada. A verificar acesso à internet...", "info");
         // Clear any previous interval just in case
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
