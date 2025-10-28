@@ -899,52 +899,40 @@ document.addEventListener('DOMContentLoaded', () => {
                                 return;
                             }
 
-                            // Otimização de Carregamento Progressivo
-                            App.ui.setLoading(true, "A carregar configurações essenciais...");
+                            // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
+                            App.ui.setLoading(true, "A carregar configurações...");
                             try {
-                                // 1. Carrega apenas o mais crítico de forma síncrona
+                                // 1. Carregar configurações globais
                                 const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
                                 if (globalConfigsDoc.exists()) {
                                     App.state.globalConfigs = globalConfigsDoc.data();
+                                } else {
+                                    console.warn("Documento de configurações globais 'main' não encontrado.");
+                                    App.state.globalConfigs = {};
                                 }
 
+                                // 2. Pré-popular os dados da empresa (se já foram carregados)
                                 if (companyDoc) {
-                                    App.state.companies = [{ id: companyDoc.id, ...companyDoc }];
-                                }
-                                const configDocRef = doc(db, 'config', userDoc.companyId);
-                                const configDoc = await getDoc(configDocRef);
-                                if (configDoc.exists()) {
-                                    const configData = configDoc.data();
-                                    App.state.companyConfig = configData;
-                                    App.state.companyLogo = configData.logoBase64 || null;
+                                    App.state.companies = [companyDoc];
                                 }
 
-
-                                // 2. Mostra a tela principal IMEDIATAMENTE
+                                // 3. Agora é seguro mostrar a tela principal
                                 App.actions.saveUserProfileLocally(App.state.currentUser);
-                                App.ui.showAppScreen();
-                                console.log("UI principal renderizada. Carregamento secundário a iniciar.");
+                                App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
+                                App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
 
-                                // 3. Carrega o resto dos dados em segundo plano
-                                // Usamos um setTimeout para dar tempo à UI de renderizar e ficar responsiva
-                                setTimeout(() => {
-                                    App.data.listenToEssentialData(); // Ouve dados essenciais como utilizadores
-                                    App.data.loadSecondaryData();   // Carrega dados pesados como fazendas, etc.
-                                }, 100);
-
-
-                                // 4. Lógica pós-carregamento que pode ser executada depois
                                 const draftRestored = await App.actions.checkForDraft();
                                 if (!draftRestored) {
                                     const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
                                     App.ui.showTab(lastTab || 'dashboard');
                                 }
+
                                 if (navigator.onLine) {
                                     App.actions.syncOfflineWrites();
                                 }
 
                             } catch (error) {
-                                console.error("Falha crítica ao carregar dados essenciais:", error);
+                                console.error("Falha crítica ao carregar dados iniciais:", error);
                                 App.auth.logout();
                                 App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
                             }
@@ -1037,22 +1025,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             // Agora, com os dados essenciais pré-carregados, mostra a tela da aplicação
                             App.ui.showAppScreen();
                             App.mapModule.loadOfflineShapes();
-
-                            // Inicia o carregamento progressivo dos dados do cache
-                            setTimeout(() => {
-                                App.data.listenToEssentialData();
-                                App.data.loadSecondaryData();
-                            }, 100);
+                            App.data.listenToAllData(); // Configura os 'listeners' para futuras atualizações quando estiver online
 
                         } catch (error) {
                             console.error("Erro ao pré-carregar dados do cache offline:", error);
                             // Fallback para o comportamento antigo se o pré-carregamento falhar
                             App.ui.showAppScreen();
                             App.mapModule.loadOfflineShapes();
-                            setTimeout(() => {
-                                App.data.listenToEssentialData();
-                                App.data.loadSecondaryData();
-                            }, 100);
+                            App.data.listenToAllData();
                         } finally {
                             App.ui.setLoading(false);
                         }
@@ -1237,120 +1217,127 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
                 App.state.unsubscribeListeners = [];
             },
-            listenToEssentialData() {
+            listenToAllData() {
                 this.cleanupListeners();
-                App.state.listeningTo = new Set();
 
+                // Ouve as configurações globais para TODOS os utilizadores
                 const globalConfigsRef = doc(db, 'global_configs', 'main');
                 const unsubscribeGlobalConfigs = onSnapshot(globalConfigsRef, (doc) => {
-                    App.state.globalConfigs = doc.exists() ? doc.data() : {};
+                    if (doc.exists()) {
+                        App.state.globalConfigs = doc.data();
+                    } else {
+                        console.warn("Documento de configurações globais 'main' não encontrado. Recursos podem estar desativados por padrão.");
+                        App.state.globalConfigs = {}; // Garante que é um objeto vazio
+                    }
+                    // Re-renderiza o menu sempre que as flags globais mudam
                     App.ui.renderMenu();
-                }, (error) => console.error("Erro ao ouvir config globais: ", error));
+                }, (error) => {
+                    console.error("Erro ao ouvir as configurações globais: ", error);
+                    App.state.globalConfigs = {}; // Reseta em caso de erro
+                    App.ui.renderMenu(); // Re-renderiza o menu com flags desativadas
+                });
                 App.state.unsubscribeListeners.push(unsubscribeGlobalConfigs);
 
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                // Apenas 'users' é verdadeiramente essencial para a UI inicial funcionar
-                this.listenToCollection('users');
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
 
                 if (isSuperAdmin) {
-                    this.listenToCollection('companies');
+                    // Super Admin ouve TODOS os dados de todas as coleções relevantes
+                    companyScopedCollections.forEach(collectionName => {
+                        const q = collection(db, collectionName); // Sem filtro 'where'
+                        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                            const data = [];
+                            querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                            App.state[collectionName] = data;
+                            App.ui.renderSpecificContent(collectionName);
+                        }, (error) => {
+                            console.error(`Erro ao ouvir a coleção ${collectionName} como Super Admin: `, error);
+                        });
+                        App.state.unsubscribeListeners.push(unsubscribe);
+                    });
+
+                    // Super Admin também ouve a coleção de empresas
+                    const qCompanies = collection(db, 'companies');
+                    const unsubscribeCompanies = onSnapshot(qCompanies, (querySnapshot) => {
+                        const data = [];
+                        querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                        App.state['companies'] = data;
+                        App.ui.renderSpecificContent('companies');
+                    }, (error) => console.error(`Erro ao ouvir a coleção companies: `, error));
+                    App.state.unsubscribeListeners.push(unsubscribeCompanies);
+
+                    App.state.companyLogo = null;
+                    App.ui.renderLogoPreview();
+
                 } else if (companyId) {
+                    // Utilizador normal ouve apenas os dados da sua própria empresa
+                    companyScopedCollections.forEach(collectionName => {
+                        const q = query(collection(db, collectionName), where("companyId", "==", companyId));
+                        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                            const data = [];
+                            querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                            App.state[collectionName] = data;
+
+                            if (collectionName === 'armadilhas') {
+                                if (App.state.mapboxMap) App.mapModule.loadTraps();
+                                App.mapModule.checkTrapStatusAndNotify();
+                            }
+                            App.ui.renderSpecificContent(collectionName);
+                        }, (error) => {
+                            console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
+                        });
+                        App.state.unsubscribeListeners.push(unsubscribe);
+                    });
+
+                    // **NOVO**: Ouvir o documento da própria empresa para obter os módulos subscritos
                     const companyDocRef = doc(db, 'companies', companyId);
                     const unsubscribeCompany = onSnapshot(companyDocRef, (doc) => {
                         if (doc.exists()) {
+                            // Coloca a empresa do utilizador no estado, para que o menu possa ser renderizado corretamente
                             App.state.companies = [{ id: doc.id, ...doc.data() }];
                         } else if (navigator.onLine) {
+                            // Se estiver online e a empresa não for encontrada, desloga o utilizador por segurança.
+                            console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
                             App.auth.logout();
+                        } else {
+                            // Se estiver offline e o documento da empresa não estiver no cache, permite que a aplicação continue.
+                            // Os módulos podem não ser renderizados corretamente, mas o acesso não é bloqueado.
+                            console.warn(`Documento da empresa com ID ${companyId} não encontrado no cache offline. O menu pode estar incompleto.`);
                         }
-                        App.ui.renderMenu();
+                        App.ui.renderMenu(); // Re-renderiza o menu quando os dados da empresa mudam
                     });
                     App.state.unsubscribeListeners.push(unsubscribeCompany);
 
+                    // Configurações específicas da empresa (logotipo, etc.)
                     const configDocRef = doc(db, 'config', companyId);
                     const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
-                        const configData = doc.exists() ? doc.data() : {};
-                        App.state.companyConfig = configData;
-                        App.state.companyLogo = configData.logoBase64 || null;
-                        if (configData.shapefileURL) {
-                            App.mapModule.loadAndCacheShapes(configData.shapefileURL);
+                        if (doc.exists()) {
+                            const configData = doc.data();
+                            App.state.companyConfig = configData; // Carrega todas as configurações da empresa
+                            App.state.companyLogo = configData.logoBase64 || null;
+
+                            // Atualiza a UI com o valor carregado
+                            const cigarrinhaMethodSelect = document.getElementById('cigarrinhaCalcMethod');
+                            if (cigarrinhaMethodSelect) {
+                                cigarrinhaMethodSelect.value = configData.cigarrinhaCalcMethod || '5';
+                            }
+
+                            if (configData.shapefileURL) {
+                                App.mapModule.loadAndCacheShapes(configData.shapefileURL);
+                            }
+
+                        } else {
+                            App.state.companyLogo = null;
+                            App.state.companyConfig = {};
                         }
                         App.ui.renderLogoPreview();
                     });
                     App.state.unsubscribeListeners.push(unsubscribeConfig);
-                }
-            },
-
-            // Carrega coleções pesadas em segundo plano após a renderização da UI
-            async loadSecondaryData() {
-                App.ui.setLoading(true, "A sincronizar dados...");
-                try {
-                    const collectionsToLoad = ['fazendas', 'personnel', 'frentesDePlantio', 'harvestPlans', 'planos'];
-                    // O for...of garante que as coleções são ouvidas em sequência,
-                    // o que pode ajudar a evitar sobrecarga, embora onSnapshot seja assíncrono.
-                    for (const collectionName of collectionsToLoad) {
-                        this.listenToCollection(collectionName);
-                    }
-                    console.log("Listeners para dados secundários iniciados.");
-                } catch (error) {
-                    console.error("Erro ao carregar dados secundários:", error);
-                } finally {
-                    // Esconde o loading após um tempo para não bloquear a UI
-                    // A UI já estará responsiva, e os dados chegarão em tempo real.
-                    setTimeout(() => App.ui.setLoading(false), 1500);
-                }
-            },
-
-            listenToCollection(collectionName) {
-                if (App.state.listeningTo.has(collectionName)) {
-                    return; // Já estamos a ouvir esta coleção
-                }
-
-                const companyId = App.state.currentUser.companyId;
-                const isSuperAdmin = App.state.currentUser.role === 'super-admin';
-                let q;
-
-                if (isSuperAdmin) {
-                    q = collection(db, collectionName);
-                } else if (companyId) {
-                    q = query(collection(db, collectionName), where("companyId", "==", companyId));
                 } else {
-                    console.error(`Não é possível ouvir a coleção ${collectionName} sem um companyId.`);
-                    return;
+                    console.error("Utilizador não é Super Admin e não tem companyId. Carregamento de dados bloqueado.");
                 }
-
-                console.log(`[DATA] Iniciando listener para a coleção: ${collectionName}`);
-                const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                    const data = [];
-                    querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
-                    App.state[collectionName] = data;
-
-                    // Ações específicas após o carregamento dos dados
-                    if (collectionName === 'armadilhas') {
-                        if (App.state.mapboxMap) App.mapModule.loadTraps();
-                        App.mapModule.checkTrapStatusAndNotify();
-                    }
-
-                    // Re-renderiza o conteúdo relevante que depende desta coleção
-                    App.ui.renderSpecificContent(collectionName);
-
-                    // Se for uma coleção de dashboard, re-renderiza os gráficos
-                    const activeDashboard = document.querySelector('#dashboard > div.active')?.id;
-                    if (activeDashboard === 'dashboard-broca' && collectionName === 'registros') App.charts.renderBrocaDashboardCharts();
-                    if (activeDashboard === 'dashboard-perda' && collectionName === 'perdas') App.charts.renderPerdaDashboardCharts();
-                    if (activeDashboard === 'dashboard-plantio' && collectionName === 'apontamentosPlantio') App.charts.renderPlantioDashboardCharts();
-                    if (activeDashboard === 'dashboard-aerea' && collectionName === 'armadilhas') App.charts.renderAereoDashboardCharts();
-                    if (activeDashboard === 'dashboard-cigarrinha' && (collectionName === 'cigarrinha' || collectionName === 'cigarrinhaAmostragem')) App.charts.renderCigarrinhaDashboardCharts();
-                    if (activeDashboard === 'dashboard-clima' && collectionName === 'clima') App.charts.renderClimaDashboardCharts();
-
-
-                }, (error) => {
-                    console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
-                });
-
-                App.state.unsubscribeListeners.push(unsubscribe);
-                App.state.listeningTo.add(collectionName);
             },
             async getDocument(collectionName, docId, options) {
                 return await getDoc(doc(db, collectionName, docId)).then(docSnap => {
@@ -1437,6 +1424,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.updateDateTime();
                 setInterval(() => this.updateDateTime(), 60000);
+
+                // Adiciona verificação periódica para o status das armadilhas
+                setInterval(() => {
+                    if (App.state.armadilhas.length > 0) {
+                        App.mapModule.checkTrapStatusAndNotify();
+                    }
+                }, 60000); // Verifica a cada minuto
 
                 this.renderMenu();
                 this.renderAllDynamicContent();
@@ -1980,33 +1974,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     switch (viewName) {
                         case 'broca':
-                            App.data.listenToCollection('registros');
                             this.loadDashboardDates('broca');
                             App.charts.renderBrocaDashboardCharts();
                             break;
                         case 'perda':
-                            App.data.listenToCollection('perdas');
                             this.loadDashboardDates('perda');
                             App.charts.renderPerdaDashboardCharts();
                             break;
                         case 'aerea':
-                            App.data.listenToCollection('armadilhas');
-                            this.loadDashboardDates('aerea');
+                            this.loadDashboardDates('aereo');
                             App.charts.renderAereoDashboardCharts();
                             break;
                         case 'plantio':
-                            App.data.listenToCollection('apontamentosPlantio');
                             this.loadDashboardDates('plantio');
                             App.charts.renderPlantioDashboardCharts();
                             break;
                         case 'cigarrinha':
-                            App.data.listenToCollection('cigarrinha');
-                            App.data.listenToCollection('cigarrinhaAmostragem');
                             this.loadDashboardDates('cigarrinha');
                             App.charts.renderCigarrinhaDashboardCharts();
                             break;
                         case 'clima':
-                            App.data.listenToCollection('clima');
                             this.loadDashboardDates('clima');
                             App.charts.renderClimaDashboardCharts();
                             break;
@@ -6973,7 +6960,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Configura o intervalo de descarga periódica
                 if (App.state.locationUpdateIntervalId) clearInterval(App.state.locationUpdateIntervalId);
-                App.state.locationUpdateIntervalId = setInterval(() => this.flushGpsBuffer(), 10000); // Descarrega a cada 10 segundos
+                App.state.locationUpdateIntervalId = setInterval(() => this.flushGpsBuffer(), 5000); // Descarrega a cada 5 segundos
 
                 const processPosition = (position) => {
                     if (position && App.state.currentUser) {
@@ -6990,7 +6977,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Variáveis para o throttling
                 let lastProcessedTime = 0;
-                const processInterval = 5000; // Processar no máximo a cada 5 segundos
+                const processInterval = 2000; // Processar no máximo a cada 2 segundos
 
                 const throttledProcessPosition = (position) => {
                     const now = Date.now();
@@ -7010,7 +6997,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         App.state.isTracking = true;
-                        App.state.locationWatchId = await Geolocation.watchPosition({ enableHighAccuracy: false }, (position, err) => {
+                        App.state.locationWatchId = await Geolocation.watchPosition({ enableHighAccuracy: true }, (position, err) => {
                             if (err) {
                                 console.warn("Erro no rastreamento de localização do Capacitor:", err.message);
                                 return;
@@ -7030,7 +7017,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 (err) => {
                                     console.warn("Erro no rastreamento de localização (Web):", err.message);
                                 },
-                                { enableHighAccuracy: false, maximumAge: 10000, timeout: 5000 }
+                                { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
                             );
                             console.log("Rastreamento de localização (Web) iniciado com throttling.");
                         },
@@ -7808,12 +7795,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.watchUserPosition();
                         this.loadShapesOnMap();
                         this.loadTraps();
-
-                        // Flag for testing purposes
-                        App.state.mapboxMap.on('idle', () => {
-                            window.App.state.isMapIdle = true;
-                            console.log("Map is idle.");
-                        });
                     });
 
                 } catch (e) {
@@ -9370,18 +9351,11 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             renderBrocaPorVariedade(data) {
                 const variedadesMap = new Map();
-               
-                // Otimização: Pré-processar fazendas e talhões para busca rápida
-                const fazendasMap = new Map(App.state.fazendas.map(f => [f.code, f]));
-                fazendasMap.forEach(farm => {
-                    if (farm.talhoes) {
-                        farm.talhoesMap = new Map(farm.talhoes.map(t => [t.name.toUpperCase(), t]));
-                    }
-                });
+                const fazendas = App.state.fazendas;
 
                 data.forEach(item => {
-                    const farm = fazendasMap.get(item.codigo);
-                    const talhao = farm?.talhoesMap?.get(item.talhao.toUpperCase());
+                    const farm = fazendas.find(f => f.code === item.codigo);
+                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === item.talhao.toUpperCase());
                     const variedade = talhao?.variedade || 'N/A';
 
                     if (!variedadesMap.has(variedade)) {
@@ -9530,12 +9504,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             renderTop10FazendasPerda(data) {
-                // Otimização: Pré-mapear nomes de fazendas para evitar buscas repetidas
-                const farmNamesMap = new Map(App.state.fazendas.map(f => [f.code, f.name]));
-
                 const fazendas = {};
                 data.forEach(item => {
-                    const fazendaKey = `${item.codigo} - ${farmNamesMap.get(item.codigo) || item.fazenda}`;
+                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
                     if (!fazendas[fazendaKey]) fazendas[fazendaKey] = { total: 0, count: 0 };
                     fazendas[fazendaKey].total += item.total;
                     fazendas[fazendaKey].count++;
