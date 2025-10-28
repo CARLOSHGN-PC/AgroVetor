@@ -1724,52 +1724,6 @@
                         <h3>Cigarrinha</h3>
                         <p>Acompanhar intensidade da praga e eficiência de controle.</p>
                     </div>
-                     <div id="card-clima" class="dashboard-card" style="border-color: #29b6f6;">
-                        <i class="icon fas fa-cloud-sun-rain" style="color: #29b6f6;"></i>
-                        <h3>Clima</h3>
-                        <p>Analisar dados climatológicos como temperatura, chuva e vento.</p>
-                    </div>
-                </div>
-
-                <div id="dashboard-clima" class="dashboard-view" style="display: none;">
-                    <div class="dashboard-header">
-                        <div class="dashboard-header-main">
-                            <h2 style="color: #29b6f6;"><i class="fas fa-cloud-sun-rain"></i> Dashboard Climatológico</h2>
-                            <div class="dashboard-filters">
-                                <label for="climaDashboardInicio">De:</label>
-                                <input type="date" id="climaDashboardInicio">
-                                <label for="climaDashboardFim">Até:</label>
-                                <input type="date" id="climaDashboardFim">
-                                <button id="btnFiltrarClimaDashboard" class="save"><i class="fas fa-filter"></i> Filtrar</button>
-                            </div>
-                        </div>
-                        <button id="btn-back-to-selector-clima" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar</button>
-                    </div>
-                    <div class="kpi-grid" id="clima-kpi-grid">
-                        <!-- KPIs serão inseridos aqui dinamicamente -->
-                    </div>
-                    <div class="dashboard-grid">
-                        <div class="chart-card">
-                            <h3 class="chart-title">Variação de Temperatura (°C)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoVariacaoTemperatura"><i class="fas fa-expand-alt"></i></button>
-                            <div class="chart-container"><canvas id="graficoVariacaoTemperatura"></canvas></div>
-                        </div>
-                        <div class="chart-card">
-                            <h3 class="chart-title">Acúmulo de Pluviosidade (mm)</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoAcumuloPluviosidade"><i class="fas fa-expand-alt"></i></button>
-                            <div class="chart-container"><canvas id="graficoAcumuloPluviosidade"></canvas></div>
-                        </div>
-                        <div class="chart-card">
-                            <h3 class="chart-title">Média da Velocidade do Vento (km/h) por Fazenda</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoMediaVentoFazenda"><i class="fas fa-expand-alt"></i></button>
-                            <div class="chart-container"><canvas id="graficoMediaVentoFazenda"></canvas></div>
-                        </div>
-                        <div class="chart-card">
-                            <h3 class="chart-title">Índice Climatológico Comparativo</h3>
-                            <button class="btn-expand-chart" data-chart-id="graficoIndiceClimatologico"><i class="fas fa-expand-alt"></i></button>
-                            <div class="chart-container"><canvas id="graficoIndiceClimatologico"></canvas></div>
-                        </div>
-                    </div>
                 </div>
 
                 <div id="dashboard-broca" style="display: none;">
@@ -2992,72 +2946,6 @@
                 <h3><i class="fas fa-list-ul"></i> Frentes Cadastradas</h3>
                 <div id="frenteDePlantioList" class="table-responsive"></div>
             </section>
-
-            <section id="lancamentoClima" class="tab-content card" aria-label="Apontamento Climatológico" tabindex="0" hidden>
-                <h2><i class="fas fa-cloud"></i> Apontamento Climatológico</h2>
-                <form id="formLancamentoClima">
-                    <input type="hidden" id="climaEntryId">
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="climaData" class="required">Data da Coleta:</label>
-                            <input type="date" id="climaData" required>
-                        </div>
-                        <div class="form-col">
-                            <label for="climaFazenda" class="required">Fazenda:</label>
-                            <select id="climaFazenda" required></select>
-                        </div>
-                        <div class="form-col">
-                            <label for="climaTalhao" class="required">Talhão:</label>
-                            <select id="climaTalhao" required></select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="climaTempMax" class="required">Temperatura Máxima (°C):</label>
-                            <input type="number" id="climaTempMax" placeholder="Ex: 32" required>
-                        </div>
-                        <div class="form-col">
-                            <label for="climaTempMin" class="required">Temperatura Mínima (°C):</label>
-                            <input type="number" id="climaTempMin" placeholder="Ex: 18" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="climaUmidade" class="required">Umidade Relativa (%):</label>
-                            <input type="number" id="climaUmidade" placeholder="Ex: 65" required>
-                        </div>
-                        <div class="form-col">
-                            <label for="climaPluviosidade" class="required">Pluviosidade (mm):</label>
-                            <input type="number" id="climaPluviosidade" placeholder="Ex: 15" required>
-                        </div>
-                        <div class="form-col">
-                            <label for="climaVento" class="required">Velocidade do Vento (km/h):</label>
-                            <input type="number" id="climaVento" placeholder="Ex: 12" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="climaObs">Observações:</label>
-                            <textarea id="climaObs" placeholder="Adicione observações..."></textarea>
-                        </div>
-                    </div>
-                    <button type="button" id="btnSaveLancamentoClima" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Apontamento</button>
-                </form>
-            </section>
-
-            <section id="relatorioClima" class="tab-content card" aria-label="Relatório Climatológico" tabindex="0" hidden>
-                <h2><i class="fas fa-file-pdf"></i> Relatório Climatológico</h2>
-                <div class="form-row">
-                    <div class="form-col"><label for="climaRelatorioFazenda">Filtrar por Fazenda:</label><select id="climaRelatorioFazenda"><option value="">Todas</option></select></div>
-                    <div class="form-col"><label for="climaRelatorioInicio" class="required">Data Início:</label><input type="date" id="climaRelatorioInicio" /></div>
-                    <div class="form-col"><label for="climaRelatorioFim" class="required">Data Fim:</label><input type="date" id="climaRelatorioFim" /></div>
-                </div>
-                <div class="botoes-relatorio">
-                    <button id="btnPDFClima" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
-                    <button id="btnExcelClima" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
-                </div>
-            </section>
-
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
