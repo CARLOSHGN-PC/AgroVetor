@@ -82,8 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
         async getAll(storeName) {
             return (await this.dbPromise).getAll(storeName);
         },
-        async set(storeName, value, key) {
-            return (await this.dbPromise).put(storeName, value, key);
+        async set(storeName, key, val) {
+            return (await this.dbPromise).put(storeName, val, key);
         },
         async add(storeName, val) {
             return (await this.dbPromise).add(storeName, val);
@@ -7475,7 +7475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
 
                     // 4. Guardar no IndexedDB
-                    await OfflineDB.set('offline-credentials', credentialsToStore);
+                    await OfflineDB.set('offline-credentials', credentialsToStore.email, credentialsToStore);
 
                     App.ui.showAlert("Login offline habilitado/atualizado com sucesso!", "success");
                     App.ui.closeEnableOfflineLoginModal();
@@ -7800,7 +7800,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
                     const buffer = await response.arrayBuffer();
 
-                    await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
+                    await OfflineDB.set('shapefile-cache', 'shapefile-zip', buffer);
 
                     console.log("Processando e desenhando os talhões no mapa...");
                     const geojson = await shp(buffer);
