@@ -2,12 +2,15 @@
 import pytest
 from playwright.async_api import async_playwright, expect
 
-@pytest.mark.skip(reason="GPS tracking requires permissions not available in test env")
 @pytest.mark.asyncio
 async def test_automatic_gps_tracking():
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        page = await browser.new_page()
+        context = await browser.new_context(
+            permissions=["geolocation"],
+            geolocation={"latitude": -21.17, "longitude": -48.45},
+        )
+        page = await context.new_page()
 
         await page.goto("http://localhost:8000")
 
@@ -29,7 +32,5 @@ async def test_automatic_gps_tracking():
 
         is_tracking = await page.evaluate("() => window.App.state.isTracking")
         assert is_tracking is True, "GPS tracking did not start automatically"
-
-        await page.screenshot(path="jules-scratch/verification/verification.png")
 
         await browser.close()
