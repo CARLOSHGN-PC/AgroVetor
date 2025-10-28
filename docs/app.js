@@ -1286,6 +1286,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async loadSecondaryData() {
                 App.ui.setLoading(true, "A sincronizar dados...");
                 try {
+                    // CRITICAL FIX: 'armadilhas' is removed from here to enforce sequential loading after 'fazendas'.
                     const collectionsToLoad = ['fazendas', 'personnel', 'frentesDePlantio', 'harvestPlans', 'planos'];
                     // O for...of garante que as coleções são ouvidas em sequência,
                     // o que pode ajudar a evitar sobrecarga, embora onSnapshot seja assíncrono.
@@ -1328,12 +1329,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Ações específicas após o carregamento dos dados
                     if (collectionName === 'armadilhas') {
-                        if (App.state.mapboxMap) App.mapModule.loadTraps();
+                        // CRITICAL FIX: Initialize the map only AFTER the trap data has loaded.
+                        if (!App.state.mapboxMap) {
+                            App.mapModule.initMap();
+                        } else {
+                            App.mapModule.loadTraps();
+                        }
                         App.mapModule.checkTrapStatusAndNotify();
                     }
 
                     // Re-renderiza o conteúdo relevante que depende desta coleção
                     App.ui.renderSpecificContent(collectionName);
+
+                    // CRITICAL FIX: After 'fazendas' is loaded, now load 'armadilhas'
+                    if (collectionName === 'fazendas') {
+                        console.log("Fazendas loaded, now triggering armadilhas load.");
+                        this.listenToCollection('armadilhas');
+                    }
 
                     // Se for uma coleção de dashboard, re-renderiza os gráficos
                     const activeDashboard = document.querySelector('#dashboard > div.active')?.id;
@@ -1442,7 +1454,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
-                App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
+                // App.mapModule.initMap(); // MOVED to armadilhas listener to prevent race condition
                 App.actions.startGpsTracking(); // O rastreamento agora é manual
             },
             renderSpecificContent(collectionName) {
