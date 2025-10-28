@@ -7459,19 +7459,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }).toString();
 
                     // 3. Preparar os dados para guardar
-                    const userProfileToSave = {
-                        uid: currentUser.uid,
-                        email: currentUser.email,
-                        username: currentUser.username,
-                        role: currentUser.role,
-                        permissions: currentUser.permissions,
-                        companyId: currentUser.companyId,
-                    };
                     const credentialsToStore = {
                         email: currentUser.email.toLowerCase(),
                         hashedPassword: hashedPassword,
                         salt: salt,
-                        userProfile: userProfileToSave
+                        userProfile: { ...currentUser } // Guarda uma cópia do perfil do utilizador
                     };
 
                     // 4. Guardar no IndexedDB
