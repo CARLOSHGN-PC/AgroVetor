@@ -1958,9 +1958,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (type === 'perda') {
                     App.elements.dashboard.perdaDashboardInicio.value = firstDayOfYear;
                     App.elements.dashboard.perdaDashboardFim.value = todayDate;
-                } else if (type === 'clima') {
-                    document.getElementById('climaDashboardInicio').value = firstDayOfYear;
-                    document.getElementById('climaDashboardFim').value = todayDate;
                 }
                 App.actions.saveDashboardDates(type, firstDayOfYear, todayDate);
             },
@@ -1973,9 +1970,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (type === 'perda') {
                         App.elements.dashboard.perdaDashboardInicio.value = savedDates.start;
                         App.elements.dashboard.perdaDashboardFim.value = savedDates.end;
-                    } else if (type === 'clima') {
-                        document.getElementById('climaDashboardInicio').value = savedDates.start;
-                        document.getElementById('climaDashboardFim').value = savedDates.end;
                     }
                 } else {
                     this.setDefaultDatesForDashboard(type);
@@ -2010,8 +2004,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.relatorioMonitoramento.fazendaFiltro,
                     App.elements.apontamentoPlantio.farmName,
                     App.elements.lancamentoClima.fazenda,
-                    App.elements.relatorioClima.fazenda,
-                    document.getElementById('climaDashboardFazenda')
+                    App.elements.relatorioClima.fazenda
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
