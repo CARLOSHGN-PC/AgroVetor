@@ -7481,7 +7481,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.closeEnableOfflineLoginModal();
 
                 } catch (error) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
+                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showAlert("A senha está incorreta.", "error");
                     } else {
                         App.ui.showAlert("Ocorreu um erro ao habilitar o login offline.", "error");
