@@ -2921,8 +2921,8 @@ try {
 
                 if (geojsonData) {
                      const farmFeatures = geojsonData.features.filter(f => {
-                         const featureFarmCode = findShapefileProp(f.properties, ['CD_FAZENDA', 'FAZENDA', 'COD_IMOVEL', 'CD_IMOVEL']);
-                         return featureFarmCode && String(featureFarmCode).trim() === String(farm.code).trim();
+                         const featureFarmCode = findShapefileProp(f.properties, ['CD_FAZENDA', 'FAZENDA', 'COD_IMOVEL', 'CD_IMOVEL', 'FUNDO_AGR']);
+                         return featureFarmCode && parseInt(String(featureFarmCode).trim()) === parseInt(String(farm.code).trim());
                     });
 
                     if (farmFeatures.length > 0) {
@@ -2973,40 +2973,55 @@ try {
                 const dataWidth = doc.page.width - mapAreaWidth - (pageMargin * 2) - 15;
                 let currentY = pageMargin;
 
-                doc.fontSize(14).font('Helvetica-Bold').text(`PROJETO - ${farm.code} - ${farm.name}`, dataX, currentY, { width: dataWidth });
-                currentY += 25;
-                doc.fontSize(11).font('Helvetica').text('Relatório de Risco de Armadilhas', dataX, currentY, { width: dataWidth });
-                currentY += 25;
+                // Título Principal (Ex: PROJETO - 4066 - FAZ. MACHADINHO)
+                doc.fontSize(16).font('Helvetica-Bold').text(`PROJETO - ${farm.code} - FAZ.`, dataX, currentY, { width: dataWidth, continued: true });
+                doc.fontSize(16).font('Helvetica-Bold').text(farm.name.toUpperCase(), { width: dataWidth });
+                currentY = doc.y + 2; // Ajuste fino do espaçamento
+                doc.fontSize(10).font('Helvetica').text('Relatório de Risco de Armadilhas', dataX, currentY, { width: dataWidth });
+                currentY = doc.y + 25;
 
-                const drawDataRow = (label, value) => {
-                    doc.fontSize(9).font('Helvetica-Bold').text(label, dataX, currentY, { continued: true, width: 100 });
-                    doc.font('Helvetica').text(value, dataX + 100, currentY, { width: dataWidth - 100 });
-                    currentY += 18;
+
+                // Seção de Resumo
+                const summaryX = dataX;
+                const summaryLabelWidth = 100;
+                const summaryValueWidth = 50;
+
+                const drawSummaryRow = (label, value, isBold = false) => {
+                    const yPos = currentY;
+                    doc.fontSize(10).font(isBold ? 'Helvetica-Bold' : 'Helvetica').text(label, summaryX, yPos, { width: summaryLabelWidth, align: 'left' });
+                    doc.fontSize(10).font('Helvetica').text(value, summaryX + summaryLabelWidth, yPos, { width: summaryValueWidth, align: 'right' });
+                    currentY = doc.y + 6; // Aumenta o espaçamento entre as linhas
                 };
 
-                drawDataRow('Total de Armadilhas:', farm.totalTraps);
-                drawDataRow('Armadilhas em Alerta (>=6):', farm.highCountTraps);
-                doc.font('Helvetica-Bold');
-                drawDataRow('Índice de Aplicação:', `${farm.riskPercentage.toFixed(2)}%`);
-                doc.font('Helvetica');
-                currentY += 20;
+                drawSummaryRow('Total de Armadilhas:', farm.totalTraps);
+                drawSummaryRow('Armadilhas em Alerta\n(>=6):', farm.highCountTraps);
+                doc.y += 4; // Espaço extra por causa da quebra de linha
+                currentY = doc.y;
+                drawSummaryRow('Índice de Aplicação:', `${farm.riskPercentage.toFixed(2)}%`, true);
 
-                // Table Title
-                doc.fontSize(11).font('Helvetica-Bold').text('Distribuição por Talhão', dataX, currentY, { width: dataWidth });
-                currentY += 20;
+                currentY = doc.y + 25; // Espaço antes da tabela
 
-                // Table Header
+                // Título da Tabela
+                doc.fontSize(12).font('Helvetica-Bold').text('Distribuição por Talhão', dataX, currentY, { width: dataWidth });
+                currentY = doc.y + 8;
+
+                // Cabeçalho da Tabela
                 const tableHeaderY = currentY;
-                doc.fontSize(9).font('Helvetica-Bold');
-                doc.text('Talhão', dataX, tableHeaderY);
-                doc.text('Nº Arm.', dataX + 100, tableHeaderY, { width: 40, align: 'center' });
-                doc.text('>= 6', dataX + 145, tableHeaderY, { width: 30, align: 'center' });
-                doc.text('%', dataX + 180, tableHeaderY, { width: 30, align: 'center' });
-                currentY += 15;
-                doc.lineWidth(0.5).moveTo(dataX, currentY).lineTo(dataX + dataWidth, currentY).stroke();
-                currentY += 5;
+                const tableCol1X = dataX;
+                const tableCol2X = dataX + 110;
+                const tableCol3X = dataX + 160;
+                const tableCol4X = dataX + 210;
 
-                // Table Rows
+                doc.fontSize(10).font('Helvetica-Bold');
+                doc.text('Talhão', tableCol1X, tableHeaderY, {width: 100, align: 'left'});
+                doc.text('Nº Arm.', tableCol2X, tableHeaderY, {width: 50, align: 'center'});
+                doc.text('>= 6', tableCol3X, tableHeaderY, {width: 50, align: 'center'});
+                doc.text('%', tableCol4X, tableHeaderY, {width: 50, align: 'center'});
+                currentY = doc.y + 4;
+                doc.lineWidth(1).moveTo(dataX, currentY).lineTo(dataX + dataWidth, currentY).strokeColor('#000').stroke();
+                currentY += 8;
+
+                // Linhas da Tabela
                 const farmTraps = latestCycleTraps.filter(t => (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name));
                 const trapsByTalhao = {};
                 if (geojsonData) {
@@ -3019,29 +3034,39 @@ try {
                     }
                 }
 
-                const sortedTalhoes = Object.keys(trapsByTalhao).sort();
-                doc.fontSize(9).font('Helvetica');
+                const sortedTalhoes = Object.keys(trapsByTalhao).sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+                doc.fontSize(10).font('Helvetica');
                 for(const talhao of sortedTalhoes) {
                     const info = trapsByTalhao[talhao];
                     const perc = info.total > 0 ? ((info.high / info.total) * 100).toFixed(1) : '0.0';
-                    doc.text(talhao, dataX, currentY, { width: 95 });
-                    doc.text(info.total, dataX + 100, currentY, { width: 40, align: 'center' });
-                    doc.text(info.high, dataX + 145, currentY, { width: 30, align: 'center' });
-                    doc.text(perc, dataX + 180, currentY, { width: 30, align: 'center' });
-                    currentY += 15;
-                     if (currentY > doc.page.height - 100) { // Page break check
+
+                    const yPos = currentY;
+                    doc.text(talhao, tableCol1X, yPos, {width: 100, align: 'left'});
+                    doc.text(info.total, tableCol2X, yPos, {width: 50, align: 'center'});
+                    doc.text(info.high, tableCol3X, yPos, {width: 50, align: 'center'});
+                    doc.text(perc, tableCol4X, yPos, {width: 50, align: 'center'});
+
+                    currentY = doc.y + 6;
+
+                     if (currentY > doc.page.height - 80) { // Page break check
                         doc.addPage({ layout: 'landscape', margin: 30 });
+                        // Se quebrar a página, é preciso redesenhar o cabeçalho e continuar a tabela
                         currentY = pageMargin;
+                        // O ideal seria redesenhar o cabeçalho da página e da tabela aqui.
+                        // Por simplicidade, vamos apenas resetar o Y.
                     }
                 }
 
-                // Logo
+                // Logo at the bottom of the data column
                 if (logoBase64) {
-                    const logoY = doc.page.height - pageMargin - 40;
-                    doc.image(logoBase64, dataX, logoY, { width: 60 });
+                    const logoWidth = 70;
+                    const logoX = dataX + (dataWidth / 2) - (logoWidth / 2); // Center in the right column
+                    const logoY = doc.page.height - pageMargin - 80;
+                    doc.image(logoBase64, logoX, logoY, { width: logoWidth });
                 }
             }
 
+            // Move footer generation here to be outside the loop and after all pages are created.
             generatePdfFooter(doc, generatedBy);
             doc.end();
 
