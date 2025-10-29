@@ -2921,21 +2921,8 @@ try {
 
                 if (geojsonData) {
                      const farmFeatures = geojsonData.features.filter(f => {
-                        // Prioritize matching by code
-                        const codeKeys = ['CD_FAZENDA', 'FAZENDA', 'COD_IMOVEL', 'CD_IMOVEL', 'FUNDO_AGR'];
-                        const featureFarmCode = findShapefileProp(f.properties, codeKeys);
-                        if (featureFarmCode && !isNaN(parseInt(String(featureFarmCode).trim())) && parseInt(String(featureFarmCode).trim()) === parseInt(String(farm.code).trim())) {
-                            return true;
-                        }
-
-                        // Fallback to matching by name (case-insensitive)
-                        const nameKeys = ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA'];
-                        const featureFarmName = findShapefileProp(f.properties, nameKeys);
-                        if (featureFarmName && String(featureFarmName).trim().toUpperCase() === String(farm.name).trim().toUpperCase()) {
-                            return true;
-                        }
-
-                        return false;
+                         const featureFarmCode = findShapefileProp(f.properties, ['CD_FAZENDA', 'FAZENDA', 'COD_IMOVEL', 'CD_IMOVEL', 'FUNDO_AGR']);
+                         return featureFarmCode && parseInt(String(featureFarmCode).trim()) === parseInt(String(farm.code).trim());
                     });
 
                     if (farmFeatures.length > 0) {
@@ -2953,17 +2940,15 @@ try {
                         const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
 
                         doc.save();
+                        doc.lineWidth(0.5).strokeColor('#888');
                         farmFeatures.forEach(feature => {
                             const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
                             polygons.forEach(polygon => {
                                 const path = polygon[0];
                                 const firstPoint = transformCoord(path[0]);
                                 doc.moveTo(firstPoint[0], firstPoint[1]);
-                                for (let i = 1; i < path.length; i++) {
-                                    doc.lineTo(...transformCoord(path[i]));
-                                }
-                                doc.closePath();
-                                doc.fillAndStroke('#E0E0E0', '#555');
+                                for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
+                                doc.stroke();
                             });
                         });
 
