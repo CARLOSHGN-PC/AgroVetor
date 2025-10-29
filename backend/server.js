@@ -2781,15 +2781,24 @@ try {
     });
 
     const getRiskViewData = async (filters) => {
-        const { companyId, inicio, fim } = filters;
+        const { companyId, inicio, fim, fazendaCodigo } = filters;
         if (!companyId) {
             throw new Error("O ID da empresa é obrigatório para calcular o risco.");
         }
 
-        // 1. Fetch all necessary data
-        const farmsSnapshot = await db.collection('fazendas').where('companyId', '==', companyId).get();
+        // 1. Fetch necessary farm data, applying filter if provided
+        let farmsQuery = db.collection('fazendas').where('companyId', '==', companyId);
+        if (fazendaCodigo) {
+            farmsQuery = farmsQuery.where('code', '==', String(fazendaCodigo));
+        }
+        const farmsSnapshot = await farmsQuery.get();
         const allFarms = [];
         farmsSnapshot.forEach(doc => allFarms.push({ id: doc.id, ...doc.data() }));
+
+        // If a farm was specified but not found, return empty to avoid processing all traps.
+        if (fazendaCodigo && allFarms.length === 0) {
+            return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
+        }
 
         let trapsQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
         // Apply date filters to the initial query to narrow down the dataset
@@ -2949,8 +2958,25 @@ try {
                         const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
 
                         doc.save();
-                        doc.lineWidth(0.5).fillColor('#E8E8E8').strokeColor('#888');
+                        doc.lineWidth(0.5).strokeColor('#555'); // Darker stroke for all polygons
+
                         farmFeatures.forEach(feature => {
+                            const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
+                            const talhaoInfo = trapsByTalhao[talhaoNome];
+                            let fillColor = '#d3d3d3'; // Default gray for plots with no traps
+
+                            if (talhaoInfo) {
+                                const riskPerc = talhaoInfo.total > 0 ? (talhaoInfo.high / talhaoInfo.total) * 100 : 0;
+                                if (riskPerc >= 30) {
+                                    fillColor = '#d9534f'; // Red for high risk
+                                } else if (riskPerc > 0) {
+                                    fillColor = '#f0ad4e'; // Yellow for medium risk
+                                } else {
+                                    fillColor = '#5cb85c'; // Green for low risk
+                                }
+                            }
+
+                            doc.fillColor(fillColor);
                             const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
                             polygons.forEach(polygon => {
                                 const path = polygon[0];
@@ -3016,16 +3042,18 @@ try {
 
                 // Cabeçalho da Tabela
                 const tableHeaderY = currentY;
-                const tableCol1X = dataX;
-                const tableCol2X = dataX + 110;
-                const tableCol3X = dataX + 160;
-                const tableCol4X = dataX + 210;
+                const tableCol1X = dataX;         // Talhão
+                const tableCol2X = dataX + 80;    // Nº Arm.
+                const tableCol3X = dataX + 130;   // >= 6
+                const tableCol4X = dataX + 170;   // Soma Mariposas
+                const tableCol5X = dataX + 220;   // %
 
                 doc.fontSize(10).font('Helvetica-Bold');
-                doc.text('Talhão', tableCol1X, tableHeaderY, {width: 100, align: 'left'});
-                doc.text('Nº Arm.', tableCol2X, tableHeaderY, {width: 50, align: 'center'});
-                doc.text('>= 6', tableCol3X, tableHeaderY, {width: 50, align: 'center'});
-                doc.text('%', tableCol4X, tableHeaderY, {width: 50, align: 'center'});
+                doc.text('Talhão', tableCol1X, tableHeaderY, { width: 70, align: 'left' });
+                doc.text('Nº Arm.', tableCol2X, tableHeaderY, { width: 50, align: 'center' });
+                doc.text('>= 6', tableCol3X, tableHeaderY, { width: 40, align: 'center' });
+                doc.text('Soma Mariposas', tableCol4X, tableHeaderY, { width: 50, align: 'center' });
+                doc.text('%', tableCol5X, tableHeaderY, { width: 40, align: 'center' });
                 currentY = doc.y + 4;
                 doc.lineWidth(1).moveTo(dataX, currentY).lineTo(dataX + dataWidth, currentY).strokeColor('#000').stroke();
                 currentY += 8;
@@ -3037,9 +3065,14 @@ try {
                     for (const trap of farmTraps) {
                         const talhaoProps = findTalhaoForTrap(trap, geojsonData);
                         const talhaoNome = findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A';
-                        if (!trapsByTalhao[talhaoNome]) trapsByTalhao[talhaoNome] = { total: 0, high: 0 };
+                        if (!trapsByTalhao[talhaoNome]) {
+                            trapsByTalhao[talhaoNome] = { total: 0, high: 0, mothSum: 0 };
+                        }
                         trapsByTalhao[talhaoNome].total++;
-                        if (trap.contagemMariposas >= 6) trapsByTalhao[talhaoNome].high++;
+                        trapsByTalhao[talhaoNome].mothSum += trap.contagemMariposas || 0;
+                        if (trap.contagemMariposas >= 6) {
+                            trapsByTalhao[talhaoNome].high++;
+                        }
                     }
                 }
 
@@ -3050,10 +3083,12 @@ try {
                     const perc = info.total > 0 ? ((info.high / info.total) * 100).toFixed(1) : '0.0';
 
                     const yPos = currentY;
-                    doc.text(talhao, tableCol1X, yPos, {width: 100, align: 'left'});
-                    doc.text(info.total, tableCol2X, yPos, {width: 50, align: 'center'});
-                    doc.text(info.high, tableCol3X, yPos, {width: 50, align: 'center'});
-                    doc.text(perc, tableCol4X, yPos, {width: 50, align: 'center'});
+                    doc.text(talhao, tableCol1X, yPos, { width: 70, align: 'left' });
+                    doc.text(info.total, tableCol2X, yPos, { width: 50, align: 'center' });
+                    doc.text(info.high, tableCol3X, yPos, { width: 40, align: 'center' });
+                    doc.text(info.mothSum, tableCol4X, yPos, { width: 50, align: 'center' });
+                    doc.text(perc, tableCol5X, yPos, { width: 40, align: 'center' });
+
 
                     currentY = doc.y + 6;
 
