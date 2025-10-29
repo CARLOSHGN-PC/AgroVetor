@@ -2920,6 +2920,24 @@ try {
 
 
             for (const farm of farmsInRisk) {
+                // PRIMEIRO, calcular todos os dados do talhão para que possam ser usados tanto no mapa quanto na tabela.
+                const farmTraps = latestCycleTraps.filter(t => (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name));
+                const trapsByTalhao = {};
+                if (geojsonData) {
+                    for (const trap of farmTraps) {
+                        const talhaoProps = findTalhaoForTrap(trap, geojsonData);
+                        const talhaoNome = findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A';
+                        if (!trapsByTalhao[talhaoNome]) {
+                            trapsByTalhao[talhaoNome] = { total: 0, high: 0, mothSum: 0 };
+                        }
+                        trapsByTalhao[talhaoNome].total++;
+                        trapsByTalhao[talhaoNome].mothSum += trap.contagemMariposas || 0;
+                        if (trap.contagemMariposas >= 6) {
+                            trapsByTalhao[talhaoNome].high++;
+                        }
+                    }
+                }
+
                 doc.addPage({ layout: 'landscape', margin: 30 });
                 const pageMargin = 30;
 
@@ -2933,13 +2951,10 @@ try {
                 if (geojsonData) {
                     const farmFeatures = geojsonData.features.filter(f => {
                         if (!f.properties) return false;
-                        // Case-insensitively find the key for the farm code, prioritizing 'FUNDO_AGR'.
                         const propKeys = Object.keys(f.properties);
                         const codeKey = propKeys.find(k => k.toLowerCase() === 'fundo_agr');
                         if (!codeKey) return false;
-
                         const featureFarmCode = f.properties[codeKey];
-                        // Compare as numbers to handle potential type mismatches (e.g., '04066' vs 4066).
                         return featureFarmCode && parseInt(featureFarmCode, 10) === parseInt(farm.code, 10);
                     });
 
@@ -2958,21 +2973,21 @@ try {
                         const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
 
                         doc.save();
-                        doc.lineWidth(0.5).strokeColor('#555'); // Darker stroke for all polygons
+                        doc.lineWidth(0.5).strokeColor('#555');
 
                         farmFeatures.forEach(feature => {
                             const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
                             const talhaoInfo = trapsByTalhao[talhaoNome];
-                            let fillColor = '#d3d3d3'; // Default gray for plots with no traps
+                            let fillColor = '#d3d3d3';
 
                             if (talhaoInfo) {
                                 const riskPerc = talhaoInfo.total > 0 ? (talhaoInfo.high / talhaoInfo.total) * 100 : 0;
                                 if (riskPerc >= 30) {
-                                    fillColor = '#d9534f'; // Red for high risk
+                                    fillColor = '#d9534f';
                                 } else if (riskPerc > 0) {
-                                    fillColor = '#f0ad4e'; // Yellow for medium risk
+                                    fillColor = '#f0ad4e';
                                 } else {
-                                    fillColor = '#5cb85c'; // Green for low risk
+                                    fillColor = '#5cb85c';
                                 }
                             }
 
@@ -2987,7 +3002,6 @@ try {
                             });
                         });
 
-                        const farmTraps = latestCycleTraps.filter(t => (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name));
                         farmTraps.forEach(trap => {
                             if (trap.longitude && trap.latitude) {
                                 const [trapX, trapY] = transformCoord([trap.longitude, trap.latitude]);
@@ -3008,15 +3022,12 @@ try {
                 const dataWidth = doc.page.width - mapAreaWidth - (pageMargin * 2) - 15;
                 let currentY = pageMargin;
 
-                // Título Principal (Ex: PROJETO - 4066 - FAZ. MACHADINHO)
                 doc.fontSize(16).font('Helvetica-Bold').text(`PROJETO - ${farm.code} - FAZ.`, dataX, currentY, { width: dataWidth, continued: true });
                 doc.fontSize(16).font('Helvetica-Bold').text(farm.name.toUpperCase(), { width: dataWidth });
-                currentY = doc.y + 2; // Ajuste fino do espaçamento
+                currentY = doc.y + 2;
                 doc.fontSize(10).font('Helvetica').text('Relatório de Risco de Armadilhas', dataX, currentY, { width: dataWidth });
                 currentY = doc.y + 25;
 
-
-                // Seção de Resumo
                 const summaryX = dataX;
                 const summaryLabelWidth = 100;
                 const summaryValueWidth = 50;
@@ -3025,28 +3036,26 @@ try {
                     const yPos = currentY;
                     doc.fontSize(10).font(isBold ? 'Helvetica-Bold' : 'Helvetica').text(label, summaryX, yPos, { width: summaryLabelWidth, align: 'left' });
                     doc.fontSize(10).font('Helvetica').text(value, summaryX + summaryLabelWidth, yPos, { width: summaryValueWidth, align: 'right' });
-                    currentY = doc.y + 6; // Aumenta o espaçamento entre as linhas
+                    currentY = doc.y + 6;
                 };
 
                 drawSummaryRow('Total de Armadilhas:', farm.totalTraps);
                 drawSummaryRow('Armadilhas em Alerta\n(>=6):', farm.highCountTraps);
-                doc.y += 4; // Espaço extra por causa da quebra de linha
+                doc.y += 4;
                 currentY = doc.y;
                 drawSummaryRow('Índice de Aplicação:', `${farm.riskPercentage.toFixed(2)}%`, true);
 
-                currentY = doc.y + 25; // Espaço antes da tabela
+                currentY = doc.y + 25;
 
-                // Título da Tabela
                 doc.fontSize(12).font('Helvetica-Bold').text('Distribuição por Talhão', dataX, currentY, { width: dataWidth });
                 currentY = doc.y + 8;
 
-                // Cabeçalho da Tabela
                 const tableHeaderY = currentY;
-                const tableCol1X = dataX;         // Talhão
-                const tableCol2X = dataX + 80;    // Nº Arm.
-                const tableCol3X = dataX + 130;   // >= 6
-                const tableCol4X = dataX + 170;   // Soma Mariposas
-                const tableCol5X = dataX + 220;   // %
+                const tableCol1X = dataX;
+                const tableCol2X = dataX + 80;
+                const tableCol3X = dataX + 130;
+                const tableCol4X = dataX + 170;
+                const tableCol5X = dataX + 220;
 
                 doc.fontSize(10).font('Helvetica-Bold');
                 doc.text('Talhão', tableCol1X, tableHeaderY, { width: 70, align: 'left' });
@@ -3057,24 +3066,6 @@ try {
                 currentY = doc.y + 4;
                 doc.lineWidth(1).moveTo(dataX, currentY).lineTo(dataX + dataWidth, currentY).strokeColor('#000').stroke();
                 currentY += 8;
-
-                // Linhas da Tabela
-                const farmTraps = latestCycleTraps.filter(t => (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name));
-                const trapsByTalhao = {};
-                if (geojsonData) {
-                    for (const trap of farmTraps) {
-                        const talhaoProps = findTalhaoForTrap(trap, geojsonData);
-                        const talhaoNome = findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A';
-                        if (!trapsByTalhao[talhaoNome]) {
-                            trapsByTalhao[talhaoNome] = { total: 0, high: 0, mothSum: 0 };
-                        }
-                        trapsByTalhao[talhaoNome].total++;
-                        trapsByTalhao[talhaoNome].mothSum += trap.contagemMariposas || 0;
-                        if (trap.contagemMariposas >= 6) {
-                            trapsByTalhao[talhaoNome].high++;
-                        }
-                    }
-                }
 
                 const sortedTalhoes = Object.keys(trapsByTalhao).sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
                 doc.fontSize(10).font('Helvetica');
@@ -3089,22 +3080,17 @@ try {
                     doc.text(info.mothSum, tableCol4X, yPos, { width: 50, align: 'center' });
                     doc.text(perc, tableCol5X, yPos, { width: 40, align: 'center' });
 
-
                     currentY = doc.y + 6;
 
-                     if (currentY > doc.page.height - 80) { // Page break check
+                     if (currentY > doc.page.height - 80) {
                         doc.addPage({ layout: 'landscape', margin: 30 });
-                        // Se quebrar a página, é preciso redesenhar o cabeçalho e continuar a tabela
                         currentY = pageMargin;
-                        // O ideal seria redesenhar o cabeçalho da página e da tabela aqui.
-                        // Por simplicidade, vamos apenas resetar o Y.
                     }
                 }
 
-                // Logo at the bottom of the data column
                 if (logoBase64) {
                     const logoWidth = 70;
-                    const logoX = dataX + (dataWidth / 2) - (logoWidth / 2); // Center in the right column
+                    const logoX = dataX + (dataWidth / 2) - (logoWidth / 2);
                     const logoY = doc.page.height - pageMargin - 80;
                     doc.image(logoBase64, logoX, logoY, { width: logoWidth });
                 }
