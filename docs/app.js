@@ -1,7 +1,7 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
@@ -960,8 +960,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.ui.setLoading(true, "A autenticar...");
                 try {
-                    // Garante que a sessão persista mesmo após fechar e reabrir o aplicativo.
-                    await setPersistence(auth, browserLocalPersistence);
+                    // Garante que a sessão seja encerrada ao fechar a aba/aplicativo.
+                    await setPersistence(auth, browserSessionPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -7842,6 +7842,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = document.getElementById('map-container');
                 if (!url) {
                     if (mapContainer) mapContainer.classList.remove('loading');
+                    // Se não houver URL, tenta carregar do offline como um fallback final.
+                    this.loadOfflineShapes();
                     return;
                 }
                 console.log("Iniciando o carregamento dos contornos do mapa em segundo plano...");
@@ -7864,7 +7866,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("Contornos do mapa carregados com sucesso.");
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
-                    App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
+
+                    // Tratamento de erro aprimorado
+                    let userMessage = "Falha ao carregar os desenhos do mapa. A tentar usar a versão offline.";
+                    if (window.Capacitor && Capacitor.isNativePlatform()) {
+                        userMessage = "Não foi possível descarregar os dados do mapa. Verifique a sua ligação e as permissões da aplicação. A tentar usar a versão offline.";
+                    }
+
+                    App.ui.showAlert(userMessage, "warning", 7000);
+
                     if (mapContainer) mapContainer.classList.remove('loading');
                     this.loadOfflineShapes();
                 }
@@ -7876,12 +7886,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
                     if (buffer) {
-                        App.ui.showAlert("A carregar mapa do cache offline.", "info");
+                        console.log("Shapefile encontrado no cache offline. A processar...");
                         const geojson = await shp(buffer);
                         App.state.geoJsonData = geojson;
                         if (App.state.mapboxMap) {
                             this.loadShapesOnMap();
                         }
+                    } else {
+                        // NOVO: Lida com o caso em que o cache está vazio.
+                        console.warn("Nenhum shapefile encontrado no cache offline.");
+                        App.ui.showAlert("Desenhos do mapa offline não disponíveis. Conecte-se à internet pelo menos uma vez para descarregá-los.", "warning", 7000);
                     }
                 } catch (error) {
                     console.error("Erro crítico ao carregar ou processar o mapa offline:", error);
