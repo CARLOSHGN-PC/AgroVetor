@@ -2790,52 +2790,57 @@ try {
         farmsSnapshot.forEach(doc => allFarms.push({ id: doc.id, ...doc.data() }));
 
         let trapsQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
+        // Apply date filters to the initial query to narrow down the dataset
         if (inicio) {
-            trapsQuery = trapsQuery.where('dataColeta', '>=', new Date(inicio));
+            trapsQuery = trapsQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
         }
         if (fim) {
-            trapsQuery = trapsQuery.where('dataColeta', '<=', new Date(fim));
+            trapsQuery = trapsQuery.where('dataColeta', '<=', new Date(fim + 'T23:59:59Z'));
         }
 
         const trapsSnapshot = await trapsQuery.get();
-        const collectedTraps = [];
-        trapsSnapshot.forEach(doc => collectedTraps.push({ id: doc.id, ...doc.data() }));
+        const collectedTrapsInRange = [];
+        trapsSnapshot.forEach(doc => collectedTrapsInRange.push({ id: doc.id, ...doc.data() }));
+
+        if (collectedTrapsInRange.length === 0) {
+            return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
+        }
+
+        // 2. Find the most recent collection date within the filtered range
+        let mostRecentCollectionDate = new Date(0);
+        collectedTrapsInRange.forEach(trap => {
+            const collectionDate = safeToDate(trap.dataColeta);
+            if (collectionDate > mostRecentCollectionDate) {
+                mostRecentCollectionDate = collectionDate;
+            }
+        });
+
+        // 3. Filter to get only collections from that specific day (the monitoring cycle)
+        const latestCycleCollections = collectedTrapsInRange.filter(trap => {
+            const collectionDate = safeToDate(trap.dataColeta);
+            return collectionDate.getFullYear() === mostRecentCollectionDate.getFullYear() &&
+                   collectionDate.getMonth() === mostRecentCollectionDate.getMonth() &&
+                   collectionDate.getDate() === mostRecentCollectionDate.getDate();
+        });
+
 
         const farmsInRisk = [];
         const farmRiskData = {};
 
         allFarms.forEach(farm => {
-            const collectedTrapsOnFarm = collectedTraps.filter(t =>
+            // Filter traps for the current farm from the latest cycle
+            const collectedTrapsOnFarm = latestCycleCollections.filter(t =>
                 (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name)
             );
 
             if (collectedTrapsOnFarm.length === 0) {
-                return; // Skip if no collections
+                return; // Skip if no collections on this farm in the latest cycle
             }
 
-            let cycleTrapsToAnalyze = collectedTrapsOnFarm;
-            // If no date range is provided, find the most recent collection cycle day
-            if (!inicio && !fim) {
-                let mostRecentCollectionDate = new Date(0);
-                collectedTrapsOnFarm.forEach(trap => {
-                    const collectionDate = safeToDate(trap.dataColeta);
-                    if (collectionDate > mostRecentCollectionDate) {
-                        mostRecentCollectionDate = collectionDate;
-                    }
-                });
-
-                cycleTrapsToAnalyze = collectedTrapsOnFarm.filter(trap => {
-                    const collectionDate = safeToDate(trap.dataColeta);
-                    return collectionDate.getFullYear() === mostRecentCollectionDate.getFullYear() &&
-                           collectionDate.getMonth() === mostRecentCollectionDate.getMonth() &&
-                           collectionDate.getDate() === mostRecentCollectionDate.getDate();
-                });
-            }
-
-
+            // 4. Deduplicate collections for the same trap, keeping only the latest one by time
             const latestUniqueCollections = new Map();
-            cycleTrapsToAnalyze.forEach(trap => {
-                const trapKey = trap.id;
+            collectedTrapsOnFarm.forEach(trap => {
+                const trapKey = trap.id; // Unique ID for the trap itself
                 const existing = latestUniqueCollections.get(trapKey);
                 const collectionDate = safeToDate(trap.dataColeta);
                 if (!existing || collectionDate > safeToDate(existing.dataColeta)) {
@@ -2854,6 +2859,7 @@ try {
                 highCountTraps: highCountTraps.length
             };
 
+            // 5. Check risk with the correct threshold (>= 30)
             if (riskPercentage >= 30) {
                 farmsInRisk.push({
                     ...farm,
@@ -2864,7 +2870,8 @@ try {
             }
         });
 
-        return { farmsInRisk, farmRiskData, latestCycleTraps: collectedTraps };
+        // Return all collections from the latest cycle day for the PDF map drawing
+        return { farmsInRisk, farmRiskData, latestCycleTraps: latestCycleCollections };
     };
 
     app.get('/reports/risk-view/pdf', async (req, res) => {
