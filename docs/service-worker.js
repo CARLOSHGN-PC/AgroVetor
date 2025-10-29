@@ -1,5 +1,5 @@
-const CACHE_NAME = 'agrovetor-cache-v12'; // Incremented version for update
-const TILE_CACHE_NAME = 'agrovetor-tile-cache-v4'; // Incremented tile cache
+const CACHE_NAME = 'agrovetor-cache-v13'; // Incremented version for update
+const TILE_CACHE_NAME = 'agrovetor-tile-cache-v5'; // Incremented tile cache
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the tile cache
@@ -24,7 +24,7 @@ const urlsToCache = [
   './app.js',
   './capacitor.js',
   './manifest.json',
-  './shapefile.zip',
+  // './shapefile.zip', // REMOVED to prevent conflict with IndexedDB caching in app.js
   'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -38,17 +38,28 @@ const urlsToCache = [
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
-  'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js'
+  'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js',
+  // ADDED: Capacitor plugin files are crucial for offline native functionality
+  './@capacitor/network/dist/plugin.js',
+  './@capacitor/geolocation/dist/plugin.js',
+  './@capacitor/status-bar/dist/plugin.js',
+  './@capacitor/push-notifications/dist/plugin.js'
 ];
 
 // Install event: force the new service worker to become active
 self.addEventListener('install', event => {
-  self.skipWaiting(); 
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('Cache opened and core assets stored');
-        return cache.addAll(urlsToCache);
+        const cachePromises = urlsToCache.map(url => {
+            return cache.add(url).catch(err => {
+                // Log the error but don't fail the entire installation
+                console.warn(`Failed to cache ${url}:`, err);
+            });
+        });
+        return Promise.all(cachePromises);
       })
   );
 });
@@ -80,6 +91,12 @@ self.addEventListener('fetch', event => {
   }
 
   const url = new URL(event.request.url);
+
+  // ADDED: Explicitly ignore shapefile downloads to let the app handle them
+  if (url.pathname.endsWith('.zip')) {
+    console.log('Service worker ignoring .zip file request, passing to network.');
+    return; // Let the browser handle the request normally
+  }
 
   // Strategy for Mapbox tiles, fonts, and sprites (Cache First with trimming)
   if (url.hostname.includes('mapbox.com')) {
