@@ -2404,6 +2404,19 @@
                 </div>
             </section>
 
+            <section id="relatorioRisco" class="tab-content card" aria-label="Relatório de Risco" tabindex="0" hidden>
+                <h2><i class="fas fa-biohazard"></i> Relatório de Risco</h2>
+                <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere um relatório em PDF com a visualização de risco das fazendas.</p>
+                <div class="form-row">
+                    <div class="form-col"><label for="riscoRelatorioInicio" class="required">Data Início:</label><input type="date" id="riscoRelatorioInicio" /></div>
+                    <div class="form-col"><label for="riscoRelatorioFim" class="required">Data Fim:</label><input type="date" id="riscoRelatorioFim" /></div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFRisco" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelRisco" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+            </section>
+
             <section id="lancamentoPerda" class="tab-content card" aria-label="Lançamento Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-dollar-sign"></i> Lançamento Perda</h2>
                 <div class="form-row">
