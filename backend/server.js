@@ -2877,7 +2877,7 @@ try {
     };
 
     app.get('/reports/risk-view/pdf', async (req, res) => {
-        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
+        const doc = new PDFDocument({ margin: 30, size: 'A4', bufferPages: true, autoFirstPage: false });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=relatorio_risco.pdf`);
         doc.pipe(res);
@@ -2885,7 +2885,6 @@ try {
         try {
             const { generatedBy, companyId } = req.query;
             if (!companyId) {
-                // This will be caught by the final catch block, which handles PDF generation for errors.
                 throw new Error('O ID da empresa não foi fornecido.');
             }
 
@@ -2893,6 +2892,7 @@ try {
             const geojsonData = await getShapefileData(companyId);
 
             if (farmsInRisk.length === 0) {
+                doc.addPage({ layout: 'portrait' }); // Adiciona a primeira página apenas se necessário
                 await generatePdfHeader(doc, 'Relatório de Visualização de Risco', companyId);
                 doc.text('Nenhuma fazenda em risco encontrada para os filtros selecionados.');
                 generatePdfFooter(doc, generatedBy);
@@ -2964,7 +2964,24 @@ try {
                         });
                         doc.restore();
                     } else {
-                         doc.fontSize(10).text('Geometria da fazenda não encontrada no shapefile.', mapX + 10, mapY + 10);
+                        doc.fontSize(10).font('Helvetica-Bold').text('Debug: Geometria da fazenda não encontrada.', mapX + 10, mapY + 10);
+                        doc.font('Helvetica');
+                        doc.text(`- Código da fazenda procurado: ${farm.code} (tipo: ${typeof farm.code})`);
+                        doc.moveDown();
+
+                        if (geojsonData && geojsonData.features && geojsonData.features.length > 0) {
+                            doc.font('Helvetica-Bold').text('- Amostra de propriedades das primeiras 3 geometrias do shapefile:');
+                            const sampleFeatures = geojsonData.features.slice(0, 3);
+                            sampleFeatures.forEach((feature, index) => {
+                                const props = feature.properties;
+                                const propString = JSON.stringify(props);
+                                doc.font('Helvetica').text(`  - Geometria ${index + 1}: ${propString}`);
+                                const foundCode = findShapefileProp(props, ['CD_FAZENDA', 'FAZENDA', 'COD_IMOVEL', 'CD_IMOVEL', 'FUNDO_AGR']);
+                                doc.font('Helvetica-Oblique').text(`    - Código encontrado nesta geometria: ${foundCode} (tipo: ${typeof foundCode})`);
+                            });
+                        } else {
+                            doc.text('- O shapefile carregado não contém nenhuma geometria (features).');
+                        }
                     }
                 } else {
                      doc.fontSize(10).text('Shapefile não carregado. Mapa não pode ser gerado.', mapX + 10, mapY + 10);
