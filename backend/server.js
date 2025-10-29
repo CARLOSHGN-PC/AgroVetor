@@ -2922,9 +2922,16 @@ try {
                 const mapHeight = doc.page.height - (pageMargin * 2);
 
                 if (geojsonData) {
-                     const farmFeatures = geojsonData.features.filter(f => {
-                         const featureFarmCode = findShapefileProp(f.properties, ['CD_FAZENDA', 'FAZENDA', 'COD_IMOVEL', 'CD_IMOVEL', 'FUNDO_AGR']);
-                         return featureFarmCode && parseInt(String(featureFarmCode).trim()) === parseInt(String(farm.code).trim());
+                    const farmFeatures = geojsonData.features.filter(f => {
+                        if (!f.properties) return false;
+                        // Case-insensitively find the key for the farm code, prioritizing 'FUNDO_AGR'.
+                        const propKeys = Object.keys(f.properties);
+                        const codeKey = propKeys.find(k => k.toLowerCase() === 'fundo_agr');
+                        if (!codeKey) return false;
+
+                        const featureFarmCode = f.properties[codeKey];
+                        // Compare as numbers to handle potential type mismatches (e.g., '04066' vs 4066).
+                        return featureFarmCode && parseInt(featureFarmCode, 10) === parseInt(farm.code, 10);
                     });
 
                     if (farmFeatures.length > 0) {
@@ -2964,24 +2971,7 @@ try {
                         });
                         doc.restore();
                     } else {
-                        doc.fontSize(10).font('Helvetica-Bold').text('Debug: Geometria da fazenda não encontrada.', mapX + 10, mapY + 10);
-                        doc.font('Helvetica');
-                        doc.text(`- Código da fazenda procurado: ${farm.code} (tipo: ${typeof farm.code})`);
-                        doc.moveDown();
-
-                        if (geojsonData && geojsonData.features && geojsonData.features.length > 0) {
-                            doc.font('Helvetica-Bold').text('- Amostra de propriedades das primeiras 3 geometrias do shapefile:');
-                            const sampleFeatures = geojsonData.features.slice(0, 3);
-                            sampleFeatures.forEach((feature, index) => {
-                                const props = feature.properties;
-                                const propString = JSON.stringify(props);
-                                doc.font('Helvetica').text(`  - Geometria ${index + 1}: ${propString}`);
-                                const foundCode = findShapefileProp(props, ['CD_FAZENDA', 'FAZENDA', 'COD_IMOVEL', 'CD_IMOVEL', 'FUNDO_AGR']);
-                                doc.font('Helvetica-Oblique').text(`    - Código encontrado nesta geometria: ${foundCode} (tipo: ${typeof foundCode})`);
-                            });
-                        } else {
-                            doc.text('- O shapefile carregado não contém nenhuma geometria (features).');
-                        }
+                         doc.fontSize(10).text('Geometria da fazenda não encontrada no shapefile.', mapX + 10, mapY + 10);
                     }
                 } else {
                      doc.fontSize(10).text('Shapefile não carregado. Mapa não pode ser gerado.', mapX + 10, mapY + 10);
