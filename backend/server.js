@@ -3051,17 +3051,17 @@ try {
                 currentY = doc.y + 8;
 
                 const tableHeaderY = currentY;
-                const tableCol1X = dataX;
-                const tableCol2X = dataX + 80;
-                const tableCol3X = dataX + 130;
-                const tableCol4X = dataX + 170;
-                const tableCol5X = dataX + 220;
+                const tableCol1X = dataX;         // Talhão
+                const tableCol2X = dataX + 80;    // Nº Arm.
+                const tableCol3X = dataX + 125;   // >= 6
+                const tableCol4X = dataX + 165;   // Mariposas
+                const tableCol5X = dataX + 215;   // %
 
                 doc.fontSize(10).font('Helvetica-Bold');
-                doc.text('Talhão', tableCol1X, tableHeaderY, { width: 70, align: 'left' });
-                doc.text('Nº Arm.', tableCol2X, tableHeaderY, { width: 50, align: 'center' });
+                doc.text('Talhão', tableCol1X, tableHeaderY, { width: 80, align: 'left' });
+                doc.text('Nº Arm.', tableCol2X, tableHeaderY, { width: 45, align: 'center' });
                 doc.text('>= 6', tableCol3X, tableHeaderY, { width: 40, align: 'center' });
-                doc.text('Soma Mariposas', tableCol4X, tableHeaderY, { width: 50, align: 'center' });
+                doc.text('Mariposas', tableCol4X, tableHeaderY, { width: 50, align: 'center' });
                 doc.text('%', tableCol5X, tableHeaderY, { width: 40, align: 'center' });
                 currentY = doc.y + 4;
                 doc.lineWidth(1).moveTo(dataX, currentY).lineTo(dataX + dataWidth, currentY).strokeColor('#000').stroke();
@@ -3074,8 +3074,8 @@ try {
                     const perc = info.total > 0 ? ((info.high / info.total) * 100).toFixed(1) : '0.0';
 
                     const yPos = currentY;
-                    doc.text(talhao, tableCol1X, yPos, { width: 70, align: 'left' });
-                    doc.text(info.total, tableCol2X, yPos, { width: 50, align: 'center' });
+                    doc.text(talhao, tableCol1X, yPos, { width: 80, align: 'left' });
+                    doc.text(info.total, tableCol2X, yPos, { width: 45, align: 'center' });
                     doc.text(info.high, tableCol3X, yPos, { width: 40, align: 'center' });
                     doc.text(info.mothSum, tableCol4X, yPos, { width: 50, align: 'center' });
                     doc.text(perc, tableCol5X, yPos, { width: 40, align: 'center' });
