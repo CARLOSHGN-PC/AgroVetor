@@ -2778,6 +2778,311 @@ try {
         }
     });
 
+    const getRiskViewData = async (filters) => {
+        const { companyId, inicio, fim } = filters;
+        if (!companyId) {
+            throw new Error("O ID da empresa é obrigatório para calcular o risco.");
+        }
+
+        // 1. Fetch all necessary data
+        const farmsSnapshot = await db.collection('fazendas').where('companyId', '==', companyId).get();
+        const allFarms = [];
+        farmsSnapshot.forEach(doc => allFarms.push({ id: doc.id, ...doc.data() }));
+
+        let trapsQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
+        if (inicio) {
+            trapsQuery = trapsQuery.where('dataColeta', '>=', new Date(inicio));
+        }
+        if (fim) {
+            trapsQuery = trapsQuery.where('dataColeta', '<=', new Date(fim));
+        }
+
+        const trapsSnapshot = await trapsQuery.get();
+        const collectedTraps = [];
+        trapsSnapshot.forEach(doc => collectedTraps.push({ id: doc.id, ...doc.data() }));
+
+        const farmsInRisk = [];
+        const farmRiskData = {};
+
+        allFarms.forEach(farm => {
+            const collectedTrapsOnFarm = collectedTraps.filter(t =>
+                (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name)
+            );
+
+            if (collectedTrapsOnFarm.length === 0) {
+                return; // Skip if no collections
+            }
+
+            let cycleTrapsToAnalyze = collectedTrapsOnFarm;
+            // If no date range is provided, find the most recent collection cycle day
+            if (!inicio && !fim) {
+                let mostRecentCollectionDate = new Date(0);
+                collectedTrapsOnFarm.forEach(trap => {
+                    const collectionDate = safeToDate(trap.dataColeta);
+                    if (collectionDate > mostRecentCollectionDate) {
+                        mostRecentCollectionDate = collectionDate;
+                    }
+                });
+
+                cycleTrapsToAnalyze = collectedTrapsOnFarm.filter(trap => {
+                    const collectionDate = safeToDate(trap.dataColeta);
+                    return collectionDate.getFullYear() === mostRecentCollectionDate.getFullYear() &&
+                           collectionDate.getMonth() === mostRecentCollectionDate.getMonth() &&
+                           collectionDate.getDate() === mostRecentCollectionDate.getDate();
+                });
+            }
+
+
+            const latestUniqueCollections = new Map();
+            cycleTrapsToAnalyze.forEach(trap => {
+                const trapKey = trap.id;
+                const existing = latestUniqueCollections.get(trapKey);
+                const collectionDate = safeToDate(trap.dataColeta);
+                if (!existing || collectionDate > safeToDate(existing.dataColeta)) {
+                    latestUniqueCollections.set(trapKey, trap);
+                }
+            });
+
+            const finalCycleTraps = Array.from(latestUniqueCollections.values());
+            const highCountTraps = finalCycleTraps.filter(t => t.contagemMariposas >= 6);
+            const divisor = finalCycleTraps.length;
+            const riskPercentage = divisor > 0 ? (highCountTraps.length / divisor) * 100 : 0;
+
+            farmRiskData[farm.code] = {
+                riskPercentage,
+                totalTraps: divisor,
+                highCountTraps: highCountTraps.length
+            };
+
+            if (riskPercentage > 30) {
+                farmsInRisk.push({
+                    ...farm,
+                    riskPercentage: riskPercentage,
+                    totalTraps: divisor,
+                    highCountTraps: highCountTraps.length
+                });
+            }
+        });
+
+        return { farmsInRisk, farmRiskData, latestCycleTraps: collectedTraps };
+    };
+
+    app.get('/reports/risk-view/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=relatorio_risco.pdf`);
+        doc.pipe(res);
+
+        try {
+            const { generatedBy, companyId } = req.query;
+            if (!companyId) {
+                await generatePdfHeader(doc, 'Erro');
+                doc.text('O ID da empresa não foi fornecido.');
+                doc.end();
+                return;
+            }
+
+            const title = 'Relatório de Visualização de Risco';
+            let currentY = await generatePdfHeader(doc, title, companyId);
+
+            const { farmsInRisk, latestCycleTraps } = await getRiskViewData(req.query);
+
+            if (farmsInRisk.length === 0) {
+                doc.text('Nenhuma fazenda em risco encontrada.');
+                generatePdfFooter(doc, generatedBy);
+                return doc.end();
+            }
+
+            const geojsonData = await getShapefileData(companyId);
+
+            for (const farm of farmsInRisk) {
+                doc.addPage({ layout: 'landscape', margin: 30 });
+                let pageCurrentY = await generatePdfHeader(doc, `${title}`, companyId); // Simplified title for the page header
+
+                // --- MAP AREA (LEFT) ---
+                const mapWidth = 380;
+                const mapHeight = 450;
+                const mapX = doc.page.margins.left;
+                const mapY = pageCurrentY;
+
+                // --- INFO AREA (RIGHT) ---
+                const tableX = mapX + mapWidth + 20;
+                let tableCurrentY = pageCurrentY + 10;
+                const tableWidth = doc.page.width - tableX - doc.page.margins.right;
+
+                const addTableRow = (y, key, value, isBold = false) => {
+                    doc.font(isBold ? 'Helvetica-Bold' : 'Helvetica-Bold').fontSize(10).fillColor('black').text(key, tableX, y, { width: 170 });
+                    doc.font(isBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10).fillColor('black').text(String(value), tableX + 170, y, { width: tableWidth - 170, align: 'left' });
+                    return y + 25;
+                };
+
+                const farmTraps = latestCycleTraps.filter(t =>
+                    (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name)
+                );
+
+                const trapsByTalhao = {};
+                if (geojsonData) {
+                    for (const trap of farmTraps) {
+                        const talhaoProps = findTalhaoForTrap(trap, geojsonData);
+                        const talhaoNome = findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A';
+                        if (!trapsByTalhao[talhaoNome]) {
+                            trapsByTalhao[talhaoNome] = { total: 0, high: 0 };
+                        }
+                        trapsByTalhao[talhaoNome].total++;
+                        if (trap.contagemMariposas >= 6) {
+                            trapsByTalhao[talhaoNome].high++;
+                        }
+                    }
+                }
+
+                tableCurrentY = addTableRow(tableCurrentY, 'PROPRIEDADE:', `${farm.code} - ${farm.name}`, true);
+                tableCurrentY += 5;
+
+                // Detailed table per plot
+                doc.font('Helvetica-Bold').fontSize(9).text('TALHÃO', tableX, tableCurrentY);
+                doc.font('Helvetica-Bold').fontSize(9).text('Nº ARM.', tableX + 100, tableCurrentY, { width: 40, align: 'center'});
+                doc.font('Helvetica-Bold').fontSize(9).text('ARM. >= 6', tableX + 150, tableCurrentY, { width: 50, align: 'center'});
+                doc.font('Helvetica-Bold').fontSize(9).text('%', tableX + 210, tableCurrentY, { width: 40, align: 'center'});
+                tableCurrentY += 18;
+                doc.lineWidth(0.5).moveTo(tableX, tableCurrentY - 4).lineTo(tableX + tableWidth, tableCurrentY - 4).stroke();
+
+
+                const sortedTalhoes = Object.keys(trapsByTalhao).sort();
+                for(const talhao of sortedTalhoes) {
+                    const info = trapsByTalhao[talhao];
+                    const perc = info.total > 0 ? ((info.high / info.total) * 100).toFixed(1) + '%' : '0.0%';
+                    doc.font('Helvetica').fontSize(9).text(talhao, tableX, tableCurrentY);
+                    doc.font('Helvetica').fontSize(9).text(info.total, tableX + 100, tableCurrentY, { width: 40, align: 'center'});
+                    doc.font('Helvetica').fontSize(9).text(info.high, tableX + 150, tableCurrentY, { width: 50, align: 'center'});
+                    doc.font('Helvetica').fontSize(9).text(perc, tableX + 210, tableCurrentY, { width: 40, align: 'center'});
+                    tableCurrentY += 15;
+                }
+
+                doc.lineWidth(0.5).moveTo(tableX, tableCurrentY - 4).lineTo(tableX + tableWidth, tableCurrentY - 4).stroke();
+                tableCurrentY += 15;
+
+
+                tableCurrentY = addTableRow(tableCurrentY, 'TOTAL DE ARMADILHAS:', farm.totalTraps);
+                tableCurrentY = addTableRow(tableCurrentY, 'ARMADILHAS COM ALERTA (>=6):', farm.highCountTraps);
+                tableCurrentY += 10;
+                tableCurrentY = addTableRow(tableCurrentY, 'ÍNDICE DE APLICAÇÃO:', `${farm.riskPercentage.toFixed(2)}%`, true);
+
+
+                // --- MAP DRAWING ---
+                if (geojsonData) {
+                    const farmFeatures = geojsonData.features.filter(f => {
+                         const featureFarmCode = findShapefileProp(f.properties, ['CD_FAZENDA', 'FAZENDA', 'COD_IMOVEL', 'CD_IMOVEL']);
+                         return featureFarmCode && String(featureFarmCode).trim() === String(farm.code).trim();
+                    });
+
+                    if (farmFeatures.length > 0) {
+                        const allCoords = farmFeatures.flatMap(f => f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates.flatMap(p => p[0]));
+
+                        const bbox = {
+                            minX: Math.min(...allCoords.map(c => c[0])), maxX: Math.max(...allCoords.map(c => c[0])),
+                            minY: Math.min(...allCoords.map(c => c[1])), maxY: Math.max(...allCoords.map(c => c[1])),
+                        };
+
+                        const scaleX = mapWidth / (bbox.maxX - bbox.minX);
+                        const scaleY = mapHeight / (bbox.maxY - bbox.minY);
+                        const scale = Math.min(scaleX, scaleY) * 0.95;
+
+                        const offsetX = mapX + (mapWidth - (bbox.maxX - bbox.minX) * scale) / 2;
+                        const offsetY = mapY + (mapHeight - (bbox.maxY - bbox.minY) * scale) / 2;
+
+                        const transformCoord = (coord) => {
+                            const x = (coord[0] - bbox.minX) * scale + offsetX;
+                            const y = (bbox.maxY - coord[1]) * scale + offsetY;
+                            return [x, y];
+                        };
+
+                        doc.save();
+                        doc.lineWidth(0.7).strokeColor('#444');
+
+                        farmFeatures.forEach(feature => {
+                            const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+                            polygons.forEach(polygon => {
+                                const path = polygon[0];
+                                const firstPoint = transformCoord(path[0]);
+                                doc.moveTo(firstPoint[0], firstPoint[1]);
+                                for (let i = 1; i < path.length; i++) {
+                                    const point = transformCoord(path[i]);
+                                    doc.lineTo(point[0], point[1]);
+                                }
+                                doc.stroke();
+                            });
+                        });
+
+                        farmTraps.forEach(trap => {
+                            if (trap.longitude && trap.latitude) {
+                                const [trapX, trapY] = transformCoord([trap.longitude, trap.latitude]);
+                                const isHighRisk = trap.contagemMariposas >= 6;
+                                doc.fillColor(isHighRisk ? '#d9534f' : '#5cb85c').circle(trapX, trapY, 3.5).fill();
+                            }
+                        });
+                        doc.restore();
+                    } else {
+                         doc.text('Geometria da fazenda não encontrada no shapefile.', mapX + 10, mapY + 10);
+                    }
+                } else {
+                     doc.text('Shapefile não carregado. Mapa não pode ser gerado.', mapX + 10, mapY + 10);
+                }
+            }
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Visualização de Risco:", error);
+            if (!res.headersSent) res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            else doc.end();
+        }
+    });
+
+    app.get('/reports/risk-view/csv', async (req, res) => {
+        try {
+            const { companyId } = req.query;
+            if (!companyId) {
+                return res.status(400).send('O ID da empresa é obrigatório.');
+            }
+
+            const { farmsInRisk } = await getRiskViewData(req.query);
+
+            if (farmsInRisk.length === 0) {
+                return res.status(404).send('Nenhuma fazenda em risco encontrada para os filtros selecionados.');
+            }
+
+            const filePath = path.join(os.tmpdir(), `relatorio_risco_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'code', title: 'Código Fazenda' },
+                    { id: 'name', title: 'Nome Fazenda' },
+                    { id: 'totalTraps', title: 'Nº Armadilhas' },
+                    { id: 'highCountTraps', title: 'Armadilhas >= 6' },
+                    { id: 'riskPercentage', title: 'Índice de Aplicação (%)' }
+                ]
+            });
+
+            const records = farmsInRisk.map(farm => ({
+                code: farm.code,
+                name: farm.name,
+                totalTraps: farm.totalTraps,
+                highCountTraps: farm.highCountTraps,
+                riskPercentage: farm.riskPercentage.toFixed(2)
+            }));
+
+            records.sort((a, b) => a.code - b.code);
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Visualização de Risco:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
