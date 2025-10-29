@@ -660,9 +660,11 @@ try {
 
     const findShapefileProp = (props, keys) => {
         if (!props) return null;
+        const propKeys = Object.keys(props);
         for (const key of keys) {
-            if (props[key] !== undefined && props[key] !== null) {
-                return props[key];
+            const matchingPropKey = propKeys.find(pk => pk.toLowerCase() === key.toLowerCase());
+            if (matchingPropKey && props[matchingPropKey] !== undefined && props[matchingPropKey] !== null) {
+                return props[matchingPropKey];
             }
         }
         return null;
@@ -2875,7 +2877,7 @@ try {
     };
 
     app.get('/reports/risk-view/pdf', async (req, res) => {
-        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=relatorio_risco.pdf`);
         doc.pipe(res);
@@ -2940,7 +2942,7 @@ try {
                         const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
 
                         doc.save();
-                        doc.lineWidth(0.5).strokeColor('#888');
+                        doc.lineWidth(0.5).fillColor('#E8E8E8').strokeColor('#888');
                         farmFeatures.forEach(feature => {
                             const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
                             polygons.forEach(polygon => {
@@ -2948,7 +2950,7 @@ try {
                                 const firstPoint = transformCoord(path[0]);
                                 doc.moveTo(firstPoint[0], firstPoint[1]);
                                 for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
-                                doc.stroke();
+                                doc.fillAndStroke();
                             });
                         });
 
