@@ -3006,7 +3006,9 @@ try {
                             if (trap.longitude && trap.latitude) {
                                 const [trapX, trapY] = transformCoord([trap.longitude, trap.latitude]);
                                 const isHighRisk = trap.contagemMariposas >= 6;
-                                doc.circle(trapX, trapY, 3).fill(isHighRisk ? '#d9534f' : '#5cb85c');
+                                const fillColor = isHighRisk ? '#d9534f' : '#5cb85c';
+                                // Thicker stroke and slightly smaller radius to make the marker pop
+                                doc.lineWidth(1).circle(trapX, trapY, 2.5).fillAndStroke(fillColor, '#000');
                             }
                         });
                         doc.restore();
@@ -3041,7 +3043,8 @@ try {
 
                 drawSummaryRow('Total de Armadilhas:', farm.totalTraps);
                 drawSummaryRow('Armadilhas em Alerta\n(>=6):', farm.highCountTraps);
-                doc.y += 4;
+                // Increased spacing to prevent overlap due to the two-line label above.
+                doc.y += 8;
                 currentY = doc.y;
                 drawSummaryRow('Índice de Aplicação:', `${farm.riskPercentage.toFixed(2)}%`, true);
 
