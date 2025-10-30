@@ -107,67 +107,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
-                    label: 'Broca', icon: 'fas fa-bug',
-                    submenu: [
-                        { label: 'Lançamento Broca', icon: 'fas fa-pen-to-square', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
-                        { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
-                    ]
-                },
-                {
-                    label: 'Perdas', icon: 'fas fa-dollar-sign',
-                    submenu: [
-                        { label: 'Lançamento Perda', icon: 'fas fa-pen-to-square', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
-                        { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
-                    ]
-                },
-                {
-                    label: 'Cigarrinha', icon: 'fas fa-leaf',
-                    submenu: [
-                        { label: 'Monit. Cigarrinha', icon: 'fas fa-pen-to-square', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
-                        { label: 'Monit. Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
-                        { label: 'Relatório Cigarrinha', icon: 'fas fa-chart-bar', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
-                        { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
-                    ]
-                },
-                {
-                    label: 'Plantio', icon: 'fas fa-seedling',
-                    submenu: [
-                        { label: 'Apontamento de Plantio', icon: 'fas fa-pen-to-square', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
-                        { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
-                    ]
-                },
-                {
                     label: 'Colheita', icon: 'fas fa-tractor',
                     submenu: [
                         { label: 'Planejamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
+                    ]
+                },
+                {
+                    label: 'Lançamentos', icon: 'fas fa-pen-to-square',
+                    submenu: [
+                        { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
+                        { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
+                        { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
+                        { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
+                        { label: 'Apontamento de Plantio', icon: 'fas fa-seedling', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
+                        { label: 'Apontamento Climatológico', icon: 'fas fa-cloud', target: 'lancamentoClima', permission: 'lancamentoClima' },
+                    ]
+                },
+                {
+                    label: 'Relatórios', icon: 'fas fa-chart-line',
+                    submenu: [
+                        { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
+                        { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
+                        { label: 'Relatório Cigarrinha', icon: 'fas fa-leaf', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
+                        { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
-                    ]
-                },
-                {
-                    label: 'Clima', icon: 'fas fa-cloud',
-                    submenu: [
-                        { label: 'Apontamento Climatológico', icon: 'fas fa-pen-to-square', target: 'lancamentoClima', permission: 'lancamentoClima' },
-                        { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
-                    ]
-                },
-                {
-                    label: 'Outros Relatórios', icon: 'fas fa-chart-line',
-                    submenu: [
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                         { label: 'Relatório de Risco', icon: 'fas fa-shield-alt', target: 'relatorioRisco', permission: 'relatorioRisco' },
-                    ]
-                },
-                {
-                    label: 'Cadastros', icon: 'fas fa-book',
-                    submenu: [
-                        { label: 'Frente de Plantio', icon: 'fas fa-tractor', target: 'frenteDePlantio', permission: 'frenteDePlantio' },
-                        { label: 'Fazendas e Talhões', icon: 'fas fa-map', target: 'cadastros', permission: 'configuracoes' },
-                        { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
+                        { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
+                        { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
                     ]
                 },
                 {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
+                        { label: 'Frente de Plantio', icon: 'fas fa-tractor', target: 'frenteDePlantio', permission: 'frenteDePlantio' },
+                        { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
+                        { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
                         { label: 'Histórico de Sincronização', icon: 'fas fa-history', target: 'syncHistory', permission: 'syncHistory' },
