@@ -102,53 +102,71 @@ document.addEventListener('DOMContentLoaded', () => {
             inactivityWarningTime: 1 * 60 * 1000,
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             menuConfig: [
-                { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
-                { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
-                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
-                { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
-                    label: 'Colheita', icon: 'fas fa-tractor',
+                    label: 'Dashboards', icon: 'fas fa-tachometer-alt',
                     submenu: [
-                        { label: 'Planejamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
+                        { label: 'Dashboard Principal', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
+                        { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
                     ]
                 },
                 {
-                    label: 'Lançamentos', icon: 'fas fa-pen-to-square',
+                    label: 'Módulos', icon: 'fas fa-cubes',
                     submenu: [
+                        // Broca
                         { label: 'Lançamento Broca', icon: 'fas fa-bug', target: 'lancamentoBroca', permission: 'lancamentoBroca' },
+                        { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
+                        { type: 'divider' },
+                        // Perda
                         { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
+                        { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
+                        { type: 'divider' },
+                        // Plantio
+                        { label: 'Apontamento de Plantio', icon: 'fas fa-seedling', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
+                        { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
+                        { type: 'divider' },
+                        // Cigarrinha
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
                         { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
-                        { label: 'Apontamento de Plantio', icon: 'fas fa-seedling', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
+                        { label: 'Relatório Cigarrinha', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
+                        { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-alt', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
+                        { type: 'divider' },
+                        // Colheita
+                        { label: 'Planejamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
+                        { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
+                        { type: 'divider' },
+                        // Clima
                         { label: 'Apontamento Climatológico', icon: 'fas fa-cloud', target: 'lancamentoClima', permission: 'lancamentoClima' },
+                        { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
+                        { type: 'divider' },
+                        // Inspeção
+                        { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                     ]
                 },
                 {
-                    label: 'Relatórios', icon: 'fas fa-chart-line',
+                    label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish',
                     submenu: [
-                        { label: 'Relatório Broca', icon: 'fas fa-chart-bar', target: 'relatorioBroca', permission: 'relatorioBroca' },
-                        { label: 'Relatório Perda', icon: 'fas fa-chart-pie', target: 'relatorioPerda', permission: 'relatorioPerda' },
-                        { label: 'Relatório Cigarrinha', icon: 'fas fa-leaf', target: 'relatorioCigarrinha', permission: 'relatorioCigarrinha' },
-                        { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
-                        { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
-                        { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
+                        { label: 'Mapa de Monitoramento', icon: 'fas fa-map-marked-alt', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                        { label: 'Rel. de Monitoramento', icon: 'fas fa-file-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                         { label: 'Relatório de Risco', icon: 'fas fa-shield-alt', target: 'relatorioRisco', permission: 'relatorioRisco' },
-                        { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
-                        { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
+                    ]
+                },
+                {
+                    label: 'Cadastros', icon: 'fas fa-book',
+                    submenu: [
+                        { label: 'Fazendas e Talhões', icon: 'fas fa-tractor', target: 'cadastros', permission: 'configuracoes' },
+                        { label: 'Frente de Plantio', icon: 'fas fa-road', target: 'frenteDePlantio', permission: 'frenteDePlantio' },
+                        { label: 'Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                     ]
                 },
                 {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
-                        { label: 'Frente de Plantio', icon: 'fas fa-tractor', target: 'frenteDePlantio', permission: 'frenteDePlantio' },
-                        { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
-                        { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
+                        { label: 'Gerenciar Lançamentos', icon: 'fas fa-edit', target: 'gerenciarLancamentos', permission: 'gerenciarLancamentos' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
-                        { label: 'Histórico de Sincronização', icon: 'fas fa-history', target: 'syncHistory', permission: 'syncHistory' },
-                        { label: 'Gerenciar Lançamentos', icon: 'fas fa-edit', target: 'gerenciarLancamentos', permission: 'gerenciarLancamentos' },
                     ]
                 },
+                { label: 'Histórico de Sincronização', icon: 'fas fa-history', target: 'syncHistory', permission: 'syncHistory' },
                 {
                     label: 'Super Admin', icon: 'fas fa-user-shield',
                     submenu: [
@@ -214,7 +232,6 @@ document.addEventListener('DOMContentLoaded', () => {
             plantio: [], // Placeholder for Plantio data
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
-            apontamentoPlantioFormIsDirty: false, // NOVO: Flag para rastrear alterações não salvas
         },
         
         elements: {
@@ -1671,6 +1688,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isGloballyActive = App.isFeatureGloballyActive(subItem.permission);
                     const isSubscribed = isSuperAdmin || subscribedModules.has(subItem.permission);
 
+                    if (subItem.type === 'divider') {
+                        submenuContent.appendChild(document.createElement('hr'));
+                        return;
+                    }
+
                     if (!isSuperAdmin && (!isGloballyActive || !isSubscribed)) {
                         return; // Não renderiza para utilizadores normais se não estiver globalmente ativo OU não estiver subscrito
                     }
@@ -1761,28 +1783,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
                 const currentActiveTab = document.querySelector('.tab-content.active');
-                // LÓGICA DE CONFIRMAÇÃO DE SAÍDA: Verifica se o formulário de apontamento tem alterações
-                if (currentActiveTab && currentActiveTab.id === 'apontamentoPlantio' && App.state.apontamentoPlantioFormIsDirty) {
-                    App.ui.showConfirmationModal(
-                        "Você tem alterações não salvas. Deseja descartá-las e sair?",
-                        () => {
-                            // O usuário confirmou. Limpa o formulário (o que também limpa a flag 'isDirty')
-                            // e então chama a navegação novamente.
-                            App.actions.resetApontamentoPlantioForm();
-                            this.showTab(id);
-                        }
-                        // Se o usuário cancelar, nada acontece e ele permanece na aba.
-                    );
-                    return; // Interrompe a execução atual da navegação.
-                }
-
-
                 if (currentActiveTab && currentActiveTab.id !== id) { // Check if we are actually switching tabs
-                    // Limpa o formulário de Lançamento de Cigarrinha ao sair
                     if (currentActiveTab.id === 'lancamentoCigarrinha') {
                         App.ui.clearForm(App.elements.cigarrinha.form);
                     }
-                    // Limpa o formulário de Lançamento de Cigarrinha (Amostragem) ao sair
                     if (currentActiveTab.id === 'lancamentoCigarrinhaAmostragem') {
                         const amostragemEls = App.elements.cigarrinhaAmostragem;
                         App.ui.clearForm(amostragemEls.form);
@@ -1792,10 +1796,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (amostragemEls.resultado) {
                             amostragemEls.resultado.textContent = '';
                         }
-                    }
-                    // NOVA LÓGICA: Limpa o formulário de Apontamento de Plantio ao sair (agora só executa se não estiver 'sujo')
-                    if (currentActiveTab.id === 'apontamentoPlantio') {
-                        App.actions.resetApontamentoPlantioForm();
                     }
                 }
 
@@ -2034,6 +2034,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
                 App.elements.cigarrinhaAmostragem.data.max = today;
+                App.elements.apontamentoPlantio.date.min = today;
                 if (App.elements.lancamentoClima && App.elements.lancamentoClima.data) App.elements.lancamentoClima.data.max = today;
             },
             setDefaultDatesForReportForms() {
@@ -4196,18 +4197,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#cadastrarPessoas');
                 this.enableEnterKeyNavigation('#adminPasswordConfirmModal');
 
-                // NOVA LÓGICA: Rastrear alterações no formulário de Apontamento de Plantio
-                if (apontamentoEls.form) {
-                    apontamentoEls.form.addEventListener('input', () => {
-                        App.state.apontamentoPlantioFormIsDirty = true;
-                    });
-                }
-                if (apontamentoEls.addRecordBtn) {
-                     apontamentoEls.addRecordBtn.addEventListener('click', () => {
-                        App.state.apontamentoPlantioFormIsDirty = true;
-                    });
-                }
-
                 ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
                     document.addEventListener(event, () => App.actions.resetInactivityTimer());
                 });
@@ -4324,28 +4313,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
-
-            resetApontamentoPlantioForm() {
-                const els = App.elements.apontamentoPlantio;
-                App.ui.clearForm(els.form);
-                if (els.recordsContainer) {
-                    els.recordsContainer.innerHTML = '';
-                }
-                // Recalcula o total, que será 0
-                App.ui.calculateTotalPlantedArea();
-
-                if (els.entryId) {
-                    els.entryId.value = '';
-                }
-                if (els.leaderName) {
-                    els.leaderName.textContent = '';
-                }
-                 // Reseta a data para o dia atual
-                App.ui.setDefaultDatesForEntryForms();
-                // Limpa a flag de "sujo"
-                App.state.apontamentoPlantioFormIsDirty = false;
-            },
-
             async viewConfigHistory() {
                 const modal = App.elements.configHistoryModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';

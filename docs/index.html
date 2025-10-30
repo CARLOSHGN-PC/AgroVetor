@@ -176,8 +176,15 @@
       .submenu-content.active { transform: translateX(0); }
       .menu-btn, .excluir-btn, .submenu-btn, .submenu-back-btn { display: flex; align-items: center; gap: 16px; width: calc(100% - 20px); margin: 5px 10px; padding: 16px 20px; background: transparent; border: none; font-weight: 500; color: rgba(255,255,255,0.9); cursor: pointer; border-radius: var(--border-radius); font-size: 16px; transition: var(--transition); text-align: left; position: relative; }
       .menu-btn:hover, .submenu-btn:hover, .submenu-back-btn:hover { background: rgba(255,255,255,0.1); color: var(--color-white); }
+      .submenu-divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.2); margin: 8px 20px; }
       .menu-btn.active { background: rgba(255,255,255,0.2); }
       .menu-btn i, .submenu-btn i, .submenu-back-btn i { font-size: 20px; width: 24px; text-align: center; }
+
+      .submenu-content hr {
+          border: none;
+          border-top: 1px solid rgba(255, 255, 255, 0.2);
+          margin: 8px 15px;
+      }
 
       /* Estilos para features com flags globais */
       .globally-disabled-feature {
