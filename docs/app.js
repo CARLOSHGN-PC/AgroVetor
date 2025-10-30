@@ -214,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
             plantio: [], // Placeholder for Plantio data
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
+            apontamentoPlantioFormIsDirty: false, // NOVO: Flag para rastrear alterações não salvas
         },
         
         elements: {
@@ -1760,10 +1761,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
                 const currentActiveTab = document.querySelector('.tab-content.active');
+                // LÓGICA DE CONFIRMAÇÃO DE SAÍDA: Verifica se o formulário de apontamento tem alterações
+                if (currentActiveTab && currentActiveTab.id === 'apontamentoPlantio' && App.state.apontamentoPlantioFormIsDirty) {
+                    App.ui.showConfirmationModal(
+                        "Você tem alterações não salvas. Deseja descartá-las e sair?",
+                        () => {
+                            // O usuário confirmou. Limpa o formulário (o que também limpa a flag 'isDirty')
+                            // e então chama a navegação novamente.
+                            App.actions.resetApontamentoPlantioForm();
+                            this.showTab(id);
+                        }
+                        // Se o usuário cancelar, nada acontece e ele permanece na aba.
+                    );
+                    return; // Interrompe a execução atual da navegação.
+                }
+
+
                 if (currentActiveTab && currentActiveTab.id !== id) { // Check if we are actually switching tabs
+                    // Limpa o formulário de Lançamento de Cigarrinha ao sair
                     if (currentActiveTab.id === 'lancamentoCigarrinha') {
                         App.ui.clearForm(App.elements.cigarrinha.form);
                     }
+                    // Limpa o formulário de Lançamento de Cigarrinha (Amostragem) ao sair
                     if (currentActiveTab.id === 'lancamentoCigarrinhaAmostragem') {
                         const amostragemEls = App.elements.cigarrinhaAmostragem;
                         App.ui.clearForm(amostragemEls.form);
@@ -1773,6 +1792,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (amostragemEls.resultado) {
                             amostragemEls.resultado.textContent = '';
                         }
+                    }
+                    // NOVA LÓGICA: Limpa o formulário de Apontamento de Plantio ao sair (agora só executa se não estiver 'sujo')
+                    if (currentActiveTab.id === 'apontamentoPlantio') {
+                        App.actions.resetApontamentoPlantioForm();
                     }
                 }
 
@@ -4174,6 +4197,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#cadastrarPessoas');
                 this.enableEnterKeyNavigation('#adminPasswordConfirmModal');
 
+                // NOVA LÓGICA: Rastrear alterações no formulário de Apontamento de Plantio
+                if (apontamentoEls.form) {
+                    apontamentoEls.form.addEventListener('input', () => {
+                        App.state.apontamentoPlantioFormIsDirty = true;
+                    });
+                }
+                if (apontamentoEls.addRecordBtn) {
+                     apontamentoEls.addRecordBtn.addEventListener('click', () => {
+                        App.state.apontamentoPlantioFormIsDirty = true;
+                    });
+                }
+
                 ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'].forEach(event => {
                     document.addEventListener(event, () => App.actions.resetInactivityTimer());
                 });
@@ -4290,6 +4325,28 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+
+            resetApontamentoPlantioForm() {
+                const els = App.elements.apontamentoPlantio;
+                App.ui.clearForm(els.form);
+                if (els.recordsContainer) {
+                    els.recordsContainer.innerHTML = '';
+                }
+                // Recalcula o total, que será 0
+                App.ui.calculateTotalPlantedArea();
+
+                if (els.entryId) {
+                    els.entryId.value = '';
+                }
+                if (els.leaderName) {
+                    els.leaderName.textContent = '';
+                }
+                 // Reseta a data para o dia atual
+                App.ui.setDefaultDatesForEntryForms();
+                // Limpa a flag de "sujo"
+                App.state.apontamentoPlantioFormIsDirty = false;
+            },
+
             async viewConfigHistory() {
                 const modal = App.elements.configHistoryModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
