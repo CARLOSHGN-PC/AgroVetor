@@ -660,9 +660,11 @@ try {
 
     const findShapefileProp = (props, keys) => {
         if (!props) return null;
+        const propKeys = Object.keys(props);
         for (const key of keys) {
-            if (props[key] !== undefined && props[key] !== null) {
-                return props[key];
+            const matchingPropKey = propKeys.find(pk => pk.toLowerCase() === key.toLowerCase());
+            if (matchingPropKey && props[matchingPropKey] !== undefined && props[matchingPropKey] !== null) {
+                return props[matchingPropKey];
             }
         }
         return null;
@@ -2779,15 +2781,24 @@ try {
     });
 
     const getRiskViewData = async (filters) => {
-        const { companyId, inicio, fim } = filters;
+        const { companyId, inicio, fim, fazendaCodigo } = filters;
         if (!companyId) {
             throw new Error("O ID da empresa é obrigatório para calcular o risco.");
         }
 
-        // 1. Fetch all necessary data
-        const farmsSnapshot = await db.collection('fazendas').where('companyId', '==', companyId).get();
+        // 1. Fetch necessary farm data, applying filter if provided
+        let farmsQuery = db.collection('fazendas').where('companyId', '==', companyId);
+        if (fazendaCodigo) {
+            farmsQuery = farmsQuery.where('code', '==', String(fazendaCodigo));
+        }
+        const farmsSnapshot = await farmsQuery.get();
         const allFarms = [];
         farmsSnapshot.forEach(doc => allFarms.push({ id: doc.id, ...doc.data() }));
+
+        // If a farm was specified but not found, return empty to avoid processing all traps.
+        if (fazendaCodigo && allFarms.length === 0) {
+            return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
+        }
 
         let trapsQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
         // Apply date filters to the initial query to narrow down the dataset
@@ -2875,7 +2886,7 @@ try {
     };
 
     app.get('/reports/risk-view/pdf', async (req, res) => {
-        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        const doc = new PDFDocument({ margin: 30, size: 'A4', bufferPages: true, autoFirstPage: false });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=relatorio_risco.pdf`);
         doc.pipe(res);
@@ -2883,7 +2894,6 @@ try {
         try {
             const { generatedBy, companyId } = req.query;
             if (!companyId) {
-                // This will be caught by the final catch block, which handles PDF generation for errors.
                 throw new Error('O ID da empresa não foi fornecido.');
             }
 
@@ -2891,6 +2901,7 @@ try {
             const geojsonData = await getShapefileData(companyId);
 
             if (farmsInRisk.length === 0) {
+                doc.addPage({ layout: 'portrait' }); // Adiciona a primeira página apenas se necessário
                 await generatePdfHeader(doc, 'Relatório de Visualização de Risco', companyId);
                 doc.text('Nenhuma fazenda em risco encontrada para os filtros selecionados.');
                 generatePdfFooter(doc, generatedBy);
@@ -2909,6 +2920,24 @@ try {
 
 
             for (const farm of farmsInRisk) {
+                // PRIMEIRO, calcular todos os dados do talhão para que possam ser usados tanto no mapa quanto na tabela.
+                const farmTraps = latestCycleTraps.filter(t => (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name));
+                const trapsByTalhao = {};
+                if (geojsonData) {
+                    for (const trap of farmTraps) {
+                        const talhaoProps = findTalhaoForTrap(trap, geojsonData);
+                        const talhaoNome = findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A';
+                        if (!trapsByTalhao[talhaoNome]) {
+                            trapsByTalhao[talhaoNome] = { total: 0, high: 0, mothSum: 0 };
+                        }
+                        trapsByTalhao[talhaoNome].total++;
+                        trapsByTalhao[talhaoNome].mothSum += trap.contagemMariposas || 0;
+                        if (trap.contagemMariposas >= 6) {
+                            trapsByTalhao[talhaoNome].high++;
+                        }
+                    }
+                }
+
                 doc.addPage({ layout: 'landscape', margin: 30 });
                 const pageMargin = 30;
 
@@ -2920,33 +2949,13 @@ try {
                 const mapHeight = doc.page.height - (pageMargin * 2);
 
                 if (geojsonData) {
-                    // --- INÍCIO DA LÓGICA DE CÁLCULO DE RISCO POR TALHÃO ---
-                    const farmTraps = latestCycleTraps.filter(t => (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name));
-                    const talhaoRiskData = {};
-
-                    for (const trap of farmTraps) {
-                        const talhaoProps = findTalhaoForTrap(trap, geojsonData);
-                        const talhaoId = findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-                        if (talhaoId) {
-                            if (!talhaoRiskData[talhaoId]) {
-                                talhaoRiskData[talhaoId] = { totalTraps: 0, highRiskTraps: 0 };
-                            }
-                            talhaoRiskData[talhaoId].totalTraps++;
-                            if (trap.contagemMariposas >= 6) {
-                                talhaoRiskData[talhaoId].highRiskTraps++;
-                            }
-                        }
-                    }
-
-                    for (const talhaoId in talhaoRiskData) {
-                        const data = talhaoRiskData[talhaoId];
-                        data.riskPercentage = data.totalTraps > 0 ? (data.highRiskTraps / data.totalTraps) * 100 : 0;
-                    }
-                    // --- FIM DA LÓGICA DE CÁLCULO DE RISCO POR TALHÃO ---
-
-                     const farmFeatures = geojsonData.features.filter(f => {
-                         const featureFarmCode = findShapefileProp(f.properties, ['CD_FAZENDA', 'FAZENDA', 'COD_IMOVEL', 'CD_IMOVEL', 'FUNDO_AGR']);
-                         return featureFarmCode && parseInt(String(featureFarmCode).trim()) === parseInt(String(farm.code).trim());
+                    const farmFeatures = geojsonData.features.filter(f => {
+                        if (!f.properties) return false;
+                        const propKeys = Object.keys(f.properties);
+                        const codeKey = propKeys.find(k => k.toLowerCase() === 'fundo_agr');
+                        if (!codeKey) return false;
+                        const featureFarmCode = f.properties[codeKey];
+                        return featureFarmCode && parseInt(featureFarmCode, 10) === parseInt(farm.code, 10);
                     });
 
                     if (farmFeatures.length > 0) {
@@ -2964,25 +2973,25 @@ try {
                         const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
 
                         doc.save();
-                        doc.lineWidth(0.5).strokeColor('#333'); // Contorno mais escuro para melhor visibilidade
+                        doc.lineWidth(0.5).strokeColor('#555');
 
                         farmFeatures.forEach(feature => {
-                            const talhaoId = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-                            const riskInfo = talhaoRiskData[talhaoId];
-                            let fillColor = '#cccccc'; // Cinza padrão (sem dados)
+                            const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
+                            const talhaoInfo = trapsByTalhao[talhaoNome];
+                            let fillColor = '#d3d3d3';
 
-                            if (riskInfo) {
-                                if (riskInfo.riskPercentage >= 30) {
-                                    fillColor = '#d9534f'; // Vermelho
-                                } else if (riskInfo.riskPercentage > 0) {
-                                    fillColor = '#f0ad4e'; // Amarelo
+                            if (talhaoInfo) {
+                                const riskPerc = talhaoInfo.total > 0 ? (talhaoInfo.high / talhaoInfo.total) * 100 : 0;
+                                if (riskPerc >= 30) {
+                                    fillColor = '#d9534f';
+                                } else if (riskPerc > 0) {
+                                    fillColor = '#f0ad4e';
                                 } else {
-                                    fillColor = '#5cb85c'; // Verde
+                                    fillColor = '#5cb85c';
                                 }
                             }
 
-                            doc.fillColor(fillColor, 0.7); // 70% de opacidade para o preenchimento
-
+                            doc.fillColor(fillColor);
                             const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
                             polygons.forEach(polygon => {
                                 const path = polygon[0];
@@ -2997,43 +3006,12 @@ try {
                             if (trap.longitude && trap.latitude) {
                                 const [trapX, trapY] = transformCoord([trap.longitude, trap.latitude]);
                                 const isHighRisk = trap.contagemMariposas >= 6;
-                                doc.circle(trapX, trapY, 2.5)
-                                   .lineWidth(1)
-                                   .fillAndStroke(isHighRisk ? '#d9534f' : '#5cb85c', '#000');
+                                const fillColor = isHighRisk ? '#d9534f' : '#5cb85c';
+                                // Thicker stroke and slightly smaller radius to make the marker pop
+                                doc.lineWidth(1).circle(trapX, trapY, 2.5).fillAndStroke(fillColor, '#000');
                             }
                         });
                         doc.restore();
-
-                        // --- ADICIONAR LEGENDA DO MAPA ---
-                        const legendX = mapX + 10;
-                        const legendY = mapHeight - 60; // Posição no canto inferior esquerdo
-                        const legendWidth = 140;
-                        const legendHeight = 85;
-
-                        doc.save();
-                        doc.rect(legendX, legendY, legendWidth, legendHeight).fillOpacity(0.8).fillAndStroke('#fff', '#999');
-                        doc.fillOpacity(1).fillColor('#000').font('Helvetica-Bold').fontSize(9);
-                        doc.text('Legenda', legendX + 5, legendY + 5);
-
-                        const drawLegendItem = (y, color, text, isCircle = false) => {
-                            if (isCircle) {
-                                doc.circle(legendX + 12, y + 5, 5).fillAndStroke(color, '#000');
-                            } else {
-                                doc.rect(legendX + 7, y, 10, 10).fill(color);
-                            }
-                            doc.font('Helvetica').fontSize(8).text(text, legendX + 25, y, { width: legendWidth - 30 });
-                        };
-
-                        let legendItemY = legendY + 20;
-                        drawLegendItem(legendItemY, '#d9534f', 'Talhão: Risco Alto (>= 30%)');
-                        legendItemY += 13;
-                        drawLegendItem(legendItemY, '#f0ad4e', 'Talhão: Risco Médio (> 0%)');
-                        legendItemY += 13;
-                        drawLegendItem(legendItemY, '#5cb85c', 'Talhão: Risco Baixo (0%)');
-                        legendItemY += 13;
-                        drawLegendItem(legendItemY, '#d9534f', 'Armadilha em Alerta (>= 6)', true);
-                        doc.restore();
-
                     } else {
                          doc.fontSize(10).text('Geometria da fazenda não encontrada no shapefile.', mapX + 10, mapY + 10);
                     }
@@ -3046,15 +3024,12 @@ try {
                 const dataWidth = doc.page.width - mapAreaWidth - (pageMargin * 2) - 15;
                 let currentY = pageMargin;
 
-                // Título Principal (Ex: PROJETO - 4066 - FAZ. MACHADINHO)
                 doc.fontSize(16).font('Helvetica-Bold').text(`PROJETO - ${farm.code} - FAZ.`, dataX, currentY, { width: dataWidth, continued: true });
                 doc.fontSize(16).font('Helvetica-Bold').text(farm.name.toUpperCase(), { width: dataWidth });
-                currentY = doc.y + 2; // Ajuste fino do espaçamento
+                currentY = doc.y + 2;
                 doc.fontSize(10).font('Helvetica').text('Relatório de Risco de Armadilhas', dataX, currentY, { width: dataWidth });
                 currentY = doc.y + 25;
 
-
-                // Seção de Resumo
                 const summaryX = dataX;
                 const summaryLabelWidth = 100;
                 const summaryValueWidth = 50;
@@ -3063,49 +3038,37 @@ try {
                     const yPos = currentY;
                     doc.fontSize(10).font(isBold ? 'Helvetica-Bold' : 'Helvetica').text(label, summaryX, yPos, { width: summaryLabelWidth, align: 'left' });
                     doc.fontSize(10).font('Helvetica').text(value, summaryX + summaryLabelWidth, yPos, { width: summaryValueWidth, align: 'right' });
-                    currentY = doc.y + 6; // Aumenta o espaçamento entre as linhas
+                    currentY = doc.y + 6;
                 };
 
                 drawSummaryRow('Total de Armadilhas:', farm.totalTraps);
                 drawSummaryRow('Armadilhas em Alerta\n(>=6):', farm.highCountTraps);
-                doc.y += 4; // Espaço extra por causa da quebra de linha
+                // Increased spacing to prevent overlap due to the two-line label above.
+                doc.y += 8;
                 currentY = doc.y;
                 drawSummaryRow('Índice de Aplicação:', `${farm.riskPercentage.toFixed(2)}%`, true);
 
-                currentY = doc.y + 25; // Espaço antes da tabela
+                currentY = doc.y + 25;
 
-                // Título da Tabela
                 doc.fontSize(12).font('Helvetica-Bold').text('Distribuição por Talhão', dataX, currentY, { width: dataWidth });
                 currentY = doc.y + 8;
 
-                // Cabeçalho da Tabela
                 const tableHeaderY = currentY;
-                const tableCol1X = dataX;
-                const tableCol2X = dataX + 110;
-                const tableCol3X = dataX + 160;
-                const tableCol4X = dataX + 210;
+                const tableCol1X = dataX;         // Talhão
+                const tableCol2X = dataX + 80;    // Nº Arm.
+                const tableCol3X = dataX + 125;   // >= 6
+                const tableCol4X = dataX + 165;   // Mariposas
+                const tableCol5X = dataX + 215;   // %
 
                 doc.fontSize(10).font('Helvetica-Bold');
-                doc.text('Talhão', tableCol1X, tableHeaderY, {width: 100, align: 'left'});
-                doc.text('Nº Arm.', tableCol2X, tableHeaderY, {width: 50, align: 'center'});
-                doc.text('>= 6', tableCol3X, tableHeaderY, {width: 50, align: 'center'});
-                doc.text('%', tableCol4X, tableHeaderY, {width: 50, align: 'center'});
+                doc.text('Talhão', tableCol1X, tableHeaderY, { width: 80, align: 'left' });
+                doc.text('Nº Arm.', tableCol2X, tableHeaderY, { width: 45, align: 'center' });
+                doc.text('>= 6', tableCol3X, tableHeaderY, { width: 40, align: 'center' });
+                doc.text('Mariposas', tableCol4X, tableHeaderY, { width: 50, align: 'center' });
+                doc.text('%', tableCol5X, tableHeaderY, { width: 40, align: 'center' });
                 currentY = doc.y + 4;
                 doc.lineWidth(1).moveTo(dataX, currentY).lineTo(dataX + dataWidth, currentY).strokeColor('#000').stroke();
                 currentY += 8;
-
-                // Linhas da Tabela
-                const farmTraps = latestCycleTraps.filter(t => (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name));
-                const trapsByTalhao = {};
-                if (geojsonData) {
-                    for (const trap of farmTraps) {
-                        const talhaoProps = findTalhaoForTrap(trap, geojsonData);
-                        const talhaoNome = findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A';
-                        if (!trapsByTalhao[talhaoNome]) trapsByTalhao[talhaoNome] = { total: 0, high: 0 };
-                        trapsByTalhao[talhaoNome].total++;
-                        if (trap.contagemMariposas >= 6) trapsByTalhao[talhaoNome].high++;
-                    }
-                }
 
                 const sortedTalhoes = Object.keys(trapsByTalhao).sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
                 doc.fontSize(10).font('Helvetica');
@@ -3114,26 +3077,23 @@ try {
                     const perc = info.total > 0 ? ((info.high / info.total) * 100).toFixed(1) : '0.0';
 
                     const yPos = currentY;
-                    doc.text(talhao, tableCol1X, yPos, {width: 100, align: 'left'});
-                    doc.text(info.total, tableCol2X, yPos, {width: 50, align: 'center'});
-                    doc.text(info.high, tableCol3X, yPos, {width: 50, align: 'center'});
-                    doc.text(perc, tableCol4X, yPos, {width: 50, align: 'center'});
+                    doc.text(talhao, tableCol1X, yPos, { width: 80, align: 'left' });
+                    doc.text(info.total, tableCol2X, yPos, { width: 45, align: 'center' });
+                    doc.text(info.high, tableCol3X, yPos, { width: 40, align: 'center' });
+                    doc.text(info.mothSum, tableCol4X, yPos, { width: 50, align: 'center' });
+                    doc.text(perc, tableCol5X, yPos, { width: 40, align: 'center' });
 
                     currentY = doc.y + 6;
 
-                     if (currentY > doc.page.height - 80) { // Page break check
+                     if (currentY > doc.page.height - 80) {
                         doc.addPage({ layout: 'landscape', margin: 30 });
-                        // Se quebrar a página, é preciso redesenhar o cabeçalho e continuar a tabela
                         currentY = pageMargin;
-                        // O ideal seria redesenhar o cabeçalho da página e da tabela aqui.
-                        // Por simplicidade, vamos apenas resetar o Y.
                     }
                 }
 
-                // Logo at the bottom of the data column
                 if (logoBase64) {
                     const logoWidth = 70;
-                    const logoX = dataX + (dataWidth / 2) - (logoWidth / 2); // Center in the right column
+                    const logoX = dataX + (dataWidth / 2) - (logoWidth / 2);
                     const logoY = doc.page.height - pageMargin - 80;
                     doc.image(logoBase64, logoX, logoY, { width: logoWidth });
                 }
