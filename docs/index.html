@@ -2411,6 +2411,14 @@
                     <div class="form-col"><label for="riscoRelatorioInicio" class="required">Data Início:</label><input type="date" id="riscoRelatorioInicio" /></div>
                     <div class="form-col"><label for="riscoRelatorioFim" class="required">Data Fim:</label><input type="date" id="riscoRelatorioFim" /></div>
                 </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="riskOnlyCheckbox" style="display: flex; align-items: center; gap: 10px; margin-top: 20px;">
+                            <input type="checkbox" id="riskOnlyCheckbox" style="width: auto; transform: scale(1.4);">
+                            <span>Show only farms with >= 30% risk</span>
+                        </label>
+                    </div>
+                </div>
                 <div class="botoes-relatorio">
                     <button id="btnPDFRisco" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
                     <button id="btnExcelRisco" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
