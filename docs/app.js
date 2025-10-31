@@ -673,8 +673,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 fim: document.getElementById('riscoRelatorioFim'),
                 btnPDF: document.getElementById('btnPDFRisco'),
                 btnExcel: document.getElementById('btnExcelRisco'),
-                riskFarmFilterContainer: document.getElementById('risk-farm-filter-container'),
-                riskFarmFilter: document.getElementById('riskFarmFilter'),
             },
             trapPlacementModal: {
                 overlay: document.getElementById('trapPlacementModal'),
@@ -8789,34 +8787,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.farmRiskPercentages = farmRiskPercentages;
                 console.log("[RISK_DEBUG] Códigos de fazendas em risco calculados:", Array.from(farmsInRisk));
 
-                // --- POPULATE FARM FILTER ---
-                const riskReportElements = App.elements.relatorioRisco;
-                const filterContainer = riskReportElements.riskFarmFilterContainer;
-                const filterSelect = riskReportElements.riskFarmFilter;
-
-                filterSelect.innerHTML = ''; // Clear previous options
-
-                if (farmsInRisk.size > 0) {
-                    const farmsWithRiskInfo = Array.from(farmsInRisk).map(farmCode => {
-                        const farm = App.state.fazendas.find(f => parseInt(String(f.code).trim(), 10) === farmCode);
-                        return farm ? { code: farm.code, name: farm.name } : null;
-                    }).filter(Boolean);
-
-                    farmsWithRiskInfo.sort((a, b) => a.name.localeCompare(b.name));
-
-                    farmsWithRiskInfo.forEach(farm => {
-                        const option = document.createElement('option');
-                        option.value = farm.code;
-                        option.textContent = `${farm.code} - ${farm.name}`;
-                        filterSelect.appendChild(option);
-                    });
-                    filterContainer.style.display = 'flex';
-                } else {
-                    filterContainer.style.display = 'none';
-                }
-                // --- END POPULATE FARM FILTER ---
-
-
                 // --- 2. APLICAR ESTILOS COM BASE NOS RESULTADOS ---
                 if (farmsInRisk.size > 0) {
                     console.log("[RISK_DEBUG] Fazendas em risco encontradas. Aplicando estilo de isolamento.");
@@ -10945,33 +10915,27 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generateRiskViewPDF() {
-                const { inicio, fim, riskFarmFilter } = App.elements.relatorioRisco;
+                const { inicio, fim } = App.elements.relatorioRisco;
                 if (!inicio.value || !fim.value) {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
-
-                const selectedFarms = Array.from(riskFarmFilter.selectedOptions).map(opt => opt.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
-                    fazendaCodigos: selectedFarms.join(','),
                 };
                 this._fetchAndDownloadReport('risk-view/pdf', filters, 'relatorio_de_risco.pdf');
             },
 
             generateRiskViewCSV() {
-                const { inicio, fim, riskFarmFilter } = App.elements.relatorioRisco;
+                const { inicio, fim } = App.elements.relatorioRisco;
                 if (!inicio.value || !fim.value) {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
-
-                const selectedFarms = Array.from(riskFarmFilter.selectedOptions).map(opt => opt.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
-                    fazendaCodigos: selectedFarms.join(','),
                 };
                 this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
             },

@@ -2781,7 +2781,7 @@ try {
     });
 
     const getRiskViewData = async (filters) => {
-        const { companyId, inicio, fim, fazendaCodigo, fazendaCodigos } = filters;
+        const { companyId, inicio, fim, fazendaCodigo } = filters;
         if (!companyId) {
             throw new Error("O ID da empresa é obrigatório para calcular o risco.");
         }
@@ -2790,11 +2790,6 @@ try {
         let farmsQuery = db.collection('fazendas').where('companyId', '==', companyId);
         if (fazendaCodigo) {
             farmsQuery = farmsQuery.where('code', '==', String(fazendaCodigo));
-        } else if (fazendaCodigos) {
-            const codes = fazendaCodigos.split(',').filter(c => c.trim() !== '');
-            if (codes.length > 0) {
-                farmsQuery = farmsQuery.where('code', 'in', codes);
-            }
         }
         const farmsSnapshot = await farmsQuery.get();
         const allFarms = [];
@@ -2805,41 +2800,39 @@ try {
             return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
-
-        // 2. Find the most recent collection date using a more efficient query
-        let mostRecentCollectionDate = null;
-        const latestTrapQuery = db.collection('armadilhas')
-            .where('companyId', '==', companyId)
-            .where('status', '==', 'Coletada')
-            .orderBy('dataColeta', 'desc')
-            .limit(1);
-
-        if (inicio) latestTrapQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
-        if (fim) latestTrapQuery.where('dataColeta', '<=', new Date(fim + 'T23:59:59Z'));
-
-        const latestTrapSnapshot = await latestTrapQuery.get();
-
-        if (!latestTrapSnapshot.empty) {
-            mostRecentCollectionDate = safeToDate(latestTrapSnapshot.docs[0].data().dataColeta);
+        let trapsQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
+        // Apply date filters to the initial query to narrow down the dataset
+        if (inicio) {
+            trapsQuery = trapsQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
+        }
+        if (fim) {
+            trapsQuery = trapsQuery.where('dataColeta', '<=', new Date(fim + 'T23:59:59Z'));
         }
 
-        if (!mostRecentCollectionDate) {
-             return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
+        const trapsSnapshot = await trapsQuery.get();
+        const collectedTrapsInRange = [];
+        trapsSnapshot.forEach(doc => collectedTrapsInRange.push({ id: doc.id, ...doc.data() }));
+
+        if (collectedTrapsInRange.length === 0) {
+            return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
-        const cycleStartDate = new Date(mostRecentCollectionDate.getFullYear(), mostRecentCollectionDate.getMonth(), mostRecentCollectionDate.getDate());
-        const cycleEndDate = new Date(mostRecentCollectionDate.getFullYear(), mostRecentCollectionDate.getMonth(), mostRecentCollectionDate.getDate() + 1);
+        // 2. Find the most recent collection date within the filtered range
+        let mostRecentCollectionDate = new Date(0);
+        collectedTrapsInRange.forEach(trap => {
+            const collectionDate = safeToDate(trap.dataColeta);
+            if (collectionDate > mostRecentCollectionDate) {
+                mostRecentCollectionDate = collectionDate;
+            }
+        });
 
-        // 3. Fetch only the collections from that specific day (the monitoring cycle)
-        let cycleTrapsQuery = db.collection('armadilhas')
-            .where('companyId', '==', companyId)
-            .where('status', '==', 'Coletada')
-            .where('dataColeta', '>=', cycleStartDate)
-            .where('dataColeta', '<', cycleEndDate);
-
-        const cycleTrapsSnapshot = await cycleTrapsQuery.get();
-        const latestCycleCollections = [];
-        cycleTrapsSnapshot.forEach(doc => latestCycleCollections.push({ id: doc.id, ...doc.data() }));
+        // 3. Filter to get only collections from that specific day (the monitoring cycle)
+        const latestCycleCollections = collectedTrapsInRange.filter(trap => {
+            const collectionDate = safeToDate(trap.dataColeta);
+            return collectionDate.getFullYear() === mostRecentCollectionDate.getFullYear() &&
+                   collectionDate.getMonth() === mostRecentCollectionDate.getMonth() &&
+                   collectionDate.getDate() === mostRecentCollectionDate.getDate();
+        });
 
 
         const farmsInRisk = [];
@@ -2899,22 +2892,12 @@ try {
         doc.pipe(res);
 
         try {
-            const { generatedBy, companyId, fazendaCodigos } = req.query;
+            const { generatedBy, companyId } = req.query;
             if (!companyId) {
                 throw new Error('O ID da empresa não foi fornecido.');
             }
 
-            const riskData = await getRiskViewData(req.query);
-            let farmsInRisk = riskData.farmsInRisk;
-            const latestCycleTraps = riskData.latestCycleTraps;
-
-            // Se fazendaCodigos for fornecido, a gente já filtrou no getRiskViewData.
-            // Apenas garantimos que estamos usando a lista de fazendas retornada.
-            if (fazendaCodigos) {
-                const requestedCodes = fazendaCodigos.split(',');
-                // Apenas para garantir, re-filtramos para manter apenas as que estavam no request E em risco.
-                farmsInRisk = farmsInRisk.filter(farm => requestedCodes.includes(String(farm.code)));
-            }
+            const { farmsInRisk, latestCycleTraps } = await getRiskViewData(req.query);
             const geojsonData = await getShapefileData(companyId);
 
             if (farmsInRisk.length === 0) {
