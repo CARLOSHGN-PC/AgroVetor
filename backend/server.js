@@ -2786,7 +2786,7 @@ try {
             throw new Error("O ID da empresa é obrigatório para calcular o risco.");
         }
 
-        // Etapa 1: Buscar todas as fazendas da empresa.
+        // 1. Buscar todas as fazendas da empresa (ou a específica, se filtrado).
         let farmsQuery = db.collection('fazendas').where('companyId', '==', companyId);
         const farmsSnapshot = await farmsQuery.get();
         let allFarms = [];
@@ -2795,57 +2795,52 @@ try {
         if (fazendaCodigo) {
             allFarms = allFarms.filter(farm => String(farm.code) === String(fazendaCodigo));
         }
+
         if (allFarms.length === 0) {
             return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
-        // Etapa 2: Buscar TODAS as armadilhas da empresa para ter o total (denominador) correto.
+        // 2. Buscar TODAS as armadilhas da empresa para ter o total (denominador) correto e estável.
         const allTrapsQuery = db.collection('armadilhas').where('companyId', '==', companyId);
         const allTrapsSnapshot = await allTrapsQuery.get();
         const allCompanyTraps = [];
         allTrapsSnapshot.forEach(doc => allCompanyTraps.push({ id: doc.id, ...doc.data() }));
 
-        // Etapa 3: Buscar TODAS as coletas que ocorreram DENTRO do período de datas.
-        let collectedTrapsInRangeQuery = db.collection('armadilhas')
-                                           .where('companyId', '==', companyId)
-                                           .where('status', '==', 'Coletada');
+
+        // 3. Buscar apenas as coletas de ALTO RISCO dentro do período de datas.
+        let highRiskTrapsQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada').where('contagemMariposas', '>=', 6);
         if (inicio) {
-            collectedTrapsInRangeQuery = collectedTrapsInRangeQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
+            highRiskTrapsQuery = highRiskTrapsQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
         }
         if (fim) {
             const endDate = new Date(fim);
-            endDate.setUTCDate(endDate.getUTCDate() + 1); // Use < para incluir todo o dia final.
-            collectedTrapsInRangeQuery = collectedTrapsInRangeQuery.where('dataColeta', '<', endDate);
+            endDate.setUTCDate(endDate.getUTCDate() + 1);
+            highRiskTrapsQuery = highRiskTrapsQuery.where('dataColeta', '<', endDate);
         }
 
-        const collectedTrapsInRangeSnapshot = await collectedTrapsInRangeQuery.get();
-        const collectedTrapsInRange = [];
-        collectedTrapsInRangeSnapshot.forEach(doc => {
-            collectedTrapsInRange.push({ id: doc.id, ...doc.data() });
-        });
-
-        // Etapa 4: Identificar os IDs únicos de armadilhas que tiveram QUALQUER coleta de alto risco no período.
+        const highRiskTrapsSnapshot = await highRiskTrapsQuery.get();
+        // Criar um Set com os IDs das armadilhas de alto risco para contagem única e eficiente.
         const highRiskTrapIds = new Set();
-        collectedTrapsInRange.forEach(trap => {
-            if (trap.contagemMariposas >= 6) {
-                highRiskTrapIds.add(trap.id);
-            }
+        highRiskTrapsSnapshot.forEach(doc => {
+            highRiskTrapIds.add(doc.id);
         });
 
         const farmsInRisk = [];
         const farmRiskData = {};
 
-        // Etapa 5: Calcular o risco para cada fazenda de forma cumulativa.
+        // 4. Calcular o risco para cada fazenda.
         allFarms.forEach(farm => {
-            // Denominador: Total de armadilhas na fazenda (da lista completa de armadilhas da empresa).
+            // Denominador: Total de armadilhas na fazenda, da lista completa.
             const totalTrapsOnFarm = allCompanyTraps.filter(t =>
-                 (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name)
+                (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name)
             );
             const divisor = totalTrapsOnFarm.length;
 
-            if (divisor === 0) return; // Pula fazendas sem armadilhas.
+            if (divisor === 0) {
+                return; // Pula fazendas sem armadilhas.
+            }
 
-            // Numerador: Contar quantas armadilhas DAQUELA FAZENDA estão na lista de alto risco do período.
+            // Numerador: Contar quantas armadilhas da fazenda estão na lista de alto risco.
             const highCountTrapsOnFarm = totalTrapsOnFarm.filter(t => highRiskTrapIds.has(t.id));
             const numerator = highCountTrapsOnFarm.length;
 
@@ -2857,7 +2852,6 @@ try {
                 highCountTraps: numerator
             };
 
-            // Uma fazenda está em risco se o CÁLCULO CUMULATIVO for >= 30%.
             if (riskPercentage >= 30) {
                 farmsInRisk.push({
                     ...farm,
@@ -2868,15 +2862,28 @@ try {
             }
         });
 
-        // Etapa 6: Para o mapa, precisamos da coleta MAIS RECENTE de cada armadilha DENTRO DO PERÍODO.
-        // Isso garante que o mapa mostre o estado mais atualizado dentro do filtro de data.
+        // 5. Para o mapa, precisamos de todas as coletas do período para colorir corretamente.
+        let collectedTrapsInRangeQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
+        if (inicio) {
+            collectedTrapsInRangeQuery = collectedTrapsInRangeQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
+        }
+        if (fim) {
+            const endDate = new Date(fim);
+            endDate.setUTCDate(endDate.getUTCDate() + 1);
+            collectedTrapsInRangeQuery = collectedTrapsInRangeQuery.where('dataColeta', '<', endDate);
+        }
+        const collectedTrapsInRangeSnapshot = await collectedTrapsInRangeQuery.get();
+        const collectedTrapsInRange = [];
+        collectedTrapsInRangeSnapshot.forEach(doc => collectedTrapsInRange.push({ id: doc.id, ...doc.data() }));
+
+        // Manter a lógica de pegar a coleta mais recente para fins de visualização no mapa.
         const latestTrapCollectionsMap = new Map();
         collectedTrapsInRange.forEach(trap => {
             const trapId = trap.id;
             const collectionDate = safeToDate(trap.dataColeta);
             const existingTrap = latestTrapCollectionsMap.get(trapId);
 
-            if (!existingTrap || (collectionDate && collectionDate > safeToDate(existingTrap.dataColeta))) {
+            if (!existingTrap || collectionDate > safeToDate(existingTrap.dataColeta)) {
                 latestTrapCollectionsMap.set(trapId, trap);
             }
         });
