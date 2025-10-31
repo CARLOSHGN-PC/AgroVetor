@@ -10920,9 +10920,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
+                const riskOnlyCheckbox = document.getElementById('riskOnlyCheckbox');
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
+                    riskOnly: riskOnlyCheckbox ? riskOnlyCheckbox.checked : false
                 };
                 this._fetchAndDownloadReport('risk-view/pdf', filters, 'relatorio_de_risco.pdf');
             },
@@ -10933,9 +10935,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
+                const riskOnlyCheckbox = document.getElementById('riskOnlyCheckbox');
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
+                    riskOnly: riskOnlyCheckbox ? riskOnlyCheckbox.checked : false
                 };
                 this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
             },

@@ -2781,7 +2781,7 @@ try {
     });
 
     const getRiskViewData = async (filters) => {
-        const { companyId, inicio, fim, fazendaCodigo } = filters;
+        const { companyId, inicio, fim, fazendaCodigo, riskOnly } = filters;
         if (!companyId) {
             throw new Error("O ID da empresa é obrigatório para calcular o risco.");
         }
@@ -2900,7 +2900,13 @@ try {
             return codeA - codeB;
         });
 
-        return { reportFarms, farmRiskData, latestCycleTraps: latestUniqueTraps };
+        // NOVO: Aplica o filtro `riskOnly` se a flag for verdadeira.
+        let finalReportFarms = reportFarms;
+        if (riskOnly === 'true') {
+            finalReportFarms = reportFarms.filter(farm => farm.riskPercentage >= 30);
+        }
+
+        return { reportFarms: finalReportFarms, farmRiskData, latestCycleTraps: latestUniqueTraps };
     };
 
     app.get('/reports/risk-view/pdf', async (req, res) => {
@@ -3135,50 +3141,6 @@ try {
             } else {
                  doc.end(); // Ensure the stream is closed if headers were already sent
             }
-        }
-    });
-
-    app.get('/reports/risk-view/csv', async (req, res) => {
-        try {
-            const { companyId } = req.query;
-            if (!companyId) {
-                return res.status(400).send('O ID da empresa é obrigatório.');
-            }
-
-            const { reportFarms } = await getRiskViewData(req.query);
-
-            if (reportFarms.length === 0) {
-                return res.status(404).send('Nenhuma fazenda com coletas encontrada para os filtros selecionados.');
-            }
-
-            const filePath = path.join(os.tmpdir(), `relatorio_risco_${Date.now()}.csv`);
-            const csvWriter = createObjectCsvWriter({
-                path: filePath,
-                header: [
-                    { id: 'code', title: 'Código Fazenda' },
-                    { id: 'name', title: 'Nome Fazenda' },
-                    { id: 'totalTraps', title: 'Nº Armadilhas' },
-                    { id: 'highCountTraps', title: 'Armadilhas >= 6' },
-                    { id: 'riskPercentage', title: 'Índice de Aplicação (%)' }
-                ]
-            });
-
-            const records = reportFarms.map(farm => ({
-                code: farm.code,
-                name: farm.name,
-                totalTraps: farm.totalTraps,
-                highCountTraps: farm.highCountTraps,
-                riskPercentage: farm.riskPercentage.toFixed(2)
-            }));
-
-            records.sort((a, b) => a.code - b.code);
-
-            await csvWriter.writeRecords(records);
-            res.download(filePath);
-
-        } catch (error) {
-            console.error("Erro ao gerar CSV de Visualização de Risco:", error);
-            res.status(500).send('Erro ao gerar relatório.');
         }
     });
 
