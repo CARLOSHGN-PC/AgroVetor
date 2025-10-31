@@ -2800,41 +2800,39 @@ try {
             return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
-        // 1. Find the most recent collection date within the filtered range
-        let mostRecentDateQuery = db.collection('armadilhas')
-            .where('companyId', '==', companyId)
-            .where('status', '==', 'Coletada')
-            .orderBy('dataColeta', 'desc')
-            .limit(1);
-
+        let trapsQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
+        // Apply date filters to the initial query to narrow down the dataset
         if (inicio) {
-            mostRecentDateQuery = mostRecentDateQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
+            trapsQuery = trapsQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
         }
         if (fim) {
-            mostRecentDateQuery = mostRecentDateQuery.where('dataColeta', '<=', new Date(fim + 'T23:59:59Z'));
+            trapsQuery = trapsQuery.where('dataColeta', '<=', new Date(fim + 'T23:59:59Z'));
         }
 
-        const mostRecentSnapshot = await mostRecentDateQuery.get();
-        if (mostRecentSnapshot.empty) {
+        const trapsSnapshot = await trapsQuery.get();
+        const collectedTrapsInRange = [];
+        trapsSnapshot.forEach(doc => collectedTrapsInRange.push({ id: doc.id, ...doc.data() }));
+
+        if (collectedTrapsInRange.length === 0) {
             return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
         }
-        const mostRecentCollectionDate = safeToDate(mostRecentSnapshot.docs[0].data().dataColeta);
 
-        // 2. Get all collections from that specific day (the monitoring cycle)
-        const startOfDay = new Date(mostRecentCollectionDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(mostRecentCollectionDate);
-        endOfDay.setHours(23, 59, 59, 999);
+        // 2. Find the most recent collection date within the filtered range
+        let mostRecentCollectionDate = new Date(0);
+        collectedTrapsInRange.forEach(trap => {
+            const collectionDate = safeToDate(trap.dataColeta);
+            if (collectionDate > mostRecentCollectionDate) {
+                mostRecentCollectionDate = collectionDate;
+            }
+        });
 
-        let latestCycleQuery = db.collection('armadilhas')
-            .where('companyId', '==', companyId)
-            .where('status', '==', 'Coletada')
-            .where('dataColeta', '>=', startOfDay)
-            .where('dataColeta', '<=', endOfDay);
-
-        const latestCycleSnapshot = await latestCycleQuery.get();
-        const latestCycleCollections = [];
-        latestCycleSnapshot.forEach(doc => latestCycleCollections.push({ id: doc.id, ...doc.data() }));
+        // 3. Filter to get only collections from that specific day (the monitoring cycle)
+        const latestCycleCollections = collectedTrapsInRange.filter(trap => {
+            const collectionDate = safeToDate(trap.dataColeta);
+            return collectionDate.getFullYear() === mostRecentCollectionDate.getFullYear() &&
+                   collectionDate.getMonth() === mostRecentCollectionDate.getMonth() &&
+                   collectionDate.getDate() === mostRecentCollectionDate.getDate();
+        });
 
 
         const farmsInRisk = [];
