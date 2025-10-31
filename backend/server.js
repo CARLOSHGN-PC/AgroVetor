@@ -2781,27 +2781,35 @@ try {
     });
 
     const getRiskViewData = async (filters) => {
-        const { companyId, inicio, fim, fazendaCodigo } = filters;
+        // Adicionado suporte para 'fazendaCodigos' para filtragem de múltiplas fazendas
+        const { companyId, inicio, fim, fazendaCodigo, fazendaCodigos } = filters;
         if (!companyId) {
             throw new Error("O ID da empresa é obrigatório para calcular o risco.");
         }
 
-        // 1. Fetch necessary farm data, applying filter if provided
+        // 1. Buscar fazendas e filtrar se códigos específicos forem fornecidos.
         let farmsQuery = db.collection('fazendas').where('companyId', '==', companyId);
-        if (fazendaCodigo) {
-            farmsQuery = farmsQuery.where('code', '==', String(fazendaCodigo));
-        }
         const farmsSnapshot = await farmsQuery.get();
-        const allFarms = [];
+        let allFarms = [];
         farmsSnapshot.forEach(doc => allFarms.push({ id: doc.id, ...doc.data() }));
 
-        // If a farm was specified but not found, return empty to avoid processing all traps.
-        if (fazendaCodigo && allFarms.length === 0) {
+        let selectedFarmCodes = [];
+        if (fazendaCodigos) {
+            selectedFarmCodes = fazendaCodigos.split(',').map(code => String(code.trim()));
+        } else if (fazendaCodigo) {
+            selectedFarmCodes = [String(fazendaCodigo)];
+        }
+
+        if (selectedFarmCodes.length > 0) {
+            allFarms = allFarms.filter(farm => selectedFarmCodes.includes(String(farm.code)));
+        }
+
+        if (selectedFarmCodes.length > 0 && allFarms.length === 0) {
             return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
+        // 2. Buscar todas as armadilhas coletadas dentro do intervalo de datas para a empresa.
         let trapsQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
-        // Apply date filters to the initial query to narrow down the dataset
         if (inicio) {
             trapsQuery = trapsQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
         }
@@ -2817,51 +2825,36 @@ try {
             return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
-        // 2. Find the most recent collection date within the filtered range
-        let mostRecentCollectionDate = new Date(0);
+        // 3. [CORREÇÃO] Em vez de filtrar pelo dia mais recente, obtemos a coleta mais recente PARA CADA armadilha única.
+        const latestTrapCollectionsMap = new Map();
         collectedTrapsInRange.forEach(trap => {
+            // A chave única de uma armadilha é seu ID de documento.
+            const trapId = trap.id;
             const collectionDate = safeToDate(trap.dataColeta);
-            if (collectionDate > mostRecentCollectionDate) {
-                mostRecentCollectionDate = collectionDate;
+            const existingTrap = latestTrapCollectionsMap.get(trapId);
+
+            if (!existingTrap || collectionDate > safeToDate(existingTrap.dataColeta)) {
+                latestTrapCollectionsMap.set(trapId, trap);
             }
         });
 
-        // 3. Filter to get only collections from that specific day (the monitoring cycle)
-        const latestCycleCollections = collectedTrapsInRange.filter(trap => {
-            const collectionDate = safeToDate(trap.dataColeta);
-            return collectionDate.getFullYear() === mostRecentCollectionDate.getFullYear() &&
-                   collectionDate.getMonth() === mostRecentCollectionDate.getMonth() &&
-                   collectionDate.getDate() === mostRecentCollectionDate.getDate();
-        });
-
+        const latestUniqueTraps = Array.from(latestTrapCollectionsMap.values());
 
         const farmsInRisk = [];
         const farmRiskData = {};
 
+        // 4. Calcular o risco para cada fazenda com base nos dados corrigidos.
         allFarms.forEach(farm => {
-            // Filter traps for the current farm from the latest cycle
-            const collectedTrapsOnFarm = latestCycleCollections.filter(t =>
-                (t.fazendaCode ? parseInt(String(t.fazendaCode).trim()) === parseInt(String(farm.code).trim()) : t.fazendaNome === farm.name)
+            const collectedTrapsOnFarm = latestUniqueTraps.filter(t =>
+                (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name)
             );
 
             if (collectedTrapsOnFarm.length === 0) {
-                return; // Skip if no collections on this farm in the latest cycle
+                return;
             }
 
-            // 4. Deduplicate collections for the same trap, keeping only the latest one by time
-            const latestUniqueCollections = new Map();
-            collectedTrapsOnFarm.forEach(trap => {
-                const trapKey = trap.id; // Unique ID for the trap itself
-                const existing = latestUniqueCollections.get(trapKey);
-                const collectionDate = safeToDate(trap.dataColeta);
-                if (!existing || collectionDate > safeToDate(existing.dataColeta)) {
-                    latestUniqueCollections.set(trapKey, trap);
-                }
-            });
-
-            const finalCycleTraps = Array.from(latestUniqueCollections.values());
-            const highCountTraps = finalCycleTraps.filter(t => t.contagemMariposas >= 6);
-            const divisor = finalCycleTraps.length;
+            const highCountTraps = collectedTrapsOnFarm.filter(t => t.contagemMariposas >= 6);
+            const divisor = collectedTrapsOnFarm.length;
             const riskPercentage = divisor > 0 ? (highCountTraps.length / divisor) * 100 : 0;
 
             farmRiskData[farm.code] = {
@@ -2870,7 +2863,6 @@ try {
                 highCountTraps: highCountTraps.length
             };
 
-            // 5. Check risk with the correct threshold (>= 30)
             if (riskPercentage >= 30) {
                 farmsInRisk.push({
                     ...farm,
@@ -2881,8 +2873,8 @@ try {
             }
         });
 
-        // Return all collections from the latest cycle day for the PDF map drawing
-        return { farmsInRisk, farmRiskData, latestCycleTraps: latestCycleCollections };
+        // Retorna a lista completa de coletas mais recentes para o desenho do mapa PDF.
+        return { farmsInRisk, farmRiskData, latestCycleTraps: latestUniqueTraps };
     };
 
     app.get('/reports/risk-view/pdf', async (req, res) => {
