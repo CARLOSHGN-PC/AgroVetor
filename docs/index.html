@@ -2411,6 +2411,13 @@
                     <div class="form-col"><label for="riscoRelatorioInicio" class="required">Data Início:</label><input type="date" id="riscoRelatorioInicio" /></div>
                     <div class="form-col"><label for="riscoRelatorioFim" class="required">Data Fim:</label><input type="date" id="riscoRelatorioFim" /></div>
                 </div>
+                <div class="form-row" id="risk-farm-filter-container" style="display: none;">
+                    <div class="form-col">
+                        <label for="riskFarmFilter">Filtrar por Fazendas em Risco (Opcional):</label>
+                        <select id="riskFarmFilter" multiple style="height: 150px;"></select>
+                        <small>Selecione uma ou mais fazendas. Se nenhuma for selecionada, o relatório incluirá todas as fazendas com risco.</small>
+                    </div>
+                </div>
                 <div class="botoes-relatorio">
                     <button id="btnPDFRisco" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
                     <button id="btnExcelRisco" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
