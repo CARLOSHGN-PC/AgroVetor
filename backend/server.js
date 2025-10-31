@@ -3145,10 +3145,10 @@ try {
                 return res.status(400).send('O ID da empresa é obrigatório.');
             }
 
-            const { farmsInRisk } = await getRiskViewData(req.query);
+            const { reportFarms } = await getRiskViewData(req.query);
 
-            if (farmsInRisk.length === 0) {
-                return res.status(404).send('Nenhuma fazenda em risco encontrada para os filtros selecionados.');
+            if (reportFarms.length === 0) {
+                return res.status(404).send('Nenhuma fazenda com coletas encontrada para os filtros selecionados.');
             }
 
             const filePath = path.join(os.tmpdir(), `relatorio_risco_${Date.now()}.csv`);
@@ -3163,7 +3163,7 @@ try {
                 ]
             });
 
-            const records = farmsInRisk.map(farm => ({
+            const records = reportFarms.map(farm => ({
                 code: farm.code,
                 name: farm.name,
                 totalTraps: farm.totalTraps,
