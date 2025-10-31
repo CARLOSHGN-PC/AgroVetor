@@ -2781,8 +2781,7 @@ try {
     });
 
     const getRiskViewData = async (filters) => {
-        // Adicionado suporte para 'fazendaCodigos' para filtragem de múltiplas fazendas
-        const { companyId, inicio, fim, fazendaCodigo, fazendaCodigos } = filters;
+        const { companyId, inicio, fim, fazendaCodigo } = filters;
         if (!companyId) {
             throw new Error("O ID da empresa é obrigatório para calcular o risco.");
         }
@@ -2793,18 +2792,11 @@ try {
         let allFarms = [];
         farmsSnapshot.forEach(doc => allFarms.push({ id: doc.id, ...doc.data() }));
 
-        let selectedFarmCodes = [];
-        if (fazendaCodigos) {
-            selectedFarmCodes = fazendaCodigos.split(',').map(code => String(code.trim()));
-        } else if (fazendaCodigo) {
-            selectedFarmCodes = [String(fazendaCodigo)];
+        if (fazendaCodigo) {
+            allFarms = allFarms.filter(farm => String(farm.code) === String(fazendaCodigo));
         }
 
-        if (selectedFarmCodes.length > 0) {
-            allFarms = allFarms.filter(farm => selectedFarmCodes.includes(String(farm.code)));
-        }
-
-        if (selectedFarmCodes.length > 0 && allFarms.length === 0) {
+        if (fazendaCodigo && allFarms.length === 0) {
             return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
@@ -2814,7 +2806,9 @@ try {
             trapsQuery = trapsQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
         }
         if (fim) {
-            trapsQuery = trapsQuery.where('dataColeta', '<=', new Date(fim + 'T23:59:59Z'));
+            const endDate = new Date(fim);
+            endDate.setUTCDate(endDate.getUTCDate() + 1);
+            trapsQuery = trapsQuery.where('dataColeta', '<', endDate);
         }
 
         const trapsSnapshot = await trapsQuery.get();

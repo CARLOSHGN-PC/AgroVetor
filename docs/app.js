@@ -671,7 +671,6 @@ document.addEventListener('DOMContentLoaded', () => {
             relatorioRisco: {
                 inicio: document.getElementById('riscoRelatorioInicio'),
                 fim: document.getElementById('riscoRelatorioFim'),
-                fazendaFiltro: document.getElementById('riscoFazendaFiltro'),
                 btnPDF: document.getElementById('btnPDFRisco'),
                 btnExcel: document.getElementById('btnExcelRisco'),
             },
@@ -2098,7 +2097,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cigarrinha.filtroFazenda,
                     App.elements.cigarrinhaAmostragem.filtroFazenda,
                     App.elements.relatorioMonitoramento.fazendaFiltro,
-                    App.elements.relatorioRisco.fazendaFiltro,
                     App.elements.apontamentoPlantio.farmName,
                     App.elements.lancamentoClima.fazenda,
                     App.elements.relatorioClima.fazenda,
@@ -10917,33 +10915,27 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generateRiskViewPDF() {
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioRisco;
+                const { inicio, fim } = App.elements.relatorioRisco;
                 if (!inicio.value || !fim.value) {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
-                const selectedFarms = Array.from(fazendaFiltro.selectedOptions).map(option => option.value);
-
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
-                    fazendaCodigos: selectedFarms.map(farmId => App.state.fazendas.find(f => f.id === farmId)?.code).join(','),
                 };
                 this._fetchAndDownloadReport('risk-view/pdf', filters, 'relatorio_de_risco.pdf');
             },
 
             generateRiskViewCSV() {
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioRisco;
+                const { inicio, fim } = App.elements.relatorioRisco;
                 if (!inicio.value || !fim.value) {
                     App.ui.showAlert("Selecione Data Início e Fim.", "warning");
                     return;
                 }
-                const selectedFarms = Array.from(fazendaFiltro.selectedOptions).map(option => option.value);
-
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
-                    fazendaCodigos: selectedFarms.map(farmId => App.state.fazendas.find(f => f.id === farmId)?.code).join(','),
                 };
                 this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
             },
