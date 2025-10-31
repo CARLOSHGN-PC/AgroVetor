@@ -2034,6 +2034,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
                 App.elements.cigarrinhaAmostragem.data.max = today;
+                App.elements.apontamentoPlantio.date.min = today;
                 if (App.elements.lancamentoClima && App.elements.lancamentoClima.data) App.elements.lancamentoClima.data.max = today;
             },
             setDefaultDatesForReportForms() {
