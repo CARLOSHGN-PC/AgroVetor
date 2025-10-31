@@ -2819,27 +2819,26 @@ try {
             return { farmsInRisk: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
-        // 3. [CORREÇÃO] Em vez de filtrar pelo dia mais recente, obtemos a coleta mais recente PARA CADA armadilha única.
-        const latestTrapCollectionsMap = new Map();
+        // 3. De-duplicar armadilhas, mantendo aquela com a maior contagem de mariposas no período, para garantir que o risco seja cumulativo.
+        const peakRiskCollectionsMap = new Map();
         collectedTrapsInRange.forEach(trap => {
-            // A chave única de uma armadilha é seu ID de documento.
             const trapId = trap.id;
-            const collectionDate = safeToDate(trap.dataColeta);
-            const existingTrap = latestTrapCollectionsMap.get(trapId);
+            const existingTrap = peakRiskCollectionsMap.get(trapId);
 
-            if (!existingTrap || collectionDate > safeToDate(existingTrap.dataColeta)) {
-                latestTrapCollectionsMap.set(trapId, trap);
+            // Mantém a armadilha com a maior contagem de mariposas.
+            if (!existingTrap || (trap.contagemMariposas || 0) > (existingTrap.contagemMariposas || 0)) {
+                peakRiskCollectionsMap.set(trapId, trap);
             }
         });
+        const peakRiskUniqueTraps = Array.from(peakRiskCollectionsMap.values());
 
-        const latestUniqueTraps = Array.from(latestTrapCollectionsMap.values());
 
         const farmsInRisk = [];
         const farmRiskData = {};
 
         // 4. Calcular o risco para cada fazenda com base nos dados corrigidos.
         allFarms.forEach(farm => {
-            const collectedTrapsOnFarm = latestUniqueTraps.filter(t =>
+            const collectedTrapsOnFarm = peakRiskUniqueTraps.filter(t =>
                 (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name)
             );
 
@@ -2867,8 +2866,8 @@ try {
             }
         });
 
-        // Retorna a lista completa de coletas mais recentes para o desenho do mapa PDF.
-        return { farmsInRisk, farmRiskData, latestCycleTraps: latestUniqueTraps };
+        // Retorna a lista completa de coletas de maior risco para o desenho do mapa PDF.
+        return { farmsInRisk, farmRiskData, latestCycleTraps: peakRiskUniqueTraps };
     };
 
     app.get('/reports/risk-view/pdf', async (req, res) => {
