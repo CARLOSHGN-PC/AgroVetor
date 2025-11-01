@@ -2786,7 +2786,7 @@ try {
             throw new Error("O ID da empresa é obrigatório para calcular o risco.");
         }
 
-        // Passo 1: Buscar todas as coletas de armadilhas no período para identificar fazendas ativas.
+        // 1. Buscar todas as coletas de armadilhas no período para identificar fazendas ativas.
         let collectedTrapsInRangeQuery = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
         if (inicio) {
             collectedTrapsInRangeQuery = collectedTrapsInRangeQuery.where('dataColeta', '>=', new Date(inicio + 'T00:00:00Z'));
@@ -2798,115 +2798,112 @@ try {
         }
         const collectedTrapsInRangeSnapshot = await collectedTrapsInRangeQuery.get();
         const collectedTrapsInRange = [];
-        const activeFarmCodes = new Set();
         collectedTrapsInRangeSnapshot.forEach(doc => {
-            const trap = { id: doc.id, ...doc.data() };
-            collectedTrapsInRange.push(trap);
-            if (trap.fazendaCode) {
-                activeFarmCodes.add(String(trap.fazendaCode).trim());
-            }
+            collectedTrapsInRange.push({ id: doc.id, ...doc.data() });
         });
 
-        // Se um código de fazenda específico for fornecido, ele se torna o único ativo.
+        // 2. Agrupar coletas por fazenda.
+        const trapsByFarmCode = collectedTrapsInRange.reduce((acc, trap) => {
+            const code = String(trap.fazendaCode || 'unknown').trim();
+            if (!acc[code]) {
+                acc[code] = [];
+            }
+            acc[code].push(trap);
+            return acc;
+        }, {});
+
+        // Se um código de fazenda específico for fornecido, filtre para usar apenas essa fazenda.
+        let activeFarmCodes = Object.keys(trapsByFarmCode);
         if (fazendaCodigo) {
-            activeFarmCodes.clear();
-            activeFarmCodes.add(String(fazendaCodigo).trim());
+            activeFarmCodes = activeFarmCodes.filter(code => code === String(fazendaCodigo).trim());
         }
 
-        if (activeFarmCodes.size === 0) {
+        if (activeFarmCodes.length === 0) {
             return { reportFarms: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
-        // Passo 2: Buscar os dados de todas as fazendas ativas.
+        // 3. Buscar os dados de todas as fazendas ativas.
         const allActiveFarmsData = [];
-        const farmsSnapshot = await db.collection('fazendas').where('companyId', '==', companyId).get();
-        farmsSnapshot.forEach(doc => {
-            const farm = doc.data();
-            if (activeFarmCodes.has(String(farm.code).trim())) {
-                allActiveFarmsData.push({ id: doc.id, ...farm });
-            }
-        });
-
-
-        // Passo 3: Buscar TODAS as armadilhas da empresa para ter o total (denominador) correto e estável.
-        const allTrapsQuery = db.collection('armadilhas').where('companyId', '==', companyId);
-        const allTrapsSnapshot = await allTrapsQuery.get();
-        const allCompanyTraps = [];
-        allTrapsSnapshot.forEach(doc => allCompanyTraps.push({ id: doc.id, ...doc.data() }));
-
-
-        // Passo 4: Identificar IDs de armadilhas de ALTO RISCO dentro do período.
-        const highRiskTrapIds = new Set();
-        collectedTrapsInRange.forEach(trap => {
-            if (trap.contagemMariposas >= 6) {
-                highRiskTrapIds.add(trap.id);
-            }
-        });
-
+        if (activeFarmCodes.length > 0) {
+            const farmsSnapshot = await db.collection('fazendas').where('companyId', '==', companyId).where('code', 'in', activeFarmCodes).get();
+            farmsSnapshot.forEach(doc => {
+                allActiveFarmsData.push({ id: doc.id, ...doc.data() });
+            });
+        }
 
         const reportFarms = [];
         const farmRiskData = {};
+        let latestCycleTraps = []; // Coletará as armadilhas do ciclo mais recente de todas as fazendas para o mapa.
 
-        // Passo 5: Calcular o risco para cada fazenda ATIVA.
-        allActiveFarmsData.forEach(farm => {
-            // Denominador: Total de armadilhas na fazenda, da lista completa.
-            const totalTrapsOnFarm = allCompanyTraps.filter(t =>
-                (t.fazendaCode ? String(t.fazendaCode).trim() === String(farm.code).trim() : t.fazendaNome === farm.name)
-            );
-            const divisor = totalTrapsOnFarm.length;
+        // 4. Calcular o risco para cada fazenda ativa, espelhando a lógica do frontend.
+        for (const farm of allActiveFarmsData) {
+            const farmCode = String(farm.code).trim();
+            const collectedTrapsOnFarm = trapsByFarmCode[farmCode] || [];
 
-            if (divisor === 0) {
-                return; // Pula fazendas sem armadilhas.
+            if (collectedTrapsOnFarm.length === 0) {
+                farmRiskData[farm.code] = { riskPercentage: 0, totalTraps: 0, highCountTraps: 0 };
+                reportFarms.push({ ...farm, riskPercentage: 0, totalTraps: 0, highCountTraps: 0 });
+                continue;
             }
 
-            // Numerador: Contar quantas armadilhas da fazenda estão na lista de alto risco.
-            const highCountTrapsOnFarm = totalTrapsOnFarm.filter(t => highRiskTrapIds.has(t.id));
-            const numerator = highCountTrapsOnFarm.length;
+            // a. Encontrar a data de coleta mais recente na fazenda.
+            let mostRecentCollectionDate = new Date(0);
+            collectedTrapsOnFarm.forEach(trap => {
+                const collectionDate = safeToDate(trap.dataColeta);
+                if (collectionDate > mostRecentCollectionDate) {
+                    mostRecentCollectionDate = collectionDate;
+                }
+            });
 
-            const riskPercentage = (numerator / divisor) * 100;
+            // b. Filtrar para obter apenas as coletas desse dia específico.
+            const latestCycleCollections = collectedTrapsOnFarm.filter(trap => {
+                const collectionDate = safeToDate(trap.dataColeta);
+                return collectionDate.getFullYear() === mostRecentCollectionDate.getFullYear() &&
+                       collectionDate.getMonth() === mostRecentCollectionDate.getMonth() &&
+                       collectionDate.getDate() === mostRecentCollectionDate.getDate();
+            });
+
+            // c. Deduplicar coletas para a mesma armadilha, mantendo a mais recente por timestamp.
+            const latestUniqueCollections = new Map();
+            latestCycleCollections.forEach(trap => {
+                const trapKey = trap.id;
+                const existing = latestUniqueCollections.get(trapKey);
+                const collectionDate = safeToDate(trap.dataColeta);
+                if (!existing || collectionDate > safeToDate(existing.dataColeta)) {
+                    latestUniqueCollections.set(trapKey, trap);
+                }
+            });
+            const finalCycleTraps = Array.from(latestUniqueCollections.values());
+            latestCycleTraps.push(...finalCycleTraps); // Adiciona ao agregado para o mapa
+
+            // d. Calcular o risco com base neste ciclo final.
+            const highCountTraps = finalCycleTraps.filter(t => t.contagemMariposas >= 6);
+            const divisor = finalCycleTraps.length;
+            const riskPercentage = divisor > 0 ? (highCountTraps.length / divisor) * 100 : 0;
 
             farmRiskData[farm.code] = {
                 riskPercentage,
                 totalTraps: divisor,
-                highCountTraps: numerator
+                highCountTraps: highCountTraps.length
             };
 
-            // Adiciona TODAS as fazendas ativas ao relatório, sem filtro de risco.
             reportFarms.push({
                 ...farm,
                 riskPercentage: riskPercentage,
                 totalTraps: divisor,
-                highCountTraps: numerator
+                highCountTraps: highCountTraps.length
             });
-        });
+        }
 
-        // Passo 6: Para o mapa, pegar a coleta mais recente de cada armadilha no período.
-        const latestTrapCollectionsMap = new Map();
-        collectedTrapsInRange.forEach(trap => {
-            const trapId = trap.id;
-            const collectionDate = safeToDate(trap.dataColeta);
-            const existingTrap = latestTrapCollectionsMap.get(trapId);
+        // 5. Ordenar e filtrar o resultado final.
+        reportFarms.sort((a, b) => (parseInt(a.code, 10) || 0) - (parseInt(b.code, 10) || 0));
 
-            if (!existingTrap || collectionDate > safeToDate(existingTrap.dataColeta)) {
-                latestTrapCollectionsMap.set(trapId, trap);
-            }
-        });
-        const latestUniqueTraps = Array.from(latestTrapCollectionsMap.values());
-
-        // Ordena as fazendas do relatório pelo código.
-        reportFarms.sort((a, b) => {
-            const codeA = parseInt(a.code, 10) || 0;
-            const codeB = parseInt(b.code, 10) || 0;
-            return codeA - codeB;
-        });
-
-        // NOVO: Aplica o filtro `riskOnly` se a flag for verdadeira.
         let finalReportFarms = reportFarms;
         if (riskOnly === 'true') {
             finalReportFarms = reportFarms.filter(farm => farm.riskPercentage >= 30);
         }
 
-        return { reportFarms: finalReportFarms, farmRiskData, latestCycleTraps: latestUniqueTraps };
+        return { reportFarms: finalReportFarms, farmRiskData, latestCycleTraps };
     };
 
     app.get('/reports/risk-view/pdf', async (req, res) => {
