@@ -1,7 +1,7 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
@@ -968,8 +968,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.ui.setLoading(true, "A autenticar...");
                 try {
-                    // Garante que a sessão persista mesmo após fechar e reabrir o aplicativo.
-                    await setPersistence(auth, browserLocalPersistence);
+                    // Define a persistência da sessão para 'session', que limpa ao fechar o browser/app.
+                    await setPersistence(auth, browserSessionPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -1054,22 +1054,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (navigator.onLine) {
                     await signOut(auth);
                 }
+                // Limpa todos os listeners e processos em segundo plano
                 App.data.cleanupListeners();
-                App.actions.stopGpsTracking(); // Parar o rastreamento
+                App.actions.stopGpsTracking();
+                App.charts.destroyAll(); // Destrói todas as instâncias de gráficos
+
+                // Limpa completamente o estado da aplicação para evitar "déjà vu"
+                App.state.isImpersonating = false;
+                App.state.originalUser = null;
                 App.state.currentUser = null;
+                App.state.users = [];
+                App.state.companies = [];
+                App.state.globalConfigs = {};
+                App.state.companyConfig = {};
+                App.state.registros = [];
+                App.state.perdas = [];
+                App.state.cigarrinha = [];
+                App.state.planos = [];
+                App.state.fazendas = [];
+                App.state.personnel = [];
+                App.state.frentesDePlantio = [];
+                App.state.apontamentosPlantio = [];
+                App.state.companyLogo = null;
+                App.state.harvestPlans = [];
+                App.state.activeHarvestPlan = null;
+                App.state.armadilhas = [];
+                App.state.geoJsonData = null;
+                App.state.selectedMapFeature = null;
+                App.state.trapNotifications = [];
+                App.state.unreadNotificationCount = 0;
+                App.state.notifiedTrapIds = new Set();
+                App.state.riskViewActive = false;
+                App.state.plantio = [];
+                App.state.clima = [];
+                App.state.apontamentoPlantioFormIsDirty = false;
 
-                // Limpar estado de personificação ao sair
-                if (App.state.isImpersonating) {
-                    App.state.isImpersonating = false;
-                    App.state.originalUser = null;
-                    App.ui.hideImpersonationBanner();
-                }
-
+                // Limpa timers de inatividade e armazenamento local
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
                 localStorage.removeItem('agrovetor_lastActiveTab');
-                // Em vez de ir diretamente para a tela de login, reavalia a sessão.
-                // Isso mostrará a tela de login offline se o utilizador estiver offline e tiver perfis guardados.
+                sessionStorage.removeItem('notifiedTrapIds');
+
+                // Reavalia a sessão para mostrar a tela de login correta (online/offline)
                 this.checkSession();
             },
             initiateUserCreation() {
