@@ -2822,12 +2822,27 @@ try {
             return { reportFarms: [], farmRiskData: {}, latestCycleTraps: [] };
         }
 
-        // 3. Buscar os dados de todas as fazendas ativas.
+        // 3. Buscar os dados de todas as fazendas ativas, lidando com o limite de 30 do 'IN'.
         const allActiveFarmsData = [];
         if (activeFarmCodes.length > 0) {
-            const farmsSnapshot = await db.collection('fazendas').where('companyId', '==', companyId).where('code', 'in', activeFarmCodes).get();
-            farmsSnapshot.forEach(doc => {
-                allActiveFarmsData.push({ id: doc.id, ...doc.data() });
+            const CHUNK_SIZE = 30; // Limite da consulta 'IN' do Firestore.
+            const farmCodeChunks = [];
+            for (let i = 0; i < activeFarmCodes.length; i += CHUNK_SIZE) {
+                farmCodeChunks.push(activeFarmCodes.slice(i, i + CHUNK_SIZE));
+            }
+
+            const queryPromises = farmCodeChunks.map(chunk =>
+                db.collection('fazendas')
+                  .where('companyId', '==', companyId)
+                  .where('code', 'in', chunk)
+                  .get()
+            );
+
+            const snapshotResults = await Promise.all(queryPromises);
+            snapshotResults.forEach(snapshot => {
+                snapshot.forEach(doc => {
+                    allActiveFarmsData.push({ id: doc.id, ...doc.data() });
+                });
             });
         }
 
