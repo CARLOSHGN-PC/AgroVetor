@@ -7,8 +7,6 @@
     "@capacitor/network": "^7.0.2",
     "@capacitor/push-notifications": "^7.0.3",
     "@capacitor/status-bar": "^7.0.3",
-    "@playwright/test": "^1.56.1",
-    "chart.js": "^4.5.1",
-    "chartjs-node-canvas": "^5.0.0"
+    "@playwright/test": "^1.56.1"
   }
 }
