@@ -214,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
             plantio: [], // Placeholder for Plantio data
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
+                apontamentoPlantioFormIsDirty: false,
         },
         
         elements: {
@@ -1760,6 +1761,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
                 const currentActiveTab = document.querySelector('.tab-content.active');
+                if (currentActiveTab && currentActiveTab.id === 'apontamentoPlantio' && App.state.apontamentoPlantioFormIsDirty && id !== 'apontamentoPlantio') {
+                    App.ui.showConfirmationModal(
+                        "Você tem alterações não salvas. Deseja descartá-las e sair?",
+                        () => { // onConfirm: Discard and Leave
+                            App.state.apontamentoPlantioFormIsDirty = false;
+                            App.ui.showTab(id); // Re-trigger the navigation now that the flag is clean
+                        }
+                    );
+                    // Customize modal buttons for this specific confirmation
+                    const { confirmBtn, cancelBtn } = App.elements.confirmationModal;
+                    confirmBtn.textContent = 'Descartar e Sair';
+                    cancelBtn.textContent = 'Continuar Editando';
+                    cancelBtn.style.display = 'inline-flex';
+
+                    return; // Stop the current navigation attempt
+                }
+
                 if (currentActiveTab && currentActiveTab.id !== id) { // Check if we are actually switching tabs
                     if (currentActiveTab.id === 'lancamentoCigarrinha') {
                         App.ui.clearForm(App.elements.cigarrinha.form);
@@ -1773,6 +1791,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (amostragemEls.resultado) {
                             amostragemEls.resultado.textContent = '';
                         }
+                    }
+                    // Limpa o formulário de apontamento de plantio ao sair da aba
+                    if (currentActiveTab.id === 'apontamentoPlantio') {
+                        const els = App.elements.apontamentoPlantio;
+                        App.ui.clearForm(els.form);
+                        if (els.recordsContainer) els.recordsContainer.innerHTML = '';
+                        if (els.totalArea) els.totalArea.textContent = 'Total de Área Plantada: 0,00 ha';
+                        if (els.leaderName) els.leaderName.textContent = '';
+                        if (els.entryId) els.entryId.value = ''; // Garante que sai do modo de edição
+                        App.ui.setDefaultDatesForEntryForms();
+                        App.state.apontamentoPlantioFormIsDirty = false;
                     }
                 }
 
@@ -2011,7 +2040,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
                 App.elements.cigarrinhaAmostragem.data.max = today;
-                App.elements.apontamentoPlantio.date.min = today;
                 if (App.elements.lancamentoClima && App.elements.lancamentoClima.data) App.elements.lancamentoClima.data.max = today;
             },
             setDefaultDatesForReportForms() {
@@ -2607,6 +2635,8 @@ document.addEventListener('DOMContentLoaded', () => {
             async updateTalhaoInfo(card) {
                 const talhaoId = card.querySelector('.plantio-talhao-select').value;
                 const infoDiv = card.querySelector('.info-display');
+                const editingEntryId = App.elements.apontamentoPlantio.entryId.value; // Get ID if we are editing
+
                 if (!talhaoId) {
                     infoDiv.textContent = '';
                     return;
@@ -2614,19 +2644,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const farmId = App.elements.apontamentoPlantio.farmName.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm) { // Defensive check
+                    infoDiv.textContent = 'Fazenda não encontrada.';
+                    return;
+                }
                 const talhao = farm.talhoes.find(t => t.id == talhaoId);
+                if (!talhao) { // Defensive check
+                    infoDiv.textContent = 'Talhão não encontrado.';
+                    return;
+                }
 
-                let plantedArea = 0;
+
+                let plantedAreaByOthers = 0;
                 App.state.apontamentosPlantio.forEach(apontamento => {
+                    // If we are editing, and this is the entry we are currently editing, skip its records from the sum.
+                    if (editingEntryId && apontamento.id === editingEntryId) {
+                        return;
+                    }
                     apontamento.records.forEach(record => {
                         if (record.talhaoId === talhaoId) {
-                            plantedArea += record.area;
+                            plantedAreaByOthers += record.area;
                         }
                     });
                 });
 
-                const remainingArea = talhao.area - plantedArea;
-                infoDiv.textContent = `Área: ${talhao.area.toFixed(2)}ha | Plantado: ${plantedArea.toFixed(2)}ha | Restante: ${remainingArea.toFixed(2)}ha`;
+                const remainingArea = talhao.area - plantedAreaByOthers;
+                infoDiv.textContent = `Área: ${talhao.area.toFixed(2)}ha | Plantado (outros): ${plantedAreaByOthers.toFixed(2)}ha | Restante: ${remainingArea.toFixed(2)}ha`;
                 card.querySelector('.plantio-area-input').max = remainingArea;
             },
 
@@ -4286,6 +4329,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                // Dirty flag for Apontamento de Plantio form
+                const plantioForm = App.elements.apontamentoPlantio.form;
+                if (plantioForm) {
+                    plantioForm.addEventListener('input', () => {
+                        App.state.apontamentoPlantioFormIsDirty = true;
+                    });
+                }
+                const btnAddPlantioRecord = App.elements.apontamentoPlantio.addRecordBtn;
+                if (btnAddPlantioRecord) {
+                    btnAddPlantioRecord.addEventListener('click', () => {
+                        App.state.apontamentoPlantioFormIsDirty = true;
+                    });
+                }
+                 const plantioRecordsContainer = App.elements.apontamentoPlantio.recordsContainer;
+                if (plantioRecordsContainer) {
+                    plantioRecordsContainer.addEventListener('click', (e) => {
+                        if (e.target.closest('.btn-remover-amostra')) {
+                            App.state.apontamentoPlantioFormIsDirty = true;
+                        }
+                    });
+                }
             }
         },
         
@@ -4894,6 +4959,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.setDefaultDatesForEntryForms();
                         App.ui.calculateTotalPlantedArea();
                         els.entryId.value = '';
+                        App.state.apontamentoPlantioFormIsDirty = false;
 
                     } catch (error) {
                         App.ui.showAlert(`Erro ao guardar: ${error.message}.`, "error");
