@@ -14,6 +14,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const csv = require('csv-parser');
 const { Readable } = require('stream');
 const xlsx = require('xlsx');
+const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -600,10 +601,10 @@ try {
         return y + maxRowHeight;
     };
 
-    const checkPageBreak = async (doc, y, title, neededSpace = 40) => {
+    const checkPageBreak = async (doc, y, title, neededSpace = 40, companyId = null) => {
         if (y > doc.page.height - doc.page.margins.bottom - neededSpace) {
             doc.addPage();
-            return await generatePdfHeader(doc, title);
+            return await generatePdfHeader(doc, title, companyId);
         }
         return y;
     };
@@ -2331,11 +2332,23 @@ try {
             
             const enrichedData = data.map(trap => {
                 const talhaoProps = findTalhaoForTrap(trap, geojsonData);
+                const dataInstalacao = safeToDate(trap.dataInstalacao);
+                const dataColeta = safeToDate(trap.dataColeta);
+
+                let diasEmCampo = 'N/A';
+                if (dataInstalacao && dataColeta) {
+                    const diffTime = Math.abs(dataColeta - dataInstalacao);
+                    diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                }
+
                 return {
                     ...trap,
                     fazendaNome: talhaoProps?.NM_IMOVEL || 'N/A',
                     fazendaCodigoShape: talhaoProps?.CD_FAZENDA || 'N/A',
-                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A'
+                    talhaoNome: talhaoProps?.CD_TALHAO || 'N/A',
+                    diasEmCampo: diasEmCampo,
+                    dataInstalacaoFmt: dataInstalacao ? dataInstalacao.toLocaleString('pt-BR') : 'N/A',
+                    dataColetaFmt: dataColeta ? dataColeta.toLocaleString('pt-BR') : 'N/A',
                 };
             });
 
@@ -2344,24 +2357,96 @@ try {
                 finalData = enrichedData.filter(d => d.fazendaCodigoShape === fazendaCodigo);
             }
 
-            const headers = ['Fazenda', 'Talhão', 'Data Instalação', 'Data Coleta', 'Qtd. Mariposas'];
-            const columnWidths = [200, 100, 120, 120, 120];
+            const headers = ['Fazenda', 'Talhão', 'Data Instalação', 'Data Coleta', 'Dias em Campo', 'Qtd. Mariposas'];
+            const columnWidths = [180, 100, 110, 110, 90, 100];
             const rowHeight = 18;
             const textPadding = 5;
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
 
+            let totalTraps = 0;
             for (const trap of finalData) {
-                currentY = await checkPageBreak(doc, currentY, title);
+                const oldY = currentY;
+                currentY = await checkPageBreak(doc, currentY, title, rowHeight, companyId);
+                if (currentY < oldY) { // A page break occurred
+                    currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
+                }
                 const rowData = [
                     `${trap.fazendaCodigoShape} - ${trap.fazendaNome}`,
                     trap.talhaoNome,
-                    trap.dataInstalacao.toDate().toLocaleString('pt-BR'),
-                    trap.dataColeta.toDate().toLocaleString('pt-BR'),
+                    trap.dataInstalacaoFmt,
+                    trap.dataColetaFmt,
+                    trap.diasEmCampo,
                     trap.contagemMariposas || 0
                 ];
                 currentY = drawRow(doc, rowData, currentY, false, false, columnWidths, textPadding, rowHeight);
+                totalTraps++;
             }
+
+            currentY = await checkPageBreak(doc, currentY, title, rowHeight, companyId);
+            const summaryRow = ['Total de Armadilhas', '', '', '', '', totalTraps];
+            drawRow(doc, summaryRow, currentY, false, true, columnWidths, textPadding, rowHeight);
+
+            // --- GRÁFICO DE RESUMO ---
+            const riskLevels = { high: 0, medium: 0, low: 0 };
+            finalData.forEach(trap => {
+                const count = trap.contagemMariposas || 0;
+                if (count >= 6) {
+                    riskLevels.high++;
+                } else if (count > 0) {
+                    riskLevels.medium++;
+                } else {
+                    riskLevels.low++;
+                }
+            });
+
+            if (totalTraps > 0) {
+                const chartWidth = 400;
+                const chartHeight = 200;
+                const chartJSNodeCanvas = new ChartJSNodeCanvas({ width: chartWidth, height: chartHeight, backgroundColour: '#ffffff' });
+
+                const configuration = {
+                    type: 'pie',
+                    data: {
+                        labels: [`Alto Risco (>= 6): ${riskLevels.high}`, `Médio Risco (1-5): ${riskLevels.medium}`, `Baixo Risco (0): ${riskLevels.low}`],
+                        datasets: [{
+                            data: [riskLevels.high, riskLevels.medium, riskLevels.low],
+                            backgroundColor: ['#d9534f', '#f0ad4e', '#5cb85c'],
+                            borderColor: '#ffffff',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    boxWidth: 20
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Distribuição de Risco das Armadilhas',
+                                font: {
+                                    size: 16
+                                }
+                            }
+                        }
+                    }
+                };
+
+                const imageBuffer = await chartJSNodeCanvas.renderToBuffer(configuration);
+
+                doc.addPage();
+                let chartY = await generatePdfHeader(doc, 'Resumo Gráfico do Monitoramento', companyId);
+                const pageCenterX = doc.page.width / 2;
+                doc.image(imageBuffer, pageCenterX - chartWidth / 2, chartY, {
+                    fit: [chartWidth, chartHeight],
+                    align: 'center'
+                });
+            }
+
 
             generatePdfFooter(doc, generatedBy);
             doc.end();
