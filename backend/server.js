@@ -3200,6 +3200,43 @@ try {
         }
     });
 
+    // --- [NOVO] ROTA PARA GERAR NÚMERO DA ORDEM DE SERVIÇO ---
+    app.post('/api/generate-os-number', async (req, res) => {
+        const { companyId } = req.body;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório para gerar a OS.' });
+        }
+
+        const year = new Date().getFullYear();
+        const counterRef = db.collection('osCounters').doc(String(year));
+
+        try {
+            const { newNumeroOS, newSequencial } = await db.runTransaction(async (transaction) => {
+                const counterDoc = await transaction.get(counterRef);
+
+                let lastSeq = 0;
+                if (counterDoc.exists) {
+                    lastSeq = counterDoc.data().lastSeq || 0;
+                }
+
+                const newSeq = lastSeq + 1;
+                const paddedSeq = String(newSeq).padStart(3, '0');
+                const numeroOS = `OS-${year}-${paddedSeq}`;
+
+                // A transação garante que a atualização é atômica.
+                transaction.set(counterRef, { lastSeq: newSeq }, { merge: true });
+
+                return { newNumeroOS: numeroOS, newSequencial: newSeq };
+            });
+
+            res.status(200).json({ numeroOS: newNumeroOS, ano: year, sequencial: newSequencial });
+
+        } catch (error) {
+            console.error("Erro ao gerar número da Ordem de Serviço:", error);
+            res.status(500).json({ message: 'Erro no servidor ao gerar número da OS.' });
+        }
+    });
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
