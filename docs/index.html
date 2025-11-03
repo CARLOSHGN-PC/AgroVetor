@@ -3131,6 +3131,93 @@
                 </div>
             </section>
 
+            <section id="gerarOS" class="tab-content card" aria-label="Gerar Ordem de Serviço" tabindex="0" hidden>
+                <h2><i class="fas fa-file-signature"></i> Gerar Ordem de Serviço</h2>
+                <div class="card" style="border-left-color: var(--color-info);">
+                    <h3><i class="fas fa-map-pin"></i> Armadilhas Planejadas</h3>
+                    <p>Selecione as armadilhas planejadas que farão parte desta Ordem de Serviço.</p>
+                    <div id="planned-traps-list" class="talhao-selection-list" style="margin-top: 15px;">
+                        <!-- Lista de armadilhas planejadas será inserida aqui -->
+                    </div>
+                </div>
+                <div class="card" style="border-left-color: var(--color-info); margin-top: 20px;">
+                    <h3><i class="fas fa-user-cog"></i> Detalhes da OS</h3>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="osResponsavel" class="required">Responsável pela Execução:</label>
+                            <select id="osResponsavel" required></select>
+                        </div>
+                    </div>
+                    <button id="btnGenerateOS" class="save" style="max-width: 300px;"><i class="fas fa-cogs"></i> Gerar Ordem de Serviço</button>
+                </div>
+            </section>
+
+            <section id="minhasOS" class="tab-content card" aria-label="Minhas Ordens de Serviço" tabindex="0" hidden>
+                <h2><i class="fas fa-tasks"></i> Minhas Ordens de Serviço</h2>
+                <div class="card-header-actions">
+                     <div class="button-group" id="minhasOS-view-toggle">
+                        <button class="save active" data-view="abertas">Abertas</button>
+                        <button class="btn-secondary" data-view="concluidas">Concluídas</button>
+                    </div>
+                </div>
+                <div id="minhas-os-list-container" style="margin-top: 20px;">
+                    <!-- Lista de OS será inserida aqui -->
+                </div>
+            </section>
+
+            <section id="relatorioOS" class="tab-content card" aria-label="Relatório de Ordens de Serviço" tabindex="0" hidden>
+                <h2><i class="fas fa-file-alt"></i> Relatório de Ordens de Serviço</h2>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="osRelatorioTipo" class="required">Tipo de Relatório:</label>
+                        <select id="osRelatorioTipo">
+                                        <option value="lista" selected>Relatório de OS (Lista)</option>
+                                        <option value="status">Relatório de OS (por Status)</option>
+                                        <option value="desempenho">Relatório de Desempenho (por Prazo)</option>
+                                        <option value="historico-fazenda">Histórico de Instalações (por Fazenda)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="osRelatorioFazenda">Filtrar por Fazenda:</label>
+                        <select id="osRelatorioFazenda">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label for="osRelatorioResponsavel">Filtrar por Responsável:</label>
+                        <select id="osRelatorioResponsavel">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label for="osRelatorioStatus">Filtrar por Status:</label>
+                        <select id="osRelatorioStatus">
+                            <option value="">Todos</option>
+                            <option value="Planejada">Planejada</option>
+                            <option value="Em Execução">Em Execução</option>
+                            <option value="Concluída">Concluída</option>
+                            <option value="Atrasada">Atrasada</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="osRelatorioInicio" class="required">Data Início (Previsão):</label>
+                        <input type="date" id="osRelatorioInicio" />
+                    </div>
+                    <div class="form-col">
+                        <label for="osRelatorioFim" class="required">Data Fim (Previsão):</label>
+                        <input type="date" id="osRelatorioFim" />
+                    </div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFOS" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelOS" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+            </section>
+
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
