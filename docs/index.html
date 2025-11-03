@@ -3131,46 +3131,6 @@
                 </div>
             </section>
 
-            <section id="planejamentoInstalacao" class="tab-content" aria-label="Planejamento de Instalação" tabindex="0" hidden>
-                <!-- O mapa de planejamento ocupará esta seção -->
-            </section>
-
-            <section id="gerarOrdemServico" class="tab-content card" aria-label="Gerar Ordem de Serviço" tabindex="0" hidden>
-                <h2><i class="fas fa-tasks"></i> Gerar Ordem de Serviço</h2>
-                <p>Selecione os pontos planejados abaixo para agrupar em uma nova Ordem de Serviço.</p>
-                <div id="listaPontosPlanejados" class="table-responsive"></div>
-                <div class="modal-footer" style="justify-content: center;">
-                    <button id="btnGerarOS" class="save" style="max-width: 300px;"><i class="fas fa-cogs"></i> Gerar OS</button>
-                </div>
-            </section>
-
-            <section id="minhasOrdensServico" class="tab-content card" aria-label="Minhas Ordens de Serviço" tabindex="0" hidden>
-                <h2><i class="fas fa-user-clock"></i> Minhas Ordens de Serviço</h2>
-                <div id="listaMinhasOS"></div>
-            </section>
-
-            <section id="executarOrdemServico" class="tab-content card" aria-label="Executar Ordem de Serviço" tabindex="0" hidden>
-                <div class="card-header-actions">
-                    <h2 style="color: var(--color-success);"><i class="fas fa-play-circle"></i> Executar Ordem de Serviço</h2>
-                     <button onclick="App.ui.showTab('minhasOrdensServico')" class="btn-secondary" style="margin-top:0;"><i class="fas fa-arrow-left"></i> Voltar</button>
-                </div>
-
-                <div class="card" style="border-left-color: var(--color-success);">
-                    <h3><i class="fas fa-info-circle"></i> Detalhes da OS</h3>
-                    <div class="plano-details">
-                        <div><i class="fas fa-hashtag"></i> Número: <strong id="executar-os-number"></strong></div>
-                        <div><i class="fas fa-user-check"></i> Responsável: <strong id="executar-os-responsavel"></strong></div>
-                    </div>
-                </div>
-
-                <div id="executar-os-container">
-                    <h3><i class="fas fa-map-pin"></i> Pontos a Instalar</h3>
-                    <div id="executar-os-points-list">
-                        <!-- Lista de pontos será renderizada aqui -->
-                    </div>
-                </div>
-            </section>
-
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
