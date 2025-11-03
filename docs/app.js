@@ -7173,23 +7173,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                const response = await fetch(`${App.config.backendUrl}/api/track/batch`, {
+                // MODIFICADO: Usa _fetchWithAuth para incluir o token de autenticação
+                await App.actions._fetchWithAuth('/api/track/batch', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ locations: locationsToSync }),
                 });
 
-                if (response.ok) {
-                    const db = await OfflineDB.dbPromise;
-                    const tx = db.transaction('gps-locations', 'readwrite');
-                    await tx.store.clear();
-                    await tx.done;
-                    console.log(`${locationsToSync.length} localizações GPS offline foram sincronizadas e limpas.`);
-                } else {
-                    console.error("Falha ao sincronizar localizações GPS em lote.");
-                }
+                // Se _fetchWithAuth for bem-sucedido, a resposta foi 'ok'.
+                const db = await OfflineDB.dbPromise;
+                const tx = db.transaction('gps-locations', 'readwrite');
+                await tx.store.clear();
+                await tx.done;
+                console.log(`${locationsToSync.length} localizações GPS offline foram sincronizadas e limpas.`);
+
             } catch (error) {
-                console.error("Erro de rede ao sincronizar localizações GPS:", error);
+                // _fetchWithAuth já lança um erro para respostas não-ok, então o catch irá lidar com 404s.
+                console.error("Falha ao sincronizar localizações GPS em lote:", error.message);
+                App.ui.showSystemNotification("Sincronização GPS", `Falha ao enviar dados de localização: ${error.message}`, "error");
             }
         },
 
