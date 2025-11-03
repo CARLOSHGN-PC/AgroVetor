@@ -112,13 +112,13 @@ service cloud.firestore {
     }
 
     match /instalacaoPontos/{docId} {
-      allow read, update, delete: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(resource.data.criadoPorUserId)).data.companyId);
-      allow create: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(request.resource.data.criadoPorUserId)).data.companyId);
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
 
     match /instalacaoOrdensDeServico/{docId} {
-      allow read, update, delete: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(resource.data.criadoPorUserId)).data.companyId);
-      allow create: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(request.resource.data.criadoPorUserId)).data.companyId);
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
 
     // O contador de OS só deve ser acessado pelo backend (via Admin SDK).
