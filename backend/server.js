@@ -3200,6 +3200,290 @@ try {
         }
     });
 
+    // --- [NOVO] ROTAS PARA ORDENS DE SERVIÇO (WORK ORDERS) ---
+
+    // ROTA PARA CRIAR UMA NOVA ORDEM DE SERVIÇO
+    app.post('/api/work-orders', async (req, res) => {
+        const { title, description, assignedTo, dueDate, priority, points, companyId, createdBy } = req.body;
+
+        if (!title || !assignedTo || !points || !companyId || !createdBy) {
+            return res.status(400).json({ message: 'Título, responsável, pontos, ID da empresa e criador são obrigatórios.' });
+        }
+        if (!Array.isArray(points) || points.length === 0) {
+            return res.status(400).json({ message: 'A ordem de serviço deve ter pelo menos um ponto.' });
+        }
+
+        try {
+            const workOrderRef = db.collection('workOrders').doc();
+            const workOrderData = {
+                id: workOrderRef.id,
+                title,
+                description: description || '',
+                assignedTo,
+                dueDate: dueDate ? new Date(dueDate) : null,
+                priority: priority || 'normal',
+                status: 'Pendente',
+                companyId,
+                createdBy,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                pointCount: points.length,
+                completedPointCount: 0
+            };
+
+            await workOrderRef.set(workOrderData);
+
+            // Adicionar os pontos em uma subcoleção
+            const pointsCollectionRef = workOrderRef.collection('points');
+            const batch = db.batch();
+            points.forEach((point, index) => {
+                const pointRef = pointsCollectionRef.doc();
+                batch.set(pointRef, {
+                    id: pointRef.id,
+                    latitude: point.latitude,
+                    longitude: point.longitude,
+                    status: 'Pendente', // Pendente, Concluído
+                    order: index
+                });
+            });
+            await batch.commit();
+
+            res.status(201).json({ message: 'Ordem de serviço criada com sucesso!', id: workOrderRef.id });
+        } catch (error) {
+            console.error("Erro ao criar ordem de serviço:", error);
+            res.status(500).json({ message: 'Erro no servidor ao criar ordem de serviço.' });
+        }
+    });
+
+    // ROTA PARA BUSCAR TODAS AS ORDENS DE SERVIÇO DE UMA EMPRESA
+    app.get('/api/work-orders', async (req, res) => {
+        const { companyId, userId } = req.query;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
+
+        try {
+            let query = db.collection('workOrders').where('companyId', '==', companyId);
+
+            // Se um userId for fornecido, filtra as ordens de serviço atribuídas a esse usuário
+            if (userId) {
+                query = query.where('assignedTo', '==', userId);
+            }
+
+            const snapshot = await query.orderBy('createdAt', 'desc').get();
+            if (snapshot.empty) {
+                return res.status(200).json([]);
+            }
+
+            const workOrders = [];
+            for (const doc of snapshot.docs) {
+                 const orderData = doc.data();
+                // Buscar os pontos da subcoleção para cada ordem de serviço
+                const pointsSnapshot = await doc.ref.collection('points').orderBy('order').get();
+                const points = [];
+                pointsSnapshot.forEach(pointDoc => {
+                    points.push(pointDoc.data());
+                });
+                orderData.points = points;
+                workOrders.push(orderData);
+            }
+
+            res.status(200).json(workOrders);
+        } catch (error) {
+            console.error("Erro ao buscar ordens de serviço:", error);
+            res.status(500).json({ message: 'Erro no servidor ao buscar ordens de serviço.' });
+        }
+    });
+
+    // ROTA PARA ATUALIZAR O STATUS DE UM PONTO
+    app.put('/api/work-orders/:orderId/points/:pointId', async (req, res) => {
+        const { orderId, pointId } = req.params;
+        const { status, companyId } = req.body; // status: 'Concluído'
+
+        if (!status || !companyId) {
+            return res.status(400).json({ message: 'Status e ID da empresa são obrigatórios.' });
+        }
+
+        try {
+            const workOrderRef = db.collection('workOrders').doc(orderId);
+            const pointRef = workOrderRef.collection('points').doc(pointId);
+
+            const workOrderDoc = await workOrderRef.get();
+            if (!workOrderDoc.exists || workOrderDoc.data().companyId !== companyId) {
+                return res.status(404).json({ message: 'Ordem de serviço não encontrada ou não pertence a esta empresa.' });
+            }
+
+            await db.runTransaction(async (transaction) => {
+                const pointDoc = await transaction.get(pointRef);
+                if (!pointDoc.exists) {
+                    throw new Error("Ponto não encontrado.");
+                }
+
+                // Apenas atualiza se o status for diferente para evitar contagem duplicada
+                if (pointDoc.data().status !== 'Concluído' && status === 'Concluído') {
+                    transaction.update(pointRef, { status: status, completedAt: admin.firestore.FieldValue.serverTimestamp() });
+                    // Incrementa o contador de pontos concluídos na ordem de serviço principal
+                    transaction.update(workOrderRef, {
+                        completedPointCount: admin.firestore.FieldValue.increment(1)
+                    });
+                } else if (pointDoc.data().status === 'Concluído' && status !== 'Concluído') {
+                     transaction.update(pointRef, { status: status, completedAt: null });
+                     transaction.update(workOrderRef, {
+                        completedPointCount: admin.firestore.FieldValue.increment(-1)
+                    });
+                } else {
+                    // Se o status for o mesmo ou uma transição inválida, não faz nada
+                    return;
+                }
+            });
+
+            // Após a transação, verificar se todos os pontos estão concluídos
+            const workOrderData = (await workOrderRef.get()).data();
+            if (workOrderData.completedPointCount >= workOrderData.pointCount) {
+                await workOrderRef.update({ status: 'Concluída' });
+            } else if (workOrderData.completedPointCount > 0 && workOrderData.status !== 'Em Andamento') {
+                await workOrderRef.update({ status: 'Em Andamento' });
+            } else if (workOrderData.completedPointCount === 0 && workOrderData.status !== 'Pendente') {
+                await workOrderRef.update({ status: 'Pendente' });
+            }
+
+            res.status(200).json({ message: 'Status do ponto atualizado com sucesso.' });
+        } catch (error) {
+            console.error("Erro ao atualizar status do ponto:", error);
+            res.status(500).json({ message: `Erro no servidor ao atualizar status: ${error.message}` });
+        }
+    });
+
+
+    // [NOVO] ROTA PARA GERAR RELATÓRIO PDF DE UMA ORDEM DE SERVIÇO
+    app.get('/reports/work-order/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'portrait', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_ordem_servico.pdf');
+        doc.pipe(res);
+
+        try {
+            const { orderId, companyId, generatedBy } = req.query;
+            if (!orderId || !companyId) {
+                throw new Error('ID da Ordem de Serviço e ID da Empresa são obrigatórios.');
+            }
+
+            // 1. Buscar dados da Ordem de Serviço
+            const orderDoc = await db.collection('workOrders').doc(orderId).get();
+            if (!orderDoc.exists || orderDoc.data().companyId !== companyId) {
+                throw new Error('Ordem de Serviço não encontrada ou não pertence a esta empresa.');
+            }
+            const orderData = orderDoc.data();
+
+            // 2. Buscar pontos da subcoleção
+            const pointsSnapshot = await db.collection('workOrders').doc(orderId).collection('points').orderBy('order').get();
+            const points = [];
+            pointsSnapshot.forEach(pointDoc => points.push(pointDoc.data()));
+            orderData.points = points;
+
+            // 3. Buscar nome do usuário assignado
+            let assignedToName = 'N/A';
+            if (orderData.assignedTo) {
+                try {
+                    const userDoc = await db.collection('users').doc(orderData.assignedTo).get();
+                    if (userDoc.exists) {
+                        assignedToName = userDoc.data().username || userDoc.data().email;
+                    }
+                } catch(e) {
+                    console.error("Could not fetch assigned user name", e);
+                }
+            }
+
+
+            const title = `Relatório de Ordem de Serviço - OS #${orderId.substring(0, 5)}`;
+            let currentY = await generatePdfHeader(doc, title, companyId);
+
+            // 4. Adicionar detalhes da Ordem de Serviço
+            doc.fontSize(12).font('Helvetica-Bold').text('Detalhes da Ordem', { underline: true });
+            currentY = doc.y + 10;
+
+            const detailStartY = currentY;
+            const leftColX = doc.page.margins.left;
+            const rightColX = doc.page.width / 2 + 20;
+
+            doc.fontSize(10).font('Helvetica-Bold').text('Título:', leftColX, currentY);
+            doc.font('Helvetica').text(orderData.title, leftColX + 80, currentY);
+
+            currentY = doc.y + 2;
+            doc.font('Helvetica-Bold').text('Status:', leftColX, currentY);
+            doc.font('Helvetica').text(orderData.status, leftColX + 80, currentY);
+
+            currentY = doc.y + 2;
+            doc.font('Helvetica-Bold').text('Criada em:', leftColX, currentY);
+            const createdAt = safeToDate(orderData.createdAt);
+            doc.font('Helvetica').text(createdAt ? createdAt.toLocaleDateString('pt-BR') : 'N/A', leftColX + 80, currentY);
+
+            currentY = detailStartY; // Reset Y for the right column
+            doc.font('Helvetica-Bold').text('Responsável:', rightColX, currentY);
+            doc.font('Helvetica').text(assignedToName, rightColX + 80, currentY);
+
+            currentY = doc.y + 2;
+            doc.font('Helvetica-Bold').text('Prioridade:', rightColX, currentY);
+            doc.font('Helvetica').text(orderData.priority || 'Normal', rightColX + 80, currentY);
+
+            currentY = doc.y + 2;
+            doc.font('Helvetica-Bold').text('Data Limite:', rightColX, currentY);
+            const dueDate = safeToDate(orderData.dueDate);
+            doc.font('Helvetica').text(dueDate ? dueDate.toLocaleDateString('pt-BR') : 'N/A', rightColX + 80, currentY);
+
+            currentY = doc.y + 10;
+            if (orderData.description) {
+                doc.font('Helvetica-Bold').text('Descrição:', leftColX, currentY);
+                currentY = doc.y + 4;
+                doc.font('Helvetica').text(orderData.description, { width: doc.page.width - doc.page.margins.left - doc.page.margins.right });
+                currentY = doc.y + 15;
+            }
+
+
+            // 5. Adicionar tabela de Pontos
+            currentY = await checkPageBreak(doc, currentY, title, 80);
+            doc.y = currentY;
+            doc.fontSize(12).font('Helvetica-Bold').text('Pontos de Instalação', { underline: true });
+            currentY = doc.y + 10;
+
+            const headers = ['#', 'Latitude', 'Longitude', 'Status'];
+            const columnWidths = [40, 200, 200, 100];
+            const rowHeight = 18;
+            const textPadding = 5;
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
+
+            for (let i = 0; i < orderData.points.length; i++) {
+                const point = orderData.points[i];
+                currentY = await checkPageBreak(doc, currentY, title, 40);
+                const rowData = [
+                    i + 1,
+                    point.latitude.toFixed(6),
+                    point.longitude.toFixed(6),
+                    point.status
+                ];
+                currentY = drawRow(doc, rowData, currentY, false, false, columnWidths, textPadding, rowHeight);
+            }
+
+
+            generatePdfFooter(doc, generatedBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Ordem de Serviço:", error);
+            if (!res.headersSent) {
+                const errorDoc = new PDFDocument();
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', 'attachment; filename=error.pdf');
+                errorDoc.pipe(res);
+                errorDoc.text('Ocorreu um erro ao gerar o relatório em PDF:');
+                errorDoc.text(error.message);
+                errorDoc.end();
+            } else {
+                doc.end();
+            }
+        }
+    });
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));

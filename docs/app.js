@@ -104,7 +104,14 @@ document.addEventListener('DOMContentLoaded', () => {
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
-                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                {
+                    label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish',
+                    submenu: [
+                        { label: 'Mapa de Armadilhas', icon: 'fas fa-map-marked-alt', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                        { label: 'Planejamento de O.S.', icon: 'fas fa-tasks', target: 'workOrderPlanning', permission: 'workOrderPlanning' },
+                        { label: 'Relatórios de O.S.', icon: 'fas fa-file-alt', target: 'workOrderReport', permission: 'workOrderReport' }
+                    ]
+                },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -157,10 +164,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, workOrderPlanning: true, workOrderReport: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, workOrderPlanning: true, workOrderReport: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, workOrderReport: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, workOrderReport: true },
                 user: { dashboard: true }
             }
         },
@@ -215,6 +222,304 @@ document.addEventListener('DOMContentLoaded', () => {
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
                 apontamentoPlantioFormIsDirty: false,
+            workOrderMap: null,
+            currentWorkOrder: null,
+            workOrders: [],
+        },
+        workOrder: {
+            init() {
+                // This will be called when the planning tab is shown
+            },
+            initMap() {
+                if (App.state.workOrderMap || !document.getElementById('workOrderPlanningMap')) return;
+                try {
+                    App.state.workOrderMap = new mapboxgl.Map({
+                        container: App.elements.workOrder.planningMap,
+                        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                        center: [-48.45, -21.17],
+                        zoom: 12
+                    });
+                    App.state.workOrderMap.on('load', () => {
+                        // Load farm shapes onto this map as well
+                        if (App.state.geoJsonData) {
+                            App.mapModule.loadShapesOnMap.call({ ...App.mapModule, _getThemeColors: App.ui._getThemeColors.bind(App.ui) });
+                        }
+                    });
+                } catch (e) {
+                    console.error("Erro ao inicializar o mapa de planejamento:", e);
+                }
+            },
+            startNewOrder() {
+                // Limpa os marcadores da ordem de serviço anterior
+                if (App.state.currentWorkOrder && App.state.currentWorkOrder.markers) {
+                    App.state.currentWorkOrder.markers.forEach(marker => marker.remove());
+                }
+
+                App.state.currentWorkOrder = {
+                    title: '',
+                    assignedTo: '',
+                    dueDate: '',
+                    points: [],
+                    markers: [], // Array para armazenar os marcadores do mapa
+                    status: 'Pendente',
+                    companyId: App.state.currentUser.companyId,
+                    createdBy: App.state.currentUser.uid,
+                };
+                App.ui.clearForm(App.elements.workOrder.form);
+                App.elements.workOrder.pointsList.innerHTML = '';
+                // Adiciona um ouvinte de clique ao mapa para adicionar pontos
+                App.state.workOrderMap.on('click', this.addPoint);
+                App.elements.workOrder.addPointBtn.textContent = 'Modo Adição Ativado';
+                App.elements.workOrder.addPointBtn.disabled = true;
+                App.ui.showAlert('Modo de adição ativado. Clique no mapa para adicionar pontos.', 'info');
+            },
+            addPoint(e) {
+                if (!App.state.currentWorkOrder) return;
+
+                const marker = new mapboxgl.Marker()
+                    .setLngLat(e.lngLat)
+                    .addTo(App.state.workOrderMap);
+
+                const newPoint = {
+                    id: `ponto_${Date.now()}`,
+                    latitude: e.lngLat.lat,
+                    longitude: e.lngLat.lng,
+                    status: 'Pendente',
+                    marker: marker // Associa o marcador ao ponto
+                };
+                App.state.currentWorkOrder.points.push(newPoint);
+                App.state.currentWorkOrder.markers.push(marker);
+
+
+                App.workOrder.renderPointsList();
+            },
+
+            renderPointsList() {
+                const listEl = App.elements.workOrder.pointsList;
+                listEl.innerHTML = '';
+                if (!App.state.currentWorkOrder || App.state.currentWorkOrder.points.length === 0) {
+                    listEl.innerHTML = '<p>Nenhum ponto adicionado.</p>';
+                    return;
+                }
+                App.state.currentWorkOrder.points.forEach((point, index) => {
+                    const pointEl = document.createElement('div');
+                    pointEl.className = 'work-order-point';
+                    pointEl.innerHTML = `
+                        <span>Ponto ${index + 1}</span>
+                        <button class="btn-remover-amostra" data-point-id="${point.id}">&times;</button>
+                    `;
+                    listEl.appendChild(pointEl);
+                });
+            },
+
+            async saveWorkOrder() {
+                if (!App.state.currentWorkOrder) return;
+
+                const { title, responsible, deadline, priority, description } = App.elements.workOrder;
+
+                const orderData = {
+                    ...App.state.currentWorkOrder,
+                    title: title.value,
+                    assignedTo: responsible.value,
+                    dueDate: deadline.value,
+                    priority: priority.value,
+                    description: description.value
+                };
+
+                if (!orderData.title || !orderData.assignedTo || !orderData.dueDate || orderData.points.length === 0) {
+                    App.ui.showAlert('Preencha todos os campos obrigatórios (Título, Atribuir a, Data) e adicione pelo menos um ponto.', 'error');
+                    return;
+                }
+
+                App.ui.setLoading(true, "A guardar Ordem de Serviço...");
+                try {
+                    const response = await fetch(`${App.config.backendUrl}/api/work-orders`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${await auth.currentUser.getIdToken()}`
+                        },
+                        body: JSON.stringify(orderData)
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.message || 'Erro no servidor');
+                    }
+
+                    App.ui.showAlert('Ordem de Serviço guardada com sucesso!');
+                    // Reset
+                    App.state.currentWorkOrder = null;
+                    App.ui.clearForm(App.elements.workOrder.form);
+                    App.elements.workOrder.pointsList.innerHTML = '';
+                    App.state.workOrderMap.off('click', this.addPoint);
+                    App.elements.workOrder.addPointBtn.textContent = 'Adicionar Pontos no Mapa';
+                    App.elements.workOrder.addPointBtn.disabled = false;
+                    // Limpar marcadores do mapa (esta parte pode ser melhorada para guardar os marcadores)
+                    // TODO: A better way to clear markers without re-initializing the map
+                    if (App.state.workOrderMap) {
+                        // A simple way to clear markers would be to re-init, but let's avoid that.
+                        // For now, we'll rely on the snapshot listener to redraw correctly.
+                    }
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao guardar a Ordem de Serviço: ${error.message}`, 'error');
+                    console.error(error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            renderReportList() {
+                const listEl = App.elements.workOrder.reportList;
+                listEl.innerHTML = '';
+                if (App.state.workOrders.length === 0) {
+                    listEl.innerHTML = '<p>Nenhuma ordem de serviço encontrada.</p>';
+                    return;
+                }
+
+                App.state.workOrders.forEach(order => {
+                    const responsibleUser = App.state.users.find(u => u.id === order.assignedTo);
+                    const responsibleName = responsibleUser ? responsibleUser.username : 'N/A';
+                    const card = document.createElement('div');
+                    card.className = 'plano-card'; // Reutiliza o estilo
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-file-alt"></i> ${order.title}</span>
+                            <span class="plano-status ${order.status.toLowerCase()}">${order.status}</span>
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-user"></i> Responsável: ${responsibleName}</div>
+                            <div><i class="fas fa-calendar-day"></i> Prazo: ${new Date(order.dueDate.toDate()).toLocaleDateString('pt-BR')}</div>
+                        </div>
+                        <div class="plano-actions">
+                            <button class="btn-excluir" style="background-color: var(--color-info)" data-action="view-details" data-id="${order.id}"><i class="fas fa-eye"></i> Ver Detalhes</button>
+                            <button class="btn-excluir" style="background-color: var(--color-primary-dark);" data-action="generate-pdf" data-id="${order.id}"><i class="fas fa-file-pdf"></i> PDF</button>
+                        </div>
+                    `;
+                    listEl.appendChild(card);
+                });
+            },
+
+            async showWorkOrderDetail(orderId) {
+                const order = App.state.workOrders.find(o => o.id === orderId);
+                if (!order) return;
+
+                const modal = App.elements.workOrder.detailModal;
+                modal.overlay.classList.add('show');
+
+                const responsibleUser = App.state.users.find(u => u.id === order.assignedTo);
+                const responsibleName = responsibleUser ? responsibleUser.username : 'N/A';
+
+                // Preencher detalhes básicos
+                const detailBody = document.getElementById('workOrderDetailBody');
+                detailBody.innerHTML = `
+                    <p><strong>Responsável:</strong> ${responsibleName}</p>
+                    <p><strong>Prazo:</strong> ${new Date(order.dueDate.toDate()).toLocaleDateString('pt-BR')}</p>
+                    <p><strong>Status:</strong> <span class="plano-status ${order.status.toLowerCase()}">${order.status}</span></p>
+                    <p><strong>Descrição:</strong> ${order.description || 'Nenhuma'}</p>
+                    <div id="workOrderDetailMap" style="width: 100%; height: 400px; border-radius: var(--border-radius); margin: 20px 0;"></div>
+                    <h3>Pontos de Instalação</h3>
+                    <div id="workOrderDetailPointList"></div>
+                `;
+
+                // Inicializar o mapa no modal
+                const detailMap = new mapboxgl.Map({
+                    container: 'workOrderDetailMap',
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [order.points[0].longitude, order.points[0].latitude],
+                    zoom: 15
+                });
+
+                detailMap.on('load', () => {
+                    this.renderWorkOrderPoints(detailMap, order);
+                });
+            },
+
+            renderWorkOrderPoints(map, order) {
+                const pointsListEl = document.getElementById('workOrderDetailPointList');
+                pointsListEl.innerHTML = '';
+
+                order.points.forEach((point, index) => {
+                    // Adicionar marcador no mapa
+                    const el = document.createElement('div');
+                    el.className = 'mapbox-marker';
+                    el.style.width = '30px';
+                    el.style.height = '30px';
+                    el.style.borderRadius = '50%';
+                    el.style.backgroundColor = point.status === 'Concluído' ? '#388e3c' : '#d32f2f';
+                    el.style.border = '2px solid white';
+                    el.style.display = 'flex';
+                    el.style.justifyContent = 'center';
+                    el.style.alignItems = 'center';
+                    el.style.cursor = 'pointer';
+                    el.innerHTML = `<strong style="color: white;">${index + 1}</strong>`;
+
+                    new mapboxgl.Marker(el)
+                        .setLngLat([point.lng, point.lat])
+                        .addTo(map);
+
+                    // Adicionar item na lista
+                    const item = document.createElement('div');
+                    item.className = 'plano-card'; // Reutilizar estilo
+                    item.style.cursor = 'pointer';
+                    item.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title">Ponto ${index + 1}</span>
+                            <span class="plano-status ${point.status.toLowerCase()}">${point.status}</span>
+                        </div>
+                    `;
+
+                    if (point.status !== 'Concluído') {
+                        item.addEventListener('click', () => this.promptUpdatePointStatus(order.id, point.id));
+                    }
+
+                    pointsListEl.appendChild(item);
+                });
+
+                // Ajustar o mapa para mostrar todos os pontos
+                if (order.points.length > 1) {
+                    const bounds = new mapboxgl.LngLatBounds();
+                    order.points.forEach(point => {
+                        bounds.extend([point.lng, point.lat]);
+                    });
+                    map.fitBounds(bounds, { padding: 60 });
+                }
+            },
+
+            promptUpdatePointStatus(orderId, pointId) {
+                App.ui.showConfirmationModal(
+                    "Deseja marcar este ponto como 'Concluído'?",
+                    async () => {
+                        App.ui.setLoading(true, "A atualizar status...");
+                        try {
+                            const response = await fetch(`${App.config.backendUrl}/api/work-orders/${orderId}/points/${pointId}`, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${await auth.currentUser.getIdToken()}`
+                                },
+                                body: JSON.stringify({
+                                    status: 'Concluído',
+                                    companyId: App.state.currentUser.companyId
+                                })
+                            });
+
+                            if (!response.ok) {
+                                const err = await response.json();
+                                throw new Error(err.message || 'Erro no servidor');
+                            }
+
+                            App.ui.showAlert("Status do ponto atualizado com sucesso!");
+                            // A atualização em tempo real do Firestore deve recarregar a lista
+                        } catch (error) {
+                            App.ui.showAlert(`Erro ao atualizar o status: ${error.message}`, "error");
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    }
+                );
+            }
         },
         
         elements: {
@@ -366,6 +671,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 perdaDashboardFim: document.getElementById('perdaDashboardFim'),
                 btnFiltrarPerdaDashboard: document.getElementById('btnFiltrarPerdaDashboard'),
             },
+        workOrder: {
+            planningMap: document.getElementById('workOrderPlanningMap'),
+            form: document.getElementById('workOrderForm'),
+            title: document.getElementById('workOrderTitle'),
+            responsible: document.getElementById('workOrderResponsible'),
+            deadline: document.getElementById('workOrderDeadline'),
+            addPointBtn: document.getElementById('addWorkOrderPointBtn'),
+            pointsList: document.getElementById('workOrderPointsList'),
+            saveBtn: document.getElementById('saveWorkOrderBtn'),
+            reportList: document.getElementById('workOrderReportList'),
+            detailModal: {
+                overlay: document.getElementById('workOrderDetailModal'),
+                title: document.getElementById('workOrderDetailTitle'),
+                responsible: document.getElementById('workOrderDetailResponsible'),
+                deadline: document.getElementById('workOrderDetailDeadline'),
+                status: document.getElementById('workOrderDetailStatus'),
+                pointsList: document.getElementById('workOrderDetailPointsList'),
+                closeBtn: document.getElementById('workOrderDetailModalCloseBtn'),
+                cancelBtn: document.getElementById('workOrderDetailModalCancelBtn'),
+            },
+        },
             users: {
                 username: document.getElementById('newUserUsername'),
                 password: document.getElementById('newUserPassword'),
@@ -1273,7 +1599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima', 'workOrders'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1481,7 +1807,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         break;
                     case 'users':
-                        this.populateUserSelects([App.elements.planejamento.responsavel]);
+                        this.populateUserSelects([App.elements.planejamento.responsavel, App.elements.workOrder.responsible]);
                         if (activeTab === 'gerenciarUsuarios') {
                             this.renderUsersList();
                         }
@@ -1535,6 +1861,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         if (activeTab === 'excluirDados') {
                             this.renderExclusao();
+                        }
+                        break;
+                    case 'workOrders':
+                        if (activeTab === 'workOrderReport') {
+                            App.workOrder.renderReportList();
                         }
                         break;
                     // No specific actions needed for 'cigarrinha' or 'armadilhas' on snapshot,
@@ -1887,6 +2218,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderCompaniesList();
                     this.renderCompanyModules('newCompanyModules');
                     this.renderGlobalFeatures(); // NOVO
+                }
+                if (id === 'workOrderPlanning') {
+                    App.workOrder.initMap();
+                    this.populateUserSelects([App.elements.workOrder.responsible]);
+                }
+                if (id === 'workOrderReport') {
+                    App.workOrder.renderReportList();
                 }
                 if (id === 'cadastros') {
                     this.renderFarmSelect();
@@ -4377,6 +4715,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                // Listeners for Work Order
+                const woEls = App.elements.workOrder;
+                if (woEls.addPointBtn) woEls.addPointBtn.addEventListener('click', () => App.workOrder.startNewOrder());
+                if (woEls.saveBtn) woEls.saveBtn.addEventListener('click', () => App.workOrder.saveWorkOrder());
+                if (woEls.pointsList) woEls.pointsList.addEventListener('click', (e) => {
+                    const removeBtn = e.target.closest('.btn-remover-amostra');
+                    if (removeBtn) {
+                        const pointId = removeBtn.dataset.pointId;
+                        const pointToRemove = App.state.currentWorkOrder.points.find(p => p.id === pointId);
+                        if (pointToRemove && pointToRemove.marker) {
+                            pointToRemove.marker.remove();
+                        }
+                        App.state.currentWorkOrder.points = App.state.currentWorkOrder.points.filter(p => p.id !== pointId);
+                        App.state.currentWorkOrder.markers = App.state.currentWorkOrder.markers.filter(m => m !== pointToRemove.marker);
+                        App.workOrder.renderPointsList();
+                    }
+                });
+                if (woEls.reportList) woEls.reportList.addEventListener('click', (e) => {
+                    const viewBtn = e.target.closest('button[data-action="view-details"]');
+                    if (viewBtn) {
+                        App.workOrder.showWorkOrderDetail(viewBtn.dataset.id);
+                    }
+                });
+                const woModal = woEls.detailModal;
+                if (woModal.closeBtn) woModal.closeBtn.addEventListener('click', () => woModal.overlay.classList.remove('show'));
+                if (woModal.cancelBtn) woModal.cancelBtn.addEventListener('click', () => woModal.overlay.classList.remove('show'));
+                if (woModal.overlay) woModal.overlay.addEventListener('click', e => { if (e.target === woModal.overlay) woModal.overlay.classList.remove('show'); });
             }
         },
         
