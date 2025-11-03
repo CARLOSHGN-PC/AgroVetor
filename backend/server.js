@@ -26,6 +26,53 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 
+// --- MIDDLEWARE DE AUTENTICAÇÃO ---
+const authMiddleware = async (req, res, next) => {
+    const { authorization } = req.headers;
+
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+        return res.status(401).send({ message: 'Acesso não autorizado. Token não fornecido.' });
+    }
+
+    const token = authorization.split('Bearer ')[1];
+
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+
+        if (!userDoc.exists) {
+            return res.status(403).send({ message: 'Utilizador não encontrado na base de dados.' });
+        }
+
+        const user = userDoc.data();
+
+        let targetCompanyId = user.companyId;
+
+        // Lógica de permissão: Super Admin pode especificar uma companyId, os outros não.
+        if (user.role === 'super-admin') {
+            // Para Super Admins, permite que eles especifiquem a empresa alvo na requisição.
+            // Isso é necessário para funcionalidades como criar utilizadores ou fazendas para outras empresas.
+            targetCompanyId = req.body.companyId || req.query.companyId || null;
+        } else if (!user.companyId) {
+            // Se não for Super Admin, a companyId é obrigatória.
+            return res.status(403).send({ message: 'A sua conta de utilizador não está associada a uma empresa.' });
+        }
+
+        // Anexa os dados verificados e o companyId alvo à requisição
+        req.user = {
+            uid: decodedToken.uid,
+            email: decodedToken.email,
+            role: user.role,
+            companyId: targetCompanyId
+        };
+
+        next();
+    } catch (error) {
+        console.error("Erro na verificação do token:", error);
+        return res.status(403).send({ message: 'Acesso negado. O token é inválido ou expirou.' });
+    }
+};
+
 try {
     if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
         throw new Error('A variável de ambiente FIREBASE_SERVICE_ACCOUNT_JSON não está definida.');
@@ -56,14 +103,36 @@ try {
         res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
     });
 
+    // ROTA SEGURA PARA OBTER CONFIGURAÇÃO DO FIREBASE
+    app.get('/api/config', (req, res) => {
+        // Apenas as chaves seguras para o cliente são enviadas.
+        // Carregue estas variáveis de ambiente no seu servidor.
+        const firebaseConfig = {
+            apiKey: process.env.FIREBASE_API_KEY,
+            authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+            messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+            appId: process.env.FIREBASE_APP_ID,
+            measurementId: process.env.FIREBASE_MEASUREMENT_ID
+        };
+
+        // Validação para garantir que as variáveis de ambiente estão carregadas
+        if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+            console.error("As variáveis de ambiente do Firebase para o cliente não estão configuradas no servidor.");
+            return res.status(500).json({ message: "Erro de configuração do servidor." });
+        }
+
+        res.json(firebaseConfig);
+    });
+
     // ROTA PARA UPLOAD DO LOGO
-    app.post('/upload-logo', async (req, res) => {
-        const { logoBase64, companyId } = req.body;
+    app.post('/upload-logo', authMiddleware, async (req, res) => {
+        const { logoBase64 } = req.body;
+        const { companyId } = req.user; // ID da empresa verificado pelo middleware
+
         if (!logoBase64) {
             return res.status(400).send({ message: 'Nenhum dado de imagem Base64 enviado.' });
-        }
-        if (!companyId) {
-            return res.status(400).send({ message: 'O ID da empresa é obrigatório.' });
         }
         try {
             await db.collection('config').doc(companyId).set({ logoBase64: logoBase64 }, { merge: true });
@@ -75,13 +144,12 @@ try {
     });
  
     // ROTA PARA UPLOAD DO SHAPEFILE
-    app.post('/upload-shapefile', async (req, res) => {
-        const { fileBase64, companyId } = req.body;
+    app.post('/upload-shapefile', authMiddleware, async (req, res) => {
+        const { fileBase64 } = req.body;
+        const { companyId } = req.user; // ID da empresa verificado
+
         if (!fileBase64) {
             return res.status(400).send({ message: 'Nenhum dado de arquivo Base64 foi enviado.' });
-        }
-        if (!companyId) {
-            return res.status(400).send({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
@@ -112,13 +180,12 @@ try {
     });
 
     // ROTA PARA INGESTÃO DE RELATÓRIO HISTÓRICO (SEM IA)
-    app.post('/api/upload/historical-report', async (req, res) => {
-        const { reportData: originalReportData, companyId } = req.body;
+    app.post('/api/upload/historical-report', authMiddleware, async (req, res) => {
+        const { reportData: originalReportData } = req.body;
+        const { companyId } = req.user; // ID da empresa verificado
+
         if (!originalReportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
-        }
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
@@ -198,7 +265,7 @@ try {
     });
 
     // --- ROTA DE GERAÇÃO DA IA (GEMINI) ---
-    app.post('/api/gemini/generate', async (req, res) => {
+    app.post('/api/gemini/generate', authMiddleware, async (req, res) => {
         if (!model) {
             return res.status(503).json({ message: "Esta funcionalidade de IA está temporariamente desativada." });
         }
@@ -224,13 +291,12 @@ try {
     });
 
     // ROTA PARA CÁLCULO DE ATR PONDERADO
-    app.post('/api/calculate-atr', async (req, res) => {
-        const { codigoFazenda, companyId } = req.body;
+    app.post('/api/calculate-atr', authMiddleware, async (req, res) => {
+        const { codigoFazenda } = req.body;
+        const { companyId } = req.user; // ID da empresa verificado
+
         if (!codigoFazenda) {
             return res.status(400).json({ message: 'O código da fazenda é obrigatório.' });
-        }
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
         }
 
         try {
@@ -301,11 +367,9 @@ try {
         }
     }
 
-    app.post('/api/delete/historical-data', async (req, res) => {
-        const { companyId } = req.body;
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
-        }
+    app.post('/api/delete/historical-data', authMiddleware, async (req, res) => {
+        const { companyId } = req.user; // ID da empresa verificado
+
         try {
             console.log(`Iniciando a exclusão do histórico para a empresa: ${companyId}`);
             const collectionRef = db.collection('historicalHarvests');
@@ -323,20 +387,18 @@ try {
         }
     });
 
-    app.post('/api/track', async (req, res) => {
-        const { userId, latitude, longitude, companyId } = req.body;
+    app.post('/api/track', authMiddleware, async (req, res) => {
+        const { userId, latitude, longitude } = req.body;
+        const { companyId } = req.user; // ID da empresa verificado
 
         if (!userId || latitude === undefined || longitude === undefined) {
             return res.status(400).json({ message: 'userId, latitude e longitude são obrigatórios.' });
-        }
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório para rastreamento.' });
         }
 
         try {
             await db.collection('locationHistory').add({
                 userId: userId,
-                companyId: companyId, // Adiciona o ID da empresa
+                companyId: companyId, // Adiciona o ID da empresa verificado
                 location: new admin.firestore.GeoPoint(parseFloat(latitude), parseFloat(longitude)),
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
             });
@@ -347,19 +409,17 @@ try {
         }
     });
 
-    app.get('/api/history', async (req, res) => {
-        const { userId, startDate, endDate, companyId } = req.query;
+    app.get('/api/history', authMiddleware, async (req, res) => {
+        const { userId, startDate, endDate } = req.query;
+        const { companyId } = req.user; // ID da empresa verificado
 
         if (!userId || !startDate || !endDate) {
             return res.status(400).json({ message: 'userId, startDate e endDate são obrigatórios.' });
         }
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
-        }
 
         try {
             const query = db.collection('locationHistory')
-                .where('companyId', '==', companyId) // Adiciona filtro de empresa
+                .where('companyId', '==', companyId) // Adiciona filtro de empresa verificado
                 .where('userId', '==', userId)
                 .where('timestamp', '>=', new Date(startDate + 'T00:00:00Z'))
                 .where('timestamp', '<=', new Date(endDate + 'T23:59:59Z'));
@@ -725,14 +785,14 @@ try {
         return data.sort((a, b) => new Date(a.date) - new Date(b.date));
     };
 
-    app.get('/reports/plantio/fazenda/pdf', async (req, res) => {
+    app.get('/reports/plantio/fazenda/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename=relatorio_plantio_fazenda.pdf');
         doc.pipe(res);
 
         try {
-            const filters = req.query;
+            const filters = { ...req.query, companyId: req.user.companyId };
             const data = await getPlantioData(filters);
             const title = 'Relatório de Plantio por Fazenda';
 
