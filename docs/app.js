@@ -908,54 +908,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         App.ui.setLoading(true, "A carregar dados do utilizador...");
-                        try {
-                            const userDoc = await App.data.getUserData(user.uid);
+                        const userDoc = await App.data.getUserData(user.uid);
 
-                            if (userDoc && userDoc.active) {
-                                let companyDoc = null;
-                                // Bloqueia o login se a empresa do utilizador estiver inativa
-                                if (userDoc.role !== 'super-admin' && userDoc.companyId) {
-                                    companyDoc = await App.data.getDocument('companies', userDoc.companyId);
-                                    if (!companyDoc || companyDoc.active === false) {
-                                        App.auth.logout();
-                                        App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
-                                        return;
-                                    }
-                                }
-
-                                App.state.currentUser = { ...user, ...userDoc };
-
-                                // Validação CRÍTICA para o modelo multi-empresa
-                                if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
+                        if (userDoc && userDoc.active) {
+                            let companyDoc = null;
+                            // Bloqueia o login se a empresa do utilizador estiver inativa
+                            if (userDoc.role !== 'super-admin' && userDoc.companyId) {
+                                companyDoc = await App.data.getDocument('companies', userDoc.companyId);
+                                if (!companyDoc || companyDoc.active === false) {
                                     App.auth.logout();
-                                    App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
+                                    App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
                                     return;
                                 }
+                            }
 
-                                // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
-                                App.ui.setLoading(true, "A carregar configurações...");
+                            App.state.currentUser = { ...user, ...userDoc };
 
-                                // 1. Carregar configurações GLOBAIS e da EMPRESA em paralelo
-                                const companyId = App.state.currentUser.companyId;
-                                const [globalConfigsDoc, companyConfigDoc] = await Promise.all([
-                                    getDoc(doc(db, 'global_configs', 'main')),
-                                    companyId ? App.data.getDocument('config', companyId) : Promise.resolve(null)
-                                ]);
+                            // Validação CRÍTICA para o modelo multi-empresa
+                            if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
+                                App.auth.logout();
+                                App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
+                                return;
+                            }
 
+                            // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
+                            App.ui.setLoading(true, "A carregar configurações...");
+                            try {
+                                // 1. Carregar configurações globais
+                                const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
                                 if (globalConfigsDoc.exists()) {
                                     App.state.globalConfigs = globalConfigsDoc.data();
                                 } else {
                                     console.warn("Documento de configurações globais 'main' não encontrado.");
                                     App.state.globalConfigs = {};
-                                }
-
-                                if (companyConfigDoc) {
-                                    App.state.companyConfig = companyConfigDoc;
-                                    App.state.companyLogo = companyConfigDoc.logoBase64 || null;
-                                    if (companyConfigDoc.shapefileURL) {
-                                        // Não bloqueia a renderização, apenas inicia o carregamento em segundo plano
-                                        App.mapModule.loadAndCacheShapes(companyConfigDoc.shapefileURL);
-                                    }
                                 }
 
                                 // 2. Pré-popular os dados da empresa (se já foram carregados)
@@ -965,8 +950,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                 // 3. Agora é seguro mostrar a tela principal
                                 App.actions.saveUserProfileLocally(App.state.currentUser);
-                                App.ui.showAppScreen();
-                                App.data.listenToAllData();
+                                App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
+                                App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
 
                                 const draftRestored = await App.actions.checkForDraft();
                                 if (!draftRestored) {
@@ -978,14 +963,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                     App.actions.syncOfflineWrites();
                                 }
 
-                            } else {
-                                this.logout();
-                                App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
+                            } catch (error) {
+                                console.error("Falha crítica ao carregar dados iniciais:", error);
+                                App.auth.logout();
+                                App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
                             }
-                        } catch(error) {
-                             console.error("Falha crítica ao carregar dados iniciais:", error);
-                             App.auth.logout();
-                             App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
+
+                        } else {
+                            this.logout();
+                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
                         const localProfiles = App.actions.getLocalUserProfiles();
@@ -994,8 +980,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             App.ui.showLoginScreen();
                         }
-                        App.ui.setLoading(false); // Make sure to turn off loading here too
                     }
+                    App.ui.setLoading(false);
                 });
             },
 
