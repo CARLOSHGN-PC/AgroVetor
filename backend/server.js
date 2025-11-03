@@ -105,33 +105,25 @@ try {
 
     // ROTA SEGURA PARA OBTER CONFIGURAÇÃO DO FIREBASE
     app.get('/api/config', (req, res) => {
-        try {
-            // Deriva a configuração do cliente a partir da service account para maior robustez.
-            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-            const projectId = serviceAccount.project_id;
+        // Apenas as chaves seguras para o cliente são enviadas.
+        // Carregue estas variáveis de ambiente no seu servidor.
+        const firebaseConfig = {
+            apiKey: process.env.FIREBASE_API_KEY,
+            authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+            messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+            appId: process.env.FIREBASE_APP_ID,
+            measurementId: process.env.FIREBASE_MEASUREMENT_ID
+        };
 
-            // Constrói o objeto de configuração do cliente
-            const firebaseConfig = {
-                apiKey: process.env.FIREBASE_API_KEY, // A apiKey geralmente é gerenciada separadamente.
-                authDomain: `${projectId}.firebaseapp.com`,
-                projectId: projectId,
-                storageBucket: `${projectId}.appspot.com`,
-                messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID, // Também precisa ser mantido como variável de ambiente
-                appId: process.env.FIREBASE_APP_ID, // Também precisa ser mantido como variável de ambiente
-                measurementId: process.env.FIREBASE_MEASUREMENT_ID // Opcional, mantido como variável de ambiente
-            };
-
-            // Validação mínima para garantir que os dados essenciais estão presentes
-            if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-                console.error("apiKey ou projectId não puderam ser determinados. Verifique as variáveis de ambiente FIREBASE_API_KEY e FIREBASE_SERVICE_ACCOUNT_JSON.");
-                return res.status(500).json({ message: "Erro de configuração do servidor." });
-            }
-
-            res.json(firebaseConfig);
-        } catch (error) {
-            console.error("Erro crítico ao obter a configuração do Firebase para o cliente:", error);
-            res.status(500).json({ message: "Erro interno ao processar a configuração do servidor." });
+        // Validação para garantir que as variáveis de ambiente estão carregadas
+        if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+            console.error("As variáveis de ambiente do Firebase para o cliente não estão configuradas no servidor.");
+            return res.status(500).json({ message: "Erro de configuração do servidor." });
         }
+
+        res.json(firebaseConfig);
     });
 
     // ROTA PARA UPLOAD DO LOGO
