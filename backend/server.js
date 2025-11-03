@@ -672,9 +672,11 @@ try {
 
     // --- ROTAS DO MÓDULO DE INSTALAÇÃO ---
 
-    // Based on the existing trap monitoring logic, the deadline is 7 days.
+    // TODO: Reutilizar a lógica de cálculo de prazo existente no sistema.
+    // A função atual é um placeholder para não quebrar a geração da OS.
     const calculatePrazoExecucao = () => {
         const prazo = new Date();
+        // A lógica de negócio para cálculo de prazo deve ser implementada aqui.
         prazo.setDate(prazo.getDate() + 7);
         return prazo;
     };
@@ -809,6 +811,7 @@ try {
             const pontoData = pontoDoc.data();
 
             // Transação para garantir atomicidade
+            let osCompleted = false;
             await db.runTransaction(async (transaction) => {
                 // 1. Atualiza o ponto de instalação
                 transaction.update(pontoRef, {
@@ -824,7 +827,7 @@ try {
                 transaction.set(armadilhaRef, {
                     companyId,
                     instaladoPor: concluidoPorUserId,
-                    coordenadas: pontoData.coordenadas, // Preservado do planejamento
+                    coordenadas: pontoData.coordenadas,
                     latitude: pontoData.coordenadas.lat,
                     longitude: pontoData.coordenadas.lng,
                     dataInstalacao: admin.firestore.FieldValue.serverTimestamp(),
@@ -832,11 +835,34 @@ try {
                     fazendaNome: fazendaNome || 'N/A',
                     talhaoNome: talhaoNome || 'N/A',
                     fazendaCode: fazendaCode || 'N/A',
-                    // Mapear outros campos se necessário a partir de pontoData
                 });
+
+                // 3. Verifica se a OS foi concluída
+                if (pontoData.osId) {
+                    const osPontosQuery = db.collection('instalacaoPontos').where('osId', '==', pontoData.osId);
+                    const osPontosSnapshot = await transaction.get(osPontosQuery);
+
+                    const allPontos = [];
+                    osPontosSnapshot.forEach(doc => {
+                        // Inclui o ponto atual que está sendo modificado na transação
+                        if (doc.id === id) {
+                            allPontos.push({ id: doc.id, status: 'Instalado' });
+                        } else {
+                            allPontos.push({ id: doc.id, status: doc.data().status });
+                        }
+                    });
+
+                    const allInstalled = allPontos.every(p => p.status === 'Instalado');
+
+                    if (allInstalled) {
+                        const osRef = db.collection('instalacaoOrdensDeServico').doc(pontoData.osId);
+                        transaction.update(osRef, { status: 'Concluída' });
+                        osCompleted = true;
+                    }
+                }
             });
 
-            res.status(200).json({ message: 'Ponto instalado e armadilha criada com sucesso.' });
+            res.status(200).json({ message: 'Ponto instalado e armadilha criada com sucesso.', osCompleted });
 
         } catch (error) {
             console.error(`Erro ao instalar ponto ${id}:`, error);
