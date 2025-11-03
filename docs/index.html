@@ -1395,32 +1395,6 @@
           display: flex;
           justify-content: flex-end;
       }
-
-      .planning-container {
-        display: flex;
-        height: 100%;
-        width: 100%;
-        gap: 20px;
-      }
-      #planning-map-container {
-        flex: 2;
-        position: relative;
-        border-radius: var(--border-radius-lg);
-        overflow: hidden;
-        box-shadow: var(--shadow-md);
-      }
-      #planning-map {
-        width: 100%;
-        height: 100%;
-      }
-      .planning-sidebar {
-        flex: 1;
-        height: 100%;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-      }
       .btn-retry-sync {
           background-color: var(--color-warning);
           color: white;
@@ -1456,124 +1430,6 @@
       #splash-screen.hidden {
         opacity: 0;
         visibility: hidden;
-      }
-
-      .header-controls {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 24px;
-        flex-wrap: wrap;
-        gap: 15px;
-      }
-
-      .header-controls .form-title {
-        margin: 0;
-        color: var(--color-primary);
-        font-weight: 600;
-        font-size: 22px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-
-      .header-controls .save {
-        margin-top: 0;
-        width: auto;
-      }
-
-      .kanban-board {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 20px;
-        align-items: start;
-        height: calc(100vh - 220px); /* Adjust as needed */
-      }
-
-      .kanban-column {
-        background-color: var(--color-bg);
-        border-radius: var(--border-radius-lg);
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-      }
-
-      .kanban-title {
-        padding: 12px 16px;
-        font-weight: 600;
-        color: var(--color-white);
-        border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
-        text-align: center;
-        font-size: 16px;
-      }
-
-      .kanban-list {
-        padding: 10px;
-        overflow-y: auto;
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-
-      .os-card {
-        background-color: var(--color-surface);
-        border-radius: var(--border-radius);
-        padding: 16px;
-        box-shadow: var(--shadow-sm);
-        cursor: pointer;
-        transition: var(--transition);
-        border-left: 5px solid;
-      }
-
-      .os-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
-      }
-
-      .os-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-      }
-
-      .os-card-title {
-        font-weight: 700;
-        color: var(--color-primary-dark);
-      }
-
-      .os-card-menu {
-        position: relative;
-      }
-
-      .os-card-menu-btn {
-        background: none;
-        border: none;
-        color: var(--color-text-light);
-        cursor: pointer;
-        font-size: 18px;
-        padding: 5px;
-      }
-
-      .os-card-details {
-        font-size: 13px;
-        color: var(--color-text-light);
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-
-      .os-card-details > div {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .os-card-details i {
-        color: var(--color-accent);
-        width: 14px;
-        text-align: center;
       }
       .splash-logo {
         width: 250px; /* Tamanho aumentado */
@@ -2260,54 +2116,6 @@
                         </div>
                     </div>
                 </div>
-
-            <!-- Service Order (OS) Screen -->
-            <div id="ordemDeServico" class="tab-content" hidden>
-                <div class="header-controls">
-                    <h2 class="form-title"><i class="fas fa-clipboard-list"></i> Ordens de Serviço</h2>
-                    <button id="btnNewOS" class="save"><i class="fas fa-plus"></i> Nova OS</button>
-                </div>
-
-                <div class="kanban-board">
-                    <div class="kanban-column">
-                        <h3 class="kanban-title" style="background-color: var(--color-info);">Planejada</h3>
-                        <div id="os-list-planejada" class="kanban-list"></div>
-                    </div>
-                    <div class="kanban-column">
-                        <h3 class="kanban-title" style="background-color: var(--color-warning);">Em Execução</h3>
-                        <div id="os-list-execucao" class="kanban-list"></div>
-                    </div>
-                    <div class="kanban-column">
-                        <h3 class="kanban-title" style="background-color: var(--color-success);">Concluída</h3>
-                        <div id="os-list-concluida" class="kanban-list"></div>
-                    </div>
-                </div>
-            </div>
-
-            <section id="relatorioInstalacao" class="tab-content card" aria-label="Relatórios de Instalação" tabindex="0" hidden>
-                <h2><i class="fas fa-chart-line"></i> Relatórios de Instalação</h2>
-                <div class="form-row">
-                    <div class="form-col"><label for="instalacaoRelatorioInicio" class="required">Data Início:</label><input type="date" id="instalacaoRelatorioInicio" /></div>
-                    <div class="form-col"><label for="instalacaoRelatorioFim" class="required">Data Fim:</label><input type="date" id="instalacaoRelatorioFim" /></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col"><label for="instalacaoRelatorioFazenda">Filtrar por Fazenda:</label><select id="instalacaoRelatorioFazenda"><option value="">Todas</option></select></div>
-                    <div class="form-col"><label for="instalacaoRelatorioResponsavel">Filtrar por Responsável:</label><select id="instalacaoRelatorioResponsavel"><option value="">Todos</option></select></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col">
-                        <label for="instalacaoTipoRelatorio">Tipo de Relatório:</label>
-                        <select id="instalacaoTipoRelatorio">
-                            <option value="status">Status das Ordens de Serviço</option>
-                            <option value="historico">Histórico de Instalações</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="botoes-relatorio">
-                    <button id="btnPDFInstalacao" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
-                    <button id="btnExcelInstalacao" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
-                </div>
-            </section>
 
             </section>
             
@@ -3323,54 +3131,6 @@
                 </div>
             </section>
 
-            <section id="planejamentoInstalacao" class="tab-content" aria-label="Planejamento de Instalação de Armadilhas" tabindex="0" hidden>
-                <div class="planning-container">
-                    <div id="planning-map-container">
-                        <div id="planning-map"></div>
-                         <div class="map-controls">
-                            <button id="btnCenterPlanningMap" class="map-control-btn" title="Centralizar em Mim"><i class="fas fa-location-arrow"></i></button>
-                        </div>
-                    </div>
-                    <div class="planning-sidebar">
-                        <div class="card">
-                            <h2><i class="fas fa-ruler-combined"></i> Planejamento de Instalação</h2>
-                            <input type="hidden" id="planningId">
-                            <div class="form-row">
-                                <div class="form-col">
-                                    <label for="planningFazenda" class="required">Fazenda:</label>
-                                    <select id="planningFazenda" required></select>
-                                </div>
-                                <div class="form-col">
-                                    <label for="planningTalhao" class="required">Talhão:</label>
-                                    <select id="planningTalhao" required></select>
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-col">
-                                    <label for="planningResponsavel" class="required">Responsável:</label>
-                                    <select id="planningResponsavel" required></select>
-                                </div>
-                                <div class="form-col">
-                                    <label for="planningData" class="required">Data Prevista:</label>
-                                    <input type="date" id="planningData" required>
-                                </div>
-                            </div>
-                            <p>Clique no mapa para adicionar pontos de instalação.</p>
-                            <button id="btnSavePlanning" class="save"><i class="fas fa-save"></i> Salvar Planejamento</button>
-                        </div>
-                        <div class="card">
-                            <h3><i class="fas fa-list-alt"></i> Planejamentos Salvos</h3>
-                            <div id="planningList"></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section id="ordemDeServico" class="tab-content card" aria-label="Ordens de Serviço" tabindex="0" hidden>
-                <h2><i class="fas fa-clipboard-list"></i> Ordens de Serviço de Instalação</h2>
-                <!-- Conteúdo da tela de Ordens de Serviço -->
-            </section>
-
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
@@ -3689,52 +3449,6 @@
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
-
-
-    <div id="newOSModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h2><i class="fas fa-plus-circle"></i> Nova Ordem de Serviço</h2>
-                <button id="newOSModalCloseBtn" class="modal-close-btn">&times;</button>
-            </div>
-            <div id="newOSModalBody">
-                <div class="form-col">
-                    <label for="osPlanningSelect" class="required">Selecione um Planejamento:</label>
-                    <select id="osPlanningSelect" required></select>
-                </div>
-                <div id="osPlanningDetails" class="card" style="margin-top: 15px; display: none;">
-                    <!-- Detalhes do planejamento serão exibidos aqui -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="newOSModalCancelBtn" class="btn-secondary">Cancelar</button>
-                <button id="newOSModalCreateBtn" class="save">Criar OS</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- [NOVO] Modal de Execução da OS -->
-    <div id="osExecutionModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 95vw; height: 90vh; display: flex; flex-direction: column;">
-            <div class="modal-header">
-                <h2 id="osExecutionModalTitle"><i class="fas fa-map-marked-alt"></i> Execução da OS</h2>
-                <button id="osExecutionModalCloseBtn" class="modal-close-btn">&times;</button>
-            </div>
-            <div id="osExecutionModalBody" style="display: flex; flex-grow: 1; gap: 15px; min-height: 0;">
-                <div id="os-execution-map-container" style="flex: 2; position: relative; border-radius: var(--border-radius); overflow: hidden;">
-                    <div id="os-execution-map" style="width: 100%; height: 100%;"></div>
-                </div>
-                <div id="os-execution-sidebar" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto;">
-                    <div id="os-execution-details" class="card"></div>
-                    <div id="os-execution-points-list" style="flex-grow: 1; overflow-y: auto; padding-right: 10px;"></div>
-                </div>
-            </div>
-             <div class="modal-footer">
-                <button id="osExecutionModalCancelBtn" class="btn-secondary">Fechar</button>
-            </div>
-        </div>
-    </div>
-
 
 </body>
 </html>
