@@ -102,30 +102,6 @@ service cloud.firestore {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-
-    // --- REGRAS PARA O MÓDULO DE INSTALAÇÃO (AERIAL MONITORING) ---
-    // A segurança é garantida verificando o companyId do usuário que criou o registro.
-    // Este é um padrão mais seguro e robusto que evita buscas complexas em documentos aninhados.
-    match /instalacaoPlanejamentos/{docId} {
-      allow read, update, delete: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(resource.data.criadoPorUserId)).data.companyId);
-      allow create: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(request.resource.data.criadoPorUserId)).data.companyId);
-    }
-
-    match /instalacaoPontos/{docId} {
-      allow read, update, delete: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(resource.data.criadoPorUserId)).data.companyId);
-      allow create: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(request.resource.data.criadoPorUserId)).data.companyId);
-    }
-
-    match /instalacaoOrdensDeServico/{docId} {
-      allow read, update, delete: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(resource.data.criadoPorUserId)).data.companyId);
-      allow create: if canAccessCompanyData(get(/databases/$(database)/documents/users/$(request.resource.data.criadoPorUserId)).data.companyId);
-    }
-
-    // O contador de OS só deve ser acessado pelo backend (via Admin SDK).
-    match /osCounters/{year} {
-      allow read, write: if false;
-    }
-
     match /armadilhas/{trapId} {
       // Read, update, and create rules remain the same.
       // canAccessCompanyData correctly handles super-admin access for these.
