@@ -3131,6 +3131,55 @@
                 </div>
             </section>
 
+            <section id="workOrderPlanning" class="tab-content" aria-label="Planejamento de Ordem de Serviço" tabindex="0" hidden>
+                <div id="workOrderPlanningMap" style="width: 100%; height: 50vh; border-radius: var(--border-radius-lg); margin-bottom: 20px;"></div>
+                <div class="card">
+                    <form id="workOrderForm">
+                        <h2><i class="fas fa-edit"></i> Detalhes da Ordem de Serviço</h2>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="workOrderTitle" class="required">Título:</label>
+                                <input type="text" id="workOrderTitle" placeholder="Ex: Instalação de armadilhas na Fazenda X">
+                            </div>
+                            <div class="form-col">
+                                <label for="workOrderResponsible" class="required">Atribuir a:</label>
+                                <select id="workOrderResponsible"></select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="workOrderDeadline">Data de Vencimento:</label>
+                                <input type="date" id="workOrderDeadline">
+                            </div>
+                            <div class="form-col">
+                                <label for="workOrderPriority">Prioridade:</label>
+                                <select id="workOrderPriority">
+                                    <option value="normal">Normal</option>
+                                    <option value="alta">Alta</option>
+                                    <option value="baixa">Baixa</option>
+                                </select>
+                            </div>
+                        </div>
+                        <label for="workOrderDescription">Descrição:</label>
+                        <textarea id="workOrderDescription" placeholder="Instruções adicionais para o técnico..."></textarea>
+
+                        <h3><i class="fas fa-map-marker-alt"></i> Pontos Planejados (<span id="workOrderPointCount">0</span>)</h3>
+                        <p>Use o botão abaixo para entrar no modo de adição de pontos no mapa.</p>
+                        <button type="button" id="addWorkOrderPointBtn" class="btn-secondary" style="width: auto; max-width: 300px; margin-bottom: 15px;"><i class="fas fa-map-marker-plus"></i> Adicionar Pontos no Mapa</button>
+                        <div id="workOrderPointsList" class="pontos-container"></div>
+
+                        <button type="button" id="saveWorkOrderBtn" class="save"><i class="fas fa-save"></i> Salvar Ordem de Serviço</button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="workOrderReport" class="tab-content card" aria-label="Relatório de Ordens de Serviço" tabindex="0" hidden>
+                <h2><i class="fas fa-clipboard-list"></i> Relatório de Ordens de Serviço</h2>
+                <div id="workOrderReportList">
+                    <!-- A lista de ordens de serviço será renderizada aqui -->
+                </div>
+            </section>
+
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
@@ -3168,6 +3217,24 @@
         </div>
 
         <!-- MODAIS -->
+        <div id="workOrderDetailModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="workOrderDetailTitle">Detalhes da Ordem de Serviço</h2>
+                    <button id="workOrderDetailModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div id="workOrderDetailBody">
+                    <div id="workOrderDetailMap" style="width: 100%; height: 400px; border-radius: var(--border-radius); margin-bottom: 20px;"></div>
+                    <div id="workOrderDetailPointList">
+                        <!-- A lista de pontos com status será renderizada aqui -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="workOrderDetailModalCancelBtn" class="btn-secondary">Fechar</button>
+                </div>
+            </div>
+        </div>
+
         <div id="trapPlacementModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 500px;">
                 <div class="modal-header">
