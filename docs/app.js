@@ -105,13 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
-                {
-                    label: 'Planejamento de Monitoramento', icon: 'fas fa-clipboard-list',
-                    submenu: [
-                        { label: 'Gerar Ordem de Serviço', icon: 'fas fa-cogs', target: 'gerarOS', permission: 'gerarOS' },
-                        { label: 'Minhas Ordens de Serviço', icon: 'fas fa-tasks', target: 'minhasOS', permission: 'minhasOS' },
-                    ]
-                },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -142,7 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório de Risco', icon: 'fas fa-shield-alt', target: 'relatorioRisco', permission: 'relatorioRisco' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
                         { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
-                        { label: 'Relatório de OS', icon: 'fas fa-file-contract', target: 'relatorioOS', permission: 'relatorioOS' },
                     ]
                 },
                 {
@@ -165,9 +157,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, gerarOS: true, minhasOS: true, relatorioOS: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, gerarOS: true, minhasOS: true, relatorioOS: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, gerarOS: true, minhasOS: true, relatorioOS: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
             }
@@ -1874,13 +1866,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (id === 'syncHistory') this.renderSyncHistory();
                 if (id === 'excluirDados') this.renderExclusao();
-                if (id === 'gerarOS') {
-                    this.renderPlannedTrapsForOS();
-                    this.populateUserSelects([document.getElementById('osResponsavel')]);
-                }
-                if (id === 'minhasOS') {
-                    //this.renderMyServiceOrders();
-                }
                 if (id === 'gerenciarUsuarios') {
                     this.renderUsersList();
                     this.renderPermissionItems(App.elements.users.permissionsContainer);
@@ -3482,106 +3467,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async renderPlannedTrapsForOS() {
-                const listContainer = document.getElementById('planned-traps-list');
-                if (!listContainer) return;
-
-                listContainer.innerHTML = '<p>A carregar armadilhas planejadas...</p>';
-
-                try {
-                    const q = query(collection(db, 'plannedTraps'), where('companyId', '==', App.state.currentUser.companyId), where('status', '==', 'Planejado'));
-                    const querySnapshot = await getDocs(q);
-
-                    if (querySnapshot.empty) {
-                        listContainer.innerHTML = '<p style="text-align:center;">Nenhuma armadilha com status "Planejado" encontrada.</p>';
-                        return;
-                    }
-
-                    listContainer.innerHTML = ''; // Clear loading message
-                    querySnapshot.forEach(doc => {
-                        const trap = { id: doc.id, ...doc.data() };
-                        const responsibleUser = App.state.users.find(u => u.id === trap.responsavelId);
-
-                        const itemHTML = `
-                            <label class="report-option-item">
-                                <input type="checkbox" data-trap-id="${trap.id}">
-                                <span class="checkbox-visual"><i class="fas fa-check"></i></span>
-                                <span class="option-content" style="align-items: flex-start; text-align: left;">
-                                    <strong style="font-size: 1em;">Talhão: ${trap.talhaoId} (Faz. ${trap.fazendaId})</strong>
-                                    <span style="font-size: 0.9em; color: var(--color-text-light);">
-                                        <i class="fas fa-calendar-alt"></i> Previsto: ${trap.dataPrevistaInstalacao}
-                                    </span>
-                                    <span style="font-size: 0.9em; color: var(--color-text-light);">
-                                        <i class="fas fa-user"></i> Resp.: ${responsibleUser ? responsibleUser.username : 'Desconhecido'}
-                                    </span>
-                                </span>
-                            </label>
-                        `;
-                        listContainer.innerHTML += itemHTML;
-                    });
-
-                } catch (error) {
-                    console.error("Erro ao carregar armadilhas planejadas:", error);
-                    listContainer.innerHTML = '<p style="color: var(--color-danger);">Erro ao carregar armadilhas.</p>';
-                }
-            },
-
-            async renderMyServiceOrders(view = 'abertas') {
-                const listContainer = document.getElementById('minhas-os-list-container');
-                if (!listContainer) return;
-
-                listContainer.innerHTML = '<p>A carregar Ordens de Serviço...</p>';
-
-                try {
-                    const statuses = view === 'abertas' ? ['Planejada', 'Em Execução'] : ['Concluída'];
-                    const q = query(
-                        collection(db, 'serviceOrders'),
-                        where('companyId', '==', App.state.currentUser.companyId),
-                        where('responsavelId', '==', App.state.currentUser.uid),
-                        where('status', 'in', statuses)
-                    );
-
-                    const querySnapshot = await getDocs(q);
-
-                    if (querySnapshot.empty) {
-                        listContainer.innerHTML = `<p style="text-align:center;">Nenhuma Ordem de Serviço ${view} encontrada.</p>`;
-                        return;
-                    }
-
-                    listContainer.innerHTML = '';
-                    const osPromises = querySnapshot.docs.map(async doc => {
-                        const os = { id: doc.id, ...doc.data() };
-                        const responsibleUser = App.state.users.find(u => u.id === os.responsavelId);
-                        const createdAt = os.createdAt?.toDate ? os.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
-
-                        const card = document.createElement('div');
-                        card.className = 'plano-card'; // Reusing style
-                        card.innerHTML = `
-                            <div class="plano-header">
-                                <span class="plano-title"><i class="fas fa-file-alt"></i> ${os.osNumber}</span>
-                                <span class="plano-status" style="background-color: var(--color-info);">${os.status}</span>
-                            </div>
-                            <div class="plano-details" style="grid-template-columns: 1fr 1fr;">
-                                <div><i class="fas fa-calendar-check"></i> Criada em: ${createdAt}</div>
-                                <div><i class="fas fa-user"></i> Responsável: ${responsibleUser ? responsibleUser.username : 'N/A'}</div>
-                                <div><i class="fas fa-map-pin"></i> ${os.plannedTrapIds.length} Ponto(s)</div>
-                            </div>
-                            <div class="plano-actions">
-                                <button class="save" data-action="open-os-map" data-os-id="${os.id}"><i class="fas fa-map-marked-alt"></i> Abrir no Mapa</button>
-                            </div>
-                        `;
-                        return card;
-                    });
-
-                    const osCards = await Promise.all(osPromises);
-                    osCards.forEach(card => listContainer.appendChild(card));
-
-                } catch (error) {
-                    console.error("Erro ao carregar Minhas Ordens de Serviço:", error);
-                    listContainer.innerHTML = '<p style="color: var(--color-danger);">Erro ao carregar Ordens de Serviço.</p>';
-                }
-            },
-
             async renderSyncHistoryDetails(logId) {
                 const modal = App.elements.syncHistoryDetailModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
@@ -4292,39 +4177,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     apontamentoEls.farmName.addEventListener('change', () => this.updateAllTalhaoSelects());
                 }
 
-                // Listeners for Service Order (OS) Management
-                const btnGenerateOS = document.getElementById('btnGenerateOS');
-                if (btnGenerateOS) {
-                    btnGenerateOS.addEventListener('click', () => App.actions.generateServiceOrder());
-                }
-
-                const minhasOSToggle = document.getElementById('minhasOS-view-toggle');
-                if (minhasOSToggle) {
-                    minhasOSToggle.addEventListener('click', (e) => {
-                        if (e.target.tagName === 'BUTTON') {
-                            minhasOSToggle.querySelectorAll('button').forEach(btn => {
-                                btn.classList.remove('save', 'active');
-                                btn.classList.add('btn-secondary');
-                            });
-                            e.target.classList.add('save', 'active');
-                            e.target.classList.remove('btn-secondary');
-                            this.renderMyServiceOrders(e.target.dataset.view);
-                        }
-                    });
-                }
-
-                const minhasOSListContainer = document.getElementById('minhas-os-list-container');
-                if (minhasOSListContainer) {
-                    minhasOSListContainer.addEventListener('click', (e) => {
-                        const button = e.target.closest('button[data-action="open-os-map"]');
-                        if (button) {
-                            const osId = button.dataset.osId;
-                            App.actions.openServiceOrderOnMap(osId);
-                        }
-                    });
-                }
-
-
                 // Listeners for Apontamento Climatológico
                 const climaEls = App.elements.lancamentoClima;
                 if (climaEls && climaEls.btnSave) {
@@ -4384,12 +4236,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const relatorioRiscoEls = App.elements.relatorioRisco;
                 if (relatorioRiscoEls.btnPDF) relatorioRiscoEls.btnPDF.addEventListener('click', () => App.reports.generateRiskViewPDF());
                 if (relatorioRiscoEls.btnExcel) relatorioRiscoEls.btnExcel.addEventListener('click', () => App.reports.generateRiskViewCSV());
-
-                // Listeners for OS Report
-                const btnPDFOS = document.getElementById('btnPDFOS');
-                const btnExcelOS = document.getElementById('btnExcelOS');
-                if (btnPDFOS) btnPDFOS.addEventListener('click', () => App.reports.generateOSReport('pdf'));
-                if (btnExcelOS) btnExcelOS.addEventListener('click', () => App.reports.generateOSReport('csv'));
 
 
                 this.enableEnterKeyNavigation('#changePasswordModal');
@@ -7742,111 +7588,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const passwordInput = document.getElementById('enableOfflinePassword');
                 const password = passwordInput.value;
                 const currentUser = App.state.currentUser;
-            },
-
-            async generateServiceOrder() {
-                const selectedTrapCheckboxes = document.querySelectorAll('#planned-traps-list input[type="checkbox"]:checked');
-                const newResponsavelId = document.getElementById('osResponsavel').value;
-
-                if (selectedTrapCheckboxes.length === 0) {
-                    App.ui.showAlert("Selecione pelo menos uma armadilha para incluir na Ordem de Serviço.", "warning");
-                    return;
-                }
-                if (!newResponsavelId) {
-                    App.ui.showAlert("Selecione um responsável pela execução da Ordem de Serviço.", "warning");
-                    return;
-                }
-
-                const trapIds = Array.from(selectedTrapCheckboxes).map(cb => cb.dataset.trapId);
-                App.ui.setLoading(true, "A verificar armadilhas selecionadas...");
-
-                try {
-                    // Fetch details of selected traps to check their responsible users
-                    const trapDocs = await Promise.all(trapIds.map(id => getDoc(doc(db, 'plannedTraps', id))));
-                    const selectedTraps = trapDocs.map(d => ({ id: d.id, ...d.data() }));
-
-                    if (selectedTraps.length !== trapIds.length) {
-                        throw new Error("Algumas armadilhas selecionadas não foram encontradas na base de dados.");
-                    }
-
-                    const responsibleIdsInTraps = new Set(selectedTraps.map(t => t.responsavelId));
-                    const isReassigning = !responsibleIdsInTraps.has(newResponsavelId) || responsibleIdsInTraps.size > 1;
-
-                    const proceedWithGeneration = async () => {
-                        App.ui.setLoading(true, "A gerar Ordem de Serviço...");
-                        try {
-                            const counterRef = doc(db, 'counters', `serviceOrder_${new Date().getFullYear()}`);
-                            let nextOSNumber = 1;
-
-                            const counterSnap = await getDoc(counterRef);
-                            if (counterSnap.exists()) {
-                                nextOSNumber = counterSnap.data().lastNumber + 1;
-                            }
-
-                            const osIdString = `OS-${new Date().getFullYear()}-${String(nextOSNumber).padStart(3, '0')}`;
-                            const osDocRef = doc(collection(db, 'serviceOrders'));
-                            const newOS = {
-                                osNumber: osIdString,
-                                plannedTrapIds: trapIds,
-                                responsavelId: newResponsavelId, // Use the new responsible ID
-                                status: 'Planejada',
-                                createdAt: serverTimestamp(),
-                                companyId: App.state.currentUser.companyId,
-                            };
-
-                            const batch = writeBatch(db);
-                            batch.set(osDocRef, newOS);
-
-                            trapIds.forEach(trapId => {
-                                const trapRef = doc(db, 'plannedTraps', trapId);
-                                // Update status, OS ID, and now also the responsible person
-                                batch.update(trapRef, {
-                                    osId: osDocRef.id,
-                                    status: 'Em Execução',
-                                    responsavelId: newResponsavelId
-                                });
-                            });
-
-                            batch.set(counterRef, { lastNumber: nextOSNumber }, { merge: true });
-                            await batch.commit();
-
-                            App.ui.showAlert(`Ordem de Serviço ${osIdString} gerada com sucesso!`, "success");
-                            App.ui.showTab('minhasOS'); // Redirect to my OS screen
-
-                        } catch (error) {
-                            console.error("Erro ao gerar Ordem de Serviço:", error);
-                            App.ui.showAlert("Ocorreu um erro ao gerar a Ordem de Serviço.", "error");
-                        } finally {
-                            App.ui.setLoading(false);
-                        }
-                    };
-
-                    App.ui.setLoading(false); // Hide the "verifying" loading message
-
-                    if (isReassigning) {
-                        const newUser = App.state.users.find(u => u.id === newResponsavelId)?.username || 'novo responsável';
-                        const confirmationMessage = `As armadilhas selecionadas serão atribuídas ao responsável ${newUser}. Deseja continuar?`;
-
-                        App.ui.showConfirmationModal(confirmationMessage, proceedWithGeneration);
-                    } else {
-                        App.ui.showConfirmationModal(`Tem a certeza que deseja gerar uma OS com ${trapIds.length} armadilha(s) para o responsável selecionado?`, proceedWithGeneration);
-                    }
-
-                } catch (error) {
-                    App.ui.setLoading(false);
-                    App.ui.showAlert(`Erro ao verificar armadilhas: ${error.message}`, "error");
-                    console.error("Erro em generateServiceOrder:", error);
-                }
-            },
-
-            openServiceOrderOnMap(osId) {
-                App.state.currentServiceOrder = {
-                    id: osId,
-                    traps: []
-                };
-                App.ui.showTab('monitoramentoAereo');
-                App.mapModule.loadPlannedTraps({ osId: osId });
-            },
 
                 if (!password) {
                     App.ui.showAlert("Por favor, insira a sua senha atual para confirmar.", "error");
@@ -8089,45 +7830,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.watchUserPosition();
                         this.loadShapesOnMap();
                         this.loadTraps();
-                        this.loadPlannedTraps();
-
-                    // Event listeners for trap planning
-                    let pressTimer;
-
-                    // Mouse down for web (potential long-press)
-                    App.state.mapboxMap.on('mousedown', (e) => {
-                        pressTimer = window.setTimeout(() => {
-                            this.handleMapInteraction(e.lngLat);
-                        }, 1000); // 1 second for long-press
-                    });
-
-                    // Clear timer on mouse up or move
-                    App.state.mapboxMap.on('mouseup', () => {
-                        clearTimeout(pressTimer);
-                    });
-                     App.state.mapboxMap.on('mousemove', () => {
-                        clearTimeout(pressTimer);
-                    });
-
-                    // Click for web (quick interaction)
-                    App.state.mapboxMap.on('click', (e) => {
-                        clearTimeout(pressTimer); // Cancel long press timer
-                        // A simple click without dragging should also trigger planning
-                        this.handleMapInteraction(e.lngLat);
-                    });
-
-                    // Touch events for mobile
-                    App.state.mapboxMap.on('touchstart', (e) => {
-                         pressTimer = window.setTimeout(() => {
-                            this.handleMapInteraction(e.lngLat);
-                        }, 1000); // 1 second for long-press
-                    });
-                    App.state.mapboxMap.on('touchend', () => {
-                        clearTimeout(pressTimer);
-                    });
-                     App.state.mapboxMap.on('touchmove', () => {
-                        clearTimeout(pressTimer);
-                    });
                     });
 
                 } catch (e) {
@@ -9279,249 +8981,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     searchInput.value = '';
                 }
             },
-
-            handleMapInteraction(lngLat) {
-                // Ignore clicks if the user is interacting with an existing marker or control
-                const target = event.target;
-                if (target.classList.contains('mapboxgl-marker') || target.closest('.mapboxgl-ctrl')) {
-                    return;
-                }
-
-                const { lng, lat } = lngLat;
-                const talhaoFeature = this.findTalhaoFeatureFromLocation(lngLat);
-
-                if (!talhaoFeature) {
-                    App.ui.showAlert("Você deve planejar uma armadilha dentro de um talhão.", "warning");
-                    return;
-                }
-
-                const fazendaId = this._findProp(talhaoFeature, ['FUNDO_AGR']);
-                const talhaoId = this._findProp(talhaoFeature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-
-                App.ui.showConfirmationModal(
-                    `Deseja planejar uma nova armadilha em ${talhaoId}?`,
-                    async (inputs) => {
-                        const { dataPrevista, responsavelId } = inputs;
-                        if (!dataPrevista || !responsavelId) {
-                            App.ui.showAlert("Data prevista e responsável são obrigatórios.", "error");
-                            return;
-                        }
-
-                        const newPlannedTrap = {
-                            fazendaId: fazendaId,
-                            talhaoId: talhaoId,
-                            coordinates: { lat, lng },
-                            dataPrevistaInstalacao: dataPrevista,
-                            responsavelId: responsavelId,
-                            status: "Planejado",
-                            companyId: App.state.currentUser.companyId,
-                            createdAt: new Date().toISOString()
-                        };
-
-                        try {
-                           await App.data.addDocument('plannedTraps', newPlannedTrap);
-                           App.ui.showAlert("Armadilha planejada com sucesso!", "success");
-                           this.loadPlannedTraps(); // Refresh map with new planned trap
-                        } catch (error) {
-                            App.ui.showAlert("Erro ao salvar o planejamento.", "error");
-                            console.error("Error saving planned trap:", error);
-                        }
-                    },
-                    [
-                        { id: 'dataPrevista', type: 'date', label: 'Data Prevista', required: true },
-                        { id: 'responsavelId', type: 'select', label: 'Responsável', options: App.state.users.map(u => ({value: u.id, text: u.username})), required: true }
-                    ]
-                );
-            },
-
-            findTalhaoFeatureFromLocation(lngLat) {
-                const point = turf.point([lngLat.lng, lngLat.lat]);
-                const allTalhoes = App.state.geoJsonData;
-
-                if (!allTalhoes || !allTalhoes.features) {
-                    return null;
-                }
-
-                for (const feature of allTalhoes.features) {
-                    try {
-                        if (!turf.booleanDisjoint(point, feature.geometry)) {
-                            return feature;
-                        }
-                    } catch (e) {
-                        console.warn("Geometria inválida ou erro no processamento do Turf.js:", e, feature.geometry);
-                    }
-                }
-                return null;
-            },
-
-            async loadPlannedTraps(filters = {}) {
-                if (!App.state.mapboxMap) return;
-
-                // Clear existing planned trap markers
-                if (App.state.plannedTrapMarkers) {
-                    Object.values(App.state.plannedTrapMarkers).forEach(marker => marker.remove());
-                }
-                App.state.plannedTrapMarkers = {};
-
-                // Hide regular traps if we are viewing a specific OS
-                if (filters.osId) {
-                    Object.values(App.state.mapboxTrapMarkers).forEach(marker => marker.getElement().style.display = 'none');
-                } else {
-                     Object.values(App.state.mapboxTrapMarkers).forEach(marker => marker.getElement().style.display = 'flex');
-                }
-
-                let plannedTrapsQuery;
-                if (filters.osId) {
-                    plannedTrapsQuery = query(collection(db, 'plannedTraps'), where('osId', '==', filters.osId), where('companyId', '==', App.state.currentUser.companyId));
-                } else {
-                    plannedTrapsQuery = query(collection(db, 'plannedTraps'), where('status', '==', 'Planejado'), where('companyId', '==', App.state.currentUser.companyId));
-                }
-
-                const querySnapshot = await getDocs(plannedTrapsQuery);
-                const plannedTraps = [];
-                querySnapshot.forEach(doc => plannedTraps.push({ id: doc.id, ...doc.data() }));
-
-                plannedTraps.forEach(trap => {
-                    const el = document.createElement('div');
-                    el.className = 'mapbox-marker';
-                    el.style.width = '30px';
-                    el.style.height = '30px';
-                    el.style.borderRadius = '50%';
-                    el.style.border = '2px solid white';
-                    el.style.display = 'flex';
-                    el.style.justifyContent = 'center';
-                    el.style.alignItems = 'center';
-                    el.style.cursor = 'pointer';
-
-                    if (trap.status === 'Planejado') {
-                        el.style.backgroundColor = '#FFD700'; // Gold for planned
-                        el.innerHTML = '<i class="fas fa-map-pin" style="color: white; font-size: 16px;"></i>';
-                        el.title = `Planejado para ${trap.dataPrevistaInstalacao}`;
-                    } else if (trap.status === 'Em Execução') {
-                        el.style.backgroundColor = '#1976D2'; // Blue for in progress
-                        el.innerHTML = '<i class="fas fa-tools" style="color: white; font-size: 16px;"></i>';
-                        el.title = `Em execução. Previsto para ${trap.dataPrevistaInstalacao}`;
-                        // Add click listener to install trap from OS
-                        el.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            this.promptInstallTrapFromOS(trap);
-                        });
-                    }
-
-                    const marker = new mapboxgl.Marker(el)
-                        .setLngLat([trap.coordinates.lng, trap.coordinates.lat])
-                        .addTo(App.state.mapboxMap);
-
-                    App.state.plannedTrapMarkers[trap.id] = marker;
-                });
-
-                if (filters.osId && plannedTraps.length > 0) {
-                    const coordinates = plannedTraps.map(t => [t.coordinates.lng, t.coordinates.lat]);
-                    const bounds = new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]);
-                    for (const coord of coordinates) {
-                        bounds.extend(coord);
-                    }
-                    App.state.mapboxMap.fitBounds(bounds, { padding: 80 });
-                }
-            },
-
-            promptInstallTrapFromOS(plannedTrap) {
-                const modalHTML = `
-                    <p><strong>Fazenda:</strong> ${plannedTrap.fazendaId} - <strong>Talhão:</strong> ${plannedTrap.talhaoId}</p>
-                    <p>Confirmar a instalação desta armadilha?</p>
-                    <div class="form-col" style="margin-top: 15px;">
-                        <label for="trap-photo-upload" class="required">Anexar Foto:</label>
-                        <input type="file" id="trap-photo-upload" accept="image/*" required>
-                    </div>
-                `;
-
-                App.ui.showConfirmationModal(
-                    modalHTML,
-                    async () => {
-                        const photoInput = document.getElementById('trap-photo-upload');
-                        const photoFile = photoInput.files[0];
-
-                        if (!photoFile) {
-                            App.ui.showAlert("É obrigatório anexar uma foto da instalação.", "error");
-                            return;
-                        }
-
-                        await this.installTrapFromOS(plannedTrap, photoFile);
-                    }
-                );
-            },
-
-            async installTrapFromOS(plannedTrap, photoFile) {
-                App.ui.setLoading(true, "A instalar armadilha e enviar foto...");
-                try {
-                    // 1. Upload Photo
-                    const photoFileName = `trap_photos/${plannedTrap.id}_${Date.now()}`;
-                    const storageRef = ref(storage, photoFileName);
-                    const uploadResult = await uploadBytes(storageRef, photoFile);
-                    const photoURL = await getDownloadURL(uploadResult.ref);
-
-                    // 2. Create new 'armadilha' document (the final, installed trap)
-                    const installDate = new Date();
-                    const newTrapData = {
-                        latitude: plannedTrap.coordinates.lat,
-                        longitude: plannedTrap.coordinates.lng,
-                        dataInstalacao: Timestamp.fromDate(installDate),
-                        instaladoPor: App.state.currentUser.uid,
-                        status: "Ativa", // It's now an active trap for monitoring
-                        fazendaNome: `Fazenda ${plannedTrap.fazendaId}`, // Re-evaluate how to get name
-                        fazendaCode: plannedTrap.fazendaId,
-                        talhaoNome: plannedTrap.talhaoId,
-                        companyId: App.state.currentUser.companyId,
-                        fotoURL: photoURL,
-                        osId: plannedTrap.osId,
-                        planejamentoId: plannedTrap.id
-                    };
-
-                    // 3. Prepare Batch Write
-                    const batch = writeBatch(db);
-
-                    // Add the new active trap
-                    const newTrapRef = doc(collection(db, 'armadilhas'));
-                    batch.set(newTrapRef, newTrapData);
-
-                    // Update the planned trap to 'Concluído'
-                    const plannedTrapRef = doc(db, 'plannedTraps', plannedTrap.id);
-                    batch.update(plannedTrapRef, {
-                        status: 'Concluído',
-                        dataInstalacao: Timestamp.fromDate(installDate),
-                        fotoURL: photoURL,
-                        concluidoPorUserId: App.state.currentUser.uid,
-                        finalArmadilhaId: newTrapRef.id
-                    });
-
-                    // 4. Check if the OS is complete
-                    const osRef = doc(db, 'serviceOrders', plannedTrap.osId);
-                    const osSnap = await getDoc(osRef);
-                    if (osSnap.exists()) {
-                        const osData = osSnap.data();
-                        const otherTrapsQuery = query(collection(db, 'plannedTraps'), where('osId', '==', plannedTrap.osId), where('status', '!=', 'Concluído'));
-                        const otherTrapsSnap = await getDocs(otherTrapsQuery);
-
-                        // If this is the last trap to be completed
-                        if (otherTrapsSnap.docs.filter(d => d.id !== plannedTrap.id).length === 0) {
-                            batch.update(osRef, { status: 'Concluída' });
-                        }
-                    }
-
-                    // 5. Commit batch
-                    await batch.commit();
-
-                    App.ui.showAlert("Armadilha instalada e registrada com sucesso!", "success");
-                    this.loadPlannedTraps({ osId: plannedTrap.osId }); // Refresh the map view for the current OS
-
-                } catch (error) {
-                    console.error("Erro ao instalar armadilha da OS:", error);
-                    App.ui.showAlert("Ocorreu um erro ao registrar a instalação.", "error");
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-
 
             searchFarmOnMap() {
                 const searchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
@@ -11576,54 +11035,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
             },
-
-                generateOSReport(format) {
-                    const inicioEl = document.getElementById('osRelatorioInicio');
-                    const fimEl = document.getElementById('osRelatorioFim');
-                    const responsavelEl = document.getElementById('osRelatorioResponsavel');
-                    const statusEl = document.getElementById('osRelatorioStatus');
-                    const tipoRelatorioEl = document.getElementById('osRelatorioTipo'); // Novo seletor
-
-                    if (!inicioEl.value || !fimEl.value) {
-                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                        return;
-                    }
-
-                    const reportType = tipoRelatorioEl.value;
-                    let endpoint = '';
-                    let filename = '';
-
-                    const filters = {
-                        inicio: inicioEl.value,
-                        fim: fimEl.value,
-                        responsavelId: responsavelEl.value,
-                        status: statusEl.value
-                    };
-
-                    switch (reportType) {
-                        case 'lista':
-                            endpoint = `os/${format}`;
-                            filename = `relatorio_os_lista.${format}`;
-                            break;
-                        case 'status':
-                            endpoint = `os-status/${format}`;
-                            filename = `relatorio_os_por_status.${format}`;
-                            break;
-                        case 'desempenho':
-                            endpoint = `os-performance/${format}`;
-                            filename = `relatorio_os_desempenho.${format}`;
-                            break;
-                        case 'historico-fazenda':
-                            endpoint = `os-history/${format}`;
-                            filename = `relatorio_os_historico_fazenda.${format}`;
-                            break;
-                        default:
-                            App.ui.showAlert("Tipo de relatório inválido selecionado.", "error");
-                            return;
-                    }
-
-                    this._fetchAndDownloadReport(endpoint, filters, filename);
-                },
         },
 
         pwa: {
