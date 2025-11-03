@@ -102,6 +102,26 @@ service cloud.firestore {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
+
+    // --- [NOVO] REGRAS PARA O FLUXO DE INSTALAÇÃO DE ARMADILHAS ---
+    match /instalacaoPlanejamentos/{docId} {
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
+    }
+    match /instalacaoPontos/{docId} {
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
+    }
+    match /instalacaoOrdensDeServico/{docId} {
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
+    }
+
+    // Coleção de contadores para OS (apenas backend)
+    match /osCounters/{year} {
+        allow read, write: if false; // Apenas o servidor (Admin SDK) pode acessar
+    }
+
     match /armadilhas/{trapId} {
       // Read, update, and create rules remain the same.
       // canAccessCompanyData correctly handles super-admin access for these.
