@@ -670,6 +670,263 @@ try {
         return null;
     };
 
+    // --- [NOVO] ROTAS PARA GERENCIAMENTO DE INSTALAÇÃO DE ARMADILHAS ---
+
+    // Função para obter o próximo número da Ordem de Serviço
+    const getNextOsNumber = async (companyId) => {
+        const year = new Date().getFullYear();
+        // O contador é único por empresa e por ano.
+        const osCounterRef = db.collection('counters').doc(`os_${companyId}_${year}`);
+
+        const newCount = await db.transaction(async t => {
+            const counterDoc = await t.get(osCounterRef);
+            if (!counterDoc.exists) {
+                t.set(osCounterRef, { count: 1 });
+                return 1;
+            } else {
+                const count = counterDoc.data().count + 1;
+                t.update(osCounterRef, { count: count });
+                return count;
+            }
+        });
+
+        const paddedNumber = String(newCount).padStart(3, '0');
+        return `OS-${year}-${paddedNumber}`;
+    };
+
+    // --- Planejamentos ---
+    app.post('/api/instalacao/planejamentos', async (req, res) => {
+        const { companyId, ...data } = req.body;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
+        try {
+            const docRef = await db.collection('instalacaoPlanejamentos').add({
+                ...data,
+                companyId,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                status: 'Planejado' // Status inicial
+            });
+            res.status(201).json({ id: docRef.id });
+        } catch (error) {
+            console.error("Erro ao criar planejamento:", error);
+            res.status(500).json({ message: 'Erro no servidor ao criar planejamento.' });
+        }
+    });
+
+    app.get('/api/instalacao/planejamentos', async (req, res) => {
+        const { companyId } = req.query;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
+        try {
+            const snapshot = await db.collection('instalacaoPlanejamentos')
+                .where('companyId', '==', companyId)
+                .orderBy('createdAt', 'desc')
+                .get();
+            const planejamentos = [];
+            snapshot.forEach(doc => {
+                planejamentos.push({ id: doc.id, ...doc.data() });
+            });
+            res.status(200).json(planejamentos);
+        } catch (error) {
+            console.error("Erro ao buscar planejamentos:", error);
+            res.status(500).json({ message: 'Erro no servidor ao buscar planejamentos.' });
+        }
+    });
+
+    // --- Pontos de Instalação ---
+    app.post('/api/instalacao/pontos', async (req, res) => {
+        const { companyId, ...data } = req.body;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
+        try {
+            const docRef = await db.collection('instalacaoPontos').add({
+                ...data,
+                companyId,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                status: 'Planejado'
+            });
+            res.status(201).json({ id: docRef.id });
+        } catch (error) {
+            console.error("Erro ao criar ponto de instalação:", error);
+            res.status(500).json({ message: 'Erro no servidor ao criar ponto.' });
+        }
+    });
+
+    app.get('/api/instalacao/pontos', async (req, res) => {
+        const { companyId, planejamentoId } = req.query;
+        if (!companyId || !planejamentoId) {
+            return res.status(400).json({ message: 'companyId e planejamentoId são obrigatórios.' });
+        }
+        try {
+            const snapshot = await db.collection('instalacaoPontos')
+                .where('companyId', '==', companyId)
+                .where('planejamentoId', '==', planejamentoId)
+                .get();
+            const pontos = [];
+            snapshot.forEach(doc => {
+                pontos.push({ id: doc.id, ...doc.data() });
+            });
+            res.status(200).json(pontos);
+        } catch (error) {
+            console.error("Erro ao buscar pontos de instalação:", error);
+            res.status(500).json({ message: 'Erro no servidor ao buscar pontos.' });
+        }
+    });
+
+    app.put('/api/instalacao/pontos/:id', async (req, res) => {
+        const { companyId, status, fotoUrl, userId } = req.body;
+        const { id } = req.params;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
+        if (status === 'Instalado' && !userId) {
+            return res.status(400).json({ message: 'O ID do usuário é obrigatório para instalar um ponto.' });
+        }
+
+        try {
+            const pontoRef = db.collection('instalacaoPontos').doc(id);
+            const pontoDoc = await pontoRef.get();
+            if (!pontoDoc.exists || pontoDoc.data().companyId !== companyId) {
+                return res.status(404).json({ message: 'Ponto de instalação não encontrado.' });
+            }
+
+            const oldStatus = pontoDoc.data().status;
+            const updateData = {
+                status: status,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+            if (status === 'Instalado') {
+                updateData.dataInstalacao = admin.firestore.FieldValue.serverTimestamp();
+                 if(fotoUrl) updateData.fotoUrl = fotoUrl;
+            }
+
+            await pontoRef.update(updateData);
+
+            // Se o ponto foi recém-instalado, cria a armadilha correspondente.
+            if (status === 'Instalado' && oldStatus !== 'Instalado') {
+                const pontoData = pontoDoc.data();
+                await db.collection('armadilhas').add({
+                    companyId: pontoData.companyId,
+                    instaladoPor: userId,
+                    dataInstalacao: admin.firestore.FieldValue.serverTimestamp(),
+                    latitude: pontoData.latitude,
+                    longitude: pontoData.longitude,
+                    status: 'Ativa',
+                    pontoPlanejamentoId: id, // Vínculo com o planejamento
+                    fazendaCode: pontoData.fazendaCode,
+                    talhaoNome: pontoData.talhaoNome
+                });
+            }
+
+            // Verifica se a OS foi concluída
+            const osId = pontoDoc.data().osId;
+            if (osId) {
+                const pontosSnapshot = await db.collection('instalacaoPontos')
+                    .where('companyId', '==', companyId)
+                    .where('osId', '==', osId)
+                    .get();
+
+                let allInstalled = true;
+                pontosSnapshot.forEach(doc => {
+                    if (doc.id === id) { // Usa o novo status para o ponto atual
+                        if (status !== 'Instalado') allInstalled = false;
+                    } else { // Usa o status salvo para os outros pontos
+                        if (doc.data().status !== 'Instalado') allInstalled = false;
+                    }
+                });
+
+                if (allInstalled) {
+                    const osRef = db.collection('instalacaoOrdensDeServico').doc(osId);
+                    await osRef.update({ status: 'Concluída', dataConclusao: admin.firestore.FieldValue.serverTimestamp() });
+
+                    const osDoc = await osRef.get();
+                    if (osDoc.exists()) {
+                        await db.collection('instalacaoPlanejamentos').doc(osDoc.data().planejamentoId).update({ status: 'Concluído' });
+                    }
+                }
+            }
+            res.status(200).json({ message: 'Ponto de instalação atualizado com sucesso.' });
+        } catch (error) {
+            console.error("Erro ao atualizar ponto de instalação:", error);
+            res.status(500).json({ message: 'Erro no servidor ao atualizar ponto.' });
+        }
+    });
+
+    // --- Ordens de Serviço ---
+    app.post('/api/instalacao/ordens-de-servico', async (req, res) => {
+        const { companyId, planejamentoId, responsavelId, prazoDias } = req.body;
+        if (!companyId || !planejamentoId || !responsavelId || !prazoDias) {
+            return res.status(400).json({ message: 'companyId, planejamentoId, responsavelId e prazoDias são obrigatórios.' });
+        }
+        try {
+            const osNumber = await getNextOsNumber(companyId);
+            const dataCriacao = new Date();
+            const dataPrazo = new Date(dataCriacao);
+            dataPrazo.setDate(dataPrazo.getDate() + parseInt(prazoDias, 10));
+
+            const osRef = await db.collection('instalacaoOrdensDeServico').add({
+                companyId,
+                planejamentoId,
+                responsavelId,
+                numeroOS: osNumber,
+                dataCriacao: admin.firestore.Timestamp.fromDate(dataCriacao),
+                dataPrazo: admin.firestore.Timestamp.fromDate(dataPrazo),
+                status: 'Planejada',
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            const newOsId = osRef.id;
+
+            // Associa todos os pontos do planejamento a esta nova OS
+            const pontosQuery = db.collection('instalacaoPontos')
+                .where('companyId', '==', companyId)
+                .where('planejamentoId', '==', planejamentoId);
+            const pontosSnapshot = await pontosQuery.get();
+
+            if (!pontosSnapshot.empty) {
+                const batch = db.batch();
+                pontosSnapshot.forEach(doc => {
+                    const pontoRef = db.collection('instalacaoPontos').doc(doc.id);
+                    batch.update(pontoRef, { osId: newOsId });
+                });
+                await batch.commit();
+            }
+
+            // Atualiza o status do planejamento
+            await db.collection('instalacaoPlanejamentos').doc(planejamentoId).update({ status: 'Em Execução' });
+
+            res.status(201).json({ id: newOsId, numeroOS: osNumber });
+        } catch (error) {
+            console.error("Erro ao criar Ordem de Serviço:", error);
+            res.status(500).json({ message: 'Erro no servidor ao criar Ordem de Serviço.' });
+        }
+    });
+
+    app.get('/api/instalacao/ordens-de-servico', async (req, res) => {
+        const { companyId, responsavelId } = req.query;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
+        try {
+            let query = db.collection('instalacaoOrdensDeServico').where('companyId', '==', companyId);
+            if (responsavelId) {
+                query = query.where('responsavelId', '==', responsavelId);
+            }
+            const snapshot = await query.orderBy('createdAt', 'desc').get();
+            const ordens = [];
+            snapshot.forEach(doc => {
+                ordens.push({ id: doc.id, ...doc.data() });
+            });
+            res.status(200).json(ordens);
+        } catch (error) {
+            console.error("Erro ao buscar Ordens de Serviço:", error);
+            res.status(500).json({ message: 'Erro no servidor ao buscar Ordens de Serviço.' });
+        }
+    });
+
     // --- ROTAS DE RELATÓRIOS ---
 
     const getPlantioData = async (filters) => {
@@ -3199,6 +3456,389 @@ try {
             res.status(500).send('Erro ao gerar relatório.');
         }
     });
+
+
+    // --- [NOVO] ROTAS E FUNÇÕES PARA RELATÓRIOS DE INSTALAÇÃO ---
+
+    const getInstalacaoData = async (filters) => {
+        if (!filters.companyId) {
+            console.error("Attempt to access getInstalacaoData without companyId.");
+            return [];
+        }
+
+        let osQuery = db.collection('instalacaoOrdensDeServico').where('companyId', '==', filters.companyId);
+
+        if (filters.inicio) {
+            osQuery = osQuery.where('dataCriacao', '>=', admin.firestore.Timestamp.fromDate(new Date(filters.inicio + 'T00:00:00Z')));
+        }
+        if (filters.fim) {
+            osQuery = osQuery.where('dataCriacao', '<=', admin.firestore.Timestamp.fromDate(new Date(filters.fim + 'T23:59:59Z')));
+        }
+        if (filters.responsavelId) {
+            osQuery = osQuery.where('responsavelId', '==', filters.responsavelId);
+        }
+
+        const osSnapshot = await osQuery.get();
+        if (osSnapshot.empty) {
+            return [];
+        }
+
+        const ordens = [];
+        osSnapshot.forEach(doc => {
+            ordens.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Otimização: buscar todos os planejamentos e usuários de uma vez
+        const planejamentoIds = [...new Set(ordens.map(os => os.planejamentoId))];
+        const planejamentosMap = new Map();
+        if (planejamentoIds.length > 0) {
+            const planejamentosSnapshot = await db.collection('instalacaoPlanejamentos').where(admin.firestore.FieldPath.documentId(), 'in', planejamentoIds).get();
+            planejamentosSnapshot.forEach(doc => {
+                planejamentosMap.set(doc.id, doc.data());
+            });
+        }
+
+        let data = ordens.map(os => {
+            const planejamento = planejamentosMap.get(os.planejamentoId);
+            return {
+                ...os,
+                fazendaCode: planejamento?.fazendaCode || 'N/A',
+                fazendaName: planejamento?.fazendaName || 'N/A'
+            };
+        });
+
+        if (filters.fazendaCode) {
+            data = data.filter(d => d.fazendaCode === filters.fazendaCode);
+        }
+
+        return data.sort((a,b) => a.dataCriacao.toDate() - b.dataCriacao.toDate());
+    };
+
+    app.get('/reports/instalacao/status/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_status_os.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getInstalacaoData(filters);
+            const title = 'Relatório de Status de Ordens de Serviço';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title, filters.companyId);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            const headers = ['Fazenda', 'Total OS', 'Planejadas', 'Em Execução', 'Concluídas', 'Atrasadas', '% Execução no Prazo'];
+            const columnWidths = [200, 80, 80, 80, 80, 80, 142];
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            const groupedByFarm = data.reduce((acc, os) => {
+                const key = `${os.fazendaCode} - ${os.fazendaName}`;
+                if (!acc[key]) {
+                    acc[key] = [];
+                }
+                acc[key].push(os);
+                return acc;
+            }, {});
+
+            let totalOSGeral = 0;
+            let totalPlanejadasGeral = 0;
+            let totalExecucaoGeral = 0;
+            let totalConcluidasGeral = 0;
+            let totalAtrasadasGeral = 0;
+            let totalDentroDoPrazoGeral = 0;
+
+            const farmKeys = Object.keys(groupedByFarm).sort();
+
+            for (const farmKey of farmKeys) {
+                const farmOS = groupedByFarm[farmKey];
+                const totalOS = farmOS.length;
+                let planejadas = 0;
+                let execucao = 0;
+                let concluidas = 0;
+                let atrasadas = 0;
+                let dentroDoPrazo = 0;
+                const now = new Date();
+
+                farmOS.forEach(os => {
+                    const dataPrazo = os.dataPrazo.toDate();
+                    const dataConclusao = os.dataConclusao ? os.dataConclusao.toDate() : null;
+
+                    if (os.status === 'Planejada') planejadas++;
+                    if (os.status === 'Em Execução') execucao++;
+                    if (os.status === 'Concluída') {
+                        concluidas++;
+                        if (dataConclusao && dataConclusao <= dataPrazo) {
+                            dentroDoPrazo++;
+                        }
+                    }
+                    // Uma OS é considerada atrasada se não estiver concluída e o prazo já passou,
+                    // ou se foi concluída após o prazo.
+                    if ((os.status !== 'Concluída' && now > dataPrazo) || (dataConclusao && dataConclusao > dataPrazo)) {
+                        atrasadas++;
+                    }
+                });
+
+                const percentualPrazo = concluidas > 0 ? ((dentroDoPrazo / concluidas) * 100).toFixed(2) + '%' : 'N/A';
+
+                const row = [ farmKey, totalOS, planejadas, execucao, concluidas, atrasadas, percentualPrazo ];
+                currentY = await checkPageBreak(doc, currentY, title);
+                currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+
+                totalOSGeral += totalOS;
+                totalPlanejadasGeral += planejadas;
+                totalExecucaoGeral += execucao;
+                totalConcluidasGeral += concluidas;
+                totalAtrasadasGeral += atrasadas;
+                totalDentroDoPrazoGeral += dentroDoPrazo;
+            }
+
+            const percentualPrazoGeral = totalConcluidasGeral > 0 ? ((totalDentroDoPrazoGeral / totalConcluidasGeral) * 100).toFixed(2) + '%' : 'N/A';
+            const totalRow = [
+                'TOTAL GERAL', totalOSGeral, totalPlanejadasGeral, totalExecucaoGeral, totalConcluidasGeral, totalAtrasadasGeral, percentualPrazoGeral
+            ];
+
+            currentY = await checkPageBreak(doc, currentY, title);
+            drawRow(doc, totalRow, currentY, false, true, columnWidths);
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Status de OS:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/instalacao/status/csv', async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getInstalacaoData(filters);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const groupedByFarm = data.reduce((acc, os) => {
+                const key = `${os.fazendaCode} - ${os.fazendaName}`;
+                if (!acc[key]) {
+                    acc[key] = [];
+                }
+                acc[key].push(os);
+                return acc;
+            }, {});
+
+            const records = [];
+            const farmKeys = Object.keys(groupedByFarm).sort();
+            const now = new Date();
+
+            for (const farmKey of farmKeys) {
+                const farmOS = groupedByFarm[farmKey];
+                let planejadas = 0, execucao = 0, concluidas = 0, atrasadas = 0, dentroDoPrazo = 0;
+
+                farmOS.forEach(os => {
+                    const dataPrazo = os.dataPrazo.toDate();
+                    const dataConclusao = os.dataConclusao ? os.dataConclusao.toDate() : null;
+
+                    if (os.status === 'Planejada') planejadas++;
+                    if (os.status === 'Em Execução') execucao++;
+                    if (os.status === 'Concluída') {
+                        concluidas++;
+                        if (dataConclusao && dataConclusao <= dataPrazo) dentroDoPrazo++;
+                    }
+                    if ((os.status !== 'Concluída' && now > dataPrazo) || (dataConclusao && dataConclusao > dataPrazo)) {
+                        atrasadas++;
+                    }
+                });
+
+                records.push({
+                    fazenda: farmKey,
+                    totalOS: farmOS.length,
+                    planejadas,
+                    emExecucao: execucao,
+                    concluidas,
+                    atrasadas,
+                    percentualPrazo: concluidas > 0 ? ((dentroDoPrazo / concluidas) * 100).toFixed(2) : 'N/A'
+                });
+            }
+
+            const filePath = path.join(os.tmpdir(), `status_os_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'fazenda', title: 'Fazenda' },
+                    { id: 'totalOS', title: 'Total OS' },
+                    { id: 'planejadas', title: 'Planejadas' },
+                    { id: 'emExecucao', title: 'Em Execução' },
+                    { id: 'concluidas', title: 'Concluídas' },
+                    { id: 'atrasadas', title: 'Atrasadas' },
+                    { id: 'percentualPrazo', title: '% Execução no Prazo' }
+                ]
+            });
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Status de OS:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    const getInstalacaoHistoricoData = async (filters) => {
+        if (!filters.companyId) {
+            return [];
+        }
+        let pontosQuery = db.collection('instalacaoPontos').where('companyId', '==', filters.companyId).where('status', '==', 'Instalado');
+        if (filters.inicio) {
+            pontosQuery = pontosQuery.where('dataInstalacao', '>=', admin.firestore.Timestamp.fromDate(new Date(filters.inicio + 'T00:00:00Z')));
+        }
+        if (filters.fim) {
+            pontosQuery = pontosQuery.where('dataInstalacao', '<=', admin.firestore.Timestamp.fromDate(new Date(filters.fim + 'T23:59:59Z')));
+        }
+        if (filters.fazendaCode) {
+            pontosQuery = pontosQuery.where('fazendaCode', '==', filters.fazendaCode);
+        }
+        if (filters.talhaoNome) {
+            pontosQuery = pontosQuery.where('talhaoNome', '==', filters.talhaoNome);
+        }
+
+        const pontosSnapshot = await pontosQuery.get();
+        if (pontosSnapshot.empty) return [];
+
+        let pontos = [];
+        pontosSnapshot.forEach(doc => pontos.push({ id: doc.id, ...doc.data() }));
+
+        const osIds = [...new Set(pontos.map(p => p.osId).filter(id => id))];
+        const userIds = [...new Set(pontos.flatMap(p => {
+            const os = ordensMap.get(p.osId);
+            return os ? [os.responsavelId] : [];
+        }))];
+
+        const ordensMap = new Map();
+        if (osIds.length > 0) {
+            const osSnapshot = await db.collection('instalacaoOrdensDeServico').where(admin.firestore.FieldPath.documentId(), 'in', osIds).get();
+            osSnapshot.forEach(doc => ordensMap.set(doc.id, doc.data()));
+        }
+
+        const usersMap = new Map();
+        if (userIds.length > 0) {
+            const usersSnapshot = await db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', userIds).get();
+            usersSnapshot.forEach(doc => usersMap.set(doc.id, doc.data()));
+        }
+
+        let data = pontos.map(ponto => {
+            const os = ordensMap.get(ponto.osId);
+            const responsavel = os ? usersMap.get(os.responsavelId) : null;
+            return {
+                ...ponto,
+                numeroOS: os?.numeroOS || 'N/A',
+                responsavelName: responsavel?.username || responsavel?.email || 'N/A'
+            };
+        });
+
+        if (filters.responsavelId) {
+            data = data.filter(d => {
+                const os = ordensMap.get(d.osId);
+                return os && os.responsavelId === filters.responsavelId;
+            });
+        }
+
+        return data.sort((a,b) => a.dataInstalacao.toDate() - b.dataInstalacao.toDate());
+    };
+
+    app.get('/reports/instalacao/historico/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_historico_instalacao.pdf');
+        doc.pipe(res);
+        try {
+            const filters = req.query;
+            const data = await getInstalacaoHistoricoData(filters);
+            const title = 'Relatório de Histórico de Instalações';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title, filters.companyId);
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+            const headers = ['Data Instalação', 'Fazenda', 'Talhão', 'Responsável', 'Nº OS', 'Latitude', 'Longitude'];
+            const columnWidths = [120, 200, 120, 120, 100, 80, 82];
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            for(const item of data) {
+                const row = [
+                    item.dataInstalacao.toDate().toLocaleString('pt-BR'),
+                    `${item.fazendaCode} - ${item.fazendaName}`,
+                    item.talhaoNome,
+                    item.responsavelName,
+                    item.numeroOS,
+                    item.latitude.toFixed(6),
+                    item.longitude.toFixed(6)
+                ];
+                currentY = await checkPageBreak(doc, currentY, title);
+                currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+            }
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Histórico de Instalação:", error);
+            if (!res.headersSent) res.status(500).send(`Erro: ${error.message}`);
+            else doc.end();
+        }
+    });
+
+    app.get('/reports/instalacao/historico/csv', async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getInstalacaoHistoricoData(filters);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const records = data.map(item => ({
+                dataInstalacao: item.dataInstalacao.toDate().toLocaleString('pt-BR'),
+                fazenda: `${item.fazendaCode} - ${item.fazendaName}`,
+                talhao: item.talhaoNome,
+                responsavel: item.responsavelName,
+                numeroOS: item.numeroOS,
+                latitude: item.latitude,
+                longitude: item.longitude,
+                fotoUrl: item.fotoUrl || ''
+            }));
+
+            const filePath = path.join(os.tmpdir(), `historico_instalacao_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'dataInstalacao', title: 'Data Instalação' },
+                    { id: 'fazenda', title: 'Fazenda' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'responsavel', title: 'Responsável' },
+                    { id: 'numeroOS', title: 'Nº OS' },
+                    { id: 'latitude', title: 'Latitude' },
+                    { id: 'longitude', title: 'Longitude' },
+                    { id: 'fotoUrl', title: 'URL da Foto' }
+                ]
+            });
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Histórico de Instalação:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
 
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);

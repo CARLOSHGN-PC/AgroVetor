@@ -104,7 +104,14 @@ document.addEventListener('DOMContentLoaded', () => {
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
-                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                {
+                    label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish',
+                    submenu: [
+                        { label: 'Mapa de Monitoramento', icon: 'fas fa-map-marked-alt', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                        { label: 'Planejamento de Instalação', icon: 'fas fa-ruler-combined', target: 'planejamentoInstalacao', permission: 'planejamentoInstalacao' },
+                        { label: 'Ordens de Serviço', icon: 'fas fa-clipboard-list', target: 'ordemDeServico', permission: 'ordemDeServico' },
+                    ]
+                },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -135,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório de Risco', icon: 'fas fa-shield-alt', target: 'relatorioRisco', permission: 'relatorioRisco' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
                         { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
+                        { label: 'Relatórios de Instalação', icon: 'fas fa-tools', target: 'relatorioInstalacao', permission: 'relatorioInstalacao' },
                     ]
                 },
                 {
@@ -157,9 +165,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, planejamentoInstalacao: true, ordemDeServico: true, relatorioInstalacao: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, planejamentoInstalacao: true, ordemDeServico: true, relatorioInstalacao: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemDeServico: true, relatorioInstalacao: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
             }
@@ -215,6 +223,10 @@ document.addEventListener('DOMContentLoaded', () => {
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
                 apontamentoPlantioFormIsDirty: false,
+                instalacaoPlanejamentos: [], // To store trap installation plans
+                planningMap: null, // Mapbox instance for the planning screen
+                planningUserMarker: null,
+                planningTrapMarkers: [], // Temp markers for planning
         },
         
         elements: {
@@ -661,6 +673,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     btnPDF: document.getElementById('btnPDFClima'),
                     btnExcel: document.getElementById('btnExcelClima'),
                 },
+            relatorioInstalacao: {
+                inicio: document.getElementById('instalacaoRelatorioInicio'),
+                fim: document.getElementById('instalacaoRelatorioFim'),
+                fazenda: document.getElementById('instalacaoRelatorioFazenda'),
+                responsavel: document.getElementById('instalacaoRelatorioResponsavel'),
+                tipo: document.getElementById('instalacaoTipoRelatorio'),
+                btnPDF: document.getElementById('btnPDFInstalacao'),
+                btnExcel: document.getElementById('btnExcelInstalacao'),
+            },
             relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
                 fazendaFiltro: document.getElementById('monitoramentoFazendaFiltro'),
@@ -682,6 +703,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 cancelBtn: document.getElementById('trapPlacementModalCancelBtn'),
                 manualBtn: document.getElementById('trapPlacementModalManualBtn'),
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
+            },
+            instalacaoPlanejamento: {
+                fazenda: document.getElementById('planningFazenda'),
+                talhao: document.getElementById('planningTalhao'),
+                responsavel: document.getElementById('planningResponsavel'),
+                data: document.getElementById('planningData'),
+                btnSave: document.getElementById('btnSavePlanning'),
+                list: document.getElementById('planningList'),
+                mapContainer: document.getElementById('planning-map'),
+                btnCenterMap: document.getElementById('btnCenterPlanningMap'),
+                planningId: document.getElementById('planningId'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
         },
@@ -705,10 +737,674 @@ document.addEventListener('DOMContentLoaded', () => {
         init() {
             OfflineDB.init();
             this.native.init();
+            this.planning.init();
+            this.serviceOrder.init();
+            this.serviceOrderExecution.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
+        },
+
+        planning: {
+            init() {
+                const els = App.elements.instalacaoPlanejamento;
+                if (els.btnSave) els.btnSave.addEventListener('click', () => this.savePlanejamento());
+                if (els.fazenda) els.fazenda.addEventListener('change', () => this.onFazendaChange());
+                if (els.talhao) els.talhao.addEventListener('change', () => this.onTalhaoChange());
+                if (els.btnCenterMap) els.btnCenterMap.addEventListener('click', () => this.centerMapOnUser());
+                if (els.list) {
+                    els.list.addEventListener('click', (e) => {
+                        const button = e.target.closest('button[data-action]');
+                        if (!button) return;
+                        const { action, id } = button.dataset;
+                        if (action === 'edit-planning') this.editPlanejamento(id);
+                        if (action === 'delete-planning') this.deletePlanejamento(id);
+                    });
+                }
+            },
+
+            initMap() {
+                if (App.state.planningMap) return;
+                const els = App.elements.instalacaoPlanejamento;
+                if (!els.mapContainer) return;
+
+                try {
+                    App.state.planningMap = new mapboxgl.Map({
+                        container: els.mapContainer,
+                        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                        center: [-48.45, -21.17],
+                        zoom: 12
+                    });
+
+                    App.state.planningMap.on('load', () => {
+                        this.watchUserPosition();
+                        // Clicking on the map adds a temporary marker
+                        App.state.planningMap.on('click', (e) => {
+                            this.addTemporaryMarker(e.lngLat);
+                        });
+                    });
+                } catch (e) {
+                    console.error("Erro ao inicializar o mapa de planejamento:", e);
+                }
+            },
+
+            watchUserPosition() {
+                 if ('geolocation' in navigator) {
+                    navigator.geolocation.watchPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            this.updateUserPosition(latitude, longitude);
+                        },
+                        (error) => {
+                            console.warn(`Erro de Geolocalização (Planejamento): ${error.message}`);
+                        },
+                        { enableHighAccuracy: true }
+                    );
+                }
+            },
+
+            updateUserPosition(lat, lng) {
+                const userPosition = [lng, lat];
+                if (!App.state.planningMap) return;
+
+                if (!App.state.planningUserMarker) {
+                    const el = document.createElement('div');
+                    el.style.backgroundColor = '#4285F4';
+                    el.style.width = '16px';
+                    el.style.height = '16px';
+                    el.style.borderRadius = '50%';
+                    el.style.border = '2px solid #ffffff';
+
+                    App.state.planningUserMarker = new mapboxgl.Marker(el)
+                        .setLngLat(userPosition)
+                        .addTo(App.state.planningMap);
+
+                    App.state.planningMap.flyTo({ center: userPosition, zoom: 15 });
+                } else {
+                    App.state.planningUserMarker.setLngLat(userPosition);
+                }
+            },
+
+            centerMapOnUser() {
+                if (App.state.planningUserMarker) {
+                    const userPosition = App.state.planningUserMarker.getLngLat();
+                    App.state.planningMap.flyTo({ center: userPosition, zoom: 16 });
+                } else {
+                    App.ui.showAlert("Ainda não foi possível obter sua localização.", "info");
+                }
+            },
+
+            onFazendaChange() {
+                const els = App.elements.instalacaoPlanejamento;
+                const farmId = els.fazenda.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                els.talhao.innerHTML = '<option value="">Selecione um talhão...</option>';
+                if (farm && farm.talhoes) {
+                    farm.talhoes.forEach(talhao => {
+                        els.talhao.innerHTML += `<option value="${talhao.id}">${talhao.name}</option>`;
+                    });
+                }
+                this.clearTemporaryMarkers();
+            },
+
+            onTalhaoChange() {
+                const els = App.elements.instalacaoPlanejamento;
+                const farmId = els.fazenda.value;
+                const talhaoId = els.talhao.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const talhao = farm?.talhoes.find(t => t.id == talhaoId);
+
+                // Here I should zoom to the talhao on the map.
+                // I need to find the talhao geometry from the geoJsonData.
+                this.clearTemporaryMarkers();
+                if (farm && talhao && App.state.geoJsonData) {
+                    const feature = App.state.geoJsonData.features.find(f => {
+                         const fundoAgricola = App.mapModule._findProp(f, ['FUNDO_AGR']);
+                         const talhaoNome = App.mapModule._findProp(f, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                         return String(fundoAgricola) === String(farm.code) && talhaoNome === talhao.name;
+                    });
+
+                    if (feature) {
+                        const bbox = turf.bbox(feature);
+                        App.state.planningMap.fitBounds(bbox, { padding: 40 });
+                    }
+                }
+            },
+
+            addTemporaryMarker(lngLat) {
+                const el = document.createElement('div');
+                el.className = 'mapbox-marker';
+                el.style.width = '30px';
+                el.style.height = '30px';
+                el.style.borderRadius = '50%';
+                el.style.backgroundColor = 'var(--color-warning)';
+                el.style.border = '2px solid white';
+                el.style.display = 'flex';
+                el.style.justifyContent = 'center';
+                el.style.alignItems = 'center';
+                el.style.cursor = 'pointer';
+                el.innerHTML = '<i class="fas fa-map-pin" style="color: white; font-size: 16px;"></i>';
+
+                const marker = new mapboxgl.Marker(el)
+                    .setLngLat(lngLat)
+                    .addTo(App.state.planningMap);
+
+                // Add remove functionality on click
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    marker.remove();
+                    App.state.planningTrapMarkers = App.state.planningTrapMarkers.filter(m => m !== marker);
+                });
+
+                App.state.planningTrapMarkers.push(marker);
+            },
+
+            clearTemporaryMarkers() {
+                App.state.planningTrapMarkers.forEach(marker => marker.remove());
+                App.state.planningTrapMarkers = [];
+            },
+
+            savePlanejamento() {
+                // Logic to save the plan
+                const els = App.elements.instalacaoPlanejamento;
+                const farmId = els.fazenda.value;
+                const talhaoId = els.talhao.value;
+                const responsavelId = els.responsavel.value;
+                const dataPrevista = els.data.value;
+
+                if (!farmId || !talhaoId || !responsavelId || !dataPrevista) {
+                    App.ui.showAlert("Preencha todos os campos do formulário.", "error");
+                    return;
+                }
+
+                if (App.state.planningTrapMarkers.length === 0) {
+                    App.ui.showAlert("Adicione pelo menos um ponto no mapa.", "error");
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const talhao = farm?.talhoes.find(t => t.id == talhaoId);
+                const responsavel = App.state.users.find(u => u.id === responsavelId);
+
+                const pontos = App.state.planningTrapMarkers.map(marker => {
+                    const lngLat = marker.getLngLat();
+                    return {
+                        latitude: lngLat.lat,
+                        longitude: lngLat.lng,
+                        status: 'Planejado'
+                    }
+                });
+
+                const planejamento = {
+                    fazendaId: farm.id,
+                    fazendaNome: farm.name,
+                    talhaoId: talhao.id,
+                    talhaoNome: talhao.name,
+                    responsavelId: responsavel.id,
+                    responsavelNome: responsavel.username,
+                    dataPrevista: dataPrevista,
+                    status: 'Planejado',
+                    pontos: pontos,
+                    companyId: App.state.currentUser.companyId,
+                };
+
+                const planningId = els.planningId.value;
+
+                App.ui.showConfirmationModal(planningId ? 'Atualizar este planejamento?' : 'Salvar este planejamento?', async () => {
+                    App.ui.setLoading(true, "Salvando...");
+                    try {
+                        if (planningId) {
+                            await App.data.updateDocument('instalacaoPlanejamentos', planningId, planejamento);
+                        } else {
+                            await App.data.addDocument('instalacaoPlanejamentos', planejamento);
+                        }
+                        App.ui.showAlert("Planejamento salvo com sucesso!");
+                        this.clearForm();
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao salvar planejamento.", "error");
+                        console.error(error);
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+
+            },
+
+            clearForm() {
+                const els = App.elements.instalacaoPlanejamento;
+                els.planningId.value = '';
+                els.fazenda.value = '';
+                els.talhao.innerHTML = '<option value="">Selecione um talhão...</option>';
+                els.responsavel.value = '';
+                els.data.value = '';
+                this.clearTemporaryMarkers();
+            },
+            renderPlanningList() {
+                const { list } = App.elements.instalacaoPlanejamento;
+                list.innerHTML = '';
+                if (App.state.instalacaoPlanejamentos.length === 0) {
+                    list.innerHTML = '<p>Nenhum planejamento salvo.</p>';
+                    return;
+                }
+
+                App.state.instalacaoPlanejamentos.forEach(plan => {
+                    const card = document.createElement('div');
+                    card.className = 'plano-card'; // Reusing style
+                    card.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-ruler-combined"></i> ${plan.fazendaNome} - ${plan.talhaoNome}</span>
+                            <span class="plano-status ${plan.status.toLowerCase()}">${plan.status}</span>
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-calendar-day"></i> Data: ${new Date(plan.dataPrevista + 'T03:00:00Z').toLocaleDateString('pt-BR')}</div>
+                            <div><i class="fas fa-user-check"></i> Resp: ${plan.responsavelNome}</div>
+                            <div><i class="fas fa-map-marker-alt"></i> Pontos: ${plan.pontos.length}</div>
+                        </div>
+                        <div class="plano-actions">
+                             <button class="btn-excluir" style="background-color: var(--color-info);" data-action="edit-planning" data-id="${plan.id}"><i class="fas fa-edit"></i> Editar</button>
+                             <button class="btn-excluir" data-action="delete-planning" data-id="${plan.id}"><i class="fas fa-trash"></i> Excluir</button>
+                        </div>
+                    `;
+                    list.appendChild(card);
+                });
+            },
+            editPlanejamento(id) {
+                const plan = App.state.instalacaoPlanejamentos.find(p => p.id === id);
+                if (!plan) return;
+
+                this.clearForm();
+
+                const els = App.elements.instalacaoPlanejamento;
+                els.planningId.value = id;
+                els.fazenda.value = plan.fazendaId;
+
+                // Need to trigger change to populate talhoes
+                this.onFazendaChange();
+
+                // Set talhao value after a short delay to allow population
+                setTimeout(() => {
+                    els.talhao.value = plan.talhaoId;
+                    this.onTalhaoChange(); // Zoom to talhao
+                }, 100);
+
+                els.responsavel.value = plan.responsavelId;
+                els.data.value = plan.dataPrevista;
+
+                // Add markers for existing points
+                plan.pontos.forEach(ponto => {
+                    this.addTemporaryMarker({ lat: ponto.latitude, lng: ponto.longitude });
+                });
+            },
+
+            deletePlanejamento(id) {
+                App.ui.showConfirmationModal("Excluir este planejamento?", async () => {
+                    App.ui.setLoading(true, "Excluindo...");
+                    try {
+                        await App.data.deleteDocument('instalacaoPlanejamentos', id);
+                        App.ui.showAlert("Planejamento excluído.");
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao excluir.", "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+        },
+
+        serviceOrder: {
+            init() {
+                const btnNewOS = document.getElementById('btnNewOS');
+                if (btnNewOS) btnNewOS.addEventListener('click', () => this.showNewOSModal());
+            },
+
+            showNewOSModal(osData = null) {
+                const availablePlans = App.state.instalacaoPlanejamentos.filter(p => p.status === 'Planejado' && !p.ordemDeServicoId);
+
+                if (availablePlans.length === 0 && !osData) {
+                    App.ui.showAlert("Nenhum planejamento de instalação disponível para criar uma OS.", "info");
+                    return;
+                }
+
+                const optionsHTML = availablePlans.map(p => `<option value="${p.id}">${p.fazendaNome} - ${p.talhaoNome} (${p.pontos.length} pontos)</option>`).join('');
+
+                const modalContent = `
+                    <div class="form-col">
+                        <label for="osPlanejamento" class="required">Planejamento de Instalação:</label>
+                        <select id="osPlanejamento" ${osData ? 'disabled' : ''} required>
+                            <option value="">Selecione um planejamento...</option>
+                            ${optionsHTML}
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label for="osResponsavel" class="required">Responsável pela Execução:</label>
+                        <select id="osResponsavel" required></select>
+                    </div>
+                     <div class="form-col">
+                        <label for="osPrazo" class="required">Prazo de Execução (dias):</label>
+                        <input type="number" id="osPrazo" value="7" required>
+                    </div>
+                `;
+
+                App.ui.showConfirmationModal(
+                    osData ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço',
+                    async (results) => {
+                        const planejamentoId = document.getElementById('osPlanejamento').value;
+                        const responsavelId = document.getElementById('osResponsavel').value;
+                        const prazoDias = parseInt(document.getElementById('osPrazo').value, 10);
+
+                        if (!planejamentoId || !responsavelId || isNaN(prazoDias) || prazoDias <= 0) {
+                            App.ui.showAlert("Preencha todos os campos corretamente.", "error");
+                            return;
+                        }
+                        this.saveOS(planejamentoId, responsavelId, prazoDias);
+                    },
+                    [] // We pass an empty array to indicate we are providing custom HTML content
+                );
+
+                // Manually set the custom HTML content after the modal is shown
+                const modalBody = App.elements.confirmationModal.overlay.querySelector('.modal-body') || App.elements.confirmationModal.message;
+                modalBody.innerHTML = modalContent;
+                modalBody.style.whiteSpace = 'normal'; // Override pre-wrap style if needed
+
+                // Populate selects
+                const responsavelSelect = document.getElementById('osResponsavel');
+                App.ui.populateUserSelects([responsavelSelect]);
+
+            },
+
+            async saveOS(planejamentoId, responsavelId, prazoDias) {
+                 const planejamento = App.state.instalacaoPlanejamentos.find(p => p.id === planejamentoId);
+                 const responsavel = App.state.users.find(u => u.id === responsavelId);
+
+                 if (!planejamento || !responsavel) {
+                     App.ui.showAlert("Planejamento ou responsável inválido.", "error");
+                     return;
+                 }
+
+                App.ui.setLoading(true, "Gerando Ordem de Serviço...");
+                 try {
+                    // We need to call the backend to get the next sequential OS number
+                     const response = await fetch(`${App.config.backendUrl}/api/service-orders/create`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            companyId: App.state.currentUser.companyId,
+                            planejamentoId: planejamento.id,
+                            planejamento: planejamento, // Send the whole plan object
+                            responsavelId: responsavel.id,
+                            responsavelNome: responsavel.username,
+                            prazoDias: prazoDias,
+                            createdBy: App.state.currentUser.uid,
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Erro ao criar OS no servidor.');
+                    }
+
+                    const result = await response.json();
+                    App.ui.showAlert(`Ordem de Serviço ${result.numeroOS} criada com sucesso!`);
+
+                 } catch(error) {
+                    console.error("Erro ao criar Ordem de Serviço:", error);
+                    App.ui.showAlert(`Erro ao criar OS: ${error.message}`, "error");
+                 } finally {
+                    App.ui.setLoading(false);
+                 }
+            },
+
+            renderServiceOrders(orders) {
+                const lists = {
+                    planejada: document.getElementById('os-list-planejada'),
+                    execucao: document.getElementById('os-list-execucao'),
+                    concluida: document.getElementById('os-list-concluida'),
+                };
+
+                // Clear all lists
+                Object.values(lists).forEach(list => list.innerHTML = '');
+
+                orders.forEach(os => {
+                    const statusKey = os.status.toLowerCase().replace(' ', ''); // 'Em Execução' -> 'emexecucao'
+                    const targetList = lists[statusKey];
+                    if (!targetList) return;
+
+                    const card = this.createOSCard(os);
+                    targetList.appendChild(card);
+                });
+            },
+
+            createOSCard(os) {
+                const card = document.createElement('div');
+                card.className = 'os-card';
+                card.dataset.id = os.id;
+
+                const statusColors = {
+                    'Planejada': 'var(--color-info)',
+                    'Em Execução': 'var(--color-warning)',
+                    'Concluída': 'var(--color-success)',
+                    'Atrasada': 'var(--color-danger)',
+                };
+                card.style.borderLeftColor = statusColors[os.status] || 'var(--color-text-light)';
+
+                const dataCriacao = os.dataCriacao.toDate ? os.dataCriacao.toDate().toLocaleDateString('pt-BR') : new Date(os.dataCriacao).toLocaleDateString('pt-BR');
+                const dataPrazo = os.dataPrazo.toDate ? os.dataPrazo.toDate().toLocaleDateString('pt-BR') : new Date(os.dataPrazo).toLocaleDateString('pt-BR');
+
+
+                card.innerHTML = `
+                    <div class="os-card-header">
+                        <span class="os-card-title">${os.numeroOS}</span>
+                        <div class="os-card-menu">
+                             <button class="os-card-menu-btn"><i class="fas fa-ellipsis-v"></i></button>
+                        </div>
+                    </div>
+                    <div class="os-card-details">
+                        <div><i class="fas fa-tractor"></i> ${os.planejamento.fazendaNome}</div>
+                        <div><i class="fas fa-user"></i> ${os.responsavelNome}</div>
+                        <div><i class="fas fa-calendar-alt"></i> Criada em: ${dataCriacao}</div>
+                        <div><i class="fas fa-calendar-times"></i> Prazo: ${dataPrazo}</div>
+                         <div><i class="fas fa-map-marker-alt"></i> ${os.planejamento.pontos.length} Pontos</div>
+                    </div>
+                `;
+                return card;
+            }
+        },
+
+        serviceOrderExecution: {
+            state: {
+                map: null,
+                markers: [],
+                activeOS: null,
+            },
+
+            init() {
+                const board = document.querySelector('.kanban-board');
+                if (board) {
+                    board.addEventListener('click', e => {
+                        const card = e.target.closest('.os-card');
+                        if (card && card.dataset.id) {
+                            this.showExecutionModal(card.dataset.id);
+                        }
+                    });
+                }
+                 const modal = document.getElementById('osExecutionModal');
+                if (modal) {
+                    modal.querySelector('#osExecutionModalCloseBtn').addEventListener('click', () => this.hideExecutionModal());
+                    modal.querySelector('#osExecutionModalCancelBtn').addEventListener('click', () => this.hideExecutionModal());
+                }
+            },
+
+            async showExecutionModal(osId) {
+                const modal = document.getElementById('osExecutionModal');
+                modal.classList.add('show');
+                App.ui.setLoading(true, "A carregar dados da OS...");
+
+                try {
+                    const os = await App.data.getDocument('instalacaoOrdensDeServico', osId);
+                    if (!os) throw new Error("Ordem de Serviço não encontrada.");
+
+                    this.state.activeOS = os;
+                    document.getElementById('osExecutionModalTitle').innerHTML = `<i class="fas fa-map-marked-alt"></i> Execução OS: ${os.numeroOS}`;
+
+                    this.renderSidebar(os);
+                    this.initMap(os);
+
+                } catch (error) {
+                    console.error("Erro ao carregar OS para execução:", error);
+                    App.ui.showAlert(error.message, "error");
+                    this.hideExecutionModal();
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            hideExecutionModal() {
+                const modal = document.getElementById('osExecutionModal');
+                modal.classList.remove('show');
+                if (this.state.map) {
+                    this.state.map.remove();
+                    this.state.map = null;
+                }
+                this.state.markers.forEach(marker => marker.remove());
+                this.state.markers = [];
+                this.state.activeOS = null;
+            },
+
+            initMap(os) {
+                const mapContainer = document.getElementById('os-execution-map');
+                if (!mapContainer) return;
+
+                this.state.map = new mapboxgl.Map({
+                    container: mapContainer,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [os.planejamento.pontos[0].longitude, os.planejamento.pontos[0].latitude],
+                    zoom: 15
+                });
+
+                this.state.map.on('load', () => {
+                    this.state.markers.forEach(marker => marker.remove());
+                    this.state.markers = [];
+
+                    const bounds = new mapboxgl.LngLatBounds();
+
+                    os.planejamento.pontos.forEach((ponto, index) => {
+                        const el = document.createElement('div');
+                        el.className = 'mapbox-marker';
+                        el.style.width = '30px';
+                        el.style.height = '30px';
+                        el.style.borderRadius = '50%';
+                        el.style.border = '2px solid white';
+                        el.style.display = 'flex';
+                        el.style.justifyContent = 'center';
+                        el.style.alignItems = 'center';
+                        el.style.cursor = 'pointer';
+
+                        if(ponto.status === 'Instalado') {
+                            el.style.backgroundColor = 'var(--color-success)';
+                            el.innerHTML = `<i class="fas fa-check" style="color: white;"></i>`;
+                        } else {
+                            el.style.backgroundColor = 'var(--color-info)';
+                            el.innerHTML = `<strong style="color: white;">${index + 1}</strong>`;
+                        }
+
+                        const marker = new mapboxgl.Marker(el)
+                            .setLngLat([ponto.longitude, ponto.latitude])
+                            .addTo(this.state.map);
+
+                        this.state.markers.push(marker);
+                        bounds.extend([ponto.longitude, ponto.latitude]);
+                    });
+                    this.state.map.fitBounds(bounds, { padding: 60 });
+                });
+            },
+
+            renderSidebar(os) {
+                const detailsContainer = document.getElementById('os-execution-details');
+                const pointsListContainer = document.getElementById('os-execution-points-list');
+
+                const dataPrazo = os.dataPrazo.toDate ? os.dataPrazo.toDate().toLocaleDateString('pt-BR') : new Date(os.dataPrazo).toLocaleDateString('pt-BR');
+                detailsContainer.innerHTML = `
+                    <h4><i class="fas fa-info-circle"></i> Detalhes</h4>
+                    <p><strong>Fazenda:</strong> ${os.planejamento.fazendaNome}</p>
+                    <p><strong>Talhão:</strong> ${os.planejamento.talhaoNome}</p>
+                    <p><strong>Responsável:</strong> ${os.responsavelNome}</p>
+                    <p><strong>Prazo:</strong> ${dataPrazo}</p>
+                `;
+
+                pointsListContainer.innerHTML = '<h4><i class="fas fa-map-marker-alt"></i> Pontos de Instalação</h4>';
+                os.planejamento.pontos.forEach((ponto, index) => {
+                    const pontoCard = document.createElement('div');
+                    pontoCard.className = 'plano-card'; // Reusing style
+                    pontoCard.style.cursor = 'default';
+
+                    const isInstalled = ponto.status === 'Instalado';
+                    const dataInstalacao = ponto.dataInstalacao ? (ponto.dataInstalacao.toDate ? ponto.dataInstalacao.toDate().toLocaleString('pt-BR') : new Date(ponto.dataInstalacao).toLocaleString('pt-BR')) : '';
+
+                    pontoCard.innerHTML = `
+                        <div class="plano-header">
+                            <span class="plano-title">Ponto ${index + 1}</span>
+                             <span class="plano-status ${isInstalled ? 'concluido' : 'pendente'}">${ponto.status}</span>
+                        </div>
+                        ${isInstalled ? `<p style="font-size:13px;">Instalado em: ${dataInstalacao}</p>` : ''}
+                        <div class="plano-actions">
+                            ${!isInstalled ? `<button class="save" data-action="install-point" data-index="${index}" style="margin-top: 5px; width:100%;"><i class="fas fa-check"></i> Marcar como Instalado</button>` : ''}
+                            <button class="btn-secondary" data-action="center-point" data-index="${index}" style="margin-top: 5px; width:100%;"><i class="fas fa-crosshairs"></i> Ver no Mapa</button>
+                        </div>
+                    `;
+                    pointsListContainer.appendChild(pontoCard);
+                });
+
+                pointsListContainer.addEventListener('click', e => {
+                    const button = e.target.closest('button[data-action]');
+                    if(!button) return;
+
+                    const index = parseInt(button.dataset.index, 10);
+                    const ponto = os.planejamento.pontos[index];
+
+                    if (button.dataset.action === 'center-point') {
+                        this.state.map.flyTo({ center: [ponto.longitude, ponto.latitude], zoom: 18 });
+                    }
+                    if (button.dataset.action === 'install-point') {
+                         this.markPointAsInstalled(os.id, index);
+                    }
+                });
+            },
+
+            async markPointAsInstalled(osId, pontoIndex) {
+                 App.ui.showConfirmationModal(`Confirmar a instalação do Ponto ${pontoIndex + 1}?`, async () => {
+                     App.ui.setLoading(true, "A registar instalação...");
+                     try {
+                         const response = await fetch(`${App.config.backendUrl}/api/service-orders/install-point`, {
+                             method: 'POST',
+                             headers: { 'Content-Type': 'application/json' },
+                             body: JSON.stringify({
+                                 osId: osId,
+                                 pontoIndex: pontoIndex,
+                                 companyId: App.state.currentUser.companyId,
+                                 userId: App.state.currentUser.uid,
+                             }),
+                         });
+
+                         if (!response.ok) {
+                             const errorData = await response.json();
+                             throw new Error(errorData.message || 'Erro no servidor.');
+                         }
+                         const result = await response.json();
+                         App.ui.showAlert(result.message, "success");
+
+                         // Refresh the modal content
+                         this.showExecutionModal(osId);
+
+                     } catch(error) {
+                         console.error("Erro ao marcar ponto como instalado:", error);
+                         App.ui.showAlert(`Erro: ${error.message}`, "error");
+                     } finally {
+                         App.ui.setLoading(false);
+                     }
+                 });
+            }
         },
 
         native: {
@@ -1860,6 +2556,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     App.charts.destroyAll(); 
                 }
+
+                if (id === 'planejamentoInstalacao') {
+                    App.planning.initMap();
+                    App.data.populateFazendaSelects(App.elements.instalacaoPlanejamento.fazenda.id);
+                    this.populateUserSelects([App.elements.instalacaoPlanejamento.responsavel]);
+
+                    // Unsubscribe from previous listener if it exists
+                    if (App.state.listeners && App.state.listeners.instalacaoPlanejamentos) {
+                        App.state.listeners.instalacaoPlanejamentos();
+                    }
+
+                    // Listen to the collection
+                    const q = query(collection(db, 'instalacaoPlanejamentos'), where("companyId", "==", App.state.currentUser.companyId));
+                    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                        const data = [];
+                        querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                        App.state.instalacaoPlanejamentos = data.sort((a, b) => new Date(b.dataPrevista) - new Date(a.dataPrevista));
+                        App.planning.renderPlanningList();
+                    });
+
+                    // Store the unsubscribe function
+                    if (!App.state.listeners) App.state.listeners = {};
+                    App.state.listeners.instalacaoPlanejamentos = unsubscribe;
+                }
+
+                if (id === 'ordemDeServico') {
+                    if (App.state.listeners && App.state.listeners.instalacaoOrdensDeServico) {
+                        App.state.listeners.instalacaoOrdensDeServico();
+                    }
+
+                    const q = query(collection(db, 'instalacaoOrdensDeServico'), where("companyId", "==", App.state.currentUser.companyId), orderBy("dataCriacao", "desc"));
+                    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                        const data = [];
+                        querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                        App.serviceOrder.renderServiceOrders(data);
+                    });
+
+                    if (!App.state.listeners) App.state.listeners = {};
+                    App.state.listeners.instalacaoOrdensDeServico = unsubscribe;
+                }
                 
                 if (id === 'configuracoesEmpresa') {
                     App.actions.setupPlantingGoals();
@@ -2154,7 +2890,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.apontamentoPlantio.farmName,
                     App.elements.lancamentoClima.fazenda,
                     App.elements.relatorioClima.fazenda,
-                    document.getElementById('climaDashboardFazenda')
+                    document.getElementById('climaDashboardFazenda'),
+                    App.elements.relatorioInstalacao.fazenda,
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
@@ -2201,7 +2938,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             populateUserSelects(selects) {
-                if (!selects || selects.length === 0) return;
+                if (!selects) {
+                    selects = [];
+                }
+                selects.push(App.elements.relatorioInstalacao.responsavel);
+                if (selects.length === 0) return;
 
                 selects.forEach(select => {
                     if (!select) return;
@@ -4231,6 +4972,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (relatorioClimaEls && relatorioClimaEls.btnExcel) {
                     relatorioClimaEls.btnExcel.addEventListener('click', () => App.reports.generateClimaCSV());
+                }
+
+                const relatorioInstalacaoEls = App.elements.relatorioInstalacao;
+                if (relatorioInstalacaoEls && relatorioInstalacaoEls.btnPDF) {
+                    relatorioInstalacaoEls.btnPDF.addEventListener('click', () => App.reports.generateInstalacaoPDF());
+                }
+                if (relatorioInstalacaoEls && relatorioInstalacaoEls.btnExcel) {
+                    relatorioInstalacaoEls.btnExcel.addEventListener('click', () => App.reports.generateInstalacaoExcel());
                 }
 
                 const relatorioRiscoEls = App.elements.relatorioRisco;
@@ -11035,6 +11784,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
             },
+
+                _getInstalacaoReportFilters() {
+                    const { inicio, fim, fazenda, responsavel, tipo } = App.elements.relatorioInstalacao;
+                    if (!inicio.value || !fim.value) {
+                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        return null;
+                    }
+                    const farm = App.state.fazendas.find(f => f.id === fazenda.value);
+                    return {
+                        inicio: inicio.value,
+                        fim: fim.value,
+                        fazendaId: farm ? farm.id : '',
+                        responsavelId: responsavel.value,
+                        tipoRelatorio: tipo.value,
+                    };
+                },
+
+                generateInstalacaoPDF() {
+                    const filters = this._getInstalacaoReportFilters();
+                    if (!filters) return;
+
+                    const reportType = filters.tipoRelatorio;
+                    const endpoint = `instalacao/${reportType}/pdf`;
+                    const filename = `relatorio_instalacao_${reportType}.pdf`;
+
+                    this._fetchAndDownloadReport(endpoint, filters, filename);
+                },
+
+                generateInstalacaoExcel() {
+                    const filters = this._getInstalacaoReportFilters();
+                    if (!filters) return;
+
+                    const reportType = filters.tipoRelatorio;
+                    const endpoint = `instalacao/${reportType}/csv`;
+                    const filename = `relatorio_instalacao_${reportType}.csv`;
+
+                    this._fetchAndDownloadReport(endpoint, filters, filename);
+                },
         },
 
         pwa: {
