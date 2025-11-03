@@ -17,8 +17,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 2500); // Ajuste o tempo conforme necessário
     }
 
-    // Placeholders for Firebase services that will be initialized asynchronously
-    let db, auth, storage, secondaryAuth;
+    const firebaseConfig = {
+        apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
+        authDomain: "agrovetor-v2.firebaseapp.com",
+        projectId: "agrovetor-v2",
+        storageBucket: "agrovetor-v2.firebasestorage.app",
+        messagingSenderId: "782518751171",
+        appId: "1:782518751171:web:d501ee31c1db33da4eb776",
+        measurementId: "G-JN4MSW63JR"
+    };
+
+    const firebaseApp = initializeApp(firebaseConfig);
+    const db = getFirestore(firebaseApp);
+    const auth = getAuth(firebaseApp);
+    const storage = getStorage(firebaseApp);
+    
+    const secondaryApp = initializeApp(firebaseConfig, "secondary");
+    const secondaryAuth = getAuth(secondaryApp);
+
+    enableIndexedDbPersistence(db)
+        .catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.warn("A persistência offline falhou. Múltiplas abas abertas?");
+            } else if (err.code == 'unimplemented') {
+                console.warn("O navegador atual não suporta a persistência offline.");
+            }
+        });
 
     Chart.register(ChartDataLabels);
     Chart.defaults.font.family = "'Poppins', sans-serif";
@@ -678,49 +702,13 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         },
 
-        async init() {
-            try {
-                // Busca a configuração do Firebase do backend seguro
-                const response = await fetch(`${this.config.backendUrl}/api/config`);
-                if (!response.ok) {
-                    throw new Error('Não foi possível carregar a configuração do servidor.');
-                }
-                const firebaseConfig = await response.json();
-
-                // Inicializa o Firebase com a configuração recebida
-                const firebaseApp = initializeApp(firebaseConfig);
-                db = getFirestore(firebaseApp);
-                auth = getAuth(firebaseApp);
-                storage = getStorage(firebaseApp);
-
-                const secondaryApp = initializeApp(firebaseConfig, "secondary");
-                secondaryAuth = getAuth(secondaryApp);
-
-                // Habilita a persistência offline
-                await enableIndexedDbPersistence(db).catch((err) => {
-                    if (err.code == 'failed-precondition') {
-                        console.warn("A persistência offline falhou. Múltiplas abas abertas?");
-                    } else if (err.code == 'unimplemented') {
-                        console.warn("O navegador atual não suporta a persistência offline.");
-                    }
-                });
-
-                // Continua com a inicialização normal da aplicação
-                OfflineDB.init();
-                this.native.init();
-                this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
-                this.ui.setupEventListeners();
-                this.auth.checkSession();
-                this.pwa.registerServiceWorker();
-
-            } catch (error) {
-                console.error("ERRO CRÍTICO DE INICIALIZAÇÃO:", error);
-                document.body.innerHTML = `<div style="text-align: center; padding: 50px; font-family: sans-serif; color: #333;">
-                    <h1>Erro Crítico</h1>
-                    <p>Não foi possível inicializar a aplicação. Verifique a sua conexão com a internet e se o servidor backend está online.</p>
-                    <p><em>Detalhes: ${error.message}</em></p>
-                </div>`;
-            }
+        init() {
+            OfflineDB.init();
+            this.native.init();
+            this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
+            this.ui.setupEventListeners();
+            this.auth.checkSession();
+            this.pwa.registerServiceWorker();
         },
 
         native: {
@@ -6425,9 +6413,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const reportData = event.target.result;
                     App.ui.setLoading(true, "A enviar relatório para análise da IA...");
                     try {
-                        const response = await App.reports._fetchWithAuth(`${App.config.backendUrl}/api/upload/historical-report`, {
+                        const response = await fetch(`${App.config.backendUrl}/api/upload/historical-report`, {
                             method: 'POST',
-                            body: JSON.stringify({ reportData }),
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                reportData,
+                                companyId: App.state.currentUser.companyId
+                            }),
                         });
                         const result = await response.json();
                         if (!response.ok) {
@@ -6456,8 +6448,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         App.ui.setLoading(true, "A apagar histórico...");
                         try {
-                            const response = await App.reports._fetchWithAuth(`${App.config.backendUrl}/api/delete/historical-data`, {
+                            const response = await fetch(`${App.config.backendUrl}/api/delete/historical-data`, {
                                 method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ companyId: App.state.currentUser.companyId })
                             });
                             const result = await response.json();
                             if (!response.ok) {
@@ -7239,9 +7233,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(atrSpinner) atrSpinner.style.display = 'inline-block';
 
                 try {
-                    const response = await App.reports._fetchWithAuth(`${App.config.backendUrl}/api/calculate-atr`, {
+                    const response = await fetch(`${App.config.backendUrl}/api/calculate-atr`, {
                         method: 'POST',
-                        body: JSON.stringify({ codigoFazenda: farm.code }),
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            codigoFazenda: farm.code,
+                            companyId: App.state.currentUser.companyId
+                        }),
                     });
 
                     if (!response.ok) {
@@ -7655,9 +7653,14 @@ document.addEventListener('DOMContentLoaded', () => {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
                 App.ui.setLoading(true, loadingMessage);
                 try {
-                    const response = await App.reports._fetchWithAuth(`${App.config.backendUrl}/api/gemini/generate`, {
+                    const response = await fetch(`${App.config.backendUrl}/api/gemini/generate`, {
                         method: 'POST',
-                        body: JSON.stringify({ prompt, contextData }),
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            prompt,
+                            contextData,
+                            companyId: App.state.currentUser.companyId
+                        }),
                     });
 
                     if (!response.ok) {
@@ -10597,34 +10600,18 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         reports: {
-                // Função auxiliar para incluir o token de autenticação em todas as requisições
-                async _fetchWithAuth(url, options = {}) {
-                    if (!auth.currentUser) {
-                        throw new Error('Utilizador não autenticado.');
-                    }
-                    const token = await auth.currentUser.getIdToken();
-                    const headers = {
-                        ...options.headers,
-                        'Authorization': `Bearer ${token}`
-                    };
-
-                    // Adiciona Content-Type se houver um corpo, para garantir que o backend o interprete corretamente
-                    if (options.body && !headers['Content-Type']) {
-                        headers['Content-Type'] = 'application/json';
-                    }
-
-                    return fetch(url, { ...options, headers });
-                },
-
                 _fetchAndDownloadReport(endpoint, filters, filename) {
                     const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                     cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
-
-                    // O companyId agora é verificado pelo backend, então não é mais necessário enviá-lo aqui.
-                    // No entanto, vamos mantê-lo por enquanto para não quebrar a lógica do backend que ainda pode usá-lo
-                    // antes da refatoração completa. O middleware garantirá a segurança.
                     if (App.state.currentUser && App.state.currentUser.companyId) {
                         cleanFilters.companyId = App.state.currentUser.companyId;
+                    }
+
+                    // Security check: Abort if companyId is missing, preventing cross-tenant data leakage.
+                    if (!cleanFilters.companyId) {
+                        App.ui.showAlert("Erro de segurança: ID da empresa não especificado. Não é possível gerar o relatório.", "error");
+                        console.error("Aborted report generation due to missing companyId.");
+                        return;
                     }
 
                     const params = new URLSearchParams(cleanFilters);
@@ -10632,7 +10619,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.ui.setLoading(true, "A gerar relatório no servidor...");
 
-                    this._fetchWithAuth(apiUrl)
+                    fetch(apiUrl)
                         .then(response => {
                             if (!response.ok) {
                                 return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
