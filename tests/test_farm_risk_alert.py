@@ -16,6 +16,9 @@ def test_risk_view_logic(browser_context):
         # Navigate to the app
         page.goto("http://localhost:8000", wait_until="networkidle")
 
+        # Wait for App to be initialized
+        page.wait_for_function("() => window.App && window.App.state")
+
         # Mock application state and UI
         page.evaluate("""
             window.App.state.currentUser = {

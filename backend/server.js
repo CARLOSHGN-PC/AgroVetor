@@ -3200,6 +3200,461 @@ try {
         }
     });
 
+    const getOSData = async (filters) => {
+        if (!filters.companyId) {
+            console.error("Attempt to access getOSData without companyId.");
+            return [];
+        }
+
+        let query = db.collection('serviceOrders').where('companyId', '==', filters.companyId);
+
+        // Aplicar filtros de data na data de criação da OS
+        if (filters.inicio) {
+            query = query.where('createdAt', '>=', admin.firestore.Timestamp.fromDate(new Date(filters.inicio + 'T00:00:00Z')));
+        }
+        if (filters.fim) {
+            query = query.where('createdAt', '<=', admin.firestore.Timestamp.fromDate(new Date(filters.fim + 'T23:59:59Z')));
+        }
+        if (filters.responsavelId) {
+            query = query.where('responsibleId', '==', filters.responsavelId);
+        }
+        if (filters.status) {
+            query = query.where('status', '==', filters.status);
+        }
+
+        const osSnapshot = await query.get();
+        let serviceOrders = [];
+        osSnapshot.forEach(doc => {
+            serviceOrders.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Se não houver OS, retornar vazio
+        if (serviceOrders.length === 0) {
+            return [];
+        }
+
+        // Buscar todas as armadilhas planejadas de uma vez para eficiência
+        const allPlannedTrapIds = serviceOrders.flatMap(os => os.plannedTrapIds);
+        if (allPlannedTrapIds.length === 0) {
+            // Se as OS não tiverem armadilhas, apenas retorne os dados da OS
+             return serviceOrders.map(os => ({
+                ...os,
+                fazendas: 'N/A', // Adiciona um campo placeholder
+            }));
+        }
+
+        const plannedTrapsMap = new Map();
+        // O Firestore limita a consulta 'in' a 30 itens.
+        const CHUNK_SIZE = 30;
+        for (let i = 0; i < allPlannedTrapIds.length; i += CHUNK_SIZE) {
+            const chunk = allPlannedTrapIds.slice(i, i + CHUNK_SIZE);
+            const trapsQuery = db.collection('plannedTraps').where(admin.firestore.FieldPath.documentId(), 'in', chunk);
+            const trapsSnapshot = await trapsQuery.get();
+            trapsSnapshot.forEach(doc => {
+                plannedTrapsMap.set(doc.id, doc.data());
+            });
+        }
+
+        // Mapear fazendas para cada OS
+        serviceOrders.forEach(os => {
+            const farmNames = new Set();
+            if (os.plannedTrapIds) {
+                os.plannedTrapIds.forEach(trapId => {
+                    const trap = plannedTrapsMap.get(trapId);
+                    if (trap && trap.fazendaNome) {
+                        farmNames.add(trap.fazendaNome);
+                    }
+                });
+            }
+             // Filtro de fazenda aplicado após a busca
+            if (filters.fazendaId) {
+                const trapFazendaIds = new Set();
+                 os.plannedTrapIds.forEach(trapId => {
+                    const trap = plannedTrapsMap.get(trapId);
+                    if (trap && trap.fazendaId) {
+                        trapFazendaIds.add(trap.fazendaId);
+                    }
+                });
+                if (!trapFazendaIds.has(filters.fazendaId)) {
+                    // Marca para remoção posterior se não corresponder
+                    os.remove = true;
+                }
+            }
+            os.fazendas = Array.from(farmNames).join(', ') || 'N/A';
+        });
+
+        let finalData = serviceOrders.filter(os => !os.remove);
+
+        // Ordenar pelo número da OS
+        finalData.sort((a, b) => a.osNumber.localeCompare(b.osNumber));
+
+        return finalData;
+    };
+
+    app.get('/reports/os/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_os.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getOSData(filters);
+            const title = 'Relatório de Ordens de Serviço';
+
+            if (data.length === 0) {
+                await generatePdfHeader(doc, title, filters.companyId);
+                doc.text('Nenhuma Ordem de Serviço encontrada para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            const headers = ['Nº OS', 'Status', 'Responsável', 'Data Criação', 'Prazo', 'Fazendas', 'Nº Pontos'];
+            const columnWidths = [100, 100, 150, 100, 100, 150, 80];
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            for (const os of data) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                const createdAt = safeToDate(os.createdAt);
+                const dueDate = safeToDate(os.dueDate);
+
+                const row = [
+                    os.osNumber,
+                    os.status,
+                    os.responsibleName || 'N/A',
+                    createdAt ? createdAt.toLocaleDateString('pt-BR') : 'N/A',
+                    dueDate ? dueDate.toLocaleDateString('pt-BR') : 'N/A',
+                    os.fazendas,
+                    os.plannedTrapIds.length
+                ];
+                currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+            }
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Ordens de Serviço:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
+    app.get('/reports/os/csv', async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getOSData(filters);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `relatorio_os_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'osNumber', title: 'Nº OS' },
+                    { id: 'status', title: 'Status' },
+                    { id: 'responsibleName', title: 'Responsável' },
+                    { id: 'createdAt', title: 'Data Criação' },
+                    { id: 'dueDate', title: 'Prazo' },
+                    { id: 'fazendas', title: 'Fazendas' },
+                    { id: 'numPontos', title: 'Nº Pontos' }
+                ]
+            });
+
+            const records = data.map(os => ({
+                osNumber: os.osNumber,
+                status: os.status,
+                responsibleName: os.responsibleName || 'N/A',
+                createdAt: safeToDate(os.createdAt) ? safeToDate(os.createdAt).toLocaleDateString('pt-BR') : 'N/A',
+                dueDate: safeToDate(os.dueDate) ? safeToDate(os.dueDate).toLocaleDateString('pt-BR') : 'N/A',
+                fazendas: os.fazendas,
+                numPontos: os.plannedTrapIds.length
+            }));
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Ordens de Serviço:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    // --- NOVOS RELATÓRIOS DE OS ---
+
+    const getOSStatusData = async (filters) => {
+        const osData = await getOSData(filters);
+        const statusCounts = {
+            Planejada: 0,
+            'Em Execução': 0,
+            Concluída: 0,
+            Atrasada: 0, // Implementar lógica de Atrasada se necessário
+        };
+        osData.forEach(os => {
+            if (statusCounts.hasOwnProperty(os.status)) {
+                statusCounts[os.status]++;
+            }
+        });
+        return statusCounts;
+    };
+
+    app.get('/reports/os-status/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_os_por_status.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getOSStatusData(filters);
+            const title = 'Relatório de OS por Status';
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            const headers = ['Status', 'Quantidade'];
+            const columnWidths = [200, 200];
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            for (const [status, count] of Object.entries(data)) {
+                currentY = await checkPageBreak(doc, currentY, title);
+                currentY = drawRow(doc, [status, count], currentY, false, false, columnWidths);
+            }
+
+            const total = Object.values(data).reduce((sum, count) => sum + count, 0);
+            currentY = drawRow(doc, ['TOTAL', total], currentY, false, true, columnWidths);
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Status de OS:", error);
+            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+        }
+    });
+
+    app.get('/reports/os-status/csv', async (req, res) => {
+        try {
+            const data = await getOSStatusData(req.query);
+            const filePath = path.join(os.tmpdir(), `os_status_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [ { id: 'status', title: 'Status' }, { id: 'count', title: 'Quantidade' } ]
+            });
+            const records = Object.entries(data).map(([status, count]) => ({ status, count }));
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            res.status(500).send('Erro ao gerar relatório CSV.');
+        }
+    });
+
+    const getOSPerformanceData = async (filters) => {
+        // Esta função precisará de uma lógica mais complexa para comparar datas de conclusão vs. prazos.
+        // Por agora, vamos retornar dados mockados para o layout.
+        const osData = await getOSData(filters);
+        let dentroDoPrazo = 0;
+        let foraDoPrazo = 0;
+
+        // A lógica de "prazo" não está clara no requisito, assumindo que `dueDate` existe
+        osData.forEach(os => {
+            if (os.status === 'Concluída' && os.dueDate && os.completedAt) {
+                if (safeToDate(os.completedAt) <= safeToDate(os.dueDate)) {
+                    dentroDoPrazo++;
+                } else {
+                    foraDoPrazo++;
+                }
+            }
+        });
+        const total = dentroDoPrazo + foraDoPrazo;
+        const percentual = total > 0 ? (dentroDoPrazo / total) * 100 : 0;
+
+        return { dentroDoPrazo, foraDoPrazo, total, percentual: percentual.toFixed(2) + '%' };
+    };
+
+    app.get('/reports/os-performance/pdf', async (req, res) => {
+         const doc = new PDFDocument({ margin: 30, size: 'A4', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_desempenho_os.pdf');
+        doc.pipe(res);
+        try {
+            const filters = req.query;
+            const data = await getOSPerformanceData(filters);
+            const title = 'Relatório de Desempenho de Execução de OS';
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            doc.fontSize(12).font('Helvetica-Bold').text('Percentual de Execução Dentro do Prazo:', { continued: true });
+            doc.font('Helvetica').text(` ${data.percentual}`);
+            doc.moveDown(2);
+
+            const headers = ['Métrica', 'Quantidade'];
+            const columnWidths = [200, 200];
+            currentY = doc.y;
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+            currentY = drawRow(doc, ['OS Concluídas Dentro do Prazo', data.dentroDoPrazo], currentY, false, false, columnWidths);
+            currentY = drawRow(doc, ['OS Concluídas Fora do Prazo', data.foraDoPrazo], currentY, false, false, columnWidths);
+            currentY = drawRow(doc, ['TOTAL CONCLUÍDAS', data.total], currentY, false, true, columnWidths);
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+        }
+    });
+
+     app.get('/reports/os-performance/csv', async (req, res) => {
+        try {
+            const data = await getOSPerformanceData(req.query);
+            const filePath = path.join(os.tmpdir(), `os_performance_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [ { id: 'metrica', title: 'Métrica' }, { id: 'valor', title: 'Valor' } ]
+            });
+            const records = [
+                { metrica: 'OS Dentro do Prazo', valor: data.dentroDoPrazo },
+                { metrica: 'OS Fora do Prazo', valor: data.foraDoPrazo },
+                { metrica: 'Total', valor: data.total },
+                { metrica: 'Percentual Dentro do Prazo', valor: data.percentual }
+            ];
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            res.status(500).send('Erro ao gerar relatório CSV.');
+        }
+    });
+
+    const getOSHistoryData = async (filters) => {
+        // Requer buscar as 'plannedTraps' concluídas no período e depois agrupar.
+        if (!filters.companyId) return [];
+
+        let query = db.collection('plannedTraps').where('companyId', '==', filters.companyId).where('status', '==', 'Concluído');
+        if (filters.inicio) {
+            query = query.where('dataInstalacao', '>=', admin.firestore.Timestamp.fromDate(new Date(filters.inicio + 'T00:00:00Z')));
+        }
+        if (filters.fim) {
+            query = query.where('dataInstalacao', '<=', admin.firestore.Timestamp.fromDate(new Date(filters.fim + 'T23:59:59Z')));
+        }
+        if (filters.responsavelId) {
+            query = query.where('concluidoPorUserId', '==', filters.responsavelId);
+        }
+
+        const snapshot = await query.get();
+        let traps = [];
+        snapshot.forEach(doc => traps.push({ id: doc.id, ...doc.data() }));
+
+        if (filters.fazendaId) {
+            traps = traps.filter(t => t.fazendaId === filters.fazendaId);
+        }
+
+        if (traps.length === 0) return [];
+
+        // Enriquecer dados com nome do colaborador e número da OS
+        const userIds = [...new Set(traps.map(t => t.concluidoPorUserId).filter(id => id))];
+        const osIds = [...new Set(traps.map(t => t.osId).filter(id => id))];
+
+        const usersMap = new Map();
+        if (userIds.length > 0) {
+            const CHUNK_SIZE = 30;
+            for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
+                const chunk = userIds.slice(i, i + CHUNK_SIZE);
+                const usersSnapshot = await db.collection('users').where(admin.firestore.FieldPath.documentId(), 'in', chunk).get();
+                usersSnapshot.forEach(doc => usersMap.set(doc.id, doc.data().username || doc.data().email));
+            }
+        }
+
+        const osMap = new Map();
+        if (osIds.length > 0) {
+            const CHUNK_SIZE = 30;
+            for (let i = 0; i < osIds.length; i += CHUNK_SIZE) {
+                const chunk = osIds.slice(i, i + CHUNK_SIZE);
+                const osSnapshot = await db.collection('serviceOrders').where(admin.firestore.FieldPath.documentId(), 'in', chunk).get();
+                osSnapshot.forEach(doc => osMap.set(doc.id, doc.data().osNumber));
+            }
+        }
+
+        return traps.map(trap => ({
+            ...trap,
+            colaboradorNome: usersMap.get(trap.concluidoPorUserId) || 'N/A',
+            osNumber: osMap.get(trap.osId) || 'N/A'
+        }));
+    };
+
+    app.get('/reports/os-history/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_historico_instalacoes.pdf');
+        doc.pipe(res);
+        try {
+            const filters = req.query;
+            const data = await getOSHistoryData(filters);
+            const title = 'Histórico de Instalações por Fazenda/Mês/Colaborador';
+
+            if (data.length === 0) {
+                 await generatePdfHeader(doc, title, filters.companyId);
+                doc.text('Nenhum dado encontrado.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+            const headers = ['Data Inst.', 'Fazenda', 'Talhão', 'Colaborador', 'OS'];
+            const columnWidths = [100, 200, 100, 200, 180];
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+            for (const trap of data) {
+                const row = [
+                    safeToDate(trap.dataInstalacao).toLocaleDateString('pt-BR'),
+                    trap.fazendaNome || `Faz. ${trap.fazendaId}`,
+                    trap.talhaoId,
+                    trap.colaboradorNome || 'N/A', // Precisa buscar o nome do colaborador
+                    trap.osId // Precisa buscar o número da OS
+                ];
+                 currentY = await checkPageBreak(doc, currentY, title);
+                currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+            }
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+        }
+    });
+
+    app.get('/reports/os-history/csv', async (req, res) => {
+        try {
+            const data = await getOSHistoryData(req.query);
+             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `os_history_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'dataInstalacao', title: 'Data Instalação'},
+                    { id: 'fazenda', title: 'Fazenda'},
+                    { id: 'talhao', title: 'Talhão'},
+                    { id: 'colaborador', title: 'Colaborador'},
+                    { id: 'os', title: 'OS'},
+                ]
+            });
+
+            const records = data.map(trap => ({
+                dataInstalacao: safeToDate(trap.dataInstalacao).toLocaleDateString('pt-BR'),
+                fazenda: trap.fazendaNome || `Faz. ${trap.fazendaId}`,
+                talhao: trap.talhaoId,
+                colaborador: trap.colaboradorNome || 'N/A',
+                os: trap.osId
+            }));
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            res.status(500).send('Erro ao gerar relatório CSV.');
+        }
+    });
+
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
