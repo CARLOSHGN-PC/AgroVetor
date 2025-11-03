@@ -347,42 +347,6 @@ try {
         }
     });
 
-    app.post('/api/track/batch', async (req, res) => {
-        const { locations } = req.body;
-
-        if (!locations || !Array.isArray(locations) || locations.length === 0) {
-            return res.status(400).json({ message: 'O array de localizações é obrigatório.' });
-        }
-
-        if (locations.length > 499) {
-             return res.status(400).json({ message: `O lote excede o limite de 500 documentos. Recebido: ${locations.length}` });
-        }
-
-        try {
-            const batch = db.batch();
-
-            for (const loc of locations) {
-                if (!loc.userId || loc.latitude === undefined || loc.longitude === undefined || !loc.companyId || !loc.timestamp) {
-                    console.warn('Registro de localização inválido ignorado no lote:', loc);
-                    continue;
-                }
-                const docRef = db.collection('locationHistory').doc();
-                batch.set(docRef, {
-                    userId: loc.userId,
-                    companyId: loc.companyId,
-                    location: new admin.firestore.GeoPoint(parseFloat(loc.latitude), parseFloat(loc.longitude)),
-                    timestamp: admin.firestore.Timestamp.fromDate(new Date(loc.timestamp))
-                });
-            }
-
-            await batch.commit();
-            res.status(200).send({ message: 'Lote de localizações registrado com sucesso.' });
-        } catch (error) {
-            console.error("Erro ao registrar lote de localizações:", error);
-            res.status(500).json({ message: 'Erro no servidor ao registrar lote de localizações.' });
-        }
-    });
-
     app.get('/api/history', async (req, res) => {
         const { userId, startDate, endDate, companyId } = req.query;
 
