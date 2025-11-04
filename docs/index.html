@@ -659,10 +659,69 @@
       /* --- OUTROS ESTILOS --- */
       .fazenda-list { margin-top: 20px; border: 1px solid var(--color-border); border-radius: var(--border-radius); overflow: hidden; }
       .fazenda-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; gap: 10px; }
-      .plano-card { background: var(--color-surface); border-radius: var(--border-radius); padding: 16px; margin-bottom: 16px; border-left: 5px solid var(--color-info); transition: var(--transition); box-shadow: var(--shadow-sm); }
+      .plano-card { background: var(--color-surface); border-radius: var(--border-radius-lg); padding: 20px; margin-bottom: 16px; border-left: 5px solid var(--color-info); transition: var(--transition); box-shadow: var(--shadow-sm); cursor: pointer; }
+      .plano-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-left-color: var(--color-primary); }
       .plano-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;}
       .plano-title { font-weight: 600; color: var(--color-primary); } .plano-title i { margin-right: 8px; }
       .plano-status { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; color: white; text-transform: uppercase; }
+      .ponto-planejado-item {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 12px;
+        border-radius: var(--border-radius);
+        border: 1px solid var(--color-border);
+        background-color: var(--color-surface);
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: var(--transition);
+        user-select: none;
+      }
+      .ponto-planejado-item:hover {
+        background-color: var(--color-primary-light);
+        border-color: var(--color-accent);
+      }
+      .ponto-planejado-item.selected {
+        background-color: color-mix(in srgb, var(--color-info) 15%, transparent);
+        border-color: var(--color-info);
+        box-shadow: var(--shadow-sm);
+      }
+      .ponto-planejado-item input[type="checkbox"] {
+          width: 20px;
+          height: 20px;
+          flex-shrink: 0;
+          margin: 0;
+          pointer-events: none; /* Click handled by parent div */
+      }
+      .ponto-details {
+        font-size: 14px;
+        color: var(--color-text-light);
+        flex-grow: 1;
+      }
+      .ponto-details strong {
+        color: var(--color-text);
+        font-weight: 500;
+      }
+
+      .os-card {
+        background: var(--color-bg);
+        border-radius: var(--border-radius);
+        padding: 15px;
+        margin-bottom: 10px;
+        border-left: 4px solid var(--color-success);
+      }
+      .os-card-header {
+        font-weight: 600;
+        color: var(--color-primary-dark);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .os-card-body {
+        font-size: 13px;
+        color: var(--color-text-light);
+        margin-top: 8px;
+      }
       .plano-status.pendente { background-color: var(--color-info); } .plano-status.concluido { background-color: var(--color-success); } .plano-status.atrasado { background-color: var(--color-danger); }
       .plano-details { font-size: 14px; color: var(--color-text-light); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
       .plano-details > div { display: flex; align-items: center; gap: 8px; } .plano-details i { color: var(--color-accent); width: 16px; text-align: center; }
@@ -3132,12 +3191,43 @@
             </section>
 
             <section id="planejamentoInstalacao" class="tab-content" aria-label="Planejamento de Instalação de Armadilhas" tabindex="0" hidden>
-                <div class="content-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0 20px 20px 20px;">
-                    <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-calendar-plus"></i> Planejamento de Instalação</h2>
-                    <button id="btnNovoPlanejamento" class="save" style="margin-top: 0;"><i class="fas fa-plus"></i> Novo Planejamento</button>
+                <!-- Main list of "Planejamentos" -->
+                <div id="planejamentos-list-view">
+                    <div class="card-header-actions">
+                        <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-calendar-alt"></i> Planos de Instalação</h2>
+                        <button id="btnNovoPlanejamento" class="save" style="margin-top: 0;"><i class="fas fa-plus"></i> Novo Plano</button>
+                    </div>
+                    <div id="planejamentosList" style="margin-top: 20px;">
+                        <!-- Planning items will be dynamically inserted here -->
+                    </div>
                 </div>
-                <div id="planejamentosList" class="list-container" style="padding: 0 20px;">
-                    <!-- Planning items will be dynamically inserted here -->
+
+                <!-- View for a single "Planejamento" with points and OS -->
+                <div id="planejamento-detail-view" style="display: none;">
+                    <div style="margin-bottom: 20px;">
+                        <button id="btnVoltarParaPlanos" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar para a Lista</button>
+                    </div>
+
+                    <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px;">
+                        <!-- Left Column: Planned Points -->
+                        <div class="card">
+                            <div class="card-header-actions">
+                                <h3 style="color: var(--color-primary); margin: 0;"><i class="fas fa-map-marker-alt"></i> Pontos Planejados</h3>
+                                <button id="btnGerarOS" class="save" disabled><i class="fas fa-file-alt"></i> Gerar OS</button>
+                            </div>
+                            <div id="pontos-planejados-list" style="margin-top: 15px; max-height: 60vh; overflow-y: auto;">
+                                <!-- Planned points will be listed here -->
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Orders of Service -->
+                        <div class="card">
+                            <h3 style="color: var(--color-primary);"><i class="fas fa-tasks"></i> Ordens de Serviço Geradas</h3>
+                            <div id="os-list" style="margin-top: 15px;">
+                                <!-- OS list will be here -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -3503,6 +3593,30 @@
                 <div class="modal-footer">
                     <button id="instalacaoPontoModalCancelBtn" class="btn-secondary">Cancelar</button>
                     <button id="instalacaoPontoModalSaveBtn" class="save"><i class="fas fa-save"></i> Guardar Ponto</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="gerarOSModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2>Gerar Ordem de Serviço</h2>
+                    <button id="gerarOSModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <p>Uma nova OS será gerada para os <strong id="pontosSelecionadosCount">0</strong> pontos selecionados.</p>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="osResponsavel" class="required">Responsável pela Execução:</label>
+                        <select id="osResponsavel" required></select>
+                    </div>
+                    <div class="form-col">
+                        <label for="osPrazo" class="required">Prazo para Conclusão:</label>
+                        <input type="date" id="osPrazo" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="gerarOSModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="gerarOSModalConfirmBtn" class="save"><i class="fas fa-check"></i> Confirmar e Gerar</button>
                 </div>
             </div>
         </div>
