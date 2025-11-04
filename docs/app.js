@@ -255,55 +255,46 @@ document.addEventListener('DOMContentLoaded', () => {
             return response.json();
         },
         
-        elements: {},
-
-        _initLoginElements() {
-            this.elements.loadingOverlay = document.getElementById('loading-overlay');
-            this.elements.loadingProgressText = document.getElementById('loading-progress-text');
-            this.elements.loginScreen = document.getElementById('loginScreen');
-            this.elements.loginUser = document.getElementById('loginUser');
-            this.elements.loginPass = document.getElementById('loginPass');
-            this.elements.btnLogin = document.getElementById('btnLogin');
-            this.elements.loginMessage = document.getElementById('loginMessage');
-            this.elements.loginForm = document.getElementById('loginForm');
-            this.elements.offlineUserSelection = document.getElementById('offlineUserSelection');
-            this.elements.offlineUserList = document.getElementById('offlineUserList');
-            this.elements.installAppBtn = document.getElementById('installAppBtn');
-        },
-
-        _initAppElements() {
-            // General App Structure
-            this.elements.appScreen = document.getElementById('appScreen');
-            this.elements.headerTitle = document.querySelector('header h1');
-            this.elements.headerLogo = document.getElementById('headerLogo');
-            this.elements.currentDateTime = document.getElementById('currentDateTime');
-            this.elements.logoutBtn = document.getElementById('logoutBtn');
-            this.elements.btnToggleMenu = document.getElementById('btnToggleMenu');
-            this.elements.menu = document.getElementById('menu');
-            this.elements.content = document.getElementById('content');
-            this.elements.alertContainer = document.getElementById('alertContainer');
-            this.elements.notificationContainer = document.getElementById('notification-container');
-
-            // Menus & Modals
-            this.elements.notificationBell = {
+        elements: {
+            loadingOverlay: document.getElementById('loading-overlay'),
+            loadingProgressText: document.getElementById('loading-progress-text'),
+            loginScreen: document.getElementById('loginScreen'),
+            appScreen: document.getElementById('appScreen'),
+            loginUser: document.getElementById('loginUser'),
+            loginPass: document.getElementById('loginPass'),
+            btnLogin: document.getElementById('btnLogin'),
+            loginMessage: document.getElementById('loginMessage'),
+            loginForm: document.getElementById('loginForm'),
+            offlineUserSelection: document.getElementById('offlineUserSelection'),
+            offlineUserList: document.getElementById('offlineUserList'),
+            headerTitle: document.querySelector('header h1'),
+            headerLogo: document.getElementById('headerLogo'),
+            currentDateTime: document.getElementById('currentDateTime'),
+            logoutBtn: document.getElementById('logoutBtn'),
+            btnToggleMenu: document.getElementById('btnToggleMenu'),
+            menu: document.getElementById('menu'),
+            content: document.getElementById('content'),
+            alertContainer: document.getElementById('alertContainer'),
+            notificationContainer: document.getElementById('notification-container'),
+            notificationBell: {
                 container: document.getElementById('notification-bell-container'),
                 toggle: document.getElementById('notification-bell-toggle'),
                 count: document.getElementById('notification-count'),
                 dropdown: document.getElementById('notification-dropdown'),
-                list: document.getElementById('notification-list'),
-                clearBtn: document.getElementById('clear-notifications-btn'),
-                noNotifications: document.getElementById('no-notifications'),
-            };
-            this.elements.userMenu = {
+                list: document.getElementById('notification-list'), // NOVO
+                clearBtn: document.getElementById('clear-notifications-btn'), // NOVO
+                noNotifications: document.getElementById('no-notifications'), // NOVO
+            },
+            userMenu: {
                 container: document.getElementById('user-menu-container'),
                 toggle: document.getElementById('user-menu-toggle'),
                 dropdown: document.getElementById('user-menu-dropdown'),
                 username: document.getElementById('userMenuUsername'),
                 changePasswordBtn: document.getElementById('changePasswordBtn'),
                 manualSyncBtn: document.getElementById('manualSyncBtn'),
-                themeButtons: null
-            };
-            this.elements.confirmationModal = {
+                themeButtons: document.querySelectorAll('.theme-button')
+            },
+            confirmationModal: {
                 overlay: document.getElementById('confirmationModal'),
                 title: document.getElementById('confirmationModalTitle'),
                 message: document.getElementById('confirmationModalMessage'),
@@ -312,8 +303,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeBtn: document.getElementById('confirmationModalCloseBtn'),
                 inputContainer: document.getElementById('confirmationModalInputContainer'),
                 input: document.getElementById('confirmationModalInput'),
-            };
-            this.elements.changePasswordModal = {
+            },
+            changePasswordModal: {
                 overlay: document.getElementById('changePasswordModal'),
                 closeBtn: document.getElementById('changePasswordModalCloseBtn'),
                 cancelBtn: document.getElementById('changePasswordModalCancelBtn'),
@@ -321,21 +312,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentPassword: document.getElementById('currentPassword'),
                 newPassword: document.getElementById('newPassword'),
                 confirmNewPassword: document.getElementById('confirmNewPassword'),
-            };
-            this.elements.adminPasswordConfirmModal = {
+            },
+            adminPasswordConfirmModal: {
                 overlay: document.getElementById('adminPasswordConfirmModal'),
                 closeBtn: document.getElementById('adminPasswordConfirmModalCloseBtn'),
                 cancelBtn: document.getElementById('adminPasswordConfirmModalCancelBtn'),
                 confirmBtn: document.getElementById('adminPasswordConfirmModalConfirmBtn'),
                 passwordInput: document.getElementById('adminConfirmPassword')
-            };
-            this.elements.chartModal = {
+            },
+            chartModal: {
                 overlay: document.getElementById('chartModal'),
                 title: document.getElementById('chartModalTitle'),
                 closeBtn: document.getElementById('chartModalCloseBtn'),
                 canvas: document.getElementById('expandedChartCanvas'),
-            };
-            this.elements.editFarmModal = {
+            },
+            editFarmModal: {
                 overlay: document.getElementById('editFarmModal'),
                 closeBtn: document.getElementById('editFarmModalCloseBtn'),
                 cancelBtn: document.getElementById('editFarmModalCancelBtn'),
@@ -343,8 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 nameInput: document.getElementById('editFarmNameInput'),
                 editingFarmId: document.getElementById('editingFarmId'),
                 typeCheckboxes: document.querySelectorAll('#editFarmTypeCheckboxes input[type="checkbox"]'),
-            };
-            this.elements.historyFilterModal = {
+            },
+             historyFilterModal: {
                 overlay: document.getElementById('historyFilterModal'),
                 closeBtn: document.getElementById('historyFilterModalCloseBtn'),
                 cancelBtn: document.getElementById('historyFilterModalCancelBtn'),
@@ -353,25 +344,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 userSelect: document.getElementById('historyUserSelectModal'),
                 startDate: document.getElementById('historyStartDateModal'),
                 endDate: document.getElementById('historyEndDateModal'),
-            };
-            this.elements.syncHistoryDetailModal = {
+            },
+            syncHistoryDetailModal: {
                 overlay: document.getElementById('syncHistoryDetailModal'),
                 title: document.getElementById('syncHistoryDetailModalTitle'),
                 body: document.getElementById('syncHistoryDetailModalBody'),
                 closeBtn: document.getElementById('syncHistoryDetailModalCloseBtn'),
                 cancelBtn: document.getElementById('syncHistoryDetailModalCancelBtn'),
-            };
-            this.elements.configHistoryModal = {
+            },
+            configHistoryModal: {
                 overlay: document.getElementById('configHistoryModal'),
                 title: document.getElementById('configHistoryModalTitle'),
                 body: document.getElementById('configHistoryModalBody'),
                 closeBtn: document.getElementById('configHistoryModalCloseBtn'),
                 cancelBtn: document.getElementById('configHistoryModalCancelBtn'),
-            };
-
-            this.elements.userMenu.themeButtons = document.querySelectorAll('.theme-button');
-            // Module-specific elements
-            this.elements.companyConfig = {
+            },
+            companyConfig: {
                 logoUploadArea: document.getElementById('logoUploadArea'),
                 logoInput: document.getElementById('logoInput'),
                 logoPreview: document.getElementById('logoPreview'),
@@ -388,8 +376,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 historicalReportInput: document.getElementById('historicalReportInput'),
                 btnDownloadHistoricalTemplate: document.getElementById('btnDownloadHistoricalTemplate'),
                 btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
-            };
-            this.elements.dashboard = {
+            },
+            dashboard: {
                 selector: document.getElementById('dashboard-selector'),
                 brocaView: document.getElementById('dashboard-broca'),
                 perdaView: document.getElementById('dashboard-perda'),
@@ -415,8 +403,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 perdaDashboardInicio: document.getElementById('perdaDashboardInicio'),
                 perdaDashboardFim: document.getElementById('perdaDashboardFim'),
                 btnFiltrarPerdaDashboard: document.getElementById('btnFiltrarPerdaDashboard'),
-            };
-            this.elements.users = {
+            },
+            users: {
                 username: document.getElementById('newUserUsername'),
                 password: document.getElementById('newUserPassword'),
                 role: document.getElementById('newUserRole'),
@@ -426,8 +414,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 list: document.getElementById('usersList'),
                 superAdminUserCreation: document.getElementById('superAdminUserCreation'),
                 adminTargetCompanyUsers: document.getElementById('adminTargetCompanyUsers'),
-            };
-            this.elements.userEditModal = {
+            },
+            userEditModal: {
                 overlay: document.getElementById('userEditModal'),
                 title: document.getElementById('userEditModalTitle'),
                 closeBtn: document.getElementById('userEditModalCloseBtn'),
@@ -438,15 +426,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnSaveChanges: document.getElementById('btnSaveUserChanges'),
                 btnResetPassword: document.getElementById('btnResetPassword'),
                 btnDeleteUser: document.getElementById('btnDeleteUser'),
-            };
-            this.elements.companyManagement = {
+            },
+            companyManagement: {
                 companyName: document.getElementById('newCompanyName'),
                 adminEmail: document.getElementById('newCompanyAdminEmail'),
                 adminPassword: document.getElementById('newCompanyAdminPassword'),
                 btnCreate: document.getElementById('btnCreateCompany'),
                 list: document.getElementById('companiesList'),
-            };
-            this.elements.editCompanyModal = {
+            },
+            editCompanyModal: {
                 overlay: document.getElementById('editCompanyModal'),
                 title: document.getElementById('editCompanyModalTitle'),
                 closeBtn: document.getElementById('editCompanyModalCloseBtn'),
@@ -455,8 +443,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 editingCompanyId: document.getElementById('editingCompanyId'),
                 companyNameDisplay: document.getElementById('editCompanyNameDisplay'),
                 modulesGrid: document.getElementById('editCompanyModulesGrid'),
-            };
-            this.elements.personnel = {
+            },
+            personnel: {
                 id: document.getElementById('personnelId'),
                 matricula: document.getElementById('personnelMatricula'),
                 name: document.getElementById('personnelName'),
@@ -465,16 +453,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 csvUploadArea: document.getElementById('personnelCsvUploadArea'),
                 csvFileInput: document.getElementById('personnelCsvInput'),
                 btnDownloadCsvTemplate: document.getElementById('btnDownloadPersonnelCsvTemplate'),
-            };
-            this.elements.frenteDePlantio = {
+            },
+            frenteDePlantio: {
                 id: document.getElementById('frenteDePlantioId'),
                 name: document.getElementById('frenteDePlantioName'),
                 provider: document.getElementById('frenteDePlantioProvider'),
                 obs: document.getElementById('frenteDePlantioObs'),
                 btnSave: document.getElementById('btnSaveFrenteDePlantio'),
                 list: document.getElementById('frenteDePlantioList'),
-            };
-            this.elements.apontamentoPlantio = {
+            },
+            apontamentoPlantio: {
                 form: document.getElementById('formApontamentoPlantio'),
                 entryId: document.getElementById('plantioEntryId'),
                 frente: document.getElementById('plantioFrente'),
@@ -491,8 +479,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 chuva: document.getElementById('plantioChuva'),
                 obs: document.getElementById('plantioObs'),
                 info: document.getElementById('plantioInfo'),
-            };
-            this.elements.cadastros = {
+            },
+            cadastros: {
                 farmCode: document.getElementById('farmCode'),
                 farmName: document.getElementById('farmName'),
                 farmTypeCheckboxes: document.querySelectorAll('#farmTypeCheckboxes input[type="checkbox"]'),
@@ -523,8 +511,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     text: document.querySelector('#farm-import-progress .download-progress-text'),
                     bar: document.querySelector('#farm-import-progress .download-progress-bar'),
                 }
-            };
-            this.elements.planejamento = {
+            },
+            planejamento: {
                 tipo: document.getElementById('planoTipo'),
                 fazenda: document.getElementById('planoFazenda'),
                 talhao: document.getElementById('planoTalhao'),
@@ -535,8 +523,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnAgendar: document.getElementById('btnAgendarInspecao'),
                 btnSugerir: document.getElementById('btnSugerirPlano'),
                 lista: document.getElementById('listaPlanejamento')
-            };
-            this.elements.harvest = {
+            },
+            harvest: {
                 plansListContainer: document.getElementById('harvest-plans-list-container'),
                 plansList: document.getElementById('harvest-plans-list'),
                 planEditor: document.getElementById('harvest-plan-editor'),
@@ -544,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 maturador: document.getElementById('harvestMaturador'),
                 maturadorDate: document.getElementById('harvestMaturadorDate'),
                 btnSavePlan: document.getElementById('btnSaveHarvestPlan'),
-                btnCancelPlan: document.getElementById('btnCancelPlan'),
+                btnCancelPlan: document.getElementById('btnCancelHarvestPlan'),
                 frontName: document.getElementById('harvestFrontName'),
                 startDate: document.getElementById('harvestStartDate'),
                 dailyRate: document.getElementById('harvestDailyRate'),
@@ -561,8 +549,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 summary: document.getElementById('harvestSummary'),
                 superAdminHarvestCreation: document.getElementById('superAdminHarvestCreation'),
                 adminTargetCompanyHarvest: document.getElementById('adminTargetCompanyHarvest'),
-            };
-            this.elements.broca = {
+            },
+            broca: {
                 form: document.getElementById('lancamentoBroca'),
                 codigo: document.getElementById('codigo'),
                 data: document.getElementById('data'),
@@ -582,8 +570,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 farmTypeFilter: document.querySelectorAll('#brocaReportFarmTypeFilter input[type="checkbox"]'),
                 btnPDF: document.getElementById('btnPDFBrocamento'),
                 btnExcel: document.getElementById('btnExcelBrocamento'),
-            };
-            this.elements.perda = {
+            },
+            perda: {
                 form: document.getElementById('lancamentoPerda'),
                 data: document.getElementById('dataPerda'),
                 codigo: document.getElementById('codigoPerda'),
@@ -612,8 +600,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 tipoRelatorio: document.getElementById('tipoRelatorioPerda'),
                 btnPDF: document.getElementById('btnPDFPerda'),
                 btnExcel: document.getElementById('btnExcelPerda'),
-            };
-            this.elements.cigarrinha = {
+            },
+            cigarrinha: {
                 form: document.getElementById('lancamentoCigarrinha'),
                 data: document.getElementById('dataCigarrinha'),
                 codigo: document.getElementById('codigoCigarrinha'),
@@ -632,8 +620,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 filtroFim: document.getElementById('fimCigarrinha'),
                 btnPDF: document.getElementById('btnPDFCigarrinha'),
                 btnExcel: document.getElementById('btnExcelCigarrinha'),
-            };
-            this.elements.cigarrinhaAmostragem = {
+            },
+            cigarrinhaAmostragem: {
                 form: document.getElementById('formCigarrinhaAmostragem'),
                 data: document.getElementById('dataCigarrinhaAmostragem'),
                 codigo: document.getElementById('codigoCigarrinhaAmostragem'),
@@ -649,23 +637,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 filtroFim: document.getElementById('fimCigarrinhaAmostragem'),
                 btnPDF: document.getElementById('btnPDFCigarrinhaAmostragem'),
                 btnExcel: document.getElementById('btnExcelCigarrinhaAmostragem'),
-            };
-            this.elements.gerenciamento = {
+            },
+            gerenciamento: {
                 lista: document.getElementById('listaGerenciamento'),
                 dataType: document.getElementById('manageDataType'),
                 startDate: document.getElementById('manageStartDate'),
                 endDate: document.getElementById('manageEndDate'),
                 applyBtn: document.getElementById('btnApplyManageFilters')
-            };
-            this.elements.relatorioColheita = {
+            },
+            relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
                 optionsContainer: document.getElementById('reportOptionsContainer'),
                 colunasDetalhadoContainer: document.getElementById('colunas-detalhado-container'),
                 tipoRelatorioSelect: document.getElementById('tipoRelatorioColheita'),
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
-            };
-            this.elements.monitoramentoAereo = {
+            },
+            monitoramentoAereo: {
                 container: document.getElementById('monitoramentoAereo-container'),
                 mapContainer: document.getElementById('map'),
                 btnAddTrap: document.getElementById('btnAddTrap'),
@@ -678,10 +666,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBox: document.getElementById('trap-info-box'),
                 trapInfoBoxContent: document.getElementById('trap-info-box-content'),
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
-                mapFarmSearchInput: document.getElementById('map-farm-search-input'),
-                mapFarmSearchBtn: document.getElementById('map-farm-search-btn'),
-            };
-            this.elements.relatorioPlantio = {
+                    mapFarmSearchInput: document.getElementById('map-farm-search-input'),
+                    mapFarmSearchBtn: document.getElementById('map-farm-search-btn'),
+            },
+            relatorioPlantio: {
                 frente: document.getElementById('plantioRelatorioFrente'),
                 cultura: document.getElementById('plantioRelatorioCultura'),
                 inicio: document.getElementById('plantioRelatorioInicio'),
@@ -689,51 +677,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 tipo: document.getElementById('tipoRelatorioPlantio'),
                 btnPDF: document.getElementById('btnPDFPlantio'),
                 btnExcel: document.getElementById('btnExcelPlantio'),
-            };
-            this.elements.lancamentoClima = {
-                form: document.getElementById('formLancamentoClima'),
-                entryId: document.getElementById('climaEntryId'),
-                data: document.getElementById('climaData'),
-                fazenda: document.getElementById('climaFazenda'),
-                talhao: document.getElementById('climaTalhao'),
-                tempMax: document.getElementById('climaTempMax'),
-                tempMin: document.getElementById('climaTempMin'),
-                umidade: document.getElementById('climaUmidade'),
-                pluviosidade: document.getElementById('climaPluviosidade'),
-                vento: document.getElementById('climaVento'),
-                obs: document.getElementById('climaObs'),
-                btnSave: document.getElementById('btnSaveLancamentoClima'),
-            };
-            this.elements.relatorioClima = {
-                fazenda: document.getElementById('climaRelatorioFazenda'),
-                inicio: document.getElementById('climaRelatorioInicio'),
-                fim: document.getElementById('climaRelatorioFim'),
-                btnPDF: document.getElementById('btnPDFClima'),
-                btnExcel: document.getElementById('btnExcelClima'),
-            };
-            this.elements.relatorioMonitoramento = {
+            },
+                lancamentoClima: {
+                    form: document.getElementById('formLancamentoClima'),
+                    entryId: document.getElementById('climaEntryId'),
+                    data: document.getElementById('climaData'),
+                    fazenda: document.getElementById('climaFazenda'),
+                    talhao: document.getElementById('climaTalhao'),
+                    tempMax: document.getElementById('climaTempMax'),
+                    tempMin: document.getElementById('climaTempMin'),
+                    umidade: document.getElementById('climaUmidade'),
+                    pluviosidade: document.getElementById('climaPluviosidade'),
+                    vento: document.getElementById('climaVento'),
+                    obs: document.getElementById('climaObs'),
+                    btnSave: document.getElementById('btnSaveLancamentoClima'),
+                },
+                relatorioClima: {
+                    fazenda: document.getElementById('climaRelatorioFazenda'),
+                    inicio: document.getElementById('climaRelatorioInicio'),
+                    fim: document.getElementById('climaRelatorioFim'),
+                    btnPDF: document.getElementById('btnPDFClima'),
+                    btnExcel: document.getElementById('btnExcelClima'),
+                },
+            relatorioMonitoramento: {
                 tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
                 fazendaFiltro: document.getElementById('monitoramentoFazendaFiltro'),
                 inicio: document.getElementById('monitoramentoInicio'),
                 fim: document.getElementById('monitoramentoFim'),
                 btnPDF: document.getElementById('btnPDFMonitoramento'),
                 btnExcel: document.getElementById('btnExcelMonitoramento'),
-            };
-            this.elements.relatorioRisco = {
+            },
+            relatorioRisco: {
                 inicio: document.getElementById('riscoRelatorioInicio'),
                 fim: document.getElementById('riscoRelatorioFim'),
                 btnPDF: document.getElementById('btnPDFRisco'),
                 btnExcel: document.getElementById('btnExcelRisco'),
-            };
-            this.elements.trapPlacementModal = {
+            },
+            trapPlacementModal: {
                 overlay: document.getElementById('trapPlacementModal'),
                 body: document.getElementById('trapPlacementModalBody'),
                 closeBtn: document.getElementById('trapPlacementModalCloseBtn'),
                 cancelBtn: document.getElementById('trapPlacementModalCancelBtn'),
                 manualBtn: document.getElementById('trapPlacementModalManualBtn'),
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
-            };
-            this.elements.novoPlanejamentoModal = {
+            },
+            installAppBtn: document.getElementById('installAppBtn'),
+            novoPlanejamentoModal: {
                 overlay: document.getElementById('novoPlanejamentoModal'),
                 title: document.getElementById('novoPlanejamentoModalTitle'),
                 closeBtn: document.getElementById('novoPlanejamentoModalCloseBtn'),
@@ -743,8 +732,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 nome: document.getElementById('planejamentoNome'),
                 fazenda: document.getElementById('planejamentoFazenda'),
                 talhao: document.getElementById('planejamentoTalhao'),
-            };
-            this.elements.instalacaoPontoModal = {
+            },
+            instalacaoPontoModal: {
                 overlay: document.getElementById('instalacaoPontoModal'),
                 title: document.getElementById('instalacaoPontoModalTitle'),
                 closeBtn: document.getElementById('instalacaoPontoModalCloseBtn'),
@@ -756,9 +745,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 responsavel: document.getElementById('pontoResponsavel'),
                 dataPrevista: document.getElementById('pontoDataPrevista'),
                 descricao: document.getElementById('pontoDescricao'),
-            };
-            this.elements.backToPlansList = document.getElementById('back-to-plans-list');
-            this.elements.planejamentoInstalacao = {
+            },
+            backToPlansList: document.getElementById('back-to-plans-list'),
+            planejamentoInstalacao: {
                 listView: document.getElementById('planejamento-list-view'),
                 detailView: document.getElementById('planejamento-detail-view'),
                 detailViewTitle: document.getElementById('planejamento-detail-title'),
@@ -767,8 +756,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnGerarOS: document.getElementById('btn-gerar-os'),
                 selectAllPontos: document.getElementById('select-all-pontos'),
                 backToPlansListFromDetail: document.getElementById('back-to-plans-list-from-detail'),
-            };
-            this.elements.gerarOSModal = {
+            },
+            gerarOSModal: {
                 overlay: document.getElementById('gerarOSModal'),
                 title: document.getElementById('gerarOSModalTitle'),
                 closeBtn: document.getElementById('gerarOSModalCloseBtn'),
@@ -778,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dataPrevista: document.getElementById('osDataPrevista'),
                 responsavel: document.getElementById('osResponsavel'),
                 observacoes: document.getElementById('osObservacoes'),
-            };
+            },
         },
 
         _handleMapClickForPlanning(e) {
@@ -857,12 +846,12 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
-            this._initLoginElements();
             OfflineDB.init();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
+            // Show login screen by default to avoid race conditions with auth check
             this.ui.showLoginScreen();
-            this.ui.setupLoginEventListeners();
+            this.ui.setupLoginEventListeners(); // FIX: Only setup login listeners at startup
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
@@ -1599,7 +1588,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(false);
             },
             showAppScreen() {
-                App._initAppElements(); // CRITICAL FIX: Initialize app elements AFTER login.
                 const { currentUser } = App.state;
                 App.ui.setLoading(false);
                 App.elements.loginScreen.style.display = 'none';
@@ -1611,6 +1599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
                 App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AgroVetor`;
 
+                // FIX: Setup main app listeners only when the app screen is shown
                 this.setupAppEventListeners();
 
                 this.updateDateTime();
@@ -3493,11 +3482,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             applyTheme(theme) {
                 document.body.className = theme;
-                if (App.elements.userMenu && App.elements.userMenu.themeButtons) {
-                    App.elements.userMenu.themeButtons.forEach(btn => {
-                        btn.classList.toggle('active', btn.id === theme);
-                    });
-                }
+                App.elements.userMenu.themeButtons.forEach(btn => {
+                    btn.classList.toggle('active', btn.id === theme);
+                });
                 localStorage.setItem(App.config.themeKey, theme);
                 
                 Chart.defaults.color = this._getThemeColors().text;
