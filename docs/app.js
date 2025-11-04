@@ -224,6 +224,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 activePlanejamentoId: null,
                 planningMarkers: [],
                 temporaryMarker: null, // For the new draggable marker
+                activePlanejamentoIdForOS: null, // ID of the plan being used for OS generation
+                selectedPontoIds: new Set(), // A set of selected ponto IDs for OS generation
+        },
+
+        async _fetchWithAuth(url, options = {}) {
+            if (!auth.currentUser) {
+                throw new Error("Utilizador não autenticado.");
+            }
+            const token = await auth.currentUser.getIdToken();
+
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                ...options.headers,
+            };
+
+            // Se o corpo for um objeto, converte para JSON e define o Content-Type
+            if (options.body && typeof options.body === 'object') {
+                options.body = JSON.stringify(options.body);
+                headers['Content-Type'] = 'application/json';
+            }
+
+            const response = await fetch(url, { ...options, headers });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
+            }
+
+            return response.json();
         },
         
         elements: {
@@ -718,6 +747,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 descricao: document.getElementById('pontoDescricao'),
             },
             backToPlansList: document.getElementById('back-to-plans-list'),
+            planejamentoInstalacao: {
+                listView: document.getElementById('planejamento-list-view'),
+                detailView: document.getElementById('planejamento-detail-view'),
+                detailViewTitle: document.getElementById('planejamento-detail-title'),
+                pointsList: document.getElementById('pontos-para-os-list'),
+                osList: document.getElementById('os-list-container'),
+                btnGerarOS: document.getElementById('btn-gerar-os'),
+                selectAllPontos: document.getElementById('select-all-pontos'),
+                backToPlansListFromDetail: document.getElementById('back-to-plans-list-from-detail'),
+            },
+            gerarOSModal: {
+                overlay: document.getElementById('gerarOSModal'),
+                title: document.getElementById('gerarOSModalTitle'),
+                closeBtn: document.getElementById('gerarOSModalCloseBtn'),
+                cancelBtn: document.getElementById('gerarOSModalCancelBtn'),
+                confirmBtn: document.getElementById('btnConfirmarGerarOS'),
+                nome: document.getElementById('osNome'),
+                dataPrevista: document.getElementById('osDataPrevista'),
+                responsavel: document.getElementById('osResponsavel'),
+                observacoes: document.getElementById('osObservacoes'),
+            },
         },
 
         _handleMapClickForPlanning(e) {
@@ -2009,6 +2059,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderGlobalFeatures(); // NOVO
                 }
                 if (id === 'planejamentoInstalacao') {
+                    // Start by showing the list view and hiding the detail view
+                    App.elements.planejamentoInstalacao.listView.style.display = 'block';
+                    App.elements.planejamentoInstalacao.detailView.style.display = 'none';
                     App.actions.loadPlanejamentos();
                 }
                 if (id === 'cadastros') {
@@ -4539,6 +4592,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         if (cancelBtn) {
+                        const planId = openBtn.closest('.plano-card').dataset.id;
+                            App.actions.openPlanejamento(planId);
+                        }
+
+                        if (cancelBtn) {
                             const planId = cancelBtn.closest('.plano-card').dataset.id;
                             App.ui.showConfirmationModal('Tem a certeza que deseja cancelar este planejamento?', async () => {
                                 App.ui.setLoading(true);
@@ -4555,6 +4613,64 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                // Event Listeners for OS Generation View
+                const osEls = App.elements.planejamentoInstalacao;
+                if (osEls.backToPlansListFromDetail) {
+                    osEls.backToPlansListFromDetail.addEventListener('click', () => {
+                        osEls.listView.style.display = 'block';
+                        osEls.detailView.style.display = 'none';
+                        App.state.activePlanejamentoIdForOS = null;
+                    });
+                }
+
+                if (osEls.pointsList) {
+                    osEls.pointsList.addEventListener('change', (e) => {
+                        if (e.target.matches('.ponto-os-checkbox')) {
+                            const pontoId = e.target.dataset.pontoId;
+                            if (e.target.checked) {
+                                App.state.selectedPontoIds.add(pontoId);
+                            } else {
+                                App.state.selectedPontoIds.delete(pontoId);
+                            }
+                            // Update select all checkbox state
+                            const allCheckboxes = osEls.pointsList.querySelectorAll('.ponto-os-checkbox');
+                            const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+                            osEls.selectAllPontos.checked = allChecked;
+                        }
+                    });
+                }
+
+                if (osEls.selectAllPontos) {
+                    osEls.selectAllPontos.addEventListener('change', (e) => {
+                        const isChecked = e.target.checked;
+                        const checkboxes = osEls.pointsList.querySelectorAll('.ponto-os-checkbox');
+                        checkboxes.forEach(checkbox => {
+                            checkbox.checked = isChecked;
+                            const pontoId = checkbox.dataset.pontoId;
+                            if (isChecked) {
+                                App.state.selectedPontoIds.add(pontoId);
+                            } else {
+                                App.state.selectedPontoIds.delete(pontoId);
+                            }
+                        });
+                    });
+                }
+
+                if (osEls.btnGerarOS) {
+                    osEls.btnGerarOS.addEventListener('click', () => App.actions.showGerarOSModal());
+                }
+
+                const gerarOSModal = App.elements.gerarOSModal;
+                if (gerarOSModal.overlay) {
+                    gerarOSModal.closeBtn.addEventListener('click', () => App.actions.hideGerarOSModal());
+                    gerarOSModal.cancelBtn.addEventListener('click', () => App.actions.hideGerarOSModal());
+                    gerarOSModal.confirmBtn.addEventListener('click', () => App.actions.generateOS());
+                    gerarOSModal.overlay.addEventListener('click', (e) => {
+                        if (e.target === gerarOSModal.overlay) App.actions.hideGerarOSModal();
+                    });
+                }
+
 
                 const pontoModal = App.elements.instalacaoPontoModal;
                 if (pontoModal) {
@@ -7515,11 +7631,186 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             openPlanejamento(planejamentoId) {
-                App.state.activePlanejamentoId = planejamentoId;
-                // AQUI está a mudança crucial: passamos uma opção para entrar em modo de planejamento
-                App.ui.showTab('monitoramentoAereo', { isPlanningMode: true });
-                 // Adicionado para carregar os pontos existentes ao abrir o mapa
-                setTimeout(() => App.actions.loadPontosDoPlanejamento(), 500); // Timeout to ensure map is ready
+                const plan = App.state.instalacaoPlanejamentos.find(p => p.id === planejamentoId);
+                if (!plan) {
+                    App.ui.showAlert("Planejamento não encontrado.", "error");
+                    return;
+                }
+
+                App.state.activePlanejamentoIdForOS = planejamentoId;
+
+                // Switch views
+                App.elements.planejamentoInstalacao.listView.style.display = 'none';
+                App.elements.planejamentoInstalacao.detailView.style.display = 'block';
+
+                // Set title
+                const farm = App.state.fazendas.find(f => f.id === plan.fazendaId);
+                App.elements.planejamentoInstalacao.detailViewTitle.textContent = plan.nome || `Planejamento em ${farm?.name || 'Fazenda desconhecida'}`;
+
+                // Load related data
+                this.loadPontosForOS(planejamentoId);
+                this.loadOrdensDeServico(planejamentoId);
+            },
+
+            async loadPontosForOS(planejamentoId) {
+                const pointsList = App.elements.planejamentoInstalacao.pointsList;
+                pointsList.innerHTML = '<div class="spinner-container"><div class="spinner"></div></div>';
+                App.state.selectedPontoIds.clear(); // Reset selection
+                App.elements.planejamentoInstalacao.selectAllPontos.checked = false;
+
+                try {
+                    const q = query(
+                        collection(db, "instalacaoPontos"),
+                        where("planejamentoId", "==", planejamentoId),
+                        where("status", "==", "Planejado") // Only show points not yet in an OS
+                    );
+                    const querySnapshot = await getDocs(q);
+
+                    if (querySnapshot.empty) {
+                        pointsList.innerHTML = '<li class="list-item-empty">Nenhum ponto de instalação disponível para gerar OS.</li>';
+                        return;
+                    }
+
+                    pointsList.innerHTML = ''; // Clear spinner
+                    querySnapshot.forEach(doc => {
+                        const ponto = { id: doc.id, ...doc.data() };
+                        const listItem = document.createElement('li');
+                        const dataPrevista = ponto.dataPrevistaInstalacao?.toDate ? ponto.dataPrevistaInstalacao.toDate().toLocaleDateString('pt-BR') : 'N/A';
+
+                        const responsavel = App.state.users.find(u => u.id === ponto.responsavelId);
+
+                        listItem.innerHTML = `
+                            <label class="ponto-os-item">
+                                <input type="checkbox" data-ponto-id="${ponto.id}" class="ponto-os-checkbox">
+                                <div class="ponto-os-details">
+                                    <span class="ponto-os-id">Ponto #${ponto.id.substring(0, 6)}...</span>
+                                    <span class="ponto-os-resp"><i class="fas fa-user"></i> ${responsavel?.username || 'Desconhecido'}</span>
+                                    <span class="ponto-os-date"><i class="fas fa-calendar-alt"></i> ${dataPrevista}</span>
+                                </div>
+                            </label>
+                        `;
+                        pointsList.appendChild(listItem);
+                    });
+
+                } catch (error) {
+                    console.error("Erro ao carregar pontos para OS:", error);
+                    pointsList.innerHTML = '<li class="list-item-empty" style="color: var(--color-danger);">Erro ao carregar pontos.</li>';
+                }
+            },
+
+            async loadOrdensDeServico(planejamentoId) {
+                const osListContainer = App.elements.planejamentoInstalacao.osList;
+                osListContainer.innerHTML = '<div class="spinner-container"><div class="spinner"></div></div>';
+
+                try {
+                    const osList = await App._fetchWithAuth(`${App.config.backendUrl}/api/os/list?planejamentoId=${planejamentoId}`);
+
+                    if (!osList || osList.length === 0) {
+                        osListContainer.innerHTML = '<p class="empty-state">Nenhuma Ordem de Serviço foi gerada para este planejamento ainda.</p>';
+                        return;
+                    }
+
+                    osListContainer.innerHTML = ''; // Clear spinner
+                    osList.sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0)).forEach(os => {
+                        const osCard = document.createElement('div');
+                        osCard.className = 'os-card';
+
+                        const responsavel = App.state.users.find(u => u.id === os.responsavelId);
+                        const criadoPor = App.state.users.find(u => u.id === os.criadoPorUserId);
+                        const dataPrevista = os.dataPrevista?.toDate ? os.dataPrevista.toDate().toLocaleDateString('pt-BR') : 'N/A';
+                        const criadoEm = os.criadoEm?.toDate ? os.criadoEm.toDate().toLocaleString('pt-BR') : 'N/A';
+
+                        osCard.innerHTML = `
+                            <div class="os-card-header">
+                                <span class="os-number">${os.numeroOS}</span>
+                                <span class="os-status ${os.status.toLowerCase()}">${os.status}</span>
+                            </div>
+                            <div class="os-card-body">
+                                <p><strong>Nome:</strong> ${os.nome || 'N/A'}</p>
+                                <p><i class="fas fa-user-tie"></i> <strong>Responsável:</strong> ${responsavel?.username || 'N/A'}</p>
+                                <p><i class="fas fa-calendar-check"></i> <strong>Data Prevista:</strong> ${dataPrevista}</p>
+                                <p><i class="fas fa-tools"></i> <strong>Pontos Incluídos:</strong> ${os.pontos.length}</p>
+                            </div>
+                            <div class="os-card-footer">
+                                <span>Criada por ${criadoPor?.username || 'N/A'} em ${criadoEm}</span>
+                            </div>
+                        `;
+                        osListContainer.appendChild(osCard);
+                    });
+                } catch (error) {
+                    console.error("Erro ao carregar Ordens de Serviço:", error);
+                    osListContainer.innerHTML = `<p class="empty-state" style="color: var(--color-danger);">Erro ao carregar Ordens de Serviço: ${error.message}</p>`;
+                }
+            },
+
+            showGerarOSModal() {
+                if (App.state.selectedPontoIds.size === 0) {
+                    App.ui.showAlert("Selecione pelo menos um ponto de instalação para gerar a OS.", "warning");
+                    return;
+                }
+
+                const modal = App.elements.gerarOSModal;
+                modal.overlay.classList.add('show');
+
+                // Pre-populate fields
+                modal.title.textContent = `Gerar OS para ${App.state.selectedPontoIds.size} Ponto(s)`;
+                modal.dataPrevista.value = new Date().toISOString().split('T')[0];
+                App.ui.populateUserSelects([modal.responsavel]);
+            },
+
+            hideGerarOSModal() {
+                const modal = App.elements.gerarOSModal;
+                modal.overlay.classList.remove('show');
+                // Clear form
+                modal.nome.value = '';
+                modal.dataPrevista.value = '';
+                modal.responsavel.value = '';
+                modal.observacoes.value = '';
+            },
+
+            async generateOS() {
+                const modal = App.elements.gerarOSModal;
+                const { nome, dataPrevista, responsavel, observacoes } = modal;
+
+                if (!navigator.onLine) {
+                    App.ui.showAlert("A geração de Ordens de Serviço requer uma conexão com a internet.", "warning");
+                    return;
+                }
+
+                if (!dataPrevista.value || !responsavel.value) {
+                    App.ui.showAlert("Data Prevista e Responsável são obrigatórios.", "error");
+                    return;
+                }
+
+                const osData = {
+                    planejamentoId: App.state.activePlanejamentoIdForOS,
+                    pontoIds: Array.from(App.state.selectedPontoIds),
+                    nome: nome.value.trim(),
+                    dataPrevista: dataPrevista.value,
+                    responsavelId: responsavel.value,
+                    observacoes: observacoes.value.trim(),
+                    // Backend will get criador from auth token
+                };
+
+                App.ui.setLoading(true, "A gerar Ordem de Serviço...");
+                try {
+                    const result = await App._fetchWithAuth(`${App.config.backendUrl}/api/os/generate`, {
+                        method: 'POST',
+                        body: osData,
+                    });
+
+                    App.ui.showAlert(`Ordem de Serviço ${result.numeroOS} gerada com sucesso!`, "success");
+                    this.hideGerarOSModal();
+                    // Reload data for the detail view
+                    this.loadPontosForOS(App.state.activePlanejamentoIdForOS);
+                    this.loadOrdensDeServico(App.state.activePlanejamentoIdForOS);
+
+                } catch (error) {
+                    console.error("Erro ao gerar OS:", error);
+                    App.ui.showAlert(`Erro ao gerar OS: ${error.message}`, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
             },
 
         async savePlanejamento() {

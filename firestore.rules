@@ -66,6 +66,15 @@ service cloud.firestore {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
+    match /instalacaoOrdensDeServico/{docId} {
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
+    }
+    match /osCounters/{docId} {
+      // Bloqueia toda a escrita e leitura do lado do cliente.
+      // Apenas o servidor de backend (usando o Admin SDK) pode aceder a esta coleção.
+      allow read, write: if false;
+    }
     match /instalacaoPlanejamentos/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
