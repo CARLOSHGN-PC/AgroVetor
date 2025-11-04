@@ -105,14 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
-                {
-                    label: 'Instalação de Armadilhas', icon: 'fas fa-hard-hat',
-                    submenu: [
-                        { label: 'Planejamento (Mapa)', icon: 'fas fa-map-marked-alt', target: 'planejamentoInstalacao', permission: 'planejamentoInstalacao' },
-                        { label: 'Gerar Ordem de Serviço', icon: 'fas fa-tasks', target: 'geracaoOS', permission: 'geracaoOS' },
-                        { label: 'Execução de OS', icon: 'fas fa-running', target: 'execucaoOS', permission: 'execucaoOS' },
-                    ]
-                },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -142,7 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                         { label: 'Relatório de Risco', icon: 'fas fa-shield-alt', target: 'relatorioRisco', permission: 'relatorioRisco' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
-                        { label: 'Relatório de Instalação', icon: 'fas fa-tools', target: 'relatorioInstalacao', permission: 'relatorioInstalacao' },
                         { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
                     ]
                 },
@@ -166,10 +157,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, planejamentoInstalacao: true, geracaoOS: true, execucaoOS: true, relatorioInstalacao: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, planejamentoInstalacao: true, geracaoOS: true, execucaoOS: true, relatorioInstalacao: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, execucaoOS: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, execucaoOS: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
             }
         },
@@ -223,12 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
             plantio: [], // Placeholder for Plantio data
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
-            apontamentoPlantioFormIsDirty: false,
-            // Coleções para o novo fluxo de instalação
-            instalacaoPlanejamentos: [],
-            instalacaoPontos: [],
-            instalacaoOrdensDeServico: [],
-            osPointMarkers: {}, // To hold map markers for points in an OS
+                apontamentoPlantioFormIsDirty: false,
         },
         
         elements: {
@@ -1287,7 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima', 'instalacaoPontos', 'instalacaoOrdensDeServico'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1846,36 +1832,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const mapContainer = App.elements.monitoramentoAereo.container;
-                const mapTabs = ['monitoramentoAereo', 'planejamentoInstalacao', 'execucaoOS'];
-
-                // Hide all tab contents first
-                document.querySelectorAll('.tab-content').forEach(tab => {
-                    tab.classList.remove('active');
-                    tab.hidden = true;
-                });
-
-                // Un-hide the target tab so we can potentially move the map into it
-                const tab = document.getElementById(id);
-                if (tab) {
-                    tab.classList.add('active');
-                    tab.hidden = false;
-                }
-
-                // Handle map visibility and placement
-                if (mapTabs.includes(id)) {
-                    if (tab) {
-                        // Move the map container to the correct tab to ensure it's visible
-                        if (mapContainer.parentNode !== tab) {
-                            tab.appendChild(mapContainer);
-                        }
-                    }
+                if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
                     if (App.state.mapboxMap) {
-                        // Force map resize to fit the now-visible container
+                        // Força o redimensionamento do mapa para o contêiner visível
                         setTimeout(() => App.state.mapboxMap.resize(), 0);
                     }
                 } else {
                     mapContainer.classList.remove('active');
+                }
+
+                document.querySelectorAll('.tab-content').forEach(tab => {
+                    if (tab.id !== 'monitoramentoAereo-container') {
+                        tab.classList.remove('active');
+                        tab.hidden = true;
+                    }
+                });
+
+                const tab = document.getElementById(id);
+                if (tab) {
+                    tab.classList.add('active');
+                    tab.hidden = false;
                 }
                 
                 if (id === 'dashboard') {
@@ -1910,19 +1887,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderCompaniesList();
                     this.renderCompanyModules('newCompanyModules');
                     this.renderGlobalFeatures(); // NOVO
-                }
-
-                if (id === 'relatorioInstalacao') {
-                    this.setupInstalacaoReport();
-                }
-                if (id === 'execucaoOS') {
-                    this.renderOSList();
-                }
-                if (id === 'geracaoOS') {
-                    this.renderPlannedPointsList();
-                }
-                if (id === 'planejamentoInstalacao') {
-                    App.mapModule.setupPlanningMapInteraction();
                 }
                 if (id === 'cadastros') {
                     this.renderFarmSelect();
@@ -1967,13 +1931,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             // ALTERAÇÃO PONTO 4: Nova função para atualizar o sino de notificação
-            setupInstalacaoReport() {
-                this.populateUserSelects([document.getElementById('instalacaoRelatorioResponsavel')]);
-                const today = new Date().toISOString().split('T')[0];
-                const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-                document.getElementById('instalacaoRelatorioInicio').value = firstDayOfMonth;
-                document.getElementById('instalacaoRelatorioFim').value = today;
-            },
             updateNotificationBell() {
                 const { list, count, noNotifications } = App.elements.notificationBell;
                 const notifications = App.state.trapNotifications;
@@ -2874,132 +2831,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.harvest.planEditor.style.display = 'none';
                 this.renderHarvestPlansList();
             },
-
-            displayOSPointsOnMap(osId) {
-                const { mapboxMap, instalacaoPontos } = App.state;
-                if (!mapboxMap) return;
-
-                // Clear existing OS point markers before drawing new ones
-                if (App.state.osPointMarkers) {
-                    Object.values(App.state.osPointMarkers).forEach(marker => marker.remove());
-                }
-                App.state.osPointMarkers = {};
-
-                const os = App.state.instalacaoOrdensDeServico.find(o => o.id === osId);
-                if (!os) return;
-
-                const pointsToDisplay = instalacaoPontos.filter(p => os.pontosIds.includes(p.id));
-
-                if (pointsToDisplay.length === 0) {
-                    App.ui.showAlert("Nenhum ponto de instalação encontrado para esta OS.", "info");
-                    return;
-                }
-
-                const bounds = new mapboxgl.LngLatBounds();
-
-                pointsToDisplay.forEach(point => {
-                    const { coordenadas, status, id } = point;
-                    if (coordenadas && coordenadas.lng && coordenadas.lat) {
-                        const position = [coordenadas.lng, coordenadas.lat];
-
-                        let color = '#1976D2'; // Blue for 'Planejado' or 'EmOS'
-                        let icon = 'fa-map-pin';
-                        if (status === 'Instalado') {
-                            color = '#388E3C'; // Green for 'Instalado'
-                            icon = 'fa-check-circle';
-                        } else if (status === 'Cancelado') {
-                            color = '#757575'; // Gray for 'Cancelado'
-                            icon = 'fa-times-circle';
-                        }
-
-                        const el = document.createElement('div');
-                        el.className = 'mapbox-marker';
-                        el.style.width = '30px';
-                        el.style.height = '30px';
-                        el.style.borderRadius = '50%';
-                        el.style.backgroundColor = color;
-                        el.style.border = '2px solid white';
-                        el.style.display = 'flex';
-                        el.style.justifyContent = 'center';
-                        el.style.alignItems = 'center';
-                        el.style.cursor = 'pointer';
-                        el.innerHTML = `<i class="fas ${icon}" style="color: white; font-size: 16px;"></i>`;
-                        el.title = `Ponto ${id.substring(0, 5)}... - Status: ${status}`;
-
-                        const marker = new mapboxgl.Marker(el)
-                            .setLngLat(position)
-                            .addTo(mapboxMap);
-
-                        el.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            this.showPointInstallationModal(id);
-                        });
-
-                        App.state.osPointMarkers[id] = marker;
-                        bounds.extend(position);
-                    }
-                });
-
-                if (!bounds.isEmpty()) {
-                    mapboxMap.fitBounds(bounds, { padding: 100, maxZoom: 16 });
-                }
-            },
-
-            showPointInstallationModal(pointId) {
-                const point = App.state.instalacaoPontos.find(p => p.id === pointId);
-                if (!point) {
-                    App.ui.showAlert("Ponto de instalação não encontrado.", "error");
-                    return;
-                }
-
-                const modal = document.getElementById('pointInstallationModal');
-                const title = document.getElementById('pointInstallationModalTitle');
-                const body = document.getElementById('pointInstallationModalBody');
-                const footer = document.getElementById('pointInstallationModalFooter');
-                const pointIdInput = document.getElementById('installationPointId');
-
-                pointIdInput.value = pointId;
-                title.textContent = `Ponto de Instalação #${point.id.substring(0, 8)}`;
-
-                const fazenda = App.state.fazendas.find(f => f.id === point.fazendaId);
-                const responsavel = App.state.users.find(u => u.id === point.responsavelId);
-
-                body.innerHTML = `
-                    <div class="info-item">
-                        <span class="label">Status</span>
-                        <span class="value"><span class="status-indicator" style="background-color: ${point.status === 'Instalado' ? 'var(--color-success)' : 'var(--color-info)'};"></span>${point.status}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Fazenda / Talhão</span>
-                        <span class="value">${fazenda?.name || 'N/A'} / ${point.talhaoId || 'N/A'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Responsável</span>
-                        <span class="value">${responsavel?.username || 'N/A'}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Data Prevista</span>
-                        <span class="value">${point.dataPrevistaInstalacao ? new Date(point.dataPrevistaInstalacao).toLocaleDateString('pt-BR') : 'N/A'}</span>
-                    </div>
-                    <div class="info-item" style="${point.observacoes ? '' : 'display: none;'}">
-                        <span class="label">Observações</span>
-                        <span class="value" style="white-space: pre-wrap;">${point.observacoes || ''}</span>
-                    </div>
-                     <div class="form-col" style="margin-top: 15px;">
-                        <label for="pointObsInput">Adicionar/Editar Observação:</label>
-                        <textarea id="pointObsInput" placeholder="Observações da instalação...">${point.descricao || ''}</textarea>
-                    </div>
-                `;
-
-                const btnMarkAsInstalled = document.getElementById('btnMarkAsInstalled');
-                if (point.status === 'Instalado' || point.status === 'Cancelado') {
-                    btnMarkAsInstalled.style.display = 'none';
-                } else {
-                    btnMarkAsInstalled.style.display = 'inline-flex';
-                }
-
-                modal.classList.add('show');
-            },
             showHarvestPlanEditor() {
                 App.elements.harvest.plansListContainer.style.display = 'none';
                 App.elements.harvest.planEditor.style.display = 'block';
@@ -3634,105 +3465,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (modal && modal.overlay) {
                     modal.overlay.classList.remove('show');
                 }
-            },
-
-            renderPlannedPointsList() {
-                const listContainer = document.getElementById('planned-points-list');
-                const fazendaFiltro = document.getElementById('osGeracaoFazendaFiltro').value;
-                const responsavelFiltro = document.getElementById('osGeracaoResponsavelFiltro').value;
-
-                if (!listContainer) return;
-
-                let plannedPoints = App.state.instalacaoPontos.filter(p => p.status === 'Planejado');
-
-                if (fazendaFiltro) {
-                    plannedPoints = plannedPoints.filter(p => p.fazendaId === fazendaFiltro);
-                }
-                if (responsavelFiltro) {
-                    plannedPoints = plannedPoints.filter(p => p.responsavelId === responsavelFiltro);
-                }
-
-                if (plannedPoints.length === 0) {
-                    listContainer.innerHTML = '<p class="empty-list-message">Nenhum ponto de instalação planeado encontrado para os filtros selecionados.</p>';
-                    return;
-                }
-
-                const getFazendaName = (id) => App.state.fazendas.find(f => f.id === id)?.name || 'N/A';
-                const getUserName = (id) => App.state.users.find(u => u.id === id)?.username || 'Não atribuído';
-
-                listContainer.innerHTML = `
-                    <div class="planned-point-list-header">
-                        <input type="checkbox" id="selectAllPlannedPoints">
-                        <span>Talhão</span>
-                        <span>Fazenda</span>
-                        <span>Responsável</span>
-                        <span>Data Prevista</span>
-                    </div>
-                    ${plannedPoints.map(point => `
-                        <div class="planned-point-list-item">
-                            <input type="checkbox" class="planned-point-checkbox" data-id="${point.id}">
-                            <span>${point.talhaoId}</span>
-                            <span>${getFazendaName(point.fazendaId)}</span>
-                            <span>${getUserName(point.responsavelId)}</span>
-                            <span>${new Date(point.dataPrevistaInstalacao + 'T03:00:00Z').toLocaleDateString('pt-BR')}</span>
-                        </div>
-                    `).join('')}
-                `;
-
-                // Add event listener for the select all checkbox
-                const selectAll = document.getElementById('selectAllPlannedPoints');
-                if(selectAll) {
-                    selectAll.addEventListener('change', (e) => {
-                        listContainer.querySelectorAll('.planned-point-checkbox').forEach(cb => {
-                            cb.checked = e.target.checked;
-                        });
-                    });
-                }
-            },
-
-            renderOSList() {
-                const osListContainer = document.getElementById('os-list-container');
-                if (!osListContainer) return;
-
-                const { currentUser, instalacaoOrdensDeServico } = App.state;
-                if (!instalacaoOrdensDeServico) {
-                    osListContainer.innerHTML = '<p>Nenhuma Ordem de Serviço encontrada.</p>';
-                    return;
-                }
-
-                let filteredOS = [];
-                const userRole = currentUser.role;
-
-                if (userRole === 'admin' || userRole === 'supervisor' || userRole === 'super-admin') {
-                    filteredOS = instalacaoOrdensDeServico;
-                } else {
-                    filteredOS = instalacaoOrdensDeServico.filter(os => os.responsavelOSId === currentUser.uid);
-                }
-
-                if (filteredOS.length === 0) {
-                    osListContainer.innerHTML = '<p>Nenhuma Ordem de Serviço atribuída a você.</p>';
-                    return;
-                }
-
-                // Sort by creation date descending
-                filteredOS.sort((a, b) => b.dataCriacao.toDate() - a.dataCriacao.toDate());
-
-                osListContainer.innerHTML = filteredOS.map(os => {
-                    const prazo = os.prazoExecucao ? new Date(os.prazoExecucao).toLocaleDateString('pt-BR') : 'N/A';
-                    return `
-                        <div class="os-list-item" data-os-id="${os.id}">
-                            <div class="os-item-header">
-                                <span class="os-item-number">${os.numeroOS}</span>
-                                <span class="os-item-status status-${os.status.toLowerCase().replace(' ', '-')}">${os.status}</span>
-                            </div>
-                            <div class="os-item-body">
-                                <p><strong>Responsável:</strong> ${App.state.users.find(u => u.id === os.responsavelOSId)?.username || 'Desconhecido'}</p>
-                                <p><strong>Prazo:</strong> ${prazo}</p>
-                                <p><strong>Pontos:</strong> ${os.pontosIds.length}</p>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
             },
 
             async renderSyncHistoryDetails(logId) {
@@ -4398,40 +4130,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (action === 'delete-frente') App.actions.deleteFrenteDePlantio(id);
                 });
 
-                // Listeners for Installation Planning Modal
-                const planningModal = document.getElementById('planningPointModal');
-                if (planningModal) {
-                    const closeBtn = planningModal.querySelector('.modal-close-btn');
-                    const cancelBtn = planningModal.querySelector('.btn-secondary');
-                    const saveBtn = document.getElementById('btnSavePlanningPoint');
-                    const fazendaSelect = document.getElementById('planningFazenda');
-
-                    const closeModal = () => planningModal.classList.remove('show');
-
-                    closeBtn.addEventListener('click', closeModal);
-                    cancelBtn.addEventListener('click', closeModal);
-                    planningModal.addEventListener('click', (e) => {
-                        if (e.target === planningModal) closeModal();
-                    });
-
-                    if (saveBtn) {
-                        saveBtn.addEventListener('click', () => App.actions.savePlanningPoint());
-                    }
-                    if (fazendaSelect) {
-                        fazendaSelect.addEventListener('change', (e) => {
-                            const farmId = e.target.value;
-                            const talhaoSelect = document.getElementById('planningTalhao');
-                            const farm = App.state.fazendas.find(f => f.id === farmId);
-                            talhaoSelect.innerHTML = '<option value="">Selecione...</option>';
-                            if (farm && farm.talhoes) {
-                                farm.talhoes.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric: true})).forEach(talhao => {
-                                    talhaoSelect.innerHTML += `<option value="${talhao.name}">${talhao.name}</option>`;
-                                });
-                            }
-                        });
-                    }
-                }
-
                 // Listeners for Apontamento de Plantio
                 const apontamentoEls = App.elements.apontamentoPlantio;
                 if (apontamentoEls.addRecordBtn) {
@@ -4539,14 +4237,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (relatorioRiscoEls.btnPDF) relatorioRiscoEls.btnPDF.addEventListener('click', () => App.reports.generateRiskViewPDF());
                 if (relatorioRiscoEls.btnExcel) relatorioRiscoEls.btnExcel.addEventListener('click', () => App.reports.generateRiskViewCSV());
 
-                const relatorioInstalacaoPDFBtn = document.getElementById('btnPDFInstalacao');
-                if (relatorioInstalacaoPDFBtn) {
-                    relatorioInstalacaoPDFBtn.addEventListener('click', () => App.reports.generateInstalacaoHistoricoPDF());
-                }
-                const relatorioInstalacaoExcelBtn = document.getElementById('btnExcelInstalacao');
-                if (relatorioInstalacaoExcelBtn) {
-                    relatorioInstalacaoExcelBtn.addEventListener('click', () => App.reports.generateInstalacaoHistoricoCSV());
-                }
 
                 this.enableEnterKeyNavigation('#changePasswordModal');
                 this.enableEnterKeyNavigation('#cadastros');
@@ -4687,206 +4377,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-
-                const osListContainer = document.getElementById('os-list-container');
-                if (osListContainer) {
-                    osListContainer.addEventListener('click', e => {
-                        const osItem = e.target.closest('.os-list-item');
-                        if (osItem) {
-                            // First, remove active class from all other items
-                            osListContainer.querySelectorAll('.os-list-item').forEach(item => item.classList.remove('active'));
-                            // Then, add active class to the clicked item
-                            osItem.classList.add('active');
-                            const osId = osItem.dataset.osId;
-                            App.actions.displayOSPointsOnMap(osId);
-                        }
-                    });
-                }
-
-                // Installation Point Modal Listeners
-                const pointModal = document.getElementById('pointInstallationModal');
-                if (pointModal) {
-                    const closeBtn = document.getElementById('pointInstallationModalCloseBtn');
-                    const cancelBtn = document.getElementById('pointInstallationModalCancelBtn');
-                    const installBtn = document.getElementById('btnMarkAsInstalled');
-
-                    const closeModal = () => pointModal.classList.remove('show');
-
-                    closeBtn.addEventListener('click', closeModal);
-                    cancelBtn.addEventListener('click', closeModal);
-                    pointModal.addEventListener('click', (e) => {
-                        if (e.target === pointModal) closeModal();
-                    });
-
-                    installBtn.addEventListener('click', () => {
-                        const pointId = document.getElementById('installationPointId').value;
-                        const obs = document.getElementById('pointObsInput').value;
-                        if (pointId) {
-                            App.actions.markPointAsInstalled(pointId, obs);
-                        }
-                    });
-                }
-
-                // Listeners for Geração de OS
-                const osGeracaoFazendaFiltro = document.getElementById('osGeracaoFazendaFiltro');
-                if (osGeracaoFazendaFiltro) {
-                    osGeracaoFazendaFiltro.addEventListener('change', () => this.renderPlannedPointsList());
-                }
-                const osGeracaoResponsavelFiltro = document.getElementById('osGeracaoResponsavelFiltro');
-                if (osGeracaoResponsavelFiltro) {
-                    osGeracaoResponsavelFiltro.addEventListener('change', () => this.renderPlannedPointsList());
-                }
-                const btnGerarOSFromList = document.getElementById('btnGerarOSFromList');
-                if (btnGerarOSFromList) {
-                    btnGerarOSFromList.addEventListener('click', () => App.actions.showGenerateOSModal());
-                }
             }
         },
         
         actions: {
-            async _fetchWithAuth(url, options = {}) {
-                if (!auth.currentUser) {
-                    throw new Error("Utilizador não autenticado.");
-                }
-                // Garante que o token está atualizado
-                const token = await auth.currentUser.getIdToken(true);
-
-                const headers = {
-                    ...options.headers,
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                };
-
-                const response = await fetch(`${App.config.backendUrl}${url}`, {
-                    ...options,
-                    headers
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                    throw new Error(errorData.message || 'Erro na comunicação com o servidor');
-                }
-                return response.json();
-            },
-            async markPointAsInstalled(pointId, observations) {
-                const pointIndex = App.state.instalacaoPontos.findIndex(p => p.id === pointId);
-                if (pointIndex === -1) {
-                    App.ui.showAlert("Ponto não encontrado no estado da aplicação.", "error");
-                    return;
-                }
-
-                App.ui.setLoading(true, "A processar instalação...");
-
-                const point = App.state.instalacaoPontos[pointIndex];
-                const now = new Date();
-
-                // 1. Prepare the update for instalacaoPontos
-                const pointUpdateData = {
-                    status: 'Instalado',
-                    dataInstalacao: now.toISOString(),
-                    concluidoPorUserId: App.state.currentUser.uid,
-                    descricao: observations,
-                    syncStatus: 'pending'
-                };
-
-                // 2. Prepare the new trap document for 'armadilhas' collection
-                const newTrapData = {
-                    id: point.id, // Use the same ID for integration
-                    latitude: point.coordenadas.lat,
-                    longitude: point.coordenadas.lng,
-                    dataInstalacao: now.toISOString(),
-                    instaladoPor: App.state.currentUser.uid,
-                    status: "Ativa", // Traps are 'Ativa' when installed
-                    fazendaNome: App.state.fazendas.find(f => f.id === point.fazendaId)?.name || 'N/A',
-                    fazendaCode: App.state.fazendas.find(f => f.id === point.fazendaId)?.code || null,
-                    talhaoNome: point.talhaoId,
-                    companyId: App.state.currentUser.companyId,
-                    observacoes: observations,
-                    syncStatus: 'pending'
-                };
-
-                // Optimistic UI Update
-                App.state.instalacaoPontos[pointIndex] = { ...point, ...pointUpdateData };
-                App.state.armadilhas.push({ ...newTrapData, dataInstalacao: Timestamp.fromDate(now) }); // Add to local state for immediate map update
-
-                const marker = App.state.osPointMarkers[pointId];
-                if (marker) {
-                    const el = marker.getElement();
-                    el.style.backgroundColor = '#388E3C'; // Green
-                    el.innerHTML = `<i class="fas fa-check-circle" style="color: white; font-size: 16px;"></i>`;
-                }
-                App.mapModule.addOrUpdateTrapMarker({ ...newTrapData, dataInstalacao: now }); // Also add to the main trap layer
-
-                document.getElementById('pointInstallationModal').classList.remove('show');
-                App.ui.showAlert("Ponto marcado como instalado. A sincronizar...", "info");
-
-                try {
-                     if (navigator.onLine) {
-                        const batch = writeBatch(db);
-
-                        // Update point status
-                        const pointRef = doc(db, 'instalacaoPontos', pointId);
-                        batch.update(pointRef, { ...pointUpdateData, dataInstalacao: Timestamp.fromDate(now), syncStatus: 'synced' });
-
-                        // Create new trap
-                        const trapRef = doc(db, 'armadilhas', point.id);
-                        batch.set(trapRef, { ...newTrapData, dataInstalacao: Timestamp.fromDate(now), syncStatus: 'synced' });
-
-                        await batch.commit();
-                        App.ui.showAlert("Instalação sincronizada com sucesso!", "success");
-
-                    } else {
-                        // Save both operations to IndexedDB for offline sync
-                        await OfflineDB.add('offline-writes', { id: `update_${pointId}`, type: 'update', collection: 'instalacaoPontos', docId: pointId, data: pointUpdateData });
-                        await OfflineDB.add('offline-writes', { id: point.id, collection: 'armadilhas', data: newTrapData });
-                        App.ui.showAlert("Instalação guardada offline.", "info");
-                    }
-
-                    // 3. Check and update the parent OS status
-                    await this.checkAndUpdateOSStatus(point.osId);
-
-                } catch (error) {
-                    console.error("Erro ao marcar como instalado:", error);
-                    App.ui.showAlert("Erro ao sincronizar. A guardar offline.", "error");
-                    // Revert optimistic state on error? For now, we save offline.
-                    await OfflineDB.add('offline-writes', { id: `update_${pointId}`, type: 'update', collection: 'instalacaoPontos', docId: pointId, data: pointUpdateData });
-                    await OfflineDB.add('offline-writes', { id: point.id, collection: 'armadilhas', data: newTrapData });
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-
-            async checkAndUpdateOSStatus(osId) {
-                if (!osId) return;
-
-                const os = App.state.instalacaoOrdensDeServico.find(o => o.id === osId);
-                if (!os) return;
-
-                const allPointsOfOS = App.state.instalacaoPontos.filter(p => os.pontosIds.includes(p.id));
-                const allInstalled = allPointsOfOS.every(p => p.status === 'Instalado');
-
-                if (allInstalled) {
-                    const osUpdate = { status: 'Concluída' };
-                    try {
-                        if (navigator.onLine) {
-                            await App.data.updateDocument('instalacaoOrdensDeServico', osId, osUpdate);
-                        } else {
-                             await OfflineDB.add('offline-writes', { id: `update_${osId}`, type: 'update', collection: 'instalacaoOrdensDeServico', docId: osId, data: osUpdate });
-                        }
-                         // Optimistic update
-                        const osIndex = App.state.instalacaoOrdensDeServico.findIndex(o => o.id === osId);
-                        if (osIndex > -1) {
-                            App.state.instalacaoOrdensDeServico[osIndex].status = 'Concluída';
-                            App.ui.renderOSList(); // Re-render to update status color
-                        }
-                        App.ui.showAlert(`Ordem de Serviço ${os.numeroOS} concluída!`, 'success');
-                    } catch (error) {
-                        App.ui.showAlert(`Erro ao atualizar OS ${os.numeroOS}.`, 'error');
-                        console.error("Error updating OS status:", error);
-                    }
-                }
-            },
-
             async viewConfigHistory() {
                 const modal = App.elements.configHistoryModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
@@ -7822,72 +7316,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.hideImpersonationBanner();
             },
 
-            async savePlanningPoint() {
-                const lng = parseFloat(document.getElementById('planningPointLng').value);
-                const lat = parseFloat(document.getElementById('planningPointLat').value);
-                const fazendaId = document.getElementById('planningFazenda').value;
-                const talhaoId = document.getElementById('planningTalhao').value;
-                const dataPrevistaInstalacao = document.getElementById('planningDataPrevista').value;
-                const responsavelId = document.getElementById('planningResponsavel').value;
-                const observacoes = document.getElementById('planningObservacoes').value;
-
-                if (!fazendaId || !talhaoId || !dataPrevistaInstalacao) {
-                    App.ui.showAlert("Fazenda, Talhão e Data Prevista são obrigatórios.", "error");
-                    return;
-                }
-
-                const newPoint = {
-                    planejamentoId: null, // This can be linked later if a broader "planning" concept is introduced
-                    osId: null,
-                    fazendaId,
-                    talhaoId,
-                    coordenadas: { lat, lng },
-                    dataPrevistaInstalacao,
-                    responsavelId: responsavelId || null,
-                    status: 'Planejado',
-                    dataInstalacao: null,
-                    fotoURL: null,
-                    concluidoPorUserId: null,
-                    descricao: observacoes || '',
-                    criadoPorUserId: App.state.currentUser.uid,
-                    criadoEm: new Date().toISOString(),
-                    syncStatus: 'pending',
-                    companyId: App.state.currentUser.companyId
-                };
-
-                App.ui.setLoading(true, "A guardar ponto...");
-                try {
-                    const pointId = `point_${Date.now()}`;
-                    if (navigator.onLine) {
-                        await App.data.setDocument('instalacaoPontos', pointId, { ...newPoint, criadoEm: serverTimestamp(), syncStatus: 'synced' });
-                        App.ui.showAlert("Ponto de planeamento guardado com sucesso!", "success");
-                    } else {
-                        await OfflineDB.add('offline-writes', { id: pointId, collection: 'instalacaoPontos', data: newPoint });
-                        App.ui.showAlert("Ponto guardado offline. Será sincronizado mais tarde.", "info");
-                    }
-
-                    // Optimistic update
-                    newPoint.id = pointId;
-                    App.state.instalacaoPontos.push(newPoint);
-                    App.mapModule.addPlanningPointMarker(newPoint);
-
-                    document.getElementById('planningPointModal').classList.remove('show');
-                } catch (error) {
-                    console.error("Erro ao guardar o ponto de planeamento:", error);
-                    App.ui.showAlert("Erro ao guardar o ponto.", "error");
-                    // Optionally try to save to offline DB on failure
-                    try {
-                        const pointId = `point_${Date.now()}`;
-                        await OfflineDB.add('offline-writes', { id: pointId, collection: 'instalacaoPontos', data: newPoint });
-                        App.ui.showAlert("Erro de rede. Ponto guardado offline.", "warning");
-                    } catch (offlineError) {
-                        console.error("Falha ao guardar ponto offline após erro:", offlineError);
-                    }
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-
             async saveGlobalFeatures() {
                 const grid = document.getElementById('globalFeaturesGrid');
                 if (!grid) {
@@ -8165,174 +7593,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Por favor, insira a sua senha atual para confirmar.", "error");
                     return;
                 }
-            },
-
-            showGenerateOSModal() {
-                const selectedCheckboxes = document.querySelectorAll('#planned-points-list .planned-point-checkbox:checked');
-                if (selectedCheckboxes.length === 0) {
-                    App.ui.showAlert("Selecione pelo menos um ponto para gerar a Ordem de Serviço.", "warning");
-                    return;
-                }
-
-                const pointIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.id);
-
-                const modal = document.getElementById('generateOSModal');
-                const responsavelSelect = document.getElementById('osResponsavel');
-                const prazoInput = document.getElementById('osPrazo');
-                const obsInput = document.getElementById('osObservacoes');
-
-                // Populate responsible user select
-                App.ui.populateUserSelects([responsavelSelect]);
-
-                // Set default deadline (e.g., 7 days from now)
-                const today = new Date();
-                const deadline = new Date(today.setDate(today.getDate() + 7));
-                prazoInput.value = deadline.toISOString().split('T')[0];
-                obsInput.value = '';
-
-                // Store point IDs in a hidden input for later retrieval
-                document.getElementById('osSelectedPointIds').value = JSON.stringify(pointIds);
-
-                modal.classList.add('show');
-
-                // Add temporary event listeners for the modal buttons
-                const confirmBtn = document.getElementById('btnConfirmOS');
-                const cancelBtn = document.getElementById('btnCancelOS');
-                const closeBtn = modal.querySelector('.modal-close-btn');
-
-                const confirmHandler = () => {
-                    this.createOS();
-                    closeHandler(); // Close modal after trying to create
-                };
-
-                const closeHandler = () => {
-                    modal.classList.remove('show');
-                    confirmBtn.removeEventListener('click', confirmHandler);
-                    cancelBtn.removeEventListener('click', closeHandler);
-                    closeBtn.removeEventListener('click', closeHandler);
-                };
-
-                confirmBtn.addEventListener('click', confirmHandler);
-                cancelBtn.addEventListener('click', closeHandler);
-                closeBtn.addEventListener('click', closeHandler);
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) closeHandler();
-                });
-            },
-
-            async createOS() {
-                const responsavelOSId = document.getElementById('osResponsavel').value;
-                const prazoExecucao = document.getElementById('osPrazo').value;
-                const observacoes = document.getElementById('osObservacoes').value;
-                const selectedPointIds = JSON.parse(document.getElementById('osSelectedPointIds').value);
-
-
-                if (!selectedPointIds || selectedPointIds.length === 0) {
-                    App.ui.showAlert("Nenhum ponto de instalação selecionado.", "warning");
-                    return;
-                }
-                if (!responsavelOSId) {
-                    App.ui.showAlert("Responsável pela OS não foi definido.", "warning");
-                    return;
-                }
-
-                App.ui.setLoading(true, "Gerando Ordem de Serviço...");
-
-                try {
-                    // 1. Chamar o backend para gerar o número da OS de forma segura
-                    const osNumberResponse = await App.actions._fetchWithAuth('/api/generate-os-number', {
-                        method: 'POST',
-                        body: JSON.stringify({ companyId: App.state.user.companyId })
-                    });
-
-                    const { numeroOS, year, sequencial } = osNumberResponse;
-
-                    // 2. Montar o objeto da OS com os dados retornados pelo backend
-                    const osData = {
-                        numeroOS: numeroOS,
-                        ano: year,
-                        sequencial: sequencial,
-                        pontosIds: selectedPointIds,
-                        responsavelOSId: responsavelOSId,
-                        dataCriacao: serverTimestamp(), // Firestore cuidará de converter para data
-                        prazoExecucao: prazoExecucao ? new Date(prazoExecucao) : null,
-                        status: 'Planejada',
-                        observacoes: observacoes || "",
-                        criadoPorUserId: auth.currentUser.uid,
-                        companyId: App.state.user.companyId,
-                        syncStatus: 'synced'
-                    };
-
-                    // 3. Salvar o novo documento da OS no Firestore
-                    const osDocRef = await App.data.addDocument('instalacaoOrdensDeServico', osData);
-                    console.log("OS criada com ID:", osDocRef.id);
-
-                    // 4. Atualizar os pontos selecionados com o ID da nova OS em um batch
-                    const batch = writeBatch(db);
-                    selectedPointIds.forEach(pointId => {
-                        const pointRef = doc(db, "instalacaoPontos", pointId);
-                        batch.update(pointRef, { osId: osDocRef.id, status: 'EmOS' });
-                    });
-
-                    await batch.commit();
-                    console.log("Pontos atualizados com o ID da OS.");
-
-                    // 5. Atualizar o estado local para refletir as mudanças na UI
-                    const localOsData = { ...osData, dataCriacao: new Date() }; // Simula o timestamp localmente
-                    App.state.instalacaoOrdensDeServico.push({ id: osDocRef.id, ...localOsData });
-
-                    selectedPointIds.forEach(pointId => {
-                        const point = App.state.instalacaoPontos.find(p => p.id === pointId);
-                        if (point) {
-                            point.osId = osDocRef.id;
-                            point.status = 'EmOS';
-                        }
-                    });
-
-                    App.ui.renderPlannedPointsList(); // Atualiza a lista de pontos planejados
-                    App.ui.showAlert('Sucesso', `Ordem de Serviço ${numeroOS} gerada com sucesso!`);
-                    App.ui.showTab('execucaoOS'); // Navega para a lista de OS para execução
-
-                } catch (error) {
-                    console.error("Erro detalhado ao criar Ordem de Serviço: ", error);
-                    App.ui.showAlert('Erro', `Falha ao criar OS: ${error.message}`);
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-
-            async getNextOSNumber() {
-                const year = new Date().getFullYear();
-
-                // For offline, we generate a temporary, non-guaranteed number
-                if (!navigator.onLine) {
-                    const tempSeq = Date.now() % 1000;
-                    return {
-                        ano: year,
-                        sequencial: tempSeq,
-                        numeroOS: `OS-${year}-${String(tempSeq).padStart(3, '0')}-OFFLINE`
-                    };
-                }
-
-                // Online transactional logic
-                const counterRef = doc(db, 'osCounters', String(year));
-
-                // This is a simplified version. A real-world app would use a transaction
-                // or a Cloud Function to guarantee atomicity. For this project, we'll
-                // do a read-then-write which is mostly safe but not 100% race-condition proof.
-                const counterSnap = await getDoc(counterRef);
-                let lastSeq = 0;
-                if (counterSnap.exists()) {
-                    lastSeq = counterSnap.data().lastSeq || 0;
-                }
-                const newSeq = lastSeq + 1;
-                const newOSNumber = `OS-${year}-${String(newSeq).padStart(3, '0')}`;
-
-                return {
-                    ano: year,
-                    sequencial: newSeq,
-                    numeroOS: newOSNumber
-                };
 
                 if (!navigator.onLine) {
                     App.ui.showAlert("É preciso estar online para habilitar o login offline pela primeira vez.", "warning");
@@ -9779,129 +9039,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }, 8000);
-            },
-
-            setupPlanningMapInteraction() {
-                const map = App.state.mapboxMap;
-                if (!map) return;
-
-                // Remove previous listeners to avoid duplicates
-                this.removePlanningMapInteraction();
-
-                const handleMapClick = (e) => {
-                    // This function will handle both click and long-press
-                    console.log('Map clicked at:', e.lngLat);
-                    this.createPlanningPoint(e.lngLat);
-                };
-
-                // For desktop: simple click
-                map.on('click', handleMapClick);
-
-                // For mobile: long-press logic
-                let pressTimer = null;
-                const startPress = (e) => {
-                    pressTimer = setTimeout(() => {
-                        handleMapClick(e);
-                        pressTimer = null;
-                    }, 500); // 500ms for a long press
-                };
-
-                const cancelPress = () => {
-                    if (pressTimer) {
-                        clearTimeout(pressTimer);
-                        pressTimer = null;
-                    }
-                };
-
-                map.on('touchstart', startPress);
-                map.on('touchend', cancelPress);
-                map.on('touchcancel', cancelPress);
-                map.on('drag', cancelPress); // Cancel on map drag
-
-                // Store references to remove them later
-                map._planningClick = handleMapClick;
-                map._planningTouchStart = startPress;
-                map._planningTouchEnd = cancelPress;
-
-                App.ui.showAlert("Modo de Planeamento Ativo: Clique ou pressione e segure no mapa para adicionar um ponto.", "info");
-            },
-
-            removePlanningMapInteraction() {
-                const map = App.state.mapboxMap;
-                if (!map) return;
-
-                if (map._planningClick) {
-                    map.off('click', map._planningClick);
-                }
-                if (map._planningTouchStart) {
-                    map.off('touchstart', map._planningTouchStart);
-                }
-                if (map._planningTouchEnd) {
-                    map.off('touchend', map._planningTouchEnd);
-                    map.off('touchcancel', map._planningTouchEnd);
-                    map.off('drag', map._planningTouchEnd);
-                }
-            },
-
-            createPlanningPoint(lngLat) {
-                const modal = document.getElementById('planningPointModal');
-                const lngInput = document.getElementById('planningPointLng');
-                const latInput = document.getElementById('planningPointLat');
-                const fazendaSelect = document.getElementById('planningFazenda');
-                const talhaoSelect = document.getElementById('planningTalhao');
-                const responsavelSelect = document.getElementById('planningResponsavel');
-                const dataPrevistaInput = document.getElementById('planningDataPrevista');
-                const obsInput = document.getElementById('planningObservacoes');
-
-                // Store coordinates
-                lngInput.value = lngLat.lng;
-                latInput.value = lngLat.lat;
-
-                // Populate selects
-                this.populateFazendaSelects([fazendaSelect]);
-                this.populateUserSelects([responsavelSelect]);
-                talhaoSelect.innerHTML = '<option value="">Selecione a Fazenda</option>';
-
-                // Set default date
-                dataPrevistaInput.value = new Date().toISOString().split('T')[0];
-                obsInput.value = '';
-
-                // Show modal
-                modal.classList.add('show');
-            },
-
-            addPlanningPointMarker(point) {
-                const map = App.state.mapboxMap;
-                if (!map || !point.coordenadas) return;
-
-                const el = document.createElement('div');
-                el.className = 'mapbox-marker';
-                el.style.width = '30px';
-                el.style.height = '30px';
-                el.style.borderRadius = '50%';
-                el.style.backgroundColor = '#9C27B0'; // Purple for planned
-                el.style.border = '2px solid white';
-                el.style.display = 'flex';
-                el.style.justifyContent = 'center';
-                el.style.alignItems = 'center';
-                el.style.cursor = 'pointer';
-                el.innerHTML = `<i class="fas fa-map-pin" style="color: white; font-size: 16px;"></i>`;
-                el.title = `Ponto Planeado: ${point.talhaoId}`;
-
-                const marker = new mapboxgl.Marker(el)
-                    .setLngLat([point.coordenadas.lng, point.coordenadas.lat])
-                    .addTo(map);
-
-                // For now, just a log. Later this will open an edit modal.
-                el.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    console.log("Clicked on planned point:", point.id);
-                     // Future implementation: App.ui.showEditPlanningPointModal(point.id);
-                });
-
-                // Store the marker if we need to manage it later
-                if (!App.state.osPointMarkers) App.state.osPointMarkers = {};
-                App.state.osPointMarkers[point.id] = marker;
             },
         },
 
@@ -11897,46 +11034,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     riskOnly: riskOnlyCheckbox ? riskOnlyCheckbox.checked : false
                 };
                 this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
-            },
-
-            generateInstalacaoHistoricoPDF() {
-                const inicio = document.getElementById('instalacaoRelatorioInicio').value;
-                const fim = document.getElementById('instalacaoRelatorioFim').value;
-                const responsavelId = document.getElementById('instalacaoRelatorioResponsavel').value;
-                const status = document.getElementById('instalacaoRelatorioStatus').value;
-
-                if (!inicio || !fim) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
-                }
-
-                const filters = {
-                    inicio,
-                    fim,
-                    responsavelId,
-                    status
-                };
-                this._fetchAndDownloadReport('instalacao/historico/pdf', filters, 'relatorio_instalacao_historico.pdf');
-            },
-
-            generateInstalacaoHistoricoCSV() {
-                const inicio = document.getElementById('instalacaoRelatorioInicio').value;
-                const fim = document.getElementById('instalacaoRelatorioFim').value;
-                const responsavelId = document.getElementById('instalacaoRelatorioResponsavel').value;
-                const status = document.getElementById('instalacaoRelatorioStatus').value;
-
-                if (!inicio || !fim) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
-                }
-
-                const filters = {
-                    inicio,
-                    fim,
-                    responsavelId,
-                    status
-                };
-                this._fetchAndDownloadReport('instalacao/historico/csv', filters, 'relatorio_instalacao_historico.csv');
             },
         },
 
