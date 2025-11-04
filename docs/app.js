@@ -258,7 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
         elements: {},
 
         _initLoginElements() {
-            this.elements.appScreen = document.getElementById('appScreen'); // MOVED: Needed early for show/hide logic.
             this.elements.loadingOverlay = document.getElementById('loading-overlay');
             this.elements.loadingProgressText = document.getElementById('loading-progress-text');
             this.elements.loginScreen = document.getElementById('loginScreen');
@@ -1568,20 +1567,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loadingProgressText.textContent = progressText;
             },
             showLoginScreen() {
-                // Hide the main app screen and show the login screen.
-                if (App.elements.appScreen) App.elements.appScreen.style.display = 'none';
-                if (App.elements.loginScreen) App.elements.loginScreen.style.display = 'flex';
-
-                // Ensure the correct part of the login screen is visible
-                if (App.elements.loginForm) App.elements.loginForm.style.display = 'block';
-                if (App.elements.offlineUserSelection) App.elements.offlineUserSelection.style.display = 'none';
+                App.elements.loginForm.style.display = 'block';
+                App.elements.offlineUserSelection.style.display = 'none';
+                App.elements.loginScreen.style.display = 'flex';
+                App.elements.appScreen.style.display = 'none';
                 
-                // No need to hide userMenu or notificationBell individually, as they are children of appScreen.
-                // This was the source of the error.
-
-                if (App.elements.loginUser) {
-                    App.elements.loginUser.value = '';
+                if (App.elements.userMenu && App.elements.userMenu.container) {
+                    App.elements.userMenu.container.style.display = 'none';
                 }
+                if (App.elements.notificationBell && App.elements.notificationBell.container) {
+                    App.elements.notificationBell.container.style.display = 'none';
+                }
+
+                App.elements.loginUser.value = '';
                 App.elements.loginPass.value = '';
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
