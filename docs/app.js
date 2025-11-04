@@ -849,6 +849,8 @@ document.addEventListener('DOMContentLoaded', () => {
             OfflineDB.init();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
+            // Show login screen by default to avoid race conditions with auth check
+            this.ui.showLoginScreen();
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
