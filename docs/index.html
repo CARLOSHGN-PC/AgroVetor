@@ -1704,6 +1704,19 @@
         <nav class="menu" id="menu" aria-label="Menu Principal" tabindex="-1"></nav>
         
         <main class="content" id="content">
+
+            <div id="planejamentoInstalacao" class="tab-content">
+                <!-- O mapa de monitoramento aéreo será reutilizado aqui via JS -->
+            </div>
+
+            <div class="tab-content">
+                <!-- A UI de geração de OS irá aqui -->
+            </div>
+
+            <div id="execucaoOS" class="tab-content">
+                <!-- A UI de execução irá aqui -->
+            </div>
+
             <section id="dashboard" class="tab-content" aria-label="Dashboard" tabindex="0" hidden>
                 
                 <div id="dashboard-selector" class="dashboard-selector-grid">
@@ -2976,6 +2989,47 @@
                 </div>
             </section>
 
+            <section id="relatorioInstalacao" class="tab-content card" aria-label="Relatórios de Instalação" tabindex="0" hidden>
+                <h2><i class="fas fa-chart-bar"></i> Relatórios de Instalação</h2>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="instalacaoRelatorioFazenda">Filtrar por Fazenda:</label>
+                        <select id="instalacaoRelatorioFazenda">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label for="instalacaoRelatorioResponsavel">Filtrar por Responsável:</label>
+                        <select id="instalacaoRelatorioResponsavel">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="instalacaoRelatorioInicio" class="required">Data Início:</label>
+                        <input type="date" id="instalacaoRelatorioInicio" />
+                    </div>
+                    <div class="form-col">
+                        <label for="instalacaoRelatorioFim" class="required">Data Fim:</label>
+                        <input type="date" id="instalacaoRelatorioFim" />
+                    </div>
+                </div>
+                 <div class="form-row">
+                    <div class="form-col">
+                        <label for="tipoRelatorioInstalacao">Tipo de Relatório:</label>
+                        <select id="tipoRelatorioInstalacao">
+                            <option value="historico">Histórico de Instalações</option>
+                            <!-- Adicionar outros tipos de relatório aqui no futuro -->
+                        </select>
+                    </div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnPDFInstalacao" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnExcelInstalacao" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+            </section>
+
             <section id="apontamentoPlantio" class="tab-content card" aria-label="Apontamento Diário de Plantio" tabindex="0" hidden>
                 <h2><i class="fas fa-seedling"></i> Apontamento Diário de Plantio</h2>
                 <form id="formApontamentoPlantio">
@@ -3131,10 +3185,45 @@
                 </div>
             </section>
 
+            <section id="instalacaoPlanejamento" class="tab-content" aria-label="Planejamento de Instalação" tabindex="0" hidden>
+                <!-- This will be a full-screen map view, similar to monitoramentoAereo -->
+            </section>
+
+            <section id="geracaoOS" class="tab-content card" aria-label="Geração de Ordem de Serviço" tabindex="0" hidden>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-file-signature"></i> Geração de Ordem de Serviço</h2>
+                    <div class="button-group">
+                        <button id="btnGerarOS" class="save" disabled><i class="fas fa-cogs"></i> Gerar OS</button>
+                    </div>
+                </div>
+                <div class="card" style="border-left-color: var(--color-info); margin-top: 20px;">
+                    <h3><i class="fas fa-filter"></i> Filtros</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="osFazendaFiltro">Fazenda:</label><select id="osFazendaFiltro"><option value="">Todas</option></select></div>
+                        <div class="form-col"><label for="osTalhaoFiltro">Talhão:</label><input type="text" id="osTalhaoFiltro"></div>
+                        <div class="form-col"><label for="osResponsavelFiltro">Responsável:</label><select id="osResponsavelFiltro"><option value="">Todos</option></select></div>
+                    </div>
+                </div>
+
+                <h3><i class="fas fa-map-pin"></i> Pontos Planejados</h3>
+                <div id="planned-points-list" class="table-responsive">
+                    <!-- A lista de pontos será renderizada aqui -->
+                </div>
+            </section>
+
         </main>
         
         <div id="monitoramentoAereo-container" class="tab-content">
-            <div id="map-container" class="loading">
+            <div id="os-list-sidebar" class="info-box" style="width: 350px; left: 15px; top: 15px; transform: none; display: flex; flex-direction: column;">
+                 <div class="info-title">
+                    <i class="fas fa-file-signature"></i>
+                    <span>Minhas Ordens de Serviço</span>
+                </div>
+                <div id="os-list-container" style="overflow-y: auto; padding: 10px;">
+                    <!-- Lista de OS será renderizada aqui -->
+                </div>
+            </div>
+            <div id="map-container" class="loading" style="margin-left: 365px; width: calc(100% - 365px);">
                 <div id="map"></div>
                 <div class="map-search-container">
                     <input type="text" id="map-farm-search-input" placeholder="Pesquisar fazenda...">
@@ -3163,6 +3252,41 @@
                 <div id="trap-info-box" class="info-box">
                     <button id="close-trap-info-box" class="modal-close-btn">&times;</button>
                     <div id="trap-info-box-content"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="generateOSModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Gerar Nova Ordem de Serviço</h2>
+                    <button class="modal-close-btn" data-modal-id="generateOSModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p><span id="selected-points-count">0</span> ponto(s) selecionado(s).</p>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="osResponsavel" class="required">Responsável pela OS:</label>
+                            <select id="osResponsavel" required></select>
+                        </div>
+                        <div class="form-col">
+                            <label for="osPrazoExecucao" class="required">Prazo de Execução:</label>
+                            <input type="date" id="osPrazoExecucao" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                         <div class="form-col">
+                            <label for="osObservacoes">Observações:</label>
+                            <textarea id="osObservacoes" placeholder="Observações..."></textarea>
+                        </div>
+                    </div>
+                    <div id="different-responsibles-warning" style="display: none; margin-top: 15px; padding: 10px; background-color: var(--color-warning-light); border: 1px solid var(--color-warning); border-radius: 5px;">
+                        <strong>Atenção:</strong> Os pontos selecionados têm responsáveis diferentes. Ao gerar a OS, o responsável selecionado acima (<span id="new-responsible-name"></span>) será definido para todos os pontos.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" data-modal-id="generateOSModal">Cancelar</button>
+                    <button id="btnConfirmGerarOS" class="save"><i class="fas fa-check"></i> Confirmar e Gerar OS</button>
                 </div>
             </div>
         </div>
@@ -3422,6 +3546,73 @@
                 <div class="modal-footer">
                     <button id="enableOfflineLoginModalCancelBtn" class="btn-secondary">Cancelar</button>
                     <button id="btnConfirmEnableOffline" class="save">Confirmar e Habilitar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content">
+            <div class="container">
+                <h2>Gerar Ordem de Serviço a partir de Pontos Planeados</h2>
+                <div id="planned-points-list-container">
+                    <!-- Planned points table will be rendered here by JS -->
+                </div>
+            </div>
+        </div>
+
+        <div id="pointInstallationModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="pointInstallationModalTitle">Detalhes do Ponto de Instalação</h2>
+                    <button id="pointInstallationModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <input type="hidden" id="installationPointId">
+                <div id="pointInstallationModalBody">
+                    <!-- Details will be rendered here -->
+                </div>
+                <div class="modal-footer" id="pointInstallationModalFooter">
+                     <button id="pointInstallationModalCancelBtn" class="btn-secondary">Cancelar</button>
+                     <button id="btnMarkAsInstalled" class="save"><i class="fas fa-camera"></i> Marcar como Instalado</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="planningPointModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Novo Ponto de Planeamento</h2>
+                    <button class="modal-close-btn" data-modal-id="planningPointModal">&times;</button>
+                </div>
+                <input type="hidden" id="planningPointLng">
+                <input type="hidden" id="planningPointLat">
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="planningFazenda" class="required">Fazenda:</label>
+                        <select id="planningFazenda" required></select>
+                    </div>
+                    <div class="form-col">
+                        <label for="planningTalhao" class="required">Talhão:</label>
+                        <select id="planningTalhao" required></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="planningDataPrevista" class="required">Data Prevista Instalação:</label>
+                        <input type="date" id="planningDataPrevista" required>
+                    </div>
+                    <div class="form-col">
+                        <label for="planningResponsavel">Responsável:</label>
+                        <select id="planningResponsavel"></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="planningObservacoes">Observações:</label>
+                        <textarea id="planningObservacoes" placeholder="Observações..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" data-modal-id="planningPointModal">Cancelar</button>
+                    <button id="btnSavePlanningPoint" class="save"><i class="fas fa-save"></i> Guardar Ponto</button>
                 </div>
             </div>
         </div>
