@@ -104,13 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
-                {
-                    label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish',
-                    submenu: [
-                        { label: 'Visualizar Mapa', icon: 'fas fa-map-marked-alt', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
-                        { label: 'Planejamento de Instalação', icon: 'fas fa-calendar-plus', target: 'planejamentoInstalacao', permission: 'planejamentoInstalacao' },
-                    ]
-                },
+                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -163,8 +157,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, planejamentoInstalacao: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, planejamentoInstalacao: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
@@ -221,9 +215,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
                 apontamentoPlantioFormIsDirty: false,
-                activePlanejamentoId: null,
-                planningMarkers: [],
-                temporaryMarker: null, // For the new draggable marker
         },
         
         elements: {
@@ -693,90 +684,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
-            novoPlanejamentoModal: {
-                overlay: document.getElementById('novoPlanejamentoModal'),
-                title: document.getElementById('novoPlanejamentoModalTitle'),
-                closeBtn: document.getElementById('novoPlanejamentoModalCloseBtn'),
-                cancelBtn: document.getElementById('novoPlanejamentoModalCancelBtn'),
-                saveBtn: document.getElementById('novoPlanejamentoModalSaveBtn'),
-                id: document.getElementById('planejamentoId'),
-                nome: document.getElementById('planejamentoNome'),
-                fazenda: document.getElementById('planejamentoFazenda'),
-                talhao: document.getElementById('planejamentoTalhao'),
-            },
-            instalacaoPontoModal: {
-                overlay: document.getElementById('instalacaoPontoModal'),
-                title: document.getElementById('instalacaoPontoModalTitle'),
-                closeBtn: document.getElementById('instalacaoPontoModalCloseBtn'),
-                cancelBtn: document.getElementById('instalacaoPontoModalCancelBtn'),
-                saveBtn: document.getElementById('instalacaoPontoModalSaveBtn'),
-                id: document.getElementById('pontoId'),
-                fazenda: document.getElementById('pontoFazenda'),
-                talhao: document.getElementById('pontoTalhao'),
-                responsavel: document.getElementById('pontoResponsavel'),
-                dataPrevista: document.getElementById('pontoDataPrevista'),
-                descricao: document.getElementById('pontoDescricao'),
-            },
-            backToPlansList: document.getElementById('back-to-plans-list'),
-        },
-
-        _handleMapClickForPlanning(e) {
-            if (App.state.temporaryMarker) {
-                App.state.temporaryMarker.remove();
-                App.state.temporaryMarker = null;
-            }
-
-            const features = App.state.mapboxMap.queryRenderedFeatures(e.point, {
-                layers: ['talhoes-layer']
-            });
-
-            if (features.length > 0) {
-                const feature = features[0];
-                const farm = App.state.fazendas.find(f => f.code == App.mapModule._findProp(feature, ['FUNDO_AGR']));
-                const talhaoName = App.mapModule._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-                const talhao = farm?.talhoes.find(t => t.name === talhaoName);
-
-                if (!talhao) {
-                    App.ui.showAlert('Não foi possível encontrar o ID do talhão. Verifique o cadastro.', 'error');
-                    return;
-                }
-
-                // Create a new draggable marker
-                App.state.temporaryMarker = new mapboxgl.Marker({ draggable: true })
-                    .setLngLat(e.lngLat)
-                    .addTo(App.state.mapboxMap);
-
-                // Function to open the modal
-                const openModal = (lngLat) => {
-                    const modal = App.elements.instalacaoPontoModal;
-                    modal.overlay.classList.add('show');
-                    modal.title.textContent = 'Novo Ponto de Instalação';
-                    modal.id.value = ''; // Ensure we are in "create" mode
-
-                    // Auto-populate and store data needed for saving
-                    modal.fazenda.value = farm ? `${farm.code} - ${farm.name}` : 'Desconhecida';
-                    modal.talhao.value = talhaoName;
-                    App.state.activePointForSaving = {
-                        planejamentoId: App.state.activePlanejamentoId,
-                        fazendaId: farm ? farm.id : null,
-                        talhaoId: talhao.id, // Correctly store the ID
-                        coordenadas: { lat: lngLat.lat, lng: lngLat.lng }
-                    };
-                };
-
-                // Update coordinates in state on drag end
-                App.state.temporaryMarker.on('dragend', () => {
-                    const lngLat = App.state.temporaryMarker.getLngLat();
-                    App.state.activePointForSaving.coordenadas = { lat: lngLat.lat, lng: lngLat.lng };
-                    console.log('New marker position:', App.state.activePointForSaving.coordenadas);
-                });
-
-                // Open the modal with initial coordinates
-                openModal(e.lngLat);
-
-            } else {
-                App.ui.showAlert('Clique dentro de um talhão para adicionar um ponto.', 'info');
-            }
         },
 
         isFeatureGloballyActive(featureKey) {
@@ -1574,10 +1481,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         break;
                     case 'users':
-                        this.populateUserSelects([
-                            App.elements.planejamento.responsavel,
-                            App.elements.instalacaoPontoModal.responsavel
-                        ]);
+                        this.populateUserSelects([App.elements.planejamento.responsavel]);
                         if (activeTab === 'gerenciarUsuarios') {
                             this.renderUsersList();
                         }
@@ -1845,10 +1749,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 select.value = savedValue;
             },
-            showTab(id, options = {}) {
+            showTab(id) {
                 const { currentUser, companies } = App.state;
-                const isPlanningMode = options.isPlanningMode || false;
-                App.state.isPlanningMode = isPlanningMode;
 
                 // Encontrar o item de menu correspondente para obter a permissão necessária
                 let requiredPermission = null;
@@ -1933,33 +1835,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
                     if (App.state.mapboxMap) {
+                        // Força o redimensionamento do mapa para o contêiner visível
                         setTimeout(() => App.state.mapboxMap.resize(), 0);
-
-                        if (isPlanningMode) {
-                            App.elements.backToPlansList.style.display = 'block';
-                            App.elements.monitoramentoAereo.btnAddTrap.style.display = 'none';
-                            App.state.mapboxMap.on('click', App._handleMapClickForPlanning);
-                             // TODO: Load existing points for this plan
-                        } else {
-                            App.elements.backToPlansList.style.display = 'none';
-                            // Restore button visibility based on permissions
-                             if (App.state.permissions.canAddTrap) {
-                                App.elements.monitoramentoAereo.btnAddTrap.style.display = 'flex';
-                            }
-                            App.state.mapboxMap.off('click', App._handleMapClickForPlanning);
-                            App.state.activePlanejamentoId = null;
-                        }
                     }
                 } else {
                     mapContainer.classList.remove('active');
-                    // Ensure the planning mode is turned off if we navigate away from the map
-                    if (App.state.mapboxMap) {
-                        App.state.mapboxMap.off('click', App._handleMapClickForPlanning);
-                        App.elements.backToPlansList.style.display = 'none';
-                         if (App.state.permissions.canAddTrap) {
-                                App.elements.monitoramentoAereo.btnAddTrap.style.display = 'flex';
-                         }
-                    }
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
@@ -2007,9 +1887,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderCompaniesList();
                     this.renderCompanyModules('newCompanyModules');
                     this.renderGlobalFeatures(); // NOVO
-                }
-                if (id === 'planejamentoInstalacao') {
-                    App.actions.loadPlanejamentos();
                 }
                 if (id === 'cadastros') {
                     this.renderFarmSelect();
@@ -2277,8 +2154,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.apontamentoPlantio.farmName,
                     App.elements.lancamentoClima.fazenda,
                     App.elements.relatorioClima.fazenda,
-                    document.getElementById('climaDashboardFazenda'),
-                    App.elements.novoPlanejamentoModal.fazenda,
+                    document.getElementById('climaDashboardFazenda')
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
@@ -4499,80 +4375,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (e.target.closest('.btn-remover-amostra')) {
                             App.state.apontamentoPlantioFormIsDirty = true;
                         }
-                    });
-                }
-
-                const btnNovoPlanejamento = document.getElementById('btnNovoPlanejamento');
-                if (btnNovoPlanejamento) {
-                    btnNovoPlanejamento.addEventListener('click', () => {
-                        App.elements.novoPlanejamentoModal.overlay.classList.add('show');
-                    });
-                }
-
-                const novoPlanejamentoModal = App.elements.novoPlanejamentoModal;
-                if (novoPlanejamentoModal) {
-                    novoPlanejamentoModal.closeBtn.addEventListener('click', () => novoPlanejamentoModal.overlay.classList.remove('show'));
-                    novoPlanejamentoModal.cancelBtn.addEventListener('click', () => novoPlanejamentoModal.overlay.classList.remove('show'));
-                    novoPlanejamentoModal.saveBtn.addEventListener('click', () => App.actions.savePlanejamento());
-                    novoPlanejamentoModal.fazenda.addEventListener('change', (e) => {
-                        const farmId = e.target.value;
-                        const farm = App.state.fazendas.find(f => f.id === farmId);
-                        const talhaoSelect = novoPlanejamentoModal.talhao;
-                        talhaoSelect.innerHTML = '<option value="">Selecione...</option>';
-                        if (farm && farm.talhoes) {
-                            farm.talhoes.forEach(talhao => {
-                                talhaoSelect.innerHTML += `<option value="${talhao.id}">${talhao.name}</option>`;
-                            });
-                        }
-                    });
-                }
-
-                const planejamentosList = document.getElementById('planejamentosList');
-                if (planejamentosList) {
-                    planejamentosList.addEventListener('click', (e) => {
-                        const openBtn = e.target.closest('.btn-abrir-planejamento');
-                        const cancelBtn = e.target.closest('.btn-cancelar-planejamento');
-
-                        if (openBtn) {
-                            const planId = openBtn.closest('.plano-card').dataset.id;
-                            App.actions.openPlanejamento(planId);
-                        }
-
-                        if (cancelBtn) {
-                            const planId = cancelBtn.closest('.plano-card').dataset.id;
-                            App.ui.showConfirmationModal('Tem a certeza que deseja cancelar este planejamento?', async () => {
-                                App.ui.setLoading(true);
-                                try {
-                                    await App.data.updateDocument('instalacaoPlanejamentos', planId, { status: 'Cancelado' });
-                                    App.ui.showAlert('Planejamento cancelado.');
-                                    App.actions.loadPlanejamentos();
-                                } catch (error) {
-                                    App.ui.showAlert('Erro ao cancelar o planejamento.', 'error');
-                                } finally {
-                                    App.ui.setLoading(false);
-                                }
-                            });
-                        }
-                    });
-                }
-
-                const pontoModal = App.elements.instalacaoPontoModal;
-                if (pontoModal) {
-                    const closeModal = () => {
-                        pontoModal.overlay.classList.remove('show');
-                        if (App.state.temporaryMarker) {
-                            App.state.temporaryMarker.remove();
-                            App.state.temporaryMarker = null;
-                        }
-                    };
-                    pontoModal.closeBtn.addEventListener('click', closeModal);
-                    pontoModal.cancelBtn.addEventListener('click', closeModal);
-                    pontoModal.saveBtn.addEventListener('click', () => App.actions.savePonto());
-                }
-
-                if (App.elements.backToPlansList) {
-                    App.elements.backToPlansList.addEventListener('click', () => {
-                        App.ui.showTab('planejamentoInstalacao');
                     });
                 }
             }
@@ -7513,321 +7315,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showTab('gerenciarEmpresas'); // Go back to a sensible super-admin tab
                 App.ui.hideImpersonationBanner();
             },
-
-            openPlanejamento(planejamentoId) {
-                App.state.activePlanejamentoId = planejamentoId;
-                // AQUI está a mudança crucial: passamos uma opção para entrar em modo de planejamento
-                App.ui.showTab('monitoramentoAereo', { isPlanningMode: true });
-                 // Adicionado para carregar os pontos existentes ao abrir o mapa
-                setTimeout(() => App.actions.loadPontosDoPlanejamento(), 500); // Timeout to ensure map is ready
-            },
-
-        async savePlanejamento() {
-            const { id, nome, fazenda, talhao } = App.elements.novoPlanejamentoModal;
-            const farmId = fazenda.value;
-            const talhaoId = talhao.value;
-            if (!farmId || !talhaoId) {
-                App.ui.showAlert("Fazenda e Talhão são obrigatórios.", "error");
-                return;
-            }
-
-            const planData = {
-                nome: nome.value.trim(),
-                fazendaId: farmId,
-                talhaoId: talhaoId,
-                criadoPorUserId: App.state.currentUser.uid,
-                criadoEm: serverTimestamp(),
-                status: "Planejado",
-                syncStatus: "pending",
-                companyId: App.state.currentUser.companyId,
-            };
-
-            const planId = id.value;
-            const confirmationMessage = planId ? "Tem a certeza que deseja atualizar este planejamento?" : "Tem a certeza que deseja criar este novo planejamento?";
-
-            App.ui.showConfirmationModal(confirmationMessage, async () => {
-                App.ui.setLoading(true, "A guardar planejamento...");
-                try {
-                    if (navigator.onLine) {
-                        if (planId) {
-                            await App.data.updateDocument('instalacaoPlanejamentos', planId, planData);
-                            App.ui.showAlert("Planejamento atualizado com sucesso!");
-                        } else {
-                            await App.data.addDocument('instalacaoPlanejamentos', planData);
-                            App.ui.showAlert("Planejamento criado com sucesso!");
-                        }
-                    } else {
-                        if (planId) {
-                            App.ui.showAlert("A edição de planejamentos não está disponível offline.", "warning");
-                            return;
-                        }
-                        const offlineId = `offline_plan_${Date.now()}`;
-                        await OfflineDB.add('offline-writes', {
-                            id: offlineId,
-                            collection: 'instalacaoPlanejamentos',
-                            data: { ...planData, id: offlineId }
-                        });
-                        App.ui.showAlert('Guardado offline. Será sincronizado quando houver conexão.', 'info');
-                    }
-
-                    // Clear and close modal on success
-                    App.elements.novoPlanejamentoModal.overlay.classList.remove('show');
-                    id.value = '';
-                    nome.value = '';
-                    fazenda.value = '';
-                    talhao.innerHTML = '<option value="">Selecione...</option>';
-                    this.loadPlanejamentos();
-
-                } catch (error) {
-                    console.error("Erro ao guardar o planejamento:", error);
-                    if (!planId) { // Fallback to offline only for new plans
-                        try {
-                            const offlineId = `offline_plan_${Date.now()}`;
-                            await OfflineDB.add('offline-writes', {
-                                id: offlineId,
-                                collection: 'instalacaoPlanejamentos',
-                                data: { ...planData, id: offlineId }
-                            });
-                            App.ui.showAlert('Falha ao conectar. Planejamento guardado offline.', 'warning');
-                            // Clear and close modal on offline fallback success
-                            App.elements.novoPlanejamentoModal.overlay.classList.remove('show');
-                            id.value = '';
-                            nome.value = '';
-                            fazenda.value = '';
-                            talhao.innerHTML = '<option value="">Selecione...</option>';
-                            this.loadPlanejamentos();
-                        } catch (offlineError) {
-                            App.ui.showAlert("Falha crítica ao guardar offline.", "error");
-                        }
-                    } else {
-                         App.ui.showAlert("Erro ao guardar o planejamento.", "error");
-                    }
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            });
-        },
-
-        async savePonto() {
-            const modal = App.elements.instalacaoPontoModal;
-            const { responsavel, dataPrevista, descricao, id } = modal;
-
-            if (!responsavel.value || !dataPrevista.value) {
-                App.ui.showAlert('Responsável e Data Prevista são obrigatórios.', 'error');
-                return;
-            }
-
-            const isEditing = id.value;
-
-            const pointData = {
-                ...App.state.activePointForSaving, // Contains an old copy of the point if editing
-                responsavelId: responsavel.value,
-                dataPrevistaInstalacao: Timestamp.fromDate(new Date(dataPrevista.value + 'T03:00:00Z')),
-                descricao: descricao.value.trim(),
-                status: 'Planejado',
-                updatedEm: serverTimestamp(),
-                syncStatus: navigator.onLine ? 'synced' : 'pending'
-            };
-
-            // If it's a new point, add creation fields
-            if (!isEditing) {
-                pointData.criadoPorUserId = App.state.currentUser.uid;
-                pointData.criadoEm = serverTimestamp();
-            }
-
-            App.ui.setLoading(true, isEditing ? "A atualizar ponto..." : "A guardar ponto...");
-            try {
-                if (navigator.onLine) {
-                    if (isEditing) {
-                        await App.data.updateDocument('instalacaoPontos', id.value, pointData);
-                    } else {
-                        await App.data.addDocument('instalacaoPontos', pointData);
-                    }
-                } else {
-                    const offlineWrite = {
-                        collection: 'instalacaoPontos',
-                        data: pointData
-                    };
-                    if (isEditing) {
-                        offlineWrite.type = 'update';
-                        offlineWrite.docId = id.value;
-                    } else {
-                        offlineWrite.id = `offline_ponto_${Date.now()}`;
-                    }
-                    await OfflineDB.add('offline-writes', offlineWrite);
-                    App.ui.showAlert('Guardado offline. Será sincronizado quando houver conexão.', 'info');
-                }
-
-                App.ui.showAlert(`Ponto ${isEditing ? 'atualizado' : 'guardado'} com sucesso!`);
-                modal.overlay.classList.remove('show');
-                id.value = ''; // Clear the ID after saving
-
-                if (App.state.temporaryMarker) {
-                    App.state.temporaryMarker.remove();
-                    App.state.temporaryMarker = null;
-                }
-
-                this.loadPontosDoPlanejamento(); // Recarrega os pontos no mapa
-            } catch (error) {
-                 console.error("Erro ao guardar o ponto: ", error);
-                App.ui.showAlert('Ocorreu um erro ao guardar o ponto.', 'error');
-            } finally {
-                App.ui.setLoading(false);
-            }
-        },
-
-        async loadPontosDoPlanejamento() {
-            if (!App.state.activePlanejamentoId || !App.state.mapboxMap) return;
-
-            // Limpa marcadores antigos
-            App.state.planningMarkers.forEach(marker => marker.remove());
-            App.state.planningMarkers = [];
-
-            const q = query(
-                collection(db, "instalacaoPontos"),
-                where("planejamentoId", "==", App.state.activePlanejamentoId)
-            );
-
-            try {
-                const querySnapshot = await getDocs(q);
-                querySnapshot.forEach(doc => {
-                    const ponto = { id: doc.id, ...doc.data() };
-                    this.addPlanningMarkerToMap(ponto);
-                });
-            } catch (error) {
-                console.error("Erro ao carregar pontos do planejamento: ", error);
-                App.ui.showAlert('Erro ao carregar os pontos no mapa.', 'error');
-            }
-        },
-
-        addPlanningMarkerToMap(ponto) {
-            const el = document.createElement('div');
-            el.className = 'mapbox-marker';
-            el.style.width = '30px';
-            el.style.height = '30px';
-            el.style.borderRadius = '50%';
-            el.style.backgroundColor = 'var(--color-info)'; // Azul para planejado
-            el.style.border = '2px solid white';
-            el.style.display = 'flex';
-            el.style.justifyContent = 'center';
-            el.style.alignItems = 'center';
-            el.style.cursor = 'pointer';
-            el.innerHTML = '<i class="fas fa-map-pin" style="color: white; font-size: 16px;"></i>';
-            el.title = `Ponto Planejado - Clique para editar`;
-
-            const marker = new mapboxgl.Marker(el)
-                .setLngLat([ponto.coordenadas.lng, ponto.coordenadas.lat])
-                .addTo(App.state.mapboxMap);
-
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.openPontoModalForEdit(ponto);
-            });
-
-            App.state.planningMarkers.push(marker);
-        },
-
-        openPontoModalForEdit(ponto) {
-            const modal = App.elements.instalacaoPontoModal;
-            modal.title.textContent = 'Editar Ponto de Instalação';
-            modal.id.value = ponto.id; // Store the ID for updating
-
-            const farm = App.state.fazendas.find(f => f.id === ponto.fazendaId);
-            modal.fazenda.value = farm ? `${farm.code} - ${farm.name}` : 'Desconhecida';
-
-            // This assumes talhaoId is stored correctly. If not, this needs adjustment.
-            const talhao = farm?.talhoes?.find(t => t.id == ponto.talhaoId);
-            modal.talhao.value = talhao ? talhao.name : 'Desconhecido';
-
-            modal.responsavel.value = ponto.responsavelId;
-            // Firestore timestamps need to be converted to yyyy-mm-dd for the date input
-            const date = ponto.dataPrevistaInstalacao.toDate ? ponto.dataPrevistaInstalacao.toDate() : new Date(ponto.dataPrevistaInstalacao);
-            modal.dataPrevista.value = date.toISOString().split('T')[0];
-
-            modal.descricao.value = ponto.descricao || '';
-
-            // Store data needed for saving, including coordinates for potential edits (if draggable markers are added later)
-            App.state.activePointForSaving = {
-                planejamentoId: ponto.planejamentoId,
-                fazendaId: ponto.fazendaId,
-                talhaoId: ponto.talhaoId,
-                coordenadas: ponto.coordenadas
-            };
-
-            modal.overlay.classList.add('show');
-        },
-
-        async loadPlanejamentos() {
-            if (!App.state.currentUser || !App.state.companyId) {
-                App.ui.showAlert('Utilizador não autenticado.', 'error');
-                return;
-            }
-
-            App.ui.setLoading(true);
-            const listContainer = document.getElementById('planejamentosList');
-            listContainer.innerHTML = ''; // Clear previous list
-
-            try {
-                const db = App.db;
-                const q = query(
-                    collection(db, "instalacaoPlanejamentos"),
-                    where("companyId", "==", App.state.companyId),
-                    orderBy("criadoEm", "desc")
-                );
-
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
-                    listContainer.innerHTML = '<div class="card"><p>Nenhum planejamento encontrado. Clique em "Novo Planejamento" para começar.</p></div>';
-                    return;
-                }
-
-                const farmMap = App.state.fazendas.reduce((map, farm) => {
-                    map[farm.id] = farm;
-                    return map;
-                }, {});
-
-                querySnapshot.forEach(doc => {
-                    const planejamento = { id: doc.id, ...doc.data() };
-                    const card = document.createElement('div');
-                    card.className = 'plano-card';
-                    card.dataset.id = planejamento.id;
-
-                    const farmData = farmMap[planejamento.fazendaId];
-                    const farmName = farmData ? farmData.name : 'Fazenda desconhecida';
-
-                    let talhaoName = 'Talhão desconhecido';
-                    if (farmData && farmData.talhoes) {
-                        const talhaoData = farmData.talhoes.find(t => t.id == planejamento.talhaoId);
-                        talhaoName = talhaoData ? talhaoData.name : `ID: ${planejamento.talhaoId}`;
-                    }
-
-                    card.innerHTML = `
-                        <div class="plano-header">
-                            <span class="plano-title"><i class="fas fa-map-marked-alt"></i> ${planejamento.nome || 'Planejamento sem nome'}</span>
-                            <span class="plano-status" style="background-color: ${planejamento.status === 'Cancelado' ? 'var(--color-danger)' : 'var(--color-info)'};">${planejamento.status}</span>
-                        </div>
-                        <div class="plano-details">
-                            <div><i class="fas fa-tractor"></i> <strong>Fazenda:</strong> ${farmName}</div>
-                            <div><i class="fas fa-th-large"></i> <strong>Talhão:</strong> ${talhaoName}</div>
-                            <div><i class="fas fa-calendar-alt"></i> <strong>Criado em:</strong> ${planejamento.criadoEm ? new Date(planejamento.criadoEm.seconds * 1000).toLocaleDateString('pt-BR') : 'N/A'}</div>
-                        </div>
-                        <div class="plano-actions">
-                            <button class="save btn-abrir-planejamento" style="margin-top:0; width: auto; max-width: none; background: var(--color-info);"><i class="fas fa-edit"></i> Abrir e Editar Pontos</button>
-                            ${planejamento.status !== 'Cancelado' ? '<button class="btn-secondary btn-cancelar-planejamento" style="margin-top:0; width: auto; max-width: none;"><i class="fas fa-times"></i> Cancelar</button>' : ''}
-                        </div>
-                    `;
-                    listContainer.appendChild(card);
-                });
-
-            } catch (error) {
-                console.error("Erro ao carregar planejamentos:", error);
-                App.ui.showAlert('Falha ao carregar planejamentos.', 'error');
-                listContainer.innerHTML = '<p style="color: var(--color-danger);">Ocorreu um erro ao carregar os dados.</p>';
-            } finally {
-                App.ui.setLoading(false);
-            }
-        },
 
             async saveGlobalFeatures() {
                 const grid = document.getElementById('globalFeaturesGrid');
