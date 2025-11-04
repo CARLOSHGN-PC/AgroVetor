@@ -1943,7 +1943,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             App.elements.backToPlansList.style.display = 'none';
                             // Restore button visibility based on permissions
-                             if (App.state.permissions.canAddTrap) {
+                             if (App.state.currentUser?.permissions?.monitoramentoAereo) {
                                 App.elements.monitoramentoAereo.btnAddTrap.style.display = 'flex';
                             }
                             App.state.mapboxMap.off('click', App._handleMapClickForPlanning);
@@ -1956,7 +1956,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (App.state.mapboxMap) {
                         App.state.mapboxMap.off('click', App._handleMapClickForPlanning);
                         App.elements.backToPlansList.style.display = 'none';
-                         if (App.state.permissions.canAddTrap) {
+                         if (App.state.currentUser?.permissions?.monitoramentoAereo) {
                                 App.elements.monitoramentoAereo.btnAddTrap.style.display = 'flex';
                          }
                     }
