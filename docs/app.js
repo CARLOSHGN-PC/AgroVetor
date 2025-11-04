@@ -851,7 +851,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             // Show login screen by default to avoid race conditions with auth check
             this.ui.showLoginScreen();
-            this.ui.setupLoginEventListeners(); // FIX: Only setup login listeners at startup
+            this.ui.setupEventListeners();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
@@ -1595,12 +1595,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.userMenu.container.style.display = 'block';
                 App.elements.notificationBell.container.style.display = 'block';
                 App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
-
+                
                 // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
                 App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AgroVetor`;
-
-                // FIX: Setup main app listeners only when the app screen is shown
-                this.setupAppEventListeners();
 
                 this.updateDateTime();
                 setInterval(() => this.updateDateTime(), 60000);
@@ -3762,7 +3759,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            setupLoginEventListeners() {
+            setupEventListeners() {
                 if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => App.auth.login());
                 const btnOfflineLogin = document.getElementById('btnOfflineLogin');
                 if (btnOfflineLogin) {
@@ -3794,11 +3791,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (e.target === offlineModal) App.ui.closeEnableOfflineLoginModal();
                     });
                 }
-
-                this.enableEnterKeyNavigation('#loginBox');
-            },
-
-            setupAppEventListeners() {
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
                     document.body.classList.toggle('mobile-menu-open');
@@ -4306,6 +4298,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
+                this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 if (App.elements.frenteDePlantio.btnSave) App.elements.frenteDePlantio.btnSave.addEventListener('click', () => App.actions.saveFrenteDePlantio());
                 if (App.elements.frenteDePlantio.list) App.elements.frenteDePlantio.list.addEventListener('click', e => {
@@ -4382,6 +4375,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
+
+                this.enableEnterKeyNavigation('#loginBox');
                 this.enableEnterKeyNavigation('#lancamentoBroca');
                 this.enableEnterKeyNavigation('#lancamentoPerda');
                 this.enableEnterKeyNavigation('#lancamentoCigarrinha');
