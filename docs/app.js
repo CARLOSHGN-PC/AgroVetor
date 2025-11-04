@@ -3638,8 +3638,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             renderPlannedPointsList() {
                 const listContainer = document.getElementById('planned-points-list');
-                const fazendaFiltro = document.getElementById('osGeracaoFazendaFiltro').value;
-                const responsavelFiltro = document.getElementById('osGeracaoResponsavelFiltro').value;
+                const fazendaFiltro = document.getElementById('osFazendaFiltro').value;
+                const responsavelFiltro = document.getElementById('osResponsavelFiltro').value;
 
                 if (!listContainer) return;
 
@@ -9858,8 +9858,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 latInput.value = lngLat.lat;
 
                 // Populate selects
-                this.populateFazendaSelects([fazendaSelect]);
-                this.populateUserSelects([responsavelSelect]);
+                App.ui.populateFazendaSelects([fazendaSelect]);
+                App.ui.populateUserSelects([responsavelSelect]);
                 talhaoSelect.innerHTML = '<option value="">Selecione a Fazenda</option>';
 
                 // Set default date
