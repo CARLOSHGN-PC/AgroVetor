@@ -3152,6 +3152,10 @@
                     <button id="btnToggleRiskView" class="map-control-btn" title="Visualização de Risco" style="display: none;">
                         <i class="fas fa-biohazard"></i>
                     </button>
+                    <!-- NOVO: Botão para Ativar Modo de Planejamento -->
+                    <button id="btnTogglePlanningMode" class="map-control-btn" title="Modo de Planejamento de Instalação">
+                        <i class="fas fa-clipboard-list"></i>
+                    </button>
                     <button id="btnAddTrap" class="map-control-btn" title="Adicionar Armadilha no Local Atual">
                         <i class="fas fa-plus"></i>
                     </button>
@@ -3163,6 +3167,56 @@
                 <div id="trap-info-box" class="info-box">
                     <button id="close-trap-info-box" class="modal-close-btn">&times;</button>
                     <div id="trap-info-box-content"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NOVO: Modal para Planejamento de Instalação de Armadilha -->
+        <div id="instalacaoPontoModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2 id="instalacaoPontoModalTitle">Planejar Instalação de Ponto</h2>
+                    <button id="instalacaoPontoModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <form id="instalacaoPontoForm">
+                    <input type="hidden" id="instalacaoPontoId">
+                    <input type="hidden" id="instalacaoPontoLat">
+                    <input type="hidden" id="instalacaoPontoLng">
+
+                    <div class="card" style="border-left-color: var(--color-info); margin-bottom: 20px;">
+                        <h4><i class="fas fa-map-marked-alt"></i> Localização (Definida no Mapa)</h4>
+                        <div class="location-confirmation-box">
+                            <span><strong>Fazenda (Auto):</strong> <span id="instalacaoPontoFazendaDisplay">N/A</span></span>
+                            <span><strong>Talhão (Auto):</strong> <span id="instalacaoPontoTalhaoDisplay">N/A</span></span>
+                        </div>
+                        <!-- Inputs ocultos para IDs da fazenda/talhão detectados -->
+                        <input type="hidden" id="instalacaoPontoFazendaId">
+                        <input type="hidden" id="instalacaoPontoTalhaoId">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="instalacaoPontoResponsavel" class="required">Responsável:</label>
+                            <select id="instalacaoPontoResponsavel" required></select>
+                        </div>
+                        <div class="form-col">
+                            <label for="instalacaoPontoDataPrevista" class="required">Data Prevista:</label>
+                            <input type="date" id="instalacaoPontoDataPrevista" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="instalacaoPontoObservacoes">Descrição / Observações:</label>
+                            <textarea id="instalacaoPontoObservacoes" placeholder="Adicione detalhes..."></textarea>
+                        </div>
+                    </div>
+                 </form>
+                <div class="modal-footer">
+                    <div class="danger-zone">
+                        <button id="instalacaoPontoDeleteBtn" class="btn-secondary" style="background: var(--color-danger); display: none;"><i class="fas fa-trash"></i> Excluir</button>
+                    </div>
+                    <button id="instalacaoPontoCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="instalacaoPontoSaveBtn" class="save"><i class="fas fa-save"></i> Salvar Ponto</button>
                 </div>
             </div>
         </div>

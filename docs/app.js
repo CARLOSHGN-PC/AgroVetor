@@ -104,7 +104,13 @@ document.addEventListener('DOMContentLoaded', () => {
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
-                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                {
+                    label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish',
+                    submenu: [
+                        { label: 'Mapa de Monitoramento', icon: 'fas fa-map-marked-alt', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                        { label: 'Planejamento de Instalação', icon: 'fas fa-clipboard-list', target: 'planejamentoInstalacao', permission: 'planejamentoInstalacao' }
+                    ]
+                },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Colheita', icon: 'fas fa-tractor',
@@ -157,9 +163,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, planejamentoInstalacao: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, planejamentoInstalacao: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, planejamentoInstalacao: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
             }
@@ -215,6 +221,12 @@ document.addEventListener('DOMContentLoaded', () => {
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
                 apontamentoPlantioFormIsDirty: false,
+            isPlanningMode: false,
+            plannedInstallPoints: [],
+            currentDraftPoint: null,
+            draftPointMarker: null,
+            plannedPointMarkers: {},
+            unsubscribePlanning: null, // Listener para os pontos
         },
         
         elements: {
@@ -630,6 +642,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
                     mapFarmSearchInput: document.getElementById('map-farm-search-input'),
                     mapFarmSearchBtn: document.getElementById('map-farm-search-btn'),
+                btnTogglePlanningMode: document.getElementById('btnTogglePlanningMode'), // NOVO
+            },
+            instalacaoPontoModal: { // NOVO
+                overlay: document.getElementById('instalacaoPontoModal'),
+                title: document.getElementById('instalacaoPontoModalTitle'),
+                form: document.getElementById('instalacaoPontoForm'),
+                closeBtn: document.getElementById('instalacaoPontoModalCloseBtn'),
+                cancelBtn: document.getElementById('instalacaoPontoCancelBtn'),
+                saveBtn: document.getElementById('instalacaoPontoSaveBtn'),
+                deleteBtn: document.getElementById('instalacaoPontoDeleteBtn'),
+                pontoId: document.getElementById('instalacaoPontoId'),
+                lat: document.getElementById('instalacaoPontoLat'),
+                lng: document.getElementById('instalacaoPontoLng'),
+                fazendaDisplay: document.getElementById('instalacaoPontoFazendaDisplay'),
+                talhaoDisplay: document.getElementById('instalacaoPontoTalhaoDisplay'),
+                fazendaId: document.getElementById('instalacaoPontoFazendaId'),
+                talhaoId: document.getElementById('instalacaoPontoTalhaoId'),
+                responsavel: document.getElementById('instalacaoPontoResponsavel'),
+                dataPrevista: document.getElementById('instalacaoPontoDataPrevista'),
+                observacoes: document.getElementById('instalacaoPontoObservacoes'),
             },
             relatorioPlantio: {
                 frente: document.getElementById('plantioRelatorioFrente'),
@@ -1248,6 +1280,8 @@ document.addEventListener('DOMContentLoaded', () => {
             cleanupListeners() {
                 App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
                 App.state.unsubscribeListeners = [];
+                // NOVO: Adicione esta linha
+                if (App.state.unsubscribePlanning) App.state.unsubscribePlanning();
             },
             listenToAllData() {
                 this.cleanupListeners();
@@ -1273,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima', 'instalacaoPontos']; // ADICIONADO AQUI
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1316,6 +1350,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (App.state.mapboxMap) App.mapModule.loadTraps();
                                 App.mapModule.checkTrapStatusAndNotify();
                             }
+
+                            // NOVO: Adicionar este bloco
+                            if (collectionName === 'instalacaoPontos') {
+                                if (App.state.mapboxMap) {
+                                    App.planning.renderPlannedPointsOnMap();
+                                }
+                            }
+                            // FIM DO NOVO BLOCO
                             App.ui.renderSpecificContent(collectionName);
                         }, (error) => {
                             console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
@@ -1832,7 +1874,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const mapContainer = App.elements.monitoramentoAereo.container;
-                if (id === 'monitoramentoAereo') {
+                if (id === 'monitoramentoAereo' || id === 'planejamentoInstalacao') { // MODIFICADO
                     mapContainer.classList.add('active');
                     if (App.state.mapboxMap) {
                         // Força o redimensionamento do mapa para o contêiner visível
@@ -1853,6 +1895,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (tab) {
                     tab.classList.add('active');
                     tab.hidden = false;
+                }
+
+                // NOVO: Ativar/Desativar modo planejamento ao trocar de aba
+                if (id === 'planejamentoInstalacao') {
+                    App.planning.togglePlanningMode(true); // Força ativação
+                } else if (App.state.isPlanningMode) {
+                    App.planning.togglePlanningMode(false); // Força desativação se sair da aba
                 }
                 
                 if (id === 'dashboard') {
@@ -4137,6 +4186,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (apontamentoEls.btnSave) {
                     apontamentoEls.btnSave.addEventListener('click', () => App.actions.saveApontamentoPlantio());
+                }
+                // --- [NOVO] Listeners para o Módulo de Planejamento de Instalação ---
+                const planEls = App.elements.instalacaoPontoModal;
+                if (planEls.overlay) {
+                    planEls.saveBtn.addEventListener('click', () => App.planning.savePlannedPoint());
+                    planEls.cancelBtn.addEventListener('click', () => App.planning.hidePointModal(true)); // true = cancelar/limpar rascunho
+                    planEls.closeBtn.addEventListener('click', () => App.planning.hidePointModal(true));
+                    planEls.deleteBtn.addEventListener('click', () => App.planning.deletePlannedPoint());
+                }
+
+                const mapEls = App.elements.monitoramentoAereo;
+                if (mapEls.btnTogglePlanningMode) {
+                    mapEls.btnTogglePlanningMode.addEventListener('click', () => App.planning.togglePlanningMode());
                 }
                 if (apontamentoEls.recordsContainer) {
                     apontamentoEls.recordsContainer.addEventListener('click', e => {
@@ -6833,9 +6895,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                 dataToSync = { ...dataToSync, dataColeta: Timestamp.fromDate(new Date(write.data.dataColeta)) };
                             }
 
+                            // NOVO: Adiciona timestamps do servidor
+                            if (write.collection === 'instalacaoPontos') {
+                                if (write.isNew) { // Sinalizador que adicionaremos ao criar o item offline
+                                    dataToSync.criadoEm = serverTimestamp();
+                                }
+                                dataToSync.updatedEm = serverTimestamp();
+                                dataToSync.syncStatus = 'synced';
+                            }
+                            // FIM DO NOVO BLOCO
+
                             if (write.type === 'update' && write.docId) {
                                 await App.data.updateDocument(write.collection, write.docId, dataToSync);
                             } else {
+                                // Se for 'instalacaoPontos' e for novo, usamos addDoc para ID automático do Firestore
+                                // Mas a especificação pede ID automático do cliente. Vamos manter o setDoc.
                                 await App.data.setDocument(write.collection, write.id, dataToSync);
                             }
 
@@ -7830,6 +7904,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.watchUserPosition();
                         this.loadShapesOnMap();
                         this.loadTraps();
+
+                        // NOVO: Listener de clique geral no mapa para o modo planejamento
+                        App.state.mapboxMap.on('click', (e) => {
+                            if (App.state.isPlanningMode) {
+                                // Verifica se o clique foi em um talhão
+                                const features = App.state.mapboxMap.queryRenderedFeatures(e.point, { layers: ['talhoes-layer'] });
+                                // Se não houver features (clicou fora) E não for um clique em marcador
+                                if (!features.length && !e.originalEvent.target.closest('.mapboxgl-marker')) {
+                                    App.planning.handleMapClick(e);
+                                }
+                                // Se clicou DENTRO de um talhão, o listener em 'loadShapesOnMap' já cuidou disso.
+                            }
+                        });
                     });
 
                 } catch (e) {
@@ -8089,6 +8176,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.originalEvent.target.closest('.mapboxgl-marker')) {
                         return;
                     }
+
+                    // NOVO: Se estiver em modo planejamento, o clique no talhão cria um ponto
+                    if (App.state.isPlanningMode) {
+                        App.planning.handleMapClick(e);
+                        return;
+                    }
+                    // FIM DO NOVO BLOCO
 
                     if (e.features.length === 0) return;
                     const clickedFeature = e.features[0];
@@ -11088,3 +11182,354 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+
+        planning: {
+            togglePlanningMode(forceState) {
+                const mapContainer = App.elements.monitoramentoAereo.container;
+                const toggleBtn = App.elements.monitoramentoAereo.btnTogglePlanningMode;
+
+                App.state.isPlanningMode = typeof forceState === 'boolean' ? forceState : !App.state.isPlanningMode;
+
+                if (App.state.isPlanningMode) {
+                    toggleBtn.classList.add('active');
+                    mapContainer.classList.add('planning-mode-active'); // (Opcional: para CSS futuro)
+                    App.ui.showAlert("Modo de Planejamento Ativado. Clique no mapa para adicionar um ponto.", "info");
+
+                    // Ocultar marcadores de armadilhas existentes
+                    Object.values(App.state.mapboxTrapMarkers).forEach(marker => marker.remove());
+                    // Mostrar marcadores de pontos planejados
+                    this.renderPlannedPointsOnMap();
+
+                } else {
+                    toggleBtn.classList.remove('active');
+                    mapContainer.classList.remove('planning-mode-active');
+                    App.ui.showAlert("Modo de Planejamento Desativado.", "info");
+
+                    // Ocultar marcadores de pontos planejados
+                    Object.values(App.state.plannedPointMarkers).forEach(marker => marker.remove());
+                    // Limpar rascunho se houver
+                    this.hidePointModal(true);
+                    // Recarregar armadilhas ativas
+                    App.mapModule.loadTraps();
+                }
+            },
+
+            handleMapClick(e) {
+                if (!App.state.isPlanningMode) return;
+
+                // Se já existe um rascunho, não crie outro
+                if (App.state.draftPointMarker) {
+                    App.ui.showAlert("Salve ou cancele o ponto atual antes de criar um novo.", "warning");
+                    // Move o rascunho existente para o novo local
+                    App.state.draftPointMarker.setLngLat(e.lngLat);
+                    this.updateDraftPointLocation(e.lngLat);
+                    return;
+                }
+
+                this.createDraftMarker(e.lngLat);
+            },
+
+            createDraftMarker(lngLat) {
+                if (App.state.draftPointMarker) {
+                    App.state.draftPointMarker.remove();
+                }
+
+                const el = document.createElement('div');
+                el.className = 'mapbox-marker-draft';
+                el.style.width = '30px';
+                el.style.height = '30px';
+                el.style.borderRadius = '50%';
+                el.style.backgroundColor = 'var(--color-info)';
+                el.style.border = '2px solid white';
+                el.style.display = 'flex';
+                el.style.justifyContent = 'center';
+                el.style.alignItems = 'center';
+                el.style.cursor = 'move';
+                el.innerHTML = '<i class="fas fa-map-pin" style="color: white; font-size: 16px;"></i>';
+
+                App.state.draftPointMarker = new mapboxgl.Marker(el, { draggable: true })
+                    .setLngLat(lngLat)
+                    .addTo(App.state.mapboxMap);
+
+                // Atualiza a localização no modal enquanto arrasta
+                App.state.draftPointMarker.on('dragend', () => {
+                    const newLngLat = App.state.draftPointMarker.getLngLat();
+                    this.updateDraftPointLocation(newLngLat);
+                });
+
+                // Abre o modal com os dados do novo ponto
+                this.updateDraftPointLocation(lngLat, true); // true = abrir modal
+            },
+
+            updateDraftPointLocation(lngLat, openModal = false) {
+                const els = App.elements.instalacaoPontoModal;
+                els.lat.value = lngLat.lat;
+                els.lng.value = lngLat.lng;
+
+                // Tenta encontrar o talhão
+                const point = turf.point([lngLat.lng, lngLat.lat]);
+                const allTalhoes = App.state.geoJsonData;
+                let foundFeature = null;
+
+                if (allTalhoes && allTalhoes.features) {
+                    foundFeature = allTalhoes.features.find(feature => {
+                        try {
+                            return !turf.booleanDisjoint(point, feature.geometry);
+                        } catch (e) { return false; }
+                    });
+                }
+
+                let fazendaData = null, talhaoData = null;
+                if (foundFeature) {
+                    const fundoAgricola = App.mapModule._findProp(foundFeature, ['FUNDO_AGR']);
+                    fazendaData = App.state.fazendas.find(f => f.code === fundoAgricola);
+                    if (fazendaData) {
+                        const talhaoNome = App.mapModule._findProp(foundFeature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                        talhaoData = fazendaData.talhoes.find(t => t.name.toUpperCase() === talhaoNome.toUpperCase());
+                    }
+                }
+
+                const fazendaNome = fazendaData ? `${fazendaData.code} - ${fazendaData.name}` : 'N/A';
+                const talhaoNome = talhaoData ? talhaoData.name : 'N/A';
+
+                els.fazendaDisplay.textContent = fazendaNome;
+                els.talhaoDisplay.textContent = talhaoNome;
+                els.fazendaId.value = fazendaData ? fazendaData.id : '';
+                els.talhaoId.value = talhaoData ? talhaoData.id : '';
+
+                if (openModal) {
+                    this.showPointModal();
+                }
+            },
+
+            showPointModal(pointData = null) {
+                const els = App.elements.instalacaoPontoModal;
+                const form = els.form;
+                form.reset();
+                App.ui.populateUserSelects([els.responsavel]);
+
+                if (pointData) {
+                    // Editando um ponto existente
+                    els.title.textContent = "Editar Ponto Planejado";
+                    els.pontoId.value = pointData.id;
+                    els.lat.value = pointData.coordenadas.lat;
+                    els.lng.value = pointData.coordenadas.lng;
+                    els.responsavel.value = pointData.responsavelId;
+                    els.dataPrevista.value = pointData.dataPrevistaInstalacao;
+                    els.observacoes.value = pointData.descricao || '';
+                    els.fazendaId.value = pointData.fazendaId;
+                    els.talhaoId.value = pointData.talhaoId;
+                    els.deleteBtn.style.display = 'inline-flex';
+
+                    // Encontra nomes da Fazenda/Talhão a partir dos IDs
+                    const fazenda = App.state.fazendas.find(f => f.id === pointData.fazendaId);
+                    const talhao = fazenda ? fazenda.talhoes.find(t => t.id === pointData.talhaoId) : null;
+                    els.fazendaDisplay.textContent = fazenda ? `${fazenda.code} - ${fazenda.name}` : 'N/A';
+                    els.talhaoDisplay.textContent = talhao ? talhao.name : 'N/A';
+
+                } else {
+                    // Criando um novo ponto (rascunho)
+                    els.title.textContent = "Planejar Instalação de Ponto";
+                    els.pontoId.value = ''; // Novo ponto
+                    els.responsavel.value = App.state.currentUser.uid; // Padrão para usuário logado
+                    els.dataPrevista.value = new Date().toISOString().split('T')[0];
+                    els.deleteBtn.style.display = 'none';
+                    // lat, lng, fazenda e talhão já foram preenchidos por updateDraftPointLocation
+                }
+
+                els.overlay.classList.add('show');
+            },
+
+            hidePointModal(isCancel = false) {
+                const els = App.elements.instalacaoPontoModal;
+                els.overlay.classList.remove('show');
+
+                // Se foi um cancelamento, remova o marcador de rascunho
+                if (isCancel && App.state.draftPointMarker) {
+                    App.state.draftPointMarker.remove();
+                    App.state.draftPointMarker = null;
+                }
+            },
+
+            async savePlannedPoint() {
+                const els = App.elements.instalacaoPontoModal;
+                if (!App.ui.validateFields(['instalacaoPontoResponsavel', 'instalacaoPontoDataPrevista'])) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios (Responsável, Data Prevista).", "error");
+                    return;
+                }
+
+                const pontoId = els.pontoId.value || `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const isNew = !els.pontoId.value;
+
+                const pointData = {
+                    id: pontoId,
+                    planejamentoId: null, // Parte 1 não usa Planejamentos-pai
+                    fazendaId: els.fazendaId.value || null,
+                    talhaoId: els.talhaoId.value || null,
+                    coordenadas: {
+                        lat: parseFloat(els.lat.value),
+                        lng: parseFloat(els.lng.value)
+                    },
+                    dataPrevistaInstalacao: els.dataPrevista.value,
+                    responsavelId: els.responsavel.value,
+                    status: "Planejado",
+                    descricao: els.observacoes.value || '',
+                    companyId: App.state.currentUser.companyId,
+                    criadoPorUserId: App.state.currentUser.uid,
+                    syncStatus: 'pending' // Sempre pendente ao salvar
+                };
+
+                // Adiciona timestamps
+                if (isNew) {
+                    pointData.criadoEm = new Date().toISOString();
+                }
+                pointData.updatedEm = new Date().toISOString();
+
+                App.ui.setLoading(true, "A salvar ponto...");
+
+                try {
+                    if (navigator.onLine) {
+                        // Converte datas para Timestamps do Firestore
+                        const firestoreData = { ...pointData };
+                        if (isNew) {
+                            firestoreData.criadoEm = serverTimestamp();
+                        }
+                        firestoreData.updatedEm = serverTimestamp();
+                        firestoreData.syncStatus = 'synced';
+
+                        await App.data.setDocument('instalacaoPontos', pontoId, firestoreData);
+                        App.ui.showAlert("Ponto planejado salvo com sucesso!");
+                    } else {
+                        // Salva offline
+                        await OfflineDB.add('offline-writes', {
+                            id: pontoId,
+                            collection: 'instalacaoPontos',
+                            data: pointData,
+                            isNew: isNew, // Sinalizador para a função de sync
+                            docId: pontoId // ID do documento a ser atualizado/criado
+                        });
+                        App.ui.showAlert('Ponto salvo offline. Será sincronizado quando houver conexão.', 'info');
+                    }
+
+                    // Limpa o rascunho
+                    if (App.state.draftPointMarker) {
+                        App.state.draftPointMarker.remove();
+                        App.state.draftPointMarker = null;
+                    }
+                    this.hidePointModal(false); // false = não é um cancelamento
+
+                } catch (error) {
+                    App.ui.showAlert(`Erro ao salvar ponto: ${error.message}.`, "error");
+                    console.error("Erro ao salvar ponto:", error);
+                    // Tenta salvar offline como fallback
+                    try {
+                        await OfflineDB.add('offline-writes', {
+                            id: pontoId,
+                            collection: 'instalacaoPontos',
+                            data: pointData,
+                            isNew: isNew,
+                            docId: pontoId
+                        });
+                        App.ui.showAlert('Falha ao conectar. Ponto salvo offline.', 'warning');
+                    } catch (offlineError) {
+                            App.ui.showAlert("Falha crítica ao salvar offline.", "error");
+                    }
+                } finally {
+                    App.ui.setLoading(false);
+                    // A função onSnapshot irá redesenhar o ponto no mapa.
+                }
+            },
+
+            deletePlannedPoint() {
+                const els = App.elements.instalacaoPontoModal;
+                const pontoId = els.pontoId.value;
+                if (!pontoId) return;
+
+                App.ui.showConfirmationModal("Tem a certeza que deseja excluir este ponto planejado?", async () => {
+                    App.ui.setLoading(true, "A excluir ponto...");
+                    try {
+                        if (navigator.onLine) {
+                            // Não excluímos, apenas cancelamos conforme a especificação
+                            await App.data.updateDocument('instalacaoPontos', pontoId, {
+                                status: 'Cancelado',
+                                updatedEm: serverTimestamp(),
+                                syncStatus: 'synced'
+                            });
+                            App.ui.showAlert("Ponto cancelado com sucesso.");
+                        } else {
+                            // Salva a atualização de status offline
+                            const updateData = {
+                                status: 'Cancelado',
+                                updatedEm: new Date().toISOString(),
+                                syncStatus: 'pending'
+                            };
+                            await OfflineDB.add('offline-writes', {
+                                id: `cancel_${pontoId}`,
+                                collection: 'instalacaoPontos',
+                                data: updateData,
+                                type: 'update',
+                                docId: pontoId
+                            });
+                            App.ui.showAlert('Ponto cancelado offline. Será sincronizado.', 'info');
+                        }
+                        this.hidePointModal(false);
+                    } catch (error) {
+                            App.ui.showAlert(`Erro ao cancelar ponto: ${error.message}.`, "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
+            renderPlannedPointsOnMap() {
+                if (!App.state.isPlanningMode) return;
+
+                // 1. Limpar marcadores antigos
+                Object.values(App.state.plannedPointMarkers).forEach(marker => marker.remove());
+                App.state.plannedPointMarkers = {};
+
+                // 2. Filtrar apenas os pontos "Planejados"
+                const pointsToRender = App.state.instalacaoPontos.filter(p => p.status === 'Planejado');
+
+                // 3. Adicionar novos marcadores
+                pointsToRender.forEach(point => {
+                    this.addOrUpdatePlannedPointMarker(point);
+                });
+            },
+
+            addOrUpdatePlannedPointMarker(point) {
+                if (!point.coordenadas) return;
+
+                const { lat, lng } = point.coordenadas;
+                const el = document.createElement('div');
+                el.className = 'mapbox-marker-planned';
+                el.style.width = '24px';
+                el.style.height = '24px';
+                el.style.borderRadius = '50%';
+                el.style.backgroundColor = 'var(--color-warning)'; // Laranja para planejado
+                el.style.border = '2px solid white';
+                el.style.display = 'flex';
+                el.style.justifyContent = 'center';
+                el.style.alignItems = 'center';
+                el.style.cursor = 'pointer';
+                el.innerHTML = '<i class="fas fa-clipboard-list" style="color: white; font-size: 12px;"></i>';
+                el.title = `Planejado para: ${point.dataPrevistaInstalacao}`;
+
+                const marker = new mapboxgl.Marker(el)
+                    .setLngLat([lng, lat])
+                    .addTo(App.state.mapboxMap);
+
+                // Adiciona clique para editar
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // Limpa qualquer rascunho
+                    if (App.state.draftPointMarker) {
+                        App.state.draftPointMarker.remove();
+                        App.state.draftPointMarker = null;
+                    }
+                    this.showPointModal(point);
+                });
+
+                App.state.plannedPointMarkers[point.id] = marker;
+            }
+        }, // Fim do novo módulo App.planning
