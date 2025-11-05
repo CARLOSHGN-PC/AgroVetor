@@ -154,6 +154,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     submenu: [
                         { label: 'Gerir Empresas', icon: 'fas fa-building', target: 'gerenciarEmpresas', permission: 'superAdmin' },
                     ]
+                },
+                {
+                    label: 'Plan. Instalação',
+                    icon: 'fas fa-map-marked-alt',
+                    submenu: [
+                        { label: 'Planejar no Mapa (P1)', icon: 'fas fa-map-pin', target: 'planningMapa', permission: 'monitoramentoAereo' }, // Reutiliza permissão
+                        { label: 'Gerar OS (P2)', icon: 'fas fa-file-invoice', target: 'planningGerarOS', permission: 'admin' }, // Apenas admin/supervisor
+                        { label: 'Executar OS (P3)', icon: 'fas fa-running', target: 'planningExecutarOS', permission: 'monitoramentoAereo' } // Reutiliza permissão
+                    ]
                 }
             ],
             roles: {
@@ -684,6 +693,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
+            planningModals: {
+                planSelector: document.getElementById('planSelectorModal'),
+                planList: document.getElementById('planSelectorList'),
+                planLoading: document.getElementById('planSelectorLoading'),
+                planCreateBtn: document.getElementById('planSelectorCreateBtn'),
+                planSelectorClose: document.getElementById('planSelectorCloseBtn'),
+
+                planEdit: document.getElementById('planEditModal'),
+                planEditForm: document.getElementById('planEditForm'),
+                planEditClose: document.getElementById('planEditCloseBtn'),
+                planEditSave: document.getElementById('planEditSaveBtn'),
+
+                pointEdit: document.getElementById('pointEditModal'),
+                pointEditForm: document.getElementById('pointEditForm'),
+                pointEditClose: document.getElementById('pointEditCloseBtn'),
+                pointEditSave: document.getElementById('pointEditSaveBtn'),
+                pointEditDelete: document.getElementById('pointDeleteBtn'),
+
+                osGeneration: document.getElementById('osGenerationModal'),
+                osPointsList: document.getElementById('osPointsList'),
+                osPointsListLoading: document.getElementById('osPointsListLoading'),
+                osGenerateBtn: document.getElementById('osGenerateBtn'),
+                osGenClose: document.getElementById('osGenerationCloseBtn'),
+
+                installPoint: document.getElementById('installPointModal'),
+                installPointForm: document.getElementById('installPointForm'),
+                installPointClose: document.getElementById('installPointCloseBtn'),
+                installPointExecute: document.getElementById('installPointExecuteBtn')
+            },
         },
 
         isFeatureGloballyActive(featureKey) {
@@ -1273,7 +1311,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
+                const companyScopedCollections = [
+                    'users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans',
+                    'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima',
+                    // --- [NOVAS COLEÇÕES] ---
+                    'instalacaoPlanejamentos',
+                    'instalacaoPontos',
+                    'instalacaoOrdensDeServico'
+                    // --- [FIM DAS NOVAS COLEÇÕES] ---
+                ];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1766,6 +1812,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 // LÓGICA DE BLOQUEIO REFINADA
+                if (id === 'planningMapa') {
+                    // Parte 1: Inicia o modo de planejamento no mapa
+                    App.planning.startPlanningMode();
+                    // O startPlanningMode já chama showTab('monitoramentoAereo') internamente.
+                    // Não precisamos fazer mais nada aqui, mas garantimos que o 'id' não
+                    // tente encontrar um elemento "planningMapa" que não existe.
+                    return; // Para a execução
+                } else if (id === 'planningGerarOS') {
+                    // Parte 2: Mostra o modal de Geração de OS
+                    App.planning.showPlannedPointsList();
+                    // Não muda a aba, apenas abre o modal por cima
+                    return; // Para a execução
+                } else if (id === 'planningExecutarOS') {
+                    // Parte 3: Mostra a lista de OSs para executar
+                    App.planning.showOSList();
+                    // Não muda a aba, apenas abre o modal por cima
+                    return; // Para a execução
+                }
                 if (requiredPermission && currentUser.role !== 'super-admin' && !App.state.isImpersonating) {
                     const isGloballyActive = App.isFeatureGloballyActive(requiredPermission);
                     if (!isGloballyActive) {
@@ -4377,6 +4441,33 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                const planningEls = App.elements.planningModals;
+
+                // Listeners do Seletor de Plano (Parte 1)
+                if (planningEls.planSelector) planningEls.planSelector.addEventListener('click', e => { if (e.target === planningEls.planSelector) planningEls.planSelector.classList.remove('show'); });
+                if (planningEls.planSelectorClose) planningEls.planSelectorClose.addEventListener('click', () => planningEls.planSelector.classList.remove('show'));
+
+                // Listeners do Modal de Edição de Plano (Parte 1)
+                if (planningEls.planEdit) planningEls.planEdit.addEventListener('click', e => { if (e.target === planningEls.planEdit) planningEls.planEdit.classList.remove('show'); });
+                if (planningEls.planEditClose) planningEls.planEditClose.addEventListener('click', () => planningEls.planEdit.classList.remove('show'));
+                if (planningEls.planEditSave) planningEls.planEditSave.addEventListener('click', () => App.planning.savePlan());
+
+                // Listeners do Modal de Edição de Ponto (Parte 1)
+                if (planningEls.pointEdit) planningEls.pointEdit.addEventListener('click', e => { if (e.target === planningEls.pointEdit) App.planning.deletePoint(); /* Per Opção B, fechar = cancelar */ });
+                if (planningEls.pointEditClose) planningEls.pointEditClose.addEventListener('click', () => App.planning.deletePoint()); // Per Opção B
+                if (planningEls.pointEditSave) planningEls.pointEditSave.addEventListener('click', () => App.planning.savePoint());
+                if (planningEls.pointEditDelete) planningEls.pointEditDelete.addEventListener('click', () => App.planning.deletePoint());
+
+                // Listeners do Modal de Geração de OS (Parte 2)
+                if (planningEls.osGeneration) planningEls.osGeneration.addEventListener('click', e => { if (e.target === planningEls.osGeneration) planningEls.osGeneration.classList.remove('show'); });
+                if (planningEls.osGenClose) planningEls.osGenClose.addEventListener('click', () => planningEls.osGeneration.classList.remove('show'));
+                if (planningEls.osGenerateBtn) planningEls.osGenerateBtn.addEventListener('click', () => App.planning.confirmAndGenerateOS());
+
+                // Listeners do Modal de Instalação (Parte 3)
+                if (planningEls.installPoint) planningEls.installPoint.addEventListener('click', e => { if (e.target === planningEls.installPoint) planningEls.installPoint.classList.remove('show'); });
+                if (planningEls.installPointClose) planningEls.installPointClose.addEventListener('click', () => planningEls.installPoint.classList.remove('show'));
+                if (planningEls.installPointExecute) planningEls.installPointExecute.addEventListener('click', () => App.planning.executeInstallation());
             }
         },
         
@@ -6777,7 +6868,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.state.isSyncing = true;
-                this.syncGpsLocations(); // Sync GPS data
+                this.syncGpsLocations(); // Sincroniza GPS
                 console.log("Iniciando a verificação de dados offline...");
 
                 const logEntry = {
@@ -6797,7 +6888,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    // Etapa 1: Ler todos os dados e chaves pendentes de uma só vez
                     const writesToSync = await db.getAll('offline-writes');
                     const keysToSync = await db.getAllKeys('offline-writes');
 
@@ -6813,52 +6903,69 @@ document.addEventListener('DOMContentLoaded', () => {
                     let successfulWrites = 0;
                     let failedWrites = 0;
 
-                    // Etapa 2: Iterar sobre os dados em memória e tentar sincronizar
                     for (let i = 0; i < writesToSync.length; i++) {
                         const write = writesToSync[i];
                         const key = keysToSync[i];
+
                         try {
-                            // ADICIONADO: Verificação de segurança para o objeto de escrita
-                            if (!write || typeof write !== 'object' || !write.collection || !write.data || !write.id) {
-                                throw new Error('Item de sincronização offline malformado ou inválido.');
+                            if (!write || !write.collection || !write.docId) {
+                                throw new Error('Item de sincronização offline malformado (collection ou docId em falta).');
                             }
 
-                            let dataToSync = write.data;
-                            // Handle trap installation date conversion
-                            if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
-                                dataToSync = { ...dataToSync, dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao)) };
-                            }
-                            // Handle trap collection date conversion
-                            if (write.collection === 'armadilhas' && typeof write.data.dataColeta === 'string') {
-                                dataToSync = { ...dataToSync, dataColeta: Timestamp.fromDate(new Date(write.data.dataColeta)) };
-                            }
+                            let dataToSync = write.data || {};
+                            const operationType = write.type || 'set'; // 'set', 'update', 'delete'
+                            const docRef = doc(db, write.collection, write.docId);
 
-                            if (write.type === 'update' && write.docId) {
-                                await App.data.updateDocument(write.collection, write.docId, dataToSync);
+                            // Converte datas ISO de volta para Timestamps do Firestore
+                            const convertDatesToTimestamps = (obj) => {
+                                if (typeof obj !== 'object' || obj === null) return obj;
+                                for (const k in obj) {
+                                    if (typeof obj[k] === 'string' && obj[k].match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
+                                        obj[k] = Timestamp.fromDate(new Date(obj[k]));
+                                    } else if (typeof obj[k] === 'object') {
+                                        convertDatesToTimestamps(obj[k]);
+                                    }
+                                }
+                                return obj;
+                            };
+
+                            dataToSync = convertDatesToTimestamps(dataToSync);
+                            // Adiciona o serverTimestamp para campos de atualização
+                            dataToSync.updatedEm = serverTimestamp();
+                            dataToSync.syncStatus = "synced";
+
+                            // Executa a operação correta
+                            if (operationType === 'set') {
+                                await setDoc(docRef, dataToSync);
+                            } else if (operationType === 'update') {
+                                await updateDoc(docRef, dataToSync);
+                            } else if (operationType === 'delete') {
+                                await deleteDoc(docRef);
                             } else {
-                                await App.data.setDocument(write.collection, write.id, dataToSync);
+                                throw new Error(`Tipo de operação offline desconhecido: ${operationType}`);
                             }
 
                             logEntry.items.push({
-                                status: 'success', collection: write.collection, data: write.data, error: null
+                                status: 'success', collection: write.collection, docId: write.docId, type: operationType, error: null
                             });
                             successfulWrites++;
                             successfulKeys.push(key);
 
                         } catch (error) {
                             console.error(`Falha ao sincronizar o item:`, { write, error });
-                            // O log de falha agora é mais robusto
                             logEntry.items.push({
                                 status: 'failure',
-                                collection: write?.collection || 'unknown', // Acesso seguro
-                                data: write?.data || write, // Loga o que tiver disponível
+                                collection: write?.collection || 'unknown',
+                                docId: write?.docId || 'unknown',
+                                type: write?.type || 'unknown',
+                                data: write?.data || write,
                                 error: error.message || 'Erro desconhecido'
                             });
                             failedWrites++;
                         }
                     }
 
-                    // Etapa 3: Apagar todos os registos sincronizados com sucesso numa única transação
+                    // Apaga todos os registos sincronizados com sucesso
                     if (successfulKeys.length > 0) {
                         const deleteTx = db.transaction('offline-writes', 'readwrite');
                         for (const key of successfulKeys) {
@@ -6868,7 +6975,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log(`${successfulKeys.length} registos offline foram apagados com sucesso.`);
                     }
 
-                    // Etapa 4: Registar o resultado da sincronização
+                    // Registra o resultado
                     if (logEntry.items.length > 0) {
                         if (failedWrites === 0) {
                             logEntry.status = 'success';
@@ -6883,13 +6990,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         const permanentLogEntry = { ...logEntry, timestamp: serverTimestamp() };
                         const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
-
                         App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
                     }
 
                 } catch (error) {
                     console.error("Ocorreu um erro crítico durante a sincronização:", error);
-                    App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo. Verifique a consola.", "critical_error");
+                    App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico. Verifique a consola.", "critical_error");
                 } finally {
                     App.state.isSyncing = false;
                     console.log("Processo de sincronização finalizado.");
@@ -7804,6 +7910,967 @@ document.addEventListener('DOMContentLoaded', () => {
 
         },
 
+        // --- [NOVO OBJETO - PARTES 1, 2, 3] Módulo de Planejamento de Instalação ---
+        planning: {
+            // --- [PARTE 1] Estado de Planejamento
+            isPlanningMode: false,
+            currentPlan: null, // O documento 'instalacaoPlanejamentos' selecionado
+            draftPoint: null, // Um ponto temporário no mapa, antes de salvar
+            localPoints: [], // Pontos carregados do 'currentPlan'
+
+            /**
+            * [PARTE 1] Inicia o modo de planejamento.
+            * Chamado quando o usuário clica no novo item de menu.
+            */
+            startPlanningMode() {
+                // Primeiro, precisamos que o usuário selecione ou crie um Plano.
+                this.showPlanSelectorModal();
+            },
+
+            /**
+            * [PARTE 1] Exibe o modal para o usuário selecionar ou criar um Plano.
+            */
+            showPlanSelectorModal() {
+                const modal = document.getElementById('planSelectorModal');
+                const listEl = document.getElementById('planSelectorList');
+                const loadingEl = document.getElementById('planSelectorLoading');
+                const createBtn = document.getElementById('planSelectorCreateBtn');
+
+                if (!modal || !listEl || !loadingEl) {
+                    console.error("Modal de Seleção de Plano não encontrado no HTML.");
+                    App.ui.showAlert("Erro ao carregar interface de planejamento.", "error");
+                    return;
+                }
+
+                loadingEl.style.display = 'block';
+                listEl.innerHTML = '';
+                modal.classList.add('show');
+
+                // Busca os planos existentes
+                const q = query(
+                    collection(db, 'instalacaoPlanejamentos'),
+                    where("companyId", "==", App.state.currentUser.companyId),
+                    where("status", "==", "Planejado")
+                );
+
+                // Usamos getDocs() em vez de onSnapshot() para uma seleção única
+                getDocs(q).then(snapshot => {
+                    loadingEl.style.display = 'none';
+                    if (snapshot.empty) {
+                        listEl.innerHTML = '<p class="empty-list-message">Nenhum plano encontrado. Crie um novo.</p>';
+                    } else {
+                        snapshot.docs.forEach(doc => {
+                            const plan = { id: doc.id, ...doc.data() };
+                            const item = document.createElement('div');
+                            item.className = 'plano-card'; // Reutiliza estilo
+                            item.style.cursor = 'pointer';
+                            item.innerHTML = `
+                                <div class="plano-header">
+                                    <span class="plano-title">${plan.nome || 'Plano sem nome'}</span>
+                                </div>
+                                <div class="plano-details">
+                                    <div><i class="fas fa-industry"></i> Fazenda: ${plan.fazendaId || 'N/A'}</div>
+                                    <div><i class="fas fa-map"></i> Talhão: ${plan.talhaoId || 'N/A'}</div>
+                                </div>
+                            `;
+                            item.onclick = () => {
+                                this.enterMapPlanningMode(plan);
+                                modal.classList.remove('show');
+                            };
+                            listEl.appendChild(item);
+                        });
+                    }
+                }).catch(err => {
+                    console.error("Erro ao buscar planos:", err);
+                    App.ui.showAlert("Erro ao buscar planos.", "error");
+                    loadingEl.style.display = 'none';
+                });
+
+                // Ação do botão Criar (usa o mesmo modal de edição de ponto)
+                createBtn.onclick = () => {
+                    this.showPlanEditModal(null); // null para 'novo'
+                };
+            },
+
+            /**
+            * [PARTE 1] Exibe modal para CRIAR ou EDITAR um Plano.
+            * @param {Object | null} plan - O plano para editar, ou null para criar um novo.
+            */
+            showPlanEditModal(plan) {
+                const modal = document.getElementById('planEditModal');
+                const form = document.getElementById('planEditForm');
+
+                if (!modal || !form) {
+                    console.error("Modal de Edição de Plano não encontrado.");
+                    return;
+                }
+
+                // Reseta o formulário
+                form.reset();
+                form.dataset.planId = plan ? plan.id : '';
+
+                // Popula os campos se estiver editando
+                if (plan) {
+                    document.getElementById('planNome').value = plan.nome || '';
+                    document.getElementById('planFazendaId').value = plan.fazendaId || '';
+                    document.getElementById('planTalhaoId').value = plan.talhaoId || '';
+                    document.getElementById('planMeta').value = plan.meta || '';
+                }
+
+                modal.classList.add('show');
+            },
+
+            /**
+            * [PARTE 1] Salva o plano (novo ou editado) do modal 'planEditModal'.
+            */
+            async savePlan() {
+                const modal = document.getElementById('planEditModal');
+                const form = document.getElementById('planEditForm');
+                const planId = form.dataset.planId;
+
+                const planData = {
+                    nome: document.getElementById('planNome').value.trim(),
+                    fazendaId: document.getElementById('planFazendaId').value.trim(),
+                    talhaoId: document.getElementById('planTalhaoId').value.trim(),
+                    meta: document.getElementById('planMeta').value.trim(),
+                    companyId: App.state.currentUser.companyId,
+                    criadoPorUserId: App.state.currentUser.uid,
+                    status: "Planejado",
+                    syncStatus: "synced" // Criação de plano é simples
+                };
+
+                if (!planData.nome || !planData.fazendaId) {
+                    App.ui.showAlert("Nome do Plano e ID da Fazenda são obrigatórios.", "warning");
+                    return;
+                }
+
+                App.ui.setLoading(true, "Salvando plano...");
+                try {
+                    if (planId) {
+                        // Editando
+                        const planRef = doc(db, 'instalacaoPlanejamentos', planId);
+                        await updateDoc(planRef, { ...planData, updatedEm: serverTimestamp() });
+                        App.ui.showAlert("Plano atualizado!");
+                    } else {
+                        // Criando
+                        await addDoc(collection(db, 'instalacaoPlanejamentos'), { ...planData, criadoEm: serverTimestamp() });
+                        App.ui.showAlert("Plano criado!");
+                    }
+                    modal.classList.remove('show');
+                    this.showPlanSelectorModal(); // Recarrega a lista de planos
+                } catch (error) {
+                    console.error("Erro ao salvar plano:", error);
+                    App.ui.showAlert("Erro ao salvar plano.", "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            /**
+            * [PARTE 1] Entra no modo de mapa após selecionar um plano.
+            * @param {Object} plan - O documento 'instalacaoPlanejamentos' selecionado.
+            */
+            enterMapPlanningMode(plan) {
+                console.log("Entrando no Modo de Planejamento para:", plan.nome);
+                this.isPlanningMode = true;
+                this.currentPlan = plan;
+                this.localPoints = [];
+
+                // 1. Mostra a aba do mapa
+                App.ui.showTab('monitoramentoAereo');
+
+                // 2. Alerta o usuário
+                App.ui.showAlert(`Modo de Planejamento Ativado: ${plan.nome}. Clique no mapa para adicionar pontos.`, "info", 5000);
+
+                // 3. Modifica a UI (ex: botão de adicionar armadilha)
+                const btnAddTrap = document.getElementById('btnAddTrap');
+                if (btnAddTrap) {
+                    btnAddTrap.innerHTML = '<i class="fas fa-save"></i>';
+                    btnAddTrap.title = "Salvar e Sair do Planejamento";
+                    // Remove listener antigo e adiciona novo
+                    const newBtn = btnAddTrap.cloneNode(true);
+                    btnAddTrap.parentNode.replaceChild(newBtn, btnAddTrap);
+                    newBtn.addEventListener('click', () => this.stopPlanningMode());
+                }
+
+                // 4. Carrega os pontos existentes para este plano
+                this.loadPlannedPoints(plan.id);
+            },
+
+            /**
+            * [PARTE 1] Sai do modo de planejamento.
+            */
+            stopPlanningMode() {
+                if (!this.isPlanningMode) return;
+
+                console.log("Saindo do Modo de Planejamento.");
+                this.isPlanningMode = false;
+                this.currentPlan = null;
+
+                // Limpa pontos do mapa
+                this.clearLocalPointMarkers();
+                this.localPoints = [];
+                if (this.draftPoint) {
+                    this.draftPoint.marker.remove();
+                    this.draftPoint = null;
+                }
+
+                // Restaura a UI
+                const btnAddTrap = document.getElementById('btnAddTrap');
+                if (btnAddTrap) {
+                    btnAddTrap.innerHTML = '<i class="fas fa-plus"></i>';
+                    btnAddTrap.title = "Adicionar Armadilha no Local Atual";
+                    // Remove listener e restaura o original
+                    const newBtn = btnAddTrap.cloneNode(true);
+                    btnAddTrap.parentNode.replaceChild(newBtn, btnAddTrap);
+                    newBtn.addEventListener('click', () => App.mapModule.promptInstallTrap());
+                }
+
+                App.ui.showAlert("Modo de Planejamento Desativado.", "info");
+                // Não sai da aba do mapa
+            },
+
+            /**
+            * [PARTE 1] Carrega os pontos do Firestore para o plano atual.
+            * @param {string} planId - O ID do 'instalacaoPlanejamentos'.
+            */
+            loadPlannedPoints(planId) {
+                this.clearLocalPointMarkers();
+                this.localPoints = [];
+
+                const q = query(
+                    collection(db, 'instalacaoPontos'),
+                    where("companyId", "==", App.state.currentUser.companyId),
+                    where("planejamentoId", "==", planId)
+                );
+
+                // Usamos onSnapshot para atualizações em tempo real
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    this.clearLocalPointMarkers(); // Limpa antes de redesenhar
+                    this.localPoints = [];
+
+                    snapshot.forEach(doc => {
+                        const point = { id: doc.id, ...doc.data() };
+                        this.localPoints.push(point);
+                        this.addPointMarkerToMap(point);
+                    });
+                    console.log(`Carregados ${this.localPoints.length} pontos para este plano.`);
+                }, (error) => {
+                    console.error("Erro ao carregar pontos planejados:", error);
+                    App.ui.showAlert("Erro ao carregar pontos.", "error");
+                });
+
+                // Armazena o 'unsubscribe' para limpar quando sair do modo de planejamento
+                // (Isso deve ser feito na lógica de 'stopPlanningMode' ou 'cleanupListeners' do App)
+                // Por simplicidade, adicionamos ao App.state principal
+                App.state.unsubscribeListeners.push(unsubscribe);
+            },
+
+            /**
+            * [PARTE 1] Adiciona um marcador de ponto planejado ao mapa.
+            * @param {Object} point - O documento 'instalacaoPontos'.
+            */
+            addPointMarkerToMap(point) {
+                if (!App.state.mapboxMap || !point.coordenadas) return;
+
+                let color = '#4285F4'; // Azul (Planejado)
+                let icon = 'fa-map-pin';
+
+                if (point.status === 'EmOS') {
+                    color = '#FBC02D'; // Amarelo (Em OS)
+                    icon = 'fa-clock';
+                } else if (point.status === 'Instalado') {
+                    color = '#388E3C'; // Verde (Instalado)
+                    icon = 'fa-check-circle';
+                }
+
+                const el = document.createElement('div');
+                el.className = 'mapbox-marker-planning';
+                el.style.width = '30px';
+                el.style.height = '30px';
+                el.style.borderRadius = '50%';
+                el.style.backgroundColor = color;
+                el.style.border = '2px solid white';
+                el.style.display = 'flex';
+                el.style.justifyContent = 'center';
+                el.style.alignItems = 'center';
+                el.style.cursor = 'pointer';
+                el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+                el.innerHTML = `<i class="fas ${icon}" style="color: white; font-size: 16px;"></i>`;
+                el.title = `Ponto: ${point.status}`;
+
+                const marker = new mapboxgl.Marker(el)
+                    .setLngLat([point.coordenadas.lng, point.coordenadas.lat])
+                    .addTo(App.state.mapboxMap);
+
+                // Armazena a referência do marcador no objeto de ponto
+                point.marker = marker;
+
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (this.isPlanningMode) {
+                        // Se estiver no modo de planejamento, abre para edição
+                        this.showPointEditModal(point);
+                    } else if (this.isExecutingOS) {
+                        // Se estiver no modo de execução (Parte 3), abre para instalação
+                        this.showInstallModal(point);
+                    }
+                });
+            },
+
+            /**
+            * [PARTE 1] Limpa todos os marcadores de pontos planejados do mapa.
+            */
+            clearLocalPointMarkers() {
+                this.localPoints.forEach(point => {
+                    if (point.marker) {
+                        point.marker.remove();
+                    }
+                });
+                this.localPoints = [];
+            },
+
+            /**
+            * [PARTE 1] Manipulador de clique no mapa (ativo apenas no modo de planejamento).
+            * @param {Object} e - O evento de clique do Mapbox.
+            */
+            handleMapClick(e) {
+                if (!this.isPlanningMode || !this.currentPlan) return;
+
+                // Se já existe um 'draftPoint', não cria outro.
+                if (this.draftPoint) {
+                    // Move o draftPoint existente
+                    this.draftPoint.marker.setLngLat(e.lngLat);
+                    this.draftPoint.coordenadas = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+                    return;
+                }
+
+                console.log("Map clicked at:", e.lngLat);
+                const coords = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+
+                // Cria um marcador "draft" (draggable)
+                const el = document.createElement('div');
+                el.style.width = '30px';
+                el.style.height = '30px';
+                el.style.borderRadius = '50%';
+                el.style.backgroundColor = 'orange';
+                el.style.border = '2px solid white';
+                el.style.cursor = 'grab';
+
+                const draftMarker = new mapboxgl.Marker(el, { draggable: true })
+                    .setLngLat(e.lngLat)
+                    .addTo(App.state.mapboxMap);
+
+                this.draftPoint = {
+                    planejamentoId: this.currentPlan.id,
+                    fazendaId: this.currentPlan.fazendaId,
+                    talhaoId: this.currentPlan.talhaoId,
+                    coordenadas: coords,
+                    status: "Planejado",
+                    marker: draftMarker
+                };
+
+                // Atualiza as coordenadas se o marcador for arrastado
+                draftMarker.on('dragend', () => {
+                    const newCoords = draftMarker.getLngLat();
+                    this.draftPoint.coordenadas = { lat: newCoords.lat, lng: newCoords.lng };
+                });
+
+                // Abre o modal de edição (Per Opção B)
+                this.showPointEditModal(null); // null para 'novo ponto'
+            },
+
+            /**
+            * [PARTE 1] Exibe o modal para editar os dados de um ponto.
+            * @param {Object | null} point - O ponto para editar, ou null se for um 'draftPoint'.
+            */
+            showPointEditModal(point) {
+                const modal = document.getElementById('pointEditModal');
+                const form = document.getElementById('pointEditForm');
+                const pointData = point || this.draftPoint;
+
+                if (!pointData) {
+                    console.error("Nenhum ponto para editar.");
+                    return;
+                }
+
+                // Define o ID do ponto (se existir)
+                form.dataset.pointId = point ? point.id : '';
+
+                // Preenche o formulário
+                document.getElementById('pointFazendaId').value = pointData.fazendaId || '';
+                document.getElementById('pointTalhaoId').value = pointData.talhaoId || '';
+                document.getElementById('pointResponsavelId').value = pointData.responsavelId || '';
+                document.getElementById('pointDescricao').value = pointData.descricao || '';
+
+                // Formata a data para o input
+                let dataPrevista = '';
+                if (pointData.dataPrevistaInstalacao) {
+                    const date = App.actions.safeToDate(pointData.dataPrevistaInstalacao);
+                    if (date) dataPrevista = date.toISOString().split('T')[0];
+                }
+                document.getElementById('pointDataPrevista').value = dataPrevista;
+
+                // Exibe o botão de excluir apenas se o ponto já estiver salvo
+                document.getElementById('pointDeleteBtn').style.display = point ? 'inline-flex' : 'none';
+
+                modal.classList.add('show');
+            },
+
+            /**
+            * [PARTE 1] Salva o ponto (novo ou editado) do modal 'pointEditModal'.
+            */
+            async savePoint() {
+                const form = document.getElementById('pointEditForm');
+                const pointId = form.dataset.pointId; // ID do ponto existente (se houver)
+                const pointData = this.draftPoint || this.localPoints.find(p => p.id === pointId);
+
+                if (!pointData) {
+                    App.ui.showAlert("Erro: Ponto de referência não encontrado.", "error");
+                    return;
+                }
+
+                // Pega as coordenadas (do draftPoint se for novo, ou do ponto existente)
+                const coords = pointData.coordenadas;
+                if (this.draftPoint) {
+                    coords.lat = this.draftPoint.marker.getLngLat().lat;
+                    coords.lng = this.draftPoint.marker.getLngLat().lng;
+                }
+
+                const dataToSave = {
+                    planejamentoId: this.currentPlan.id,
+                    companyId: App.state.currentUser.companyId,
+                    coordenadas: coords,
+                    fazendaId: document.getElementById('pointFazendaId').value,
+                    talhaoId: document.getElementById('pointTalhaoId').value,
+                    responsavelId: document.getElementById('pointResponsavelId').value,
+                    dataPrevistaInstalacao: new Date(document.getElementById('pointDataPrevista').value + "T03:00:00Z"), // Adiciona fuso
+                    descricao: document.getElementById('pointDescricao').value,
+                    status: "Planejado", // Sempre "Planejado" ao salvar
+                    criadoPorUserId: App.state.currentUser.uid,
+                    criadoEm: serverTimestamp(),
+                    updatedEm: serverTimestamp()
+                };
+
+                if (!dataToSave.responsavelId || !dataToSave.dataPrevistaInstalacao) {
+                    App.ui.showAlert("Responsável e Data Prevista são obrigatórios.", "warning");
+                    return;
+                }
+
+                App.ui.setLoading(true, "Salvando ponto...");
+
+                try {
+                    if (pointId) {
+                        // --- Editando Ponto Existente ---
+                        dataToSave.syncStatus = navigator.onLine ? "synced" : "pending";
+                        const pointRef = doc(db, 'instalacaoPontos', pointId);
+
+                        if (navigator.onLine) {
+                            await updateDoc(pointRef, dataToSave);
+                        } else {
+                            // Adiciona à fila offline como uma 'atualização'
+                            await OfflineDB.add('offline-writes', {
+                                id: `update_point_${pointId}`,
+                                type: 'update',
+                                collection: 'instalacaoPontos',
+                                docId: pointId,
+                                data: dataToSave
+                            });
+                        }
+                        App.ui.showAlert(`Ponto ${pointId.substring(0, 5)}... atualizado.`);
+
+                    } else if (this.draftPoint) {
+                        // --- Salvando Novo Ponto (draftPoint) ---
+                        const newPointId = `offline_point_${Date.now()}`;
+                        dataToSave.syncStatus = navigator.onLine ? "synced" : "pending";
+
+                        if (navigator.onLine) {
+                            // Salva online
+                            await setDoc(doc(db, 'instalacaoPontos', newPointId), dataToSave);
+                        } else {
+                            // Salva na fila offline
+                            await OfflineDB.add('offline-writes', {
+                                id: newPointId,
+                                type: 'set',
+                                collection: 'instalacaoPontos',
+                                docId: newPointId,
+                                data: dataToSave
+                            });
+                        }
+
+                        // Limpa o draftPoint
+                        this.draftPoint.marker.remove();
+                        this.draftPoint = null;
+                        App.ui.showAlert("Novo ponto salvo!");
+
+                        // Adiciona o ponto localmente para UI otimista (onSnapshot fará o resto se online)
+                        if (!navigator.onLine) {
+                            const localPoint = { id: newPointId, ...dataToSave };
+                            this.localPoints.push(localPoint);
+                            this.addPointMarkerToMap(localPoint);
+                        }
+                    }
+
+                    document.getElementById('pointEditModal').classList.remove('show');
+
+                } catch (error) {
+                    console.error("Erro ao salvar ponto:", error);
+                    App.ui.showAlert(`Erro ao salvar: ${error.message}`, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            /**
+            * [PARTE 1] Exclui um ponto.
+            */
+            async deletePoint() {
+                const form = document.getElementById('pointEditForm');
+                const pointId = form.dataset.pointId;
+
+                if (!pointId) {
+                    // Se não tem ID, é um 'draftPoint'. Apenas fecha o modal e remove o marcador.
+                    if (this.draftPoint) {
+                        this.draftPoint.marker.remove();
+                        this.draftPoint = null;
+                    }
+                    document.getElementById('pointEditModal').classList.remove('show');
+                    return;
+                }
+
+                App.ui.showConfirmationModal("Tem certeza que deseja excluir este ponto permanentemente?", async () => {
+                    App.ui.setLoading(true, "Excluindo ponto...");
+                    try {
+                        if (navigator.onLine) {
+                            await deleteDoc(doc(db, 'instalacaoPontos', pointId));
+                        } else {
+                            // Adiciona à fila offline como uma 'exclusão'
+                            await OfflineDB.add('offline-writes', {
+                                id: `delete_point_${pointId}`,
+                                type: 'delete',
+                                collection: 'instalacaoPontos',
+                                docId: pointId
+                            });
+                        }
+
+                        // Remove da UI otimista
+                        const pointInMap = this.localPoints.find(p => p.id === pointId);
+                        if (pointInMap && pointInMap.marker) {
+                            pointInMap.marker.remove();
+                        }
+                        this.localPoints = this.localPoints.filter(p => p.id !== pointId);
+
+                        App.ui.showAlert("Ponto excluído.");
+                        document.getElementById('pointEditModal').classList.remove('show');
+
+                    } catch (error) {
+                        console.error("Erro ao excluir ponto:", error);
+                        App.ui.showAlert("Erro ao excluir ponto.", "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
+            // --- [PARTE 2] Lógica de Geração de OS ---
+
+            /**
+            * [PARTE 2] Exibe a lista de pontos com status "Planejado" para seleção.
+            * Esta função é chamada por um novo item de menu.
+            */
+            showPlannedPointsList() {
+                const modal = document.getElementById('osGenerationModal');
+                const listEl = document.getElementById('osPointsList');
+                const loadingEl = document.getElementById('osPointsListLoading');
+                const generateBtn = document.getElementById('osGenerateBtn');
+
+                if (!modal || !listEl || !loadingEl) {
+                    console.error("Modal de Geração de OS não encontrado.");
+                    return;
+                }
+
+                modal.classList.add('show');
+                loadingEl.style.display = 'block';
+                listEl.innerHTML = '';
+                generateBtn.disabled = true;
+
+                const q = query(
+                    collection(db, 'instalacaoPontos'),
+                    where("companyId", "==", App.state.currentUser.companyId),
+                    where("status", "==", "Planejado")
+                    // TODO: Adicionar filtros de Fazenda, Talhão, Data (conforme escopo)
+                );
+
+                getDocs(q).then(snapshot => {
+                    loadingEl.style.display = 'none';
+                    if (snapshot.empty) {
+                        listEl.innerHTML = '<p class="empty-list-message">Nenhum ponto planejado encontrado.</p>';
+                        return;
+                    }
+
+                    snapshot.docs.forEach(doc => {
+                        const point = { id: doc.id, ...doc.data() };
+                        const item = document.createElement('label');
+                        item.className = 'report-option-item'; // Reutiliza estilo de checkbox
+                        item.innerHTML = `
+                            <input type="checkbox" data-point-id="${point.id}" onchange="App.planning.updateOSGenButton()">
+                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
+                            <span class="option-content">
+                                <strong>${point.fazendaId || 'N/A'} / ${point.talhaoId || 'N/A'}</strong>
+                                <small>Resp: ${point.responsavelId || 'N/A'}</small>
+                                <small>Data: ${App.actions.safeToDate(point.dataPrevistaInstalacao)?.toLocaleDateString('pt-BR') || 'N/A'}</small>
+                            </span>
+                        `;
+                        listEl.appendChild(item);
+                    });
+                }).catch(err => {
+                    console.error("Erro ao buscar pontos planejados:", err);
+                    loadingEl.style.display = 'none';
+                    App.ui.showAlert("Erro ao buscar pontos.", "error");
+                });
+            },
+
+            /**
+            * [PARTE 2] Atualiza o estado do botão "Gerar OS" baseado na seleção.
+            */
+            updateOSGenButton() {
+                const selected = document.querySelectorAll('#osPointsList input[type="checkbox"]:checked');
+                const generateBtn = document.getElementById('osGenerateBtn');
+                generateBtn.disabled = selected.length === 0;
+                generateBtn.querySelector('span').textContent = `(${selected.length})`;
+            },
+
+            /**
+            * [PARTE 2] Confirma e dispara a geração da OS.
+            */
+            async confirmAndGenerateOS() {
+                const selectedCheckboxes = document.querySelectorAll('#osPointsList input[type="checkbox"]:checked');
+                const selectedPointIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.pointId);
+
+                if (selectedPointIds.length === 0) {
+                    App.ui.showAlert("Selecione pelo menos um ponto.", "warning");
+                    return;
+                }
+
+                // Abre um segundo modal para inserir o responsável e observações
+                App.ui.showConfirmationModal(
+                    `Você está prestes a gerar uma OS para ${selectedPointIds.length} pontos.`,
+                    async (inputs) => {
+                        const responsavelOSId = inputs.responsavelOSId;
+                        const observacoes = inputs.observacoes;
+
+                        if (!responsavelOSId) {
+                            App.ui.showAlert("O Responsável pela OS é obrigatório.", "error");
+                            // Re-abre o modal
+                            this.confirmAndGenerateOS();
+                            return;
+                        }
+
+                        App.ui.setLoading(true, "Gerando OS transacional...");
+
+                        try {
+                            // Chama o novo endpoint do backend (server.js)
+                            const response = await fetch(`${App.config.backendUrl}/api/planejamento/os`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    selectedPointIds: selectedPointIds,
+                                    responsavelOSId: responsavelOSId,
+                                    observacoes: observacoes,
+                                    companyId: App.state.currentUser.companyId,
+                                    userId: App.state.currentUser.uid
+                                }),
+                            });
+
+                            const result = await response.json();
+                            if (!response.ok) {
+                                throw new Error(result.message || 'Erro desconhecido no servidor.');
+                            }
+
+                            App.ui.showAlert(`OS ${result.numeroOS} gerada com sucesso!`, "success");
+                            document.getElementById('osGenerationModal').classList.remove('show');
+
+                        } catch (error) {
+                            console.error("Erro ao gerar OS:", error);
+                            App.ui.showAlert(`Erro ao gerar OS: ${error.message}`, "error");
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    },
+                    // Configuração dos inputs para o modal de confirmação
+                    [
+                        { id: 'responsavelOSId', label: 'Responsável pela OS (Obrigatório)', type: 'text', required: true, value: App.state.currentUser.uid },
+                        { id: 'observacoes', label: 'Observações (Opcional)', type: 'textarea' }
+                    ]
+                );
+            },
+
+            // --- [PARTE 3] Lógica de Execução de OS ---
+
+            // Estado para o modo de execução
+            isExecutingOS: false,
+            currentOS: null,
+
+            /**
+            * [PARTE 3] Exibe a lista de OSs com status "Planejada" ou "Em Execução".
+            * Chamada por um novo item de menu.
+            */
+            showOSList() {
+                // Esta função reutiliza o modal 'planSelectorModal' para listar as OSs.
+                const modal = document.getElementById('planSelectorModal');
+                const listEl = document.getElementById('planSelectorList');
+                const loadingEl = document.getElementById('planSelectorLoading');
+                const createBtn = document.getElementById('planSelectorCreateBtn');
+                const title = document.getElementById('planSelectorTitle');
+
+                if (!modal || !listEl || !loadingEl || !createBtn || !title) {
+                    console.error("Modal de Seleção de Plano/OS não encontrado.");
+                    return;
+                }
+
+                title.textContent = "Selecionar OS para Execução";
+                createBtn.style.display = 'none'; // Esconde o botão de "Criar Plano"
+                loadingEl.style.display = 'block';
+                listEl.innerHTML = '';
+                modal.classList.add('show');
+
+                const q = query(
+                    collection(db, 'instalacaoOrdensDeServico'),
+                    where("companyId", "==", App.state.currentUser.companyId),
+                    where("status", "in", ["Planejada", "Em Execução"])
+                    // TODO: Idealmente, filtrar por `responsavelOSId == currentUser.uid`
+                );
+
+                getDocs(q).then(snapshot => {
+                    loadingEl.style.display = 'none';
+                    if (snapshot.empty) {
+                        listEl.innerHTML = '<p class="empty-list-message">Nenhuma OS pendente encontrada.</p>';
+                    } else {
+                        snapshot.docs.forEach(doc => {
+                            const os = { id: doc.id, ...doc.data() };
+                            const item = document.createElement('div');
+                            item.className = 'plano-card';
+                            item.style.cursor = 'pointer';
+                            item.innerHTML = `
+                                <div class="plano-header">
+                                    <span class="plano-title">${os.numeroOS}</span>
+                                    <span class="plano-status pendente">${os.status}</span>
+                                </div>
+                                <div class="plano-details">
+                                    <div><i class="fas fa-user-check"></i> Resp: ${os.responsavelOSId || 'N/A'}</div>
+                                    <div><i class="fas fa-map-pin"></i> ${os.pontosIds?.length || 0} pontos</div>
+                                </div>
+                            `;
+                            item.onclick = () => {
+                                this.enterOSExecutionMode(os);
+                                modal.classList.remove('show');
+                            };
+                            listEl.appendChild(item);
+                        });
+                    }
+                }).catch(err => {
+                    console.error("Erro ao buscar OSs:", err);
+                    App.ui.showAlert("Erro ao buscar Ordens de Serviço.", "error");
+                    loadingEl.style.display = 'none';
+                });
+            },
+
+            /**
+            * [PARTE 3] Entra no modo de execução no mapa para uma OS específica.
+            * @param {Object} os - O documento 'instalacaoOrdensDeServico' selecionado.
+            */
+            enterOSExecutionMode(os) {
+                console.log("Entrando no Modo de Execução para:", os.numeroOS);
+                this.isExecutingOS = true;
+                this.isPlanningMode = false; // Garante que não está em modo de planejamento
+                this.currentOS = os;
+                this.localPoints = [];
+
+                // 1. Mostra a aba do mapa
+                App.ui.showTab('monitoramentoAereo');
+
+                // 2. Alerta o usuário
+                App.ui.showAlert(`Modo de Execução: ${os.numeroOS}. Clique em um ponto para instalar.`, "info", 5000);
+
+                // 3. Modifica a UI
+                const btnAddTrap = document.getElementById('btnAddTrap');
+                if (btnAddTrap) {
+                    btnAddTrap.innerHTML = '<i class="fas fa-times-circle"></i>';
+                    btnAddTrap.title = "Sair do Modo de Execução";
+                    const newBtn = btnAddTrap.cloneNode(true);
+                    btnAddTrap.parentNode.replaceChild(newBtn, btnAddTrap);
+                    newBtn.addEventListener('click', () => this.stopOSExecutionMode());
+                }
+
+                // 4. Carrega apenas os pontos desta OS
+                this.loadOSPoints(os.id);
+            },
+
+            /**
+            * [PARTE 3] Sai do modo de execução da OS.
+            */
+            stopOSExecutionMode() {
+                if (!this.isExecutingOS) return;
+
+                console.log("Saindo do Modo de Execução.");
+                this.isExecutingOS = false;
+                this.currentOS = null;
+
+                // Limpa pontos do mapa
+                this.clearLocalPointMarkers();
+                this.localPoints = [];
+
+                // Restaura a UI
+                const btnAddTrap = document.getElementById('btnAddTrap');
+                if (btnAddTrap) {
+                    btnAddTrap.innerHTML = '<i class="fas fa-plus"></i>';
+                    btnAddTrap.title = "Adicionar Armadilha no Local Atual";
+                    const newBtn = btnAddTrap.cloneNode(true);
+                    btnAddTrap.parentNode.replaceChild(newBtn, btnAddTrap);
+                    newBtn.addEventListener('click', () => App.mapModule.promptInstallTrap());
+                }
+
+                App.ui.showAlert("Modo de Execução Desativado.", "info");
+            },
+
+            /**
+            * [PARTE 3] Carrega os pontos do Firestore para a OS atual.
+            * @param {string} osId - O ID do 'instalacaoOrdensDeServico'.
+            */
+            loadOSPoints(osId) {
+                this.clearLocalPointMarkers();
+                this.localPoints = [];
+
+                const q = query(
+                    collection(db, 'instalacaoPontos'),
+                    where("companyId", "==", App.state.currentUser.companyId),
+                    where("osId", "==", osId),
+                    where("status", "==", "EmOS") // Carrega apenas os pontos pendentes
+                );
+
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    this.clearLocalPointMarkers();
+                    this.localPoints = [];
+
+                    snapshot.forEach(doc => {
+                        const point = { id: doc.id, ...doc.data() };
+                        this.localPoints.push(point);
+                        this.addPointMarkerToMap(point);
+                    });
+                    console.log(`Carregados ${this.localPoints.length} pontos pendentes para esta OS.`);
+
+                    if (snapshot.empty) {
+                        App.ui.showAlert("Todos os pontos desta OS foram instalados!", "success");
+                        this.stopOSExecutionMode();
+                    }
+
+                }, (error) => {
+                    console.error("Erro ao carregar pontos da OS:", error);
+                });
+
+                App.state.unsubscribeListeners.push(unsubscribe);
+            },
+
+            /**
+            * [PARTE 3] Exibe o modal para confirmar a instalação.
+            * @param {Object} point - O ponto a ser instalado.
+            */
+            showInstallModal(point) {
+                const modal = document.getElementById('installPointModal');
+                const title = document.getElementById('installModalTitle');
+                const form = document.getElementById('installPointForm');
+
+                if (!modal || !title || !form) {
+                    console.error("Modal de Instalação não encontrado.");
+                    return;
+                }
+
+                title.textContent = `Instalar Ponto (${point.talhaoId || 'N/A'})`;
+                form.dataset.pointId = point.id;
+                form.dataset.osId = point.osId;
+
+                // Limpa campos anteriores
+                document.getElementById('installNotes').value = point.descricao || '';
+                document.getElementById('installPhoto').value = ''; // Limpa o input de arquivo
+
+                modal.classList.add('show');
+            },
+
+            /**
+            * [PARTE 3] Executa a instalação do ponto.
+            */
+            async executeInstallation() {
+                const modal = document.getElementById('installPointModal');
+                const form = document.getElementById('installPointForm');
+                const pointId = form.dataset.pointId;
+                const osId = form.dataset.osId;
+                const point = this.localPoints.find(p => p.id === pointId);
+
+                if (!point) {
+                    App.ui.showAlert("Erro: Ponto não encontrado.", "error");
+                    return;
+                }
+
+                const notes = document.getElementById('installNotes').value;
+                const photoFile = document.getElementById('installPhoto').files[0];
+
+                if (!photoFile) {
+                    App.ui.showAlert("A foto é obrigatória para a instalação.", "warning");
+                    return;
+                }
+
+                // --- Lógica de Upload da Foto ---
+                // Em um app real, faríamos o upload para o Storage aqui.
+                // Por enquanto, simulamos o upload e usamos um URL de placeholder.
+                // O upload real deve ser feito antes de chamar o backend.
+
+                App.ui.setLoading(true, "Enviando dados da instalação...");
+
+                // Simulação de URL de foto
+                const simulatedFotoURL = `https://storage.googleapis.com/${App.state.currentUser.companyId}/fotos/${pointId}_${Date.now()}.jpg`;
+
+                try {
+                    // Chama o novo endpoint do backend (server.js)
+                    const response = await fetch(`${App.config.backendUrl}/api/planejamento/executar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            pointId: pointId,
+                            osId: osId,
+                            fotoURLs: [simulatedFotoURL], // Envia o URL simulado
+                            notes: notes,
+                            companyId: App.state.currentUser.companyId,
+                            userId: App.state.currentUser.uid
+                        }),
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Erro desconhecido no servidor.');
+                    }
+
+                    App.ui.showAlert(`Ponto ${point.talhaoId} instalado com sucesso!`, "success");
+                    modal.classList.remove('show');
+
+                    // UI Otimista: Remove o ponto do mapa (o onSnapshot fará isso, mas forçamos)
+                    if (point.marker) {
+                        point.marker.remove();
+                    }
+                    this.localPoints = this.localPoints.filter(p => p.id !== pointId);
+
+                    // Se foi o último ponto, o onSnapshot (em loadOSPoints) tratará de fechar o modo.
+
+                } catch (error) {
+                    console.error("Erro ao executar instalação:", error);
+                    App.ui.showAlert(`Erro ao executar: ${error.message}`, "error");
+                    // TODO: Adicionar lógica de fila offline para a execução
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            }
+
+        }, // Fim do novo objeto App.planning
+
         mapModule: {
             initMap() {
                 if (App.state.mapboxMap) return; // Evita reinicialização
@@ -7830,6 +8897,38 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.watchUserPosition();
                         this.loadShapesOnMap();
                         this.loadTraps();
+                        App.state.mapboxMap.on('click', (e) => {
+                            // Se o clique foi em um marcador (armadilha), não faz nada
+                            if (e.originalEvent.target.closest('.mapboxgl-marker')) {
+                                return;
+                            }
+
+                            // Se o clique foi em uma feature de talhão (layerId)
+                            const features = App.state.mapboxMap.queryRenderedFeatures(e.point, { layers: ['talhoes-layer'] });
+                            if (features.length > 0) {
+                                // Se estamos em modo de planejamento, o clique no talhão
+                                // deve ser tratado pelo handler de planejamento.
+                                if (App.planning.isPlanningMode) {
+                                    App.planning.handleMapClick(e);
+                                    return; // Impede que o 'showTalhaoInfo' seja chamado
+                                }
+
+                                // ... (lógica existente de clique no talhão para showTalhaoInfo) ...
+                                // (O seu código existente para showTalhaoInfo vai aqui)
+
+                            } else {
+                                // Se o clique foi fora de um talhão (em "mar aberto")
+                                if (App.planning.isPlanningMode) {
+                                    // Se estamos planejando, permite criar o ponto
+                                    App.planning.handleMapClick(e);
+                                } else {
+                                    // Se não estamos planejando, esconde as info boxes
+                                    // (Esta lógica provavelmente já existe no seu 'click' handler)
+                                    // App.mapModule.hideTalhaoInfo();
+                                    // App.mapModule.hideTrapInfo();
+                                }
+                            }
+                        });
                     });
 
                 } catch (e) {
@@ -8085,6 +9184,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.elements.monitoramentoAereo.btnToggleRiskView.style.display = 'flex';
                 map.on('click', layerId, (e) => {
+                    if (App.planning.isPlanningMode) {
+                        // O clique no mapa principal (acima) já trata isso.
+                        // Impedimos que a info do talhão abra.
+                        e.preventDefault();
+                        return;
+                    }
                     // Impede que o clique no talhão seja acionado se um marcador (armadilha) for clicado
                     if (e.originalEvent.target.closest('.mapboxgl-marker')) {
                         return;

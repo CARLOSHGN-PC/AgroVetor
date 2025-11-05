@@ -1586,6 +1586,41 @@
               width: 100%;
           }
       }
+      /* [NOVO CSS - PARTE 1, 2, 3] Estilos para o Módulo de Planejamento */
+      .mapbox-marker-planning {
+        /* Estilos base já definidos no JS, mas podemos adicionar transições ou outros aqui */
+        transition: transform 0.2s ease-out;
+      }
+      .mapbox-marker-planning:hover {
+        transform: scale(1.2);
+      }
+      /* Garante que o input dentro de uma label no modal de OS ocupe espaço */
+      #osPointsList .report-option-item {
+        grid-template-columns: auto 1fr;
+        grid-template-areas: "check content";
+        gap: 15px;
+        padding-left: 40px; /* Mais espaço para o checkbox */
+        text-align: left;
+        align-items: flex-start;
+      }
+      #osPointsList .report-option-item .option-content {
+        align-items: flex-start;
+        text-align: left;
+      }
+      #osPointsList .point-details-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2px 10px;
+        font-size: 13px;
+        color: var(--color-text-light);
+        margin-top: 5px;
+      }
+      #osPointsList .point-main-info {
+        font-weight: 600;
+        color: var(--color-primary-dark);
+        font-size: 15px;
+        margin-bottom: 5px;
+      }
     </style>
 </head>
 <body>
@@ -3423,6 +3458,114 @@
                     <button id="enableOfflineLoginModalCancelBtn" class="btn-secondary">Cancelar</button>
                     <button id="btnConfirmEnableOffline" class="save">Confirmar e Habilitar</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [NOVO HTML - PARTE 1, 2, 3] Modais de Planejamento -->
+    <div id="planSelectorModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 id="planSelectorTitle">Selecionar Plano de Instalação</h2>
+                <button id="planSelectorCloseBtn" class="modal-close-btn">&times;</button>
+            </div>
+            <p>Selecione um plano existente para adicionar pontos ou crie um novo.</p>
+            <div id="planSelectorList" style="margin-top: 20px; max-height: 50vh; overflow-y: auto;">
+                <!-- Lista de planos será inserida aqui -->
+            </div>
+            <div id="planSelectorLoading" style="text-align: center; padding: 20px; display: none;">
+                <div class="spinner"></div>
+                <p>Carregando planos...</p>
+            </div>
+            <div class="modal-footer">
+                <button id="planSelectorCreateBtn" class="save"><i class="fas fa-plus"></i> Criar Novo Plano</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="planEditModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Criar/Editar Plano</h2>
+                <button id="planEditCloseBtn" class="modal-close-btn">&times;</button>
+            </div>
+            <form id="planEditForm" onsubmit="event.preventDefault(); App.planning.savePlan();">
+                <label for="planNome" class="required">Nome do Plano:</label>
+                <input type="text" id="planNome" required>
+                <label for="planFazendaId" class="required">ID da Fazenda:</label>
+                <input type="text" id="planFazendaId" required>
+                <label for="planTalhaoId">ID do Talhão (Opcional):</label>
+                <input type="text" id="planTalhaoId">
+                <label for="planMeta">Meta de Pontos (Opcional):</label>
+                <input type="number" id="planMeta">
+            </form>
+            <div class="modal-footer">
+                <button id="planEditSaveBtn" class="save"><i class="fas fa-save"></i> Salvar Plano</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pointEditModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Adicionar/Editar Ponto</h2>
+                <button id="pointEditCloseBtn" class="modal-close-btn">&times;</button>
+            </div>
+            <form id="pointEditForm" onsubmit="event.preventDefault(); App.planning.savePoint();">
+                <div class="form-row">
+                    <div class="form-col"><label for="pointFazendaId">ID da Fazenda:</label><input type="text" id="pointFazendaId"></div>
+                    <div class="form-col"><label for="pointTalhaoId">ID do Talhão:</label><input type="text" id="pointTalhaoId"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col"><label for="pointResponsavelId" class="required">Responsável:</label><input type="text" id="pointResponsavelId" required></div>
+                    <div class="form-col"><label for="pointDataPrevista" class="required">Data Prevista:</label><input type="date" id="pointDataPrevista" required></div>
+                </div>
+                <label for="pointDescricao">Descrição/Observação:</label>
+                <textarea id="pointDescricao"></textarea>
+            </form>
+            <div class="modal-footer">
+                <div class="danger-zone">
+                    <button id="pointDeleteBtn" class="btn-secondary" style="background: var(--color-danger); display: none;"><i class="fas fa-trash"></i> Excluir Ponto</button>
+                </div>
+                <button id="pointEditSaveBtn" class="save"><i class="fas fa-save"></i> Salvar Ponto</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="osGenerationModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2>Gerar Ordem de Serviço (OS)</h2>
+                <button id="osGenerationCloseBtn" class="modal-close-btn">&times;</button>
+            </div>
+            <p>Selecione os pontos com status "Planejado" que farão parte desta OS.</p>
+            <div id="osPointsListLoading" style="text-align: center; padding: 20px; display: none;">
+                <div class="spinner"></div>
+                <p>Carregando pontos planejados...</p>
+            </div>
+            <div id="osPointsList" class="report-options-grid" onchange="App.planning.updateOSGenButton()" style="margin-top: 15px; max-height: 50vh; overflow-y: auto;">
+                <!-- A lista de pontos será inserida aqui -->
+            </div>
+            <div class="modal-footer">
+                <button id="osGenerateBtn" class="save" disabled><i class="fas fa-file-invoice"></i> Gerar OS <span>(0)</span></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="installPointModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 id="installModalTitle">Executar Instalação</h2>
+                <button id="installPointCloseBtn" class="modal-close-btn">&times;</button>
+            </div>
+            <form id="installPointForm" onsubmit="event.preventDefault(); App.planning.executeInstallation();">
+                <label for="installNotes">Notas de Campo:</label>
+                <textarea id="installNotes"></textarea>
+                <label for="installPhoto" class="required">Foto da Instalação:</label>
+                <input type="file" id="installPhoto" accept="image/*" required>
+            </form>
+            <div class="modal-footer">
+                <button id="installPointExecuteBtn" class="save" style="background: var(--color-success);"><i class="fas fa-check-circle"></i> Confirmar Instalação</button>
             </div>
         </div>
     </div>

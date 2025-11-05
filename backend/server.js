@@ -3205,6 +3205,252 @@ try {
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
 }
 
+/**
+* Obtém o próximo número sequencial de OS de forma atômica para um ano específico.
+* Usa uma transação do Firestore para garantir a unicidade.
+*
+* @param {admin.firestore.Firestore} db - A instância do Firestore Admin.
+* @returns {Promise<{numeroOS: string, ano: number, sequencial: number}>}
+*/
+async function getNextOSNumber(db, companyId) {
+if (!companyId) {
+throw new Error("O ID da empresa é obrigatório para gerar o número da OS.");
+}
+const year = new Date().getFullYear();
+// O contador é agora por empresa
+const counterRef = db.collection('companies').doc(companyId).collection('counters').doc(`os_${year}`);
+
+try {
+const { seq } = await db.runTransaction(async (transaction) => {
+const counterDoc = await transaction.get(counterRef);
+
+let newSeq = 1;
+if (counterDoc.exists) {
+newSeq = (counterDoc.data().lastSeq || 0) + 1;
+}
+
+transaction.set(counterRef, { lastSeq: newSeq }, { merge: true });
+return { seq: newSeq };
+});
+
+return {
+ano: year,
+sequencial: seq,
+numeroOS: `OS-${year}-${String(seq).padStart(3, '0')}`,
+};
+} catch (error) {
+console.error(`Erro ao obter número de OS atômico para ${companyId}:`, error);
+throw new Error("Falha na transação do contador de OS.");
+}
+}
+
+/**
+* Simula a lógica de "find-or-upsert" para a coleção 'armadilhas'.
+* Em um cenário real, isso faria uma busca geoespacial.
+*
+* @param {admin.firestore.Firestore} db - A instância do Firestore Admin.
+* @param {admin.firestore.WriteBatch} batch - O batch de escrita do Firestore.
+* @param {Object} trapData - Dados do ponto de instalação.
+* @param {Object} geojsonData - (Opcional) GeoJSON para busca espacial.
+*/
+async function findOrCreateArmadilha(db, batch, trapData, geojsonData) {
+// TODO: Implementar busca espacial (find)
+// Por enquanto (Parte 3 - Escopo Inicial), apenas criamos uma nova armadilha (create)
+// e integramos com a coleção 'armadilhas' existente.
+
+const newArmadilhaRef = db.collection('armadilhas').doc(); // Cria um ID automático
+
+const armadilhaDoc = {
+id: newArmadilhaRef.id,
+companyId: trapData.companyId,
+latitude: trapData.coordenadas.lat,
+longitude: trapData.coordenadas.lng,
+dataInstalacao: trapData.dataInstalacao, // Já deve ser um Timestamp
+instaladoPor: trapData.concluidoPorUserId,
+status: "Ativa", // A armadilha começa "Ativa"
+fazendaNome: trapData.fazendaNome || 'N/A', // Herdado do Ponto/Plano
+fazendaCode: trapData.fazendaCode || 'N/A', // Herdado do Ponto/Plano
+talhaoNome: trapData.talhaoNome || 'N/A', // Herdado do Ponto/Plano
+observacoes: trapData.descricao,
+
+// Histórico de Instalação (Parte 3)
+installationRecords: [
+{
+recordType: 'installation',
+osId: trapData.osId,
+pointId: trapData.id,
+concluidoPorUserId: trapData.concluidoPorUserId,
+dataInstalacao: trapData.dataInstalacao,
+fotoURLs: trapData.fotoURLs || [],
+notes: trapData.descricao
+}
+]
+};
+
+batch.set(newArmadilhaRef, armadilhaDoc);
+console.log(`Integrando com nova armadilha: ${newArmadilhaRef.id}`);
+}
+
+
+// --- [NOVA ROTA - PARTE 2] Endpoint Transacional para Geração de OS ---
+app.post('/api/planejamento/os', async (req, res) => {
+const { selectedPointIds, responsavelOSId, observacoes, companyId, userId } = req.body;
+
+if (!selectedPointIds || selectedPointIds.length === 0 || !responsavelOSId || !companyId || !userId) {
+return res.status(400).json({ message: "Dados insuficientes para gerar OS (IDs, Responsável, Empresa, Usuário)." });
+}
+
+try {
+// 1. Obter número da OS atomicamente
+const osNumberData = await getNextOSNumber(db, companyId);
+
+const osRef = db.collection('instalacaoOrdensDeServico').doc();
+const batch = db.batch();
+
+// 2. Criar o documento da OS
+const newOS = {
+id: osRef.id,
+companyId: companyId,
+numeroOS: osNumberData.numeroOS,
+ano: osNumberData.ano,
+sequencial: osNumberData.sequencial,
+pontosIds: selectedPointIds,
+responsavelOSId: responsavelOSId,
+dataCriacao: admin.firestore.FieldValue.serverTimestamp(),
+prazoExecucao: null, // TODO: Usar função de cálculo, conforme spec
+status: "Planejada",
+observacoes: observacoes || "",
+criadoPorUserId: userId,
+criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+syncStatus: "synced",
+};
+batch.set(osRef, newOS);
+
+// 3. Atualizar cada Ponto selecionado
+// O frontend deve garantir que os pontos pertencem à mesma empresa
+for (const pointId of selectedPointIds) {
+const pointRef = db.collection('instalacaoPontos').doc(pointId);
+batch.update(pointRef, {
+osId: osRef.id,
+status: "EmOS",
+responsavelId: responsavelOSId, // Regra de sobrescrita
+updatedEm: admin.firestore.FieldValue.serverTimestamp(),
+});
+}
+
+// 4. Executar o batch
+await batch.commit();
+
+console.log(`OS ${newOS.numeroOS} gerada com sucesso para ${companyId}.`);
+res.status(201).json({ message: "OS gerada com sucesso!", osId: osRef.id, numeroOS: newOS.numeroOS });
+
+} catch (error) {
+console.error("Erro CRÍTICO na transação de geração de OS:", error);
+res.status(500).json({ message: `Erro no servidor ao gerar OS: ${error.message}` });
+}
+});
+
+// --- [NOVA ROTA - PARTE 3] Endpoint Transacional para Execução de Instalação ---
+app.post('/api/planejamento/executar', async (req, res) => {
+const { pointId, osId, fotoURLs, notes, userId, companyId } = req.body;
+
+if (!pointId || !osId || !userId || !companyId) {
+return res.status(400).json({ message: "Dados insuficientes para executar instalação (Point, OS, User, Company)." });
+}
+
+try {
+const pointRef = db.collection('instalacaoPontos').doc(pointId);
+const osRef = db.collection('instalacaoOrdensDeServico').doc(osId);
+
+const installationTimestamp = admin.firestore.FieldValue.serverTimestamp();
+
+// Dados para atualizar o ponto
+const pointUpdateData = {
+status: "Instalado",
+dataInstalacao: installationTimestamp,
+concluidoPorUserId: userId,
+fotoURLs: fotoURLs || [],
+descricao: notes, // Sobrescreve a descrição com as notas de campo
+updatedEm: installationTimestamp,
+syncStatus: "synced"
+};
+
+// Inicia um batch
+const batch = db.batch();
+
+// 1. Atualiza o Ponto
+batch.update(pointRef, pointUpdateData);
+
+// 2. Lógica de Upsert na Armadilha
+// Precisamos dos dados completos do ponto para criar a armadilha
+const pointDoc = await pointRef.get();
+if (!pointDoc.exists) {
+throw new Error("Ponto de instalação não encontrado.");
+}
+
+// Combina os dados antigos com os novos dados da atualização
+const fullPointData = {
+...pointDoc.data(),
+...pointUpdateData,
+id: pointId,
+dataInstalacao: new Date() // Passa um objeto Date para a função de upsert
+};
+
+// Passa o geojsonData (se carregado no backend) para a função de upsert
+// const geojsonData = cachedShapefiles[companyId]; // Assumindo que o shapefile está em cache
+// await findOrCreateArmadilha(db, batch, fullPointData, geojsonData);
+
+// Por enquanto, sem geojson:
+await findOrCreateArmadilha(db, batch, fullPointData, null);
+
+
+// 3. Verifica se a OS foi concluída (esta lógica é complexa e deve ser otimizada)
+// Esta verificação é "eventualmente consistente"
+const osDoc = await osRef.get();
+if (osDoc.exists) {
+const osData = osDoc.data();
+const pontosIds = osData.pontosIds || [];
+
+// Busca todos os pontos desta OS
+const pontosQuery = await db.collection('instalacaoPontos')
+.where(admin.firestore.FieldPath.documentId(), 'in', pontosIds)
+.get();
+
+let todosInstalados = true;
+pontosQuery.forEach(doc => {
+// Se o doc atual for o que estamos instalando, usa o novo status
+if (doc.id === pointId) {
+if (pointUpdateData.status !== "Instalado") {
+todosInstalados = false;
+}
+} else {
+// Para os outros, usa o status do banco
+if (doc.data().status !== "Instalado") {
+todosInstalados = false;
+}
+}
+});
+
+if (todosInstalados) {
+console.log(`OS ${osData.numeroOS} concluída.`);
+batch.update(osRef, {
+status: "Concluída",
+concluidoEm: installationTimestamp
+});
+}
+}
+
+// 4. Executa o batch
+await batch.commit();
+
+res.status(200).json({ message: "Instalação executada com sucesso e armadilha integrada." });
+
+} catch (error) {
+console.error("Erro CRÍTICO na execução da instalação:", error);
+res.status(500).json({ message: `Erro no servidor ao executar instalação: ${error.message}` });
+}
+});
+
 app.listen(port, () => {
     console.log(`Servidor de relatórios rodando na porta ${port}`);
 });
