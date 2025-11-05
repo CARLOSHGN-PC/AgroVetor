@@ -2602,6 +2602,64 @@
     </div>
 </section>
 
+<!-- (Parte 2) Tela de Lista de Pontos Planejados (para Gerar OS) -->
+<section id="listaPontosPlanejados" class="tab-content card" aria-label="Pontos Planejados" tabindex="0" hidden>
+    <h2><i class="fas fa-map-marked-alt"></i> Pontos de Instalação Planejados</h2>
+    <p>Selecione os pontos que deseja incluir em uma nova Ordem de Serviço (OS).</p>
+    <div class="card-header-actions">
+        <div class="dashboard-filters">
+            <label for="filtroPontoFazenda">Fazenda:</label>
+            <select id="filtroPontoFazenda" class="filtro-pontos"></select>
+            <label for="filtroPontoTalhao">Talhão:</label>
+            <select id="filtroPontoTalhao" class="filtro-pontos"></select>
+            <label for="filtroPontoData">Data Prevista:</label>
+            <input type="date" id="filtroPontoData" class="filtro-pontos" style="padding: 6px 10px; font-size: 13px; max-width: 150px;">
+        </div>
+        <div class="button-group">
+            <button id="btnGerarOS" class="save" disabled><i class="fas fa-plus"></i> Gerar OS</button>
+        </div>
+    </div>
+    <div class="table-responsive" style="margin-top: 20px;">
+        <table id="tabelaPontosPlanejados" class="harvestPlanTable">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selecionarTodosPontos"></th>
+                    <th>Fazenda</th>
+                    <th>Talhão</th>
+                    <th>Data Prevista</th>
+                    <th>Responsável</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="corpoTabelaPontosPlanejados">
+                <!-- Linhas serão inseridas pelo app.js -->
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- (Parte 2 e 3) Tela de Lista de Ordens de Serviço -->
+<section id="listaOrdensDeServico" class="tab-content card" aria-label="Ordens de Serviço" tabindex="0" hidden>
+    <h2><i class="fas fa-clipboard-list"></i> Ordens de Serviço de Instalação</h2>
+    <div class="dashboard-filters" style="margin-top: 15px;">
+        <label for="filtroOSStatus">Status:</label>
+        <select id="filtroOSStatus" class="filtro-os">
+            <option value="">Todos</option>
+            <option value="Planejada">Planejada</option>
+            <option value="Em Execução">Em Execução</option>
+            <option value="Concluída">Concluída</option>
+            <option value="Atrasada">Atrasada</option>
+            <option value="Cancelada">Cancelada</option>
+        </select>
+        <label for="filtroOSResponsavel">Responsável:</label>
+        <select id="filtroOSResponsavel" class="filtro-os"></select>
+    </div>
+    <div id="containerListaOS" style="margin-top: 20px;">
+        <!-- Cards das OS serão inseridos pelo app.js -->
+    </div>
+</section>
+
+
             <section id="gerenciarLancamentos" class="tab-content card" aria-label="Gerenciar Lançamentos" tabindex="0" hidden>
                 <h2><i class="fas fa-edit"></i> Gerenciar Lançamentos</h2>
                 <p>Selecione um lançamento para editar ou excluir.</p>
@@ -3168,6 +3226,213 @@
         </div>
 
         <!-- MODAIS -->
+<!-- INÍCIO: NOVOS ELEMENTOS DO MÓDULO DE PLANEJAMENTO E OS -->
+
+<!-- (Parte 1) Modal de Edição do Ponto de Instalação -->
+<div id="instalacaoPontoModal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2 id="instalacaoPontoModalTitle">Editar Ponto Planejado</h2>
+            <button id="instalacaoPontoModalCloseBtn" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="instalacaoPontoId">
+            <input type="hidden" id="instalacaoPontoLat">
+            <input type="hidden" id="instalacaoPontoLng">
+           
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="instalacaoPontoFazenda" class="required">Fazenda:</label>
+                    <!-- Este select deve ser populado pelo app.js com as fazendas existentes -->
+                    <select id="instalacaoPontoFazenda" required></select>
+                </div>
+                <div class="form-col">
+                    <label for="instalacaoPontoTalhao" class="required">Talhão:</label>
+                    <!-- Este select deve ser populado pelo app.js com base na fazenda -->
+                    <select id="instalacaoPontoTalhao" required></select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="instalacaoPontoResponsavel" class="required">Responsável:</label>
+                    <!-- Este select deve ser populado pelo app.js com os usuários -->
+                    <select id="instalacaoPontoResponsavel" required></select>
+                </div>
+                <div class="form-col">
+                    <label for="instalacaoPontoDataPrevista" class="required">Data Prevista:</label>
+                    <input type="date" id="instalacaoPontoDataPrevista" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="instalacaoPontoDescricao">Observações:</label>
+                    <textarea id="instalacaoPontoDescricao" placeholder="Detalhes adicionais..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="instalacaoPontoModalCancelBtn" class="btn-secondary">Cancelar</button>
+            <button id="instalacaoPontoModalSaveBtn" class="save">Salvar Ponto</button>
+        </div>
+    </div>
+</div>
+
+<!-- (Parte 2) Tela de Lista de Pontos Planejados (para Gerar OS) -->
+<section id="listaPontosPlanejados" class="tab-content card" aria-label="Pontos Planejados" tabindex="0" hidden>
+    <h2><i class="fas fa-map-marked-alt"></i> Pontos de Instalação Planejados</h2>
+    <p>Selecione os pontos que deseja incluir em uma nova Ordem de Serviço (OS).</p>
+    <div class="card-header-actions">
+        <div class="dashboard-filters">
+            <label for="filtroPontoFazenda">Fazenda:</label>
+            <select id="filtroPontoFazenda" class="filtro-pontos"></select>
+            <label for="filtroPontoTalhao">Talhão:</label>
+            <select id="filtroPontoTalhao" class="filtro-pontos"></select>
+            <label for="filtroPontoData">Data Prevista:</label>
+            <input type="date" id="filtroPontoData" class="filtro-pontos" style="padding: 6px 10px; font-size: 13px; max-width: 150px;">
+        </div>
+        <div class="button-group">
+            <button id="btnGerarOS" class="save" disabled><i class="fas fa-plus"></i> Gerar OS</button>
+        </div>
+    </div>
+    <div class="table-responsive" style="margin-top: 20px;">
+        <table id="tabelaPontosPlanejados" class="harvestPlanTable">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selecionarTodosPontos"></th>
+                    <th>Fazenda</th>
+                    <th>Talhão</th>
+                    <th>Data Prevista</th>
+                    <th>Responsável</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="corpoTabelaPontosPlanejados">
+                <!-- Linhas serão inseridas pelo app.js -->
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- (Parte 2) Modal de Geração de OS -->
+<div id="gerarOSModal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2>Gerar Ordem de Serviço</h2>
+            <button id="gerarOSModalCloseBtn" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Você selecionou <strong id="gerarOSNumPontos">0</strong> ponto(s).</p>
+            <div class="form-col">
+                <label for="gerarOSResponsavel" class="required">Responsável pela OS:</label>
+                <select id="gerarOSResponsavel" required></select>
+                <small>Este responsável irá sobrescrever os responsáveis definidos individualmente nos pontos.</small>
+            </div>
+            <div class="form-col" style="margin-top: 15px;">
+                <label for="gerarOSObservacoes">Observações da OS:</label>
+                <textarea id="gerarOSObservacoes" placeholder="Instruções gerais para a execução..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="gerarOSModalCancelBtn" class="btn-secondary">Cancelar</button>
+            <button id="gerarOSModalConfirmBtn" class="save">Confirmar e Gerar OS</button>
+        </div>
+    </div>
+</div>
+
+<!-- (Parte 2 e 3) Tela de Lista de Ordens de Serviço -->
+<section id="listaOrdensDeServico" class="tab-content card" aria-label="Ordens de Serviço" tabindex="0" hidden>
+    <h2><i class="fas fa-clipboard-list"></i> Ordens de Serviço de Instalação</h2>
+    <div class="dashboard-filters" style="margin-top: 15px;">
+        <label for="filtroOSStatus">Status:</label>
+        <select id="filtroOSStatus" class="filtro-os">
+            <option value="">Todos</option>
+            <option value="Planejada">Planejada</option>
+            <option value="Em Execução">Em Execução</option>
+            <option value="Concluída">Concluída</option>
+            <option value="Atrasada">Atrasada</option>
+            <option value="Cancelada">Cancelada</option>
+        </select>
+        <label for="filtroOSResponsavel">Responsável:</label>
+        <select id="filtroOSResponsavel" class="filtro-os"></select>
+    </div>
+    <div id="containerListaOS" style="margin-top: 20px;">
+        <!-- Cards das OS serão inseridos pelo app.js -->
+    </div>
+</section>
+
+<!-- (Parte 3) Modal de Detalhe/Execução da OS -->
+<div id="osDetailModal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 90vw; max-height: 90vh;">
+        <div class="modal-header">
+            <h2 id="osDetailModalTitle">Detalhes da OS: OS-XXXX-XXX</h2>
+            <button id="osDetailModalCloseBtn" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 20px; max-height: 70vh; overflow-y: auto;">
+            <div class="card" style="margin: 0;">
+                <div class="plano-details">
+                    <div><i class="fas fa-user-cog"></i> Responsável: <strong id="osDetailResponsavel"></strong></div>
+                    <div><i class="fas fa-info-circle"></i> Status: <strong id="osDetailStatus"></strong></div>
+                    <div><i class="fas fa-calendar-day"></i> Prazo: <strong id="osDetailPrazo"></strong></div>
+                    <div><i class="fas fa-map-marker-alt"></i> Pontos: <strong id="osDetailNumPontos"></strong></div>
+                </div>
+                <div id="osDetailObservacoesContainer" style="margin-top: 10px;">
+                    <p style="font-size: 14px; color: var(--color-text-light); margin: 0;"><strong>Observações:</strong> <span id="osDetailObservacoes"></span></p>
+                </div>
+            </div>
+           
+            <div class="table-responsive">
+                <table id="tabelaPontosOS" class="harvestPlanTable">
+                    <thead>
+                        <tr>
+                            <th>Fazenda</th>
+                            <th>Talhão</th>
+                            <th>Data Prevista</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpoTabelaPontosOS">
+                        <!-- Pontos da OS serão inseridos aqui -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="osDetailModalCancelBtn" class="btn-secondary">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- (Parte 3) Modal de Execução do Ponto -->
+<div id="executarPontoModal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 550px;">
+        <div class="modal-header">
+            <h2 id="executarPontoModalTitle">Executar Instalação</h2>
+            <button id="executarPontoModalCloseBtn" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="executarPontoId">
+            <p><strong>Ponto:</strong> <span id="executarPontoInfo">Fazenda X, Talhão Y</span></p>
+           
+            <div class="form-col">
+                <label for="executarPontoFotos" class="required">Foto(s) da Instalação:</label>
+                <input type="file" id="executarPontoFotos" accept="image/*" multiple required>
+                <div id="executarPontoFotosPreview" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"></div>
+            </div>
+           
+            <div class="form-col" style="margin-top: 15px;">
+                <label for="executarPontoNotas">Notas de Campo:</label>
+                <textarea id="executarPontoNotas" placeholder="Observações sobre a instalação..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="executarPontoModalCancelBtn" class="btn-secondary">Cancelar</button>
+            <button id="executarPontoModalConfirmBtn" class="save" style="background: var(--color-success);"><i class="fas fa-check-circle"></i> Confirmar Instalação</button>
+        </div>
+    </div>
+</div>
+
+<!-- FIM: NOVOS ELEMENTOS DO MÓDULO -->
         <div id="trapPlacementModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 500px;">
                 <div class="modal-header">
