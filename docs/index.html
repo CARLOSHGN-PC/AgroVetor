@@ -1586,6 +1586,72 @@
               width: 100%;
           }
       }
+
+/* --- [NOVOS ESTILOS] Para o Módulo de Planejamento --- */
+
+/* Marcador de Ponto de Planejamento (Genérico) */
+.mapbox-marker-planning {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    transition: all 0.2s ease;
+}
+.mapbox-marker-planning i {
+    color: white;
+    font-size: 14px;
+}
+.mapbox-marker-planning:hover {
+    transform: scale(1.1);
+}
+
+/* Marcador Draft (Arrastável) */
+.mapbox-marker-planning.draft {
+    background-color: #f57c00; /* Laranja */
+    width: 32px; /* Ligeiramente maior */
+    height: 32px;
+    cursor: grab;
+    z-index: 500; /* Fica por cima dos outros */
+}
+.mapbox-marker-planning.draft:active {
+    cursor: grabbing;
+}
+
+/* Marcador Planejado (Azul) */
+.mapbox-marker-planning.planned {
+    background-color: #1976d2; /* Azul */
+}
+
+/* Marcador Em OS (Amarelo) */
+.mapbox-marker-planning.in-os {
+    background-color: #FBC02D; /* Amarelo Ouro */
+}
+
+/* Marcador Instalado (Verde) */
+.mapbox-marker-planning.installed {
+    background-color: #388E3C; /* Verde */
+}
+
+
+/* Reutiliza o estilo de .talhao-selection-list para as listas de OS/Plano */
+#planSelectorList, #osPointsList, #osSelectorList {
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+/* Garante que o checkbox-visual do .report-option-item funcione com 'onchange' */
+.report-option-item input[type="checkbox"]:checked ~ .checkbox-visual {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+.report-option-item input[type="checkbox"]:checked ~ .checkbox-visual i {
+    transform: scale(1);
+}
     </style>
 </head>
 <body>
