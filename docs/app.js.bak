@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const db = getFirestore(firebaseApp);
     const auth = getAuth(firebaseApp);
     const storage = getStorage(firebaseApp);
-    
+
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapPlanejamentoMarkers: {}     // Armazena marcadores do mapa de planejamento
                 // FIM: NOVOS ESTADOS
         },
-        
+
         elements: {
             loadingOverlay: document.getElementById('loading-overlay'),
             loadingProgressText: document.getElementById('loading-progress-text'),
@@ -729,8 +729,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             installAppBtn: document.getElementById('installAppBtn'),
 
-            // INÍCIO: NOVOS ELEMENTOS DO MÓDULO DE PLANEJamento E OS
-            planejamentoOS: {
+            // INÍCIO: NOVOS ELEMENTOS DO MÓDULO DE PLANEJAMENTO E OS
+            planejamento: {
                 // Modal de Edição de Ponto (Parte 1)
                 pontoModal: {
                     overlay: document.getElementById('instalacaoPontoModal'),
@@ -800,19 +800,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     fotosPreview: document.getElementById('executarPontoFotosPreview'),
                     notas: document.getElementById('executarPontoNotas')
                 }
-    },
-    // FIM: NOVOS ELEMENTOS
-
-    // INÍCIO: NOVOS ELEMENTOS DO REDESIGN DO MAPA
-    mapa: {
-        btnAcompanhamentoOS: document.getElementById('btnAcompanhamentoOS'),
-        osTrackingPanel: {
-            panel: document.getElementById('os-tracking-panel'),
-            closeBtn: document.getElementById('close-os-tracking-panel'),
-            content: document.getElementById('os-tracking-panel-content'),
-        }
             }
-    // FIM: NOVOS ELEMENTOS DO REDESIGN DO MAPA
+            // FIM: NOVOS ELEMENTOS
         },
 
         isFeatureGloballyActive(featureKey) {
@@ -1005,7 +994,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         },
-        
+
         auth: {
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
@@ -1257,7 +1246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         username: email.split('@')[0], email, role, active: true, permissions, companyId: targetCompanyId
                     };
                     await App.data.createUserData(newUser.uid, userData);
-                    
+
                     App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
                     els.username.value = '';
                     els.password.value = '';
@@ -1326,7 +1315,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async deleteUser(userId) {
                 const userToDelete = App.state.users.find(u => u.id === userId);
                 if (!userToDelete) return;
-                
+
                 App.ui.showConfirmationModal(`Tem a certeza que deseja EXCLUIR o utilizador ${userToDelete.username}? Esta ação não pode ser desfeita.`, async () => {
                     try {
                         await App.data.updateDocument('users', userId, { active: false });
@@ -1366,7 +1355,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 modalEls.permissionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                     permissions[cb.dataset.permission] = cb.checked;
                 });
-                
+
                 await App.data.updateDocument('users', userId, { role, permissions });
                 App.ui.showAlert("Alterações guardadas com sucesso!");
                 App.ui.closeUserEditModal();
@@ -1453,15 +1442,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             // INÍCIO: LÓGICA PARA ATUALIZAR MAPA/LISTAS DO NOVO MÓDULO
                             if (collectionName === 'instalacaoPontos') {
                                 if (App.state.mapboxMap && document.getElementById('monitoramentoAereo-container').classList.contains('active')) {
-                                    App.planejamentoOSModule.renderPontosNoMapa();
+                                    App.planejamentoModule.renderPontosNoMapa();
                                 }
                                 if (document.getElementById('listaPontosPlanejados').classList.contains('active')) {
-                                    App.planejamentoOSModule.renderPontosPlanejadosList();
+                                    App.planejamentoModule.renderPontosPlanejadosList();
                                 }
                             }
                             if (collectionName === 'instalacaoOrdensDeServico') {
                                 if (document.getElementById('listaOrdensDeServico').classList.contains('active')) {
-                                    App.planejamentoOSModule.renderOSList();
+                                    App.planejamentoModule.renderOSList();
                                 }
                             }
                             // FIM: LÓGICA DE ATUALIZAÇÃO
@@ -1545,7 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return this.setDocument('users', uid, data);
             },
         },
-        
+
         ui: {
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
@@ -1565,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.offlineUserSelection.style.display = 'none';
                 App.elements.loginScreen.style.display = 'flex';
                 App.elements.appScreen.style.display = 'none';
-                
+
                 if (App.elements.userMenu && App.elements.userMenu.container) {
                     App.elements.userMenu.container.style.display = 'none';
                 }
@@ -1600,7 +1589,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.userMenu.container.style.display = 'block';
                 App.elements.notificationBell.container.style.display = 'block';
                 App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
-                
+
                 // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
                 App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AgroVetor`;
 
@@ -1786,7 +1775,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (!isVisible) return null;
                     }
-                    
+
                     const btn = document.createElement('button');
                     btn.className = 'menu-btn';
                     btn.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span>`;
@@ -1800,7 +1789,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             btn.innerHTML += '<span class="feature-status-badge">Oculto</span>';
                         }
                     }
-                    
+
                     if (item.submenu) {
                         btn.innerHTML += '<span class="arrow">&rsaquo;</span>';
                         btn.addEventListener('click', (e) => {
@@ -1833,7 +1822,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => this.renderMenu(), 300);
                 };
                 submenuContent.appendChild(backBtn);
-                
+
                 const { currentUser, companies } = App.state;
                 const userCompany = currentUser.role !== 'super-admin' ? companies.find(c => c.id === currentUser.companyId) : null;
                 const subscribedModules = new Set(userCompany?.subscribedModules || []);
@@ -1992,16 +1981,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     // INÍCIO: LÓGICA DO NOVO MÓDULO
                     if (id === 'planejamentoInstalacaoMapa') {
-                        App.planejamentoOSModule.initMapListeners(); // Ativa listeners de planejamento
+                        App.planejamentoModule.initMapListeners(); // Ativa listeners de planejamento
                     } else {
-                        App.planejamentoOSModule.removeMapListeners(); // Desativa listeners de planejamento
+                        App.planejamentoModule.removeMapListeners(); // Desativa listeners de planejamento
                     }
                     // FIM: LÓGICA DO NOVO MÓDULO
                 } else {
                     mapContainer.classList.remove('active');
-                    App.planejamentoOSModule.removeMapListeners(); // Desativa se sair do mapa
-                    App.elements.mapa.osTrackingPanel.panel.classList.remove('visible');
-                    App.elements.mapa.btnAcompanhamentoOS.classList.remove('active');
+                    App.planejamentoModule.removeMapListeners(); // Desativa se sair do mapa
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
@@ -2016,25 +2003,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     tab.classList.add('active');
                     tab.hidden = false;
                 }
-                
+
                 if (id === 'dashboard') {
-                   this.showDashboardView('broca'); 
+                   this.showDashboardView('broca');
                 } else {
-                    App.charts.destroyAll(); 
+                    App.charts.destroyAll();
                 }
-                
+
                 // INÍCIO: ADICIONAR CASES PARA NOVAS TELAS
                 if (id === 'listaPontosPlanejados') {
-                    App.planejamentoOSModule.renderPontosPlanejadosList();
+                    App.planejamentoModule.renderPontosPlanejadosList();
                     App.ui.populateFazendaSelects(); // Popula os filtros
                 }
                 if (id === 'listaOrdensDeServico') {
-                    App.planejamentoOSModule.renderOSList();
-                    App.ui.populateUserSelects([App.elements.planejamentoOS.listaOS.filtroResponsavel]); // Popula filtro
+                    App.planejamentoModule.renderOSList();
+                    App.ui.populateUserSelects([App.elements.planejamento.listaOS.filtroResponsavel]); // Popula filtro
                 }
                 if (id === 'planejamentoInstalacaoMapa') {
                     // A lógica de ativação do mapa já está acima
-                    App.planejamentoOSModule.renderPontosNoMapa();
+                    App.planejamentoModule.renderPontosNoMapa();
                 }
                 // FIM: ADIÇÃO DE CASES
 
@@ -2102,7 +2089,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio'].includes(id)) this.setDefaultDatesForEntryForms();
-                
+
                 localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
             },
@@ -2334,8 +2321,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('climaDashboardFazenda'),
 
                     // INÍCIO: NOVOS SELECTS
-                    App.elements.planejamentoOS.pontoModal.fazenda,
-                    App.elements.planejamentoOS.listaPontos.filtroFazenda
+                    App.elements.planejamento.pontoModal.fazenda,
+                    App.elements.planejamento.listaPontos.filtroFazenda
                     // FIM: NOVOS SELECTS
                 ];
 
@@ -2387,9 +2374,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // INÍCIO: Adiciona os selects do novo módulo dinamicamente
                 const selectsDoModulo = [
-                    App.elements.planejamentoOS.pontoModal.responsavel,
-                    App.elements.planejamentoOS.gerarOSModal.responsavel,
-                    App.elements.planejamentoOS.listaOS.filtroResponsavel
+                    App.elements.planejamento.pontoModal.responsavel,
+                    App.elements.planejamento.gerarOSModal.responsavel,
+                    App.elements.planejamento.listaOS.filtroResponsavel
                 ];
                 selects = [...selects, ...selectsDoModulo];
                 // FIM: Adição
@@ -2420,7 +2407,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         firstOptionHTML = '<option value="">Selecione um operador...</option>';
                     }
                     select.innerHTML = firstOptionHTML;
-                    
+
                     App.state.personnel
                         .sort((a, b) => a.name.localeCompare(b.name))
                         .forEach(p => {
@@ -2452,9 +2439,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 talhaoManagementContainer.style.display = 'block';
-                
+
                 selectedFarmName.innerHTML = `${farm.code} - ${farm.name}`;
-                
+
                 const farmTypesHTML = farm.types && farm.types.length > 0 ? `(${farm.types.join(', ')})` : '';
                 selectedFarmTypes.innerHTML = `
                     <span style="font-weight: 500; font-size: 14px; color: var(--color-text-light); margin-left: 10px;">
@@ -2502,23 +2489,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { talhaoSelectionList, editingGroupId, selectAllTalhoes } = App.elements.harvest;
                 talhaoSelectionList.innerHTML = '';
                 selectAllTalhoes.checked = false;
-                
+
                 if (!farmId) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
                     return;
                 }
-                
+
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm || !farm.talhoes || farm.talhoes.length === 0) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Nenhum talhão cadastrado nesta fazenda.</p>';
                     return;
                 }
-                
+
                 const allUnavailableTalhaoIds = App.actions.getUnavailableTalhaoIds({ editingGroupId: editingGroupId.value });
                 const closedTalhaoIds = new Set(App.state.activeHarvestPlan?.closedTalhaoIds || []);
-                
+
                 const availableTalhoes = farm.talhoes.filter(t => !allUnavailableTalhaoIds.has(t.id));
-        
+
                 const talhoesToShow = [...availableTalhoes];
                 if (plotIdsToCheck.length > 0) {
                     const currentlyEditedTalhoes = farm.talhoes.filter(t => plotIdsToCheck.includes(t.id));
@@ -2528,23 +2515,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-        
+
                 if (talhoesToShow.length === 0) {
                     talhaoSelectionList.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Todos os talhões desta fazenda já foram alocados ou encerrados.</p>';
                     return;
                 }
-        
+
                 talhoesToShow.sort((a,b) => a.name.localeCompare(b.name)).forEach(talhao => {
                     const isChecked = plotIdsToCheck.includes(talhao.id);
                     const isClosed = closedTalhaoIds.has(talhao.id);
-                    
+
                     const label = document.createElement('label');
                     label.className = 'talhao-selection-item';
                     if (isClosed) {
                         label.classList.add('talhao-closed');
                     }
                     label.htmlFor = `talhao-select-${talhao.id}`;
-            
+
                     label.innerHTML = `
                         <input type="checkbox" id="talhao-select-${talhao.id}" data-talhao-id="${talhao.id}" ${isChecked ? 'checked' : ''} ${isClosed ? 'disabled' : ''}>
                         <div class="talhao-name">${talhao.name}</div>
@@ -2612,31 +2599,31 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             _createModernUserCardHTML(user) {
                 const getRoleInfo = (role) => {
-                    const roles = { 
+                    const roles = {
                         "super-admin": ['Super Admin', 'var(--color-ai)'],
-                        admin: ['Administrador', 'var(--color-danger)'], 
-                        supervisor: ['Supervisor', 'var(--color-warning)'], 
-                        tecnico: ['Técnico', 'var(--color-info)'], 
-                        colaborador: ['Colaborador', 'var(--color-purple)'], 
-                        user: ['Utilizador', 'var(--color-text-light)'] 
+                        admin: ['Administrador', 'var(--color-danger)'],
+                        supervisor: ['Supervisor', 'var(--color-warning)'],
+                        tecnico: ['Técnico', 'var(--color-info)'],
+                        colaborador: ['Colaborador', 'var(--color-purple)'],
+                        user: ['Utilizador', 'var(--color-text-light)']
                     };
                     return roles[role] || ['Desconhecido', '#718096'];
                 };
-        
+
                 const [roleName, roleColor] = getRoleInfo(user.role);
                 const avatarLetter = (user.username || user.email).charAt(0).toUpperCase();
 
                 const company = App.state.companies.find(c => c.id === user.companyId);
                 const companyName = company ? company.name : null;
                 const companyHTML = companyName ? `<span class="user-card-role" style="background-color: var(--color-text-light); margin-left: 8px;"><i class="fas fa-building"></i> ${companyName}</span>` : '';
-        
+
                 const buttonsHTML = user.email.toLowerCase() === 'admin@agrovetor.com' ? '' : `
                     <button class="toggle-btn ${user.active ? 'inactive' : 'active'}" data-action="toggle" data-id="${user.id}">
                         ${user.active ? '<i class="fas fa-ban"></i> Desativar' : '<i class="fas fa-check"></i> Ativar'}
                     </button>
                     <button data-action="edit" data-id="${user.id}"><i class="fas fa-edit"></i> Editar</button>
                 `;
-        
+
                 return `
                     <div class="user-card-redesigned" style="border-left-color: ${roleColor};">
                         <div class="user-card-header">
@@ -2728,12 +2715,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-danger);">Erro ao carregar o histórico.</p>';
                 }
             },
-            renderUsersList() { 
-                const { list } = App.elements.users; 
+            renderUsersList() {
+                const { list } = App.elements.users;
                 list.innerHTML = App.state.users
                     .sort((a,b) => (a.username || '').localeCompare(b.username || ''))
                     .map((u) => this._createModernUserCardHTML(u))
-                    .join(''); 
+                    .join('');
             },
             renderFrenteDePlantioList() {
                 const { list } = App.elements.frenteDePlantio;
@@ -3059,7 +3046,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!App.state.activeHarvestPlan) return;
                 const { tableBody, summary } = App.elements.harvest;
                 const { startDate, dailyRate, sequence, closedTalhaoIds = [] } = App.state.activeHarvestPlan;
-                
+
                 tableBody.innerHTML = '';
                 let grandTotalProducao = 0;
                 let grandTotalArea = 0;
@@ -3077,17 +3064,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     grandTotalArea += group.totalArea;
 
                     const diasNecessarios = Math.ceil(producaoConsiderada / dailyTon);
-                    
+
                     const dataEntrada = new Date(currentDate.getTime());
-                    
+
                     let dataSaida = new Date(dataEntrada.getTime());
                     if (diasNecessarios > 0) {
                         dataSaida.setDate(dataSaida.getDate() + diasNecessarios - 1);
                     }
-                    
+
                     currentDate = new Date(dataSaida.getTime());
                     currentDate.setDate(currentDate.getDate() + 1);
-                    
+
                     const idadeMediaMeses = App.actions.calculateAverageAge(group, dataEntrada);
                     const diasAplicacao = App.actions.calculateMaturadorDays(group);
 
@@ -3097,7 +3084,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const row = tableBody.insertRow();
                     row.draggable = true;
                     row.dataset.id = group.id;
-                    
+
                     row.innerHTML = `
                         <td data-label="Seq.">${index + 1}</td>
                         <td data-label="Fazenda">${group.fazendaCodigo} - ${group.fazendaName}</td>
@@ -3133,7 +3120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                     const varietiesString = allVarieties.size > 0 ? Array.from(allVarieties).join(', ') : 'N/A';
-                    
+
                     const finalDate = new Date(currentDate.getTime());
                     finalDate.setDate(finalDate.getDate() - 1);
 
@@ -3217,7 +3204,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { overlay, title, message: msgEl, confirmBtn, cancelBtn, closeBtn, inputContainer } = App.elements.confirmationModal;
                 title.textContent = "Confirmar Ação";
                 msgEl.textContent = message;
-                
+
                 inputContainer.innerHTML = '';
                 inputContainer.style.display = 'none';
 
@@ -3289,11 +3276,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!Array.isArray(inputsConfig) && inputsConfig === true) {
                         valueToConfirm = results['confirmationModalInput'];
                     }
-                    
+
                     onConfirm(valueToConfirm);
                     closeHandler();
                 };
-                
+
                 const closeHandler = () => {
                     overlay.classList.remove('show');
                     confirmBtn.removeEventListener('click', confirmHandler);
@@ -3304,7 +3291,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         cancelBtn.style.display = 'inline-flex';
                     }, 300);
                 };
-                
+
                 confirmBtn.addEventListener('click', confirmHandler);
                 cancelBtn.addEventListener('click', closeHandler);
                 closeBtn.addEventListener('click', closeHandler);
@@ -3495,7 +3482,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.classList.toggle('active', btn.id === theme);
                 });
                 localStorage.setItem(App.config.themeKey, theme);
-                
+
                 Chart.defaults.color = this._getThemeColors().text;
 
                 if (App.state.currentUser && document.getElementById('dashboard').classList.contains('active')) {
@@ -3811,7 +3798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (App.elements.headerLogo) App.elements.headerLogo.addEventListener('click', () => App.ui.showTab('dashboard'));
-                
+
                 document.addEventListener('click', (e) => {
                     if (App.elements.menu && !App.elements.menu.contains(e.target) && App.elements.btnToggleMenu && !App.elements.btnToggleMenu.contains(e.target)) {
                         this.closeAllMenus();
@@ -3870,7 +3857,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.userMenu.themeButtons) App.elements.userMenu.themeButtons.forEach(btn => {
                     btn.addEventListener('click', () => this.applyTheme(btn.id));
                 });
-                
+
                 const dashEls = App.elements.dashboard;
                 if (dashEls.cardBroca) dashEls.cardBroca.addEventListener('click', () => this.showDashboardView('broca'));
                 if (dashEls.cardPerda) dashEls.cardPerda.addEventListener('click', () => this.showDashboardView('perda'));
@@ -3906,11 +3893,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (document.getElementById('btnFiltrarClimaDashboard')) {
                     document.getElementById('btnFiltrarClimaDashboard').addEventListener('click', () => App.charts.renderClimaDashboardCharts());
                 }
-                
+
                 const chartModal = App.elements.chartModal;
                 if (chartModal.closeBtn) chartModal.closeBtn.addEventListener('click', () => App.charts.closeChartModal());
                 if (chartModal.overlay) chartModal.overlay.addEventListener('click', e => { if(e.target === chartModal.overlay) App.charts.closeChartModal(); });
-                
+
                 document.addEventListener('click', (e) => {
                     if (e.target.closest('.btn-expand-chart')) {
                         const button = e.target.closest('.btn-expand-chart');
@@ -3919,9 +3906,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (App.elements.users.role) App.elements.users.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value));
-                
+
                 if (App.elements.users.btnCreate) App.elements.users.btnCreate.addEventListener('click', () => App.auth.initiateUserCreation());
-                
+
                 if (App.elements.users.list) App.elements.users.list.addEventListener('click', e => {
                     const button = e.target.closest('button[data-action]');
                     if (!button) return;
@@ -3944,7 +3931,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (modalEls.btnResetPassword) modalEls.btnResetPassword.addEventListener('click', () => App.auth.resetUserPassword(modalEls.editingUserId.value));
                 if (modalEls.btnDeleteUser) modalEls.btnDeleteUser.addEventListener('click', () => App.auth.deleteUser(modalEls.editingUserId.value));
                 if (modalEls.role) modalEls.role.addEventListener('change', (e) => this.updatePermissionsForRole(e.target.value, '#editUserPermissionGrid'));
-                
+
                 const companyEls = App.elements.companyManagement;
                 if (companyEls.btnCreate) companyEls.btnCreate.addEventListener('click', () => App.actions.createCompany());
 
@@ -3971,7 +3958,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const btnMigrate = document.getElementById('btnMigrateOldData');
                 if (btnMigrate) btnMigrate.addEventListener('click', () => App.actions.migrateOldData());
-                
+
                 const cpModal = App.elements.changePasswordModal;
                 if (App.elements.userMenu.changePasswordBtn) App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
                 if (App.elements.userMenu.manualSyncBtn) App.elements.userMenu.manualSyncBtn.addEventListener('click', () => App.actions.forceTokenRefresh(true));
@@ -3991,7 +3978,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.personnel.csvUploadArea) App.elements.personnel.csvUploadArea.addEventListener('click', () => App.elements.personnel.csvFileInput.click());
                 if (App.elements.personnel.csvFileInput) App.elements.personnel.csvFileInput.addEventListener('change', (e) => App.actions.importPersonnelFromCSV(e.target.files[0]));
                 if (App.elements.personnel.btnDownloadCsvTemplate) App.elements.personnel.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadPersonnelCsvTemplate());
-                
+
                 const companyConfigEls = App.elements.companyConfig;
                 if (companyConfigEls.logoUploadArea) companyConfigEls.logoUploadArea.addEventListener('click', () => companyConfigEls.logoInput.click());
                 if (companyConfigEls.logoInput) companyConfigEls.logoInput.addEventListener('change', (e) => App.actions.handleLogoUpload(e));
@@ -4047,12 +4034,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.cadastros.btnSaveFarm) App.elements.cadastros.btnSaveFarm.addEventListener('click', () => App.actions.saveFarm());
                 if (App.elements.cadastros.btnDeleteAllFarms) App.elements.cadastros.btnDeleteAllFarms.addEventListener('click', () => App.actions.deleteAllFarms());
                 if (App.elements.cadastros.farmSelect) App.elements.cadastros.farmSelect.addEventListener('change', (e) => this.renderTalhaoList(e.target.value));
-                
-                if (App.elements.cadastros.talhaoManagementContainer) App.elements.cadastros.talhaoManagementContainer.addEventListener('click', e => { 
-                    const btn = e.target.closest('button[data-action]'); 
-                    if(!btn) return; 
-                    const { action, id } = btn.dataset; 
-                    if(action === 'edit-talhao') App.actions.editTalhao(id); 
+
+                if (App.elements.cadastros.talhaoManagementContainer) App.elements.cadastros.talhaoManagementContainer.addEventListener('click', e => {
+                    const btn = e.target.closest('button[data-action]');
+                    if(!btn) return;
+                    const { action, id } = btn.dataset;
+                    if(action === 'edit-talhao') App.actions.editTalhao(id);
                     if(action === 'delete-talhao') App.actions.deleteTalhao(id);
                     if(action === 'edit-farm') this.openEditFarmModal(id);
                     if(action === 'delete-farm') App.actions.deleteFarm(id);
@@ -4064,7 +4051,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.cadastros.btnDownloadCsvTemplate) App.elements.cadastros.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadCsvTemplate());
                 if (App.elements.cadastros.talhaoArea) App.elements.cadastros.talhaoArea.addEventListener('input', App.actions.calculateTalhaoProducao);
                 if (App.elements.cadastros.talhaoTCH) App.elements.cadastros.talhaoTCH.addEventListener('input', App.actions.calculateTalhaoProducao);
-                
+
                 const editFarmModalEls = App.elements.editFarmModal;
                 if (editFarmModalEls.closeBtn) editFarmModalEls.closeBtn.addEventListener('click', () => this.closeEditFarmModal());
                 if (editFarmModalEls.cancelBtn) editFarmModalEls.cancelBtn.addEventListener('click', () => this.closeEditFarmModal());
@@ -4073,7 +4060,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.planejamento.btnAgendar) App.elements.planejamento.btnAgendar.addEventListener('click', () => App.actions.agendarInspecao());
                 if (App.elements.planejamento.btnSugerir) App.elements.planejamento.btnSugerir.addEventListener('click', () => App.gemini.getPlanningSuggestions());
                 if (App.elements.planejamento.lista) App.elements.planejamento.lista.addEventListener('click', (e) => { const button = e.target.closest('button[data-action]'); if(!button) return; const { action, id } = button.dataset; if (action === 'concluir') App.actions.marcarPlanoComoConcluido(id); if (action === 'excluir') App.actions.excluirPlano(id); });
-                
+
                 const harvestEls = App.elements.harvest;
                 if (harvestEls.btnAddNew) harvestEls.btnAddNew.addEventListener('click', () => App.actions.editHarvestPlan());
                 if (harvestEls.btnCancelPlan) harvestEls.btnCancelPlan.addEventListener('click', () => this.showHarvestPlanList());
@@ -4086,7 +4073,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (action === 'delete') App.actions.deleteHarvestPlan(id);
                 });
                 if (harvestEls.fazenda) harvestEls.fazenda.addEventListener('change', e => this.renderHarvestTalhaoSelection(e.target.value));
-                
+
                 if (harvestEls.selectAllTalhoes) harvestEls.selectAllTalhoes.addEventListener('change', (e) => {
                     const isChecked = e.target.checked;
                     const talhaoCheckboxes = App.elements.harvest.talhaoSelectionList.querySelectorAll('input[type="checkbox"]');
@@ -4124,13 +4111,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     [harvestEls.frontName, harvestEls.startDate, harvestEls.dailyRate].forEach(el => {
                         if(el) el.addEventListener('input', () => App.actions.updateActiveHarvestPlanDetails())
                     });
-                
+
                     let dragSrcEl = null;
                     harvestEls.tableBody.addEventListener('dragstart', e => { dragSrcEl = e.target; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/html', e.target.innerHTML); });
                     harvestEls.tableBody.addEventListener('dragover', e => { e.preventDefault(); return false; });
                     harvestEls.tableBody.addEventListener('drop', e => { e.stopPropagation(); if (dragSrcEl !== e.target) { const targetRow = e.target.closest('tr'); if(targetRow) App.actions.reorderHarvestSequence(dragSrcEl.dataset.id, targetRow.dataset.id); } return false; });
                 }
-                
+
                 if (App.elements.broca.codigo) App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
                 if (App.elements.broca.talhao) App.elements.broca.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('broca'));
                 ['brocaBase', 'brocaMeio', 'brocaTopo', 'entrenos'].forEach(id => {
@@ -4140,7 +4127,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.calculateBrocamento();
                     });
                 });
-                
+
                 if (App.elements.perda.codigo) App.elements.perda.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('perda'));
                 if (App.elements.perda.talhao) App.elements.perda.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('perda'));
                 if (App.elements.perda.matricula) App.elements.perda.matricula.addEventListener('input', () => App.actions.findOperatorName());
@@ -4148,7 +4135,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const el = document.getElementById(id);
                     if (el) el.addEventListener('input', () => App.ui.calculatePerda());
                 });
-                
+
                 if (App.elements.broca.btnSalvar) App.elements.broca.btnSalvar.addEventListener('click', () => App.actions.saveBrocamento());
                 if (App.elements.perda.btnSalvar) App.elements.perda.btnSalvar.addEventListener('click', () => App.actions.savePerda());
                 if (App.elements.cigarrinha.btnSalvar) App.elements.cigarrinha.btnSalvar.addEventListener('click', () => App.actions.saveCigarrinha());
@@ -4159,7 +4146,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const el = App.elements.cigarrinha[id];
                     if (el) el.addEventListener('input', () => App.ui.calculateCigarrinha());
                 });
-                
+
                 if (App.elements.broca.btnPDF) App.elements.broca.btnPDF.addEventListener('click', () => App.reports.generateBrocamentoPDF());
                 if (App.elements.broca.btnExcel) App.elements.broca.btnExcel.addEventListener('click', () => App.reports.generateBrocamentoCSV());
                 if (App.elements.perda.btnPDF) App.elements.perda.btnPDF.addEventListener('click', () => App.reports.generatePerdaPDF());
@@ -4217,7 +4204,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
                 if (App.elements.gerenciamento.applyBtn) App.elements.gerenciamento.applyBtn.addEventListener('click', () => this.renderGerenciamento());
-                
+
                 const customReportEls = App.elements.relatorioColheita;
                 if (customReportEls.btnPDF) customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 if (customReportEls.btnExcel) customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
@@ -4225,11 +4212,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isDetalhado = e.target.value === 'detalhado';
                     if (customReportEls.colunasDetalhadoContainer) customReportEls.colunasDetalhadoContainer.style.display = isDetalhado ? 'block' : 'none';
                 });
-                
+
                 const monitoramentoAereoEls = App.elements.monitoramentoAereo;
                 if (monitoramentoAereoEls.infoBoxCloseBtn) monitoramentoAereoEls.infoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTalhaoInfo());
                 if (monitoramentoAereoEls.trapInfoBoxCloseBtn) monitoramentoAereoEls.trapInfoBoxCloseBtn.addEventListener('click', () => App.mapModule.hideTrapInfo());
-                
+
                 // Listeners for the main map controls, added here to prevent re-binding
                 if (monitoramentoAereoEls.btnAddTrap) monitoramentoAereoEls.btnAddTrap.addEventListener('click', () => {
                     if (App.state.trapPlacementMode === 'manual_select') {
@@ -4302,7 +4289,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const relatorioMonitoramentoEls = App.elements.relatorioMonitoramento;
                 if (relatorioMonitoramentoEls.btnPDF) relatorioMonitoramentoEls.btnPDF.addEventListener('click', () => App.reports.generateArmadilhaPDF());
                 if (relatorioMonitoramentoEls.btnExcel) relatorioMonitoramentoEls.btnExcel.addEventListener('click', () => App.reports.generateArmadilhaCSV());
-                
+
                 if (App.elements.notificationContainer) App.elements.notificationContainer.addEventListener('click', (e) => {
                     const notification = e.target.closest('.trap-notification');
                     if (notification && notification.dataset.trapId) {
@@ -4570,11 +4557,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // INÍCIO: INICIALIZAR NOVO MÓDULO
-                App.planejamentoOSModule.init();
+                App.planejamentoModule.init();
                 // FIM: INICIALIZAR NOVO MÓDULO
             }
         },
-        
+
         actions: {
             async viewConfigHistory() {
                 const modal = App.elements.configHistoryModal;
@@ -4699,21 +4686,21 @@ document.addEventListener('DOMContentLoaded', () => {
             resetInactivityTimer() {
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
-        
+
                 if (App.state.currentUser) {
                     App.state.inactivityWarningTimer = setTimeout(() => {
                         const { confirmationModal } = App.elements;
-                        
+
                         confirmationModal.title.textContent = "Sessão prestes a expirar";
                         confirmationModal.message.textContent = "A sua sessão será encerrada em 1 minuto por inatividade. Deseja continuar conectado?";
                         confirmationModal.confirmBtn.textContent = "Continuar";
                         confirmationModal.cancelBtn.style.display = 'none';
-        
+
                         const confirmHandler = () => {
                             this.resetInactivityTimer();
                             closeHandler();
                         };
-        
+
                         const closeHandler = () => {
                             confirmationModal.overlay.classList.remove('show');
                             confirmationModal.confirmBtn.removeEventListener('click', confirmHandler);
@@ -4723,13 +4710,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 confirmationModal.cancelBtn.style.display = 'inline-flex';
                             }, 300);
                         };
-        
+
                         confirmationModal.confirmBtn.addEventListener('click', confirmHandler);
                         confirmationModal.closeBtn.addEventListener('click', closeHandler);
                         confirmationModal.overlay.classList.add('show');
-        
+
                     }, App.config.inactivityTimeout - App.config.inactivityWarningTime);
-        
+
                     App.state.inactivityTimer = setTimeout(() => {
                         App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
                         App.auth.logout();
@@ -4759,19 +4746,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currentPassword = els.currentPassword.value;
                 const newPassword = els.newPassword.value;
                 const confirmNewPassword = els.confirmNewPassword.value;
-                
+
                 if (!currentPassword || !newPassword || !confirmNewPassword) { App.ui.showAlert("Preencha todos os campos.", "error"); return; }
                 if (newPassword !== confirmNewPassword) { App.ui.showAlert("As novas senhas não coincidem.", "error"); return; }
                 if (newPassword.length < 6) { App.ui.showAlert("A nova senha deve ter pelo menos 6 caracteres.", "error"); return; }
-                
+
                 App.ui.setLoading(true, "A alterar senha...");
                 try {
                     const user = auth.currentUser;
                     const credential = EmailAuthProvider.credential(user.email, currentPassword);
-                    
+
                     await reauthenticateWithCredential(user, credential);
                     await updatePassword(user, newPassword);
-                    
+
                     App.ui.showAlert("Senha alterada com sucesso!", "success");
                     els.overlay.classList.remove('show');
                     els.currentPassword.value = '';
@@ -4827,7 +4814,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const types = Array.from(farmTypeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
 
                 if (!code || !name) { App.ui.showAlert("Código e Nome da fazenda são obrigatórios.", "error"); return; }
-                
+
                 const existingFarm = App.state.fazendas.find(f => f.code === code);
                 if (existingFarm) {
                     App.ui.showAlert("Já existe uma fazenda com este código.", "error");
@@ -4846,7 +4833,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         await App.data.addDocument('fazendas', { code, name, types, talhoes: [], companyId: targetCompanyId });
                         App.ui.showAlert("Fazenda adicionada com sucesso!");
-                        farmCode.value = ''; 
+                        farmCode.value = '';
                         farmName.value = '';
                         farmTypeCheckboxes.forEach(cb => cb.checked = false);
                     } catch (error) {
@@ -4877,7 +4864,7 @@ document.addEventListener('DOMContentLoaded', () => {
             deleteFarm(farmId) {
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm) return;
-                
+
                 App.ui.showConfirmationModal(`Tem a certeza que deseja excluir a fazenda "${farm.name}" e todos os seus talhões? Esta ação é irreversível.`, async () => {
                     try {
                         await App.data.deleteDocument('fazendas', farmId);
@@ -4896,7 +4883,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showAlert("A confirmação não corresponde. Ação cancelada.", "warning");
                         return;
                     }
-                    
+
                     App.ui.setLoading(true, "Excluindo todas as fazendas...");
                     try {
                         const batch = writeBatch(db);
@@ -4924,10 +4911,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoTCH, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
                 const farmId = farmSelect.value;
                 if (!farmId) { App.ui.showAlert("Selecione uma fazenda.", "error"); return; }
-                
+
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 if (!farm) { App.ui.showAlert("Fazenda selecionada não encontrada.", "error"); return; }
-                
+
                 const talhaoData = {
                     id: talhaoId.value ? parseInt(talhaoId.value) : Date.now(),
                     name: talhaoName.value.trim().toUpperCase(),
@@ -4940,7 +4927,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     dataUltimaColheita: this.formatDateForInput(talhaoUltimaColheita.value)
                 };
                 if (!talhaoData.name || isNaN(talhaoData.area) || isNaN(talhaoData.tch)) { App.ui.showAlert("Nome, Área e TCH do talhão são obrigatórios.", "error"); return; }
-                
+
                 App.ui.showConfirmationModal(`Tem a certeza que deseja guardar o talhão ${talhaoData.name}?`, async () => {
                     let updatedTalhoes = farm.talhoes ? [...farm.talhoes] : [];
                     const existingIndex = updatedTalhoes.findIndex(t => t.id === talhaoData.id);
@@ -4950,7 +4937,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         updatedTalhoes.push(talhaoData);
                     }
-                    
+
                     try {
                         await App.data.updateDocument('fazendas', farm.id, { talhoes: updatedTalhoes });
                         App.ui.showAlert("Talhão guardado com sucesso!");
@@ -5276,10 +5263,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const matriculaValue = matricula.value.trim();
                 const nameValue = name.value.trim();
                 if (!matriculaValue || !nameValue) { App.ui.showAlert("Matrícula e Nome são obrigatórios.", "error"); return; }
-                
+
                 const existingId = id.value;
                 const data = { matricula: matriculaValue, name: nameValue, companyId: App.state.currentUser.companyId };
-                
+
                 App.ui.showConfirmationModal(`Tem a certeza que deseja guardar os dados de ${nameValue}?`, async () => {
                     try {
                         if (existingId) {
@@ -5437,7 +5424,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const campos = { tipo: els.tipo.value, fazendaCodigo: farm.code, talhao: els.talhao.value.trim(), dataPrevista: els.data.value, usuarioResponsavel: els.responsavel.value };
                 if (Object.values(campos).some(v => !v)) { App.ui.showAlert("Todos os campos obrigatórios devem ser preenchidos.", "error"); return; }
-                
+
                 App.ui.showConfirmationModal("Tem a certeza que deseja agendar esta inspeção?", async () => {
                     const novoPlano = { ...campos, meta: els.meta.value || null, observacoes: els.obs.value.trim() || null, status: 'Pendente', companyId: App.state.currentUser.companyId };
                     await App.data.addDocument('planos', novoPlano);
@@ -5469,7 +5456,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farmId = formElements.codigo.value;
                 const talhaoName = formElements.talhao.value.trim().toUpperCase();
                 const display = formElements.varietyDisplay;
-                
+
                 display.textContent = '';
                 if (!farmId || !talhaoName) return;
 
@@ -5831,7 +5818,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async editHarvestPlan(planId = null) {
                 App.ui.showHarvestPlanEditor();
                 const { frontName, startDate, dailyRate } = App.elements.harvest;
-                
+
                 if (planId) {
                     const planToEdit = App.state.harvestPlans.find(p => p.id == planId);
                     App.state.activeHarvestPlan = JSON.parse(JSON.stringify(planToEdit));
@@ -5862,7 +5849,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     console.error("Não foi possível guardar o rascunho no Firestore:", error);
                 }
-                
+
                 frontName.value = App.state.activeHarvestPlan.frontName;
                 startDate.value = App.state.activeHarvestPlan.startDate;
                 dailyRate.value = App.state.activeHarvestPlan.dailyRate;
@@ -5881,16 +5868,16 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             async saveHarvestPlan() {
                 if (!App.state.activeHarvestPlan) return;
-                
+
                 App.ui.showConfirmationModal("Tem a certeza que deseja guardar este plano de colheita?", async () => {
                     const planToSave = App.state.activeHarvestPlan;
                     planToSave.frontName = planToSave.frontName.trim();
-                    
+
                     if (!planToSave.frontName || !planToSave.startDate || !planToSave.dailyRate) {
                         App.ui.showAlert('Preencha todos os campos de configuração da frente.', "error");
                         return;
                     }
-                    
+
                     try {
                         if (planToSave.id) {
                             await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
@@ -5960,7 +5947,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         maturadorDate: maturadorDateValue
                     });
                 }
-                
+
                 App.ui.renderHarvestSequence();
                 this.cancelEditSequence();
             },
@@ -5983,14 +5970,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 atr.value = group.atr;
                 maturador.value = group.maturador || '';
                 maturadorDate.value = group.maturadorDate || '';
-                
+
                 const plotIds = group.plots.map(p => p.talhaoId);
                 App.ui.renderHarvestTalhaoSelection(farm.id, plotIds);
 
                 addOrEditTitle.innerHTML = `<i class="fas fa-edit"></i> Editar Sequência da Fazenda`;
                 btnAddOrUpdate.innerHTML = `<i class="fas fa-save"></i> Atualizar Sequência`;
                 btnCancelEdit.style.display = 'inline-flex';
-                
+
                 fazenda.scrollIntoView({ behavior: 'smooth', block: 'center' });
             },
             cancelEditSequence() {
@@ -6008,10 +5995,10 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             removeHarvestSequence(groupId) {
                 if (!App.state.activeHarvestPlan) return;
-                
+
                 App.ui.showConfirmationModal("Tem a certeza que deseja remover este grupo da sequência?", () => {
                     App.state.activeHarvestPlan.sequence = App.state.activeHarvestPlan.sequence.filter(g => g.id != groupId);
-                    
+
                     if (App.state.activeHarvestPlan.id) {
                         const planInList = App.state.harvestPlans.find(p => p.id === App.state.activeHarvestPlan.id);
                         if (planInList) {
@@ -6049,7 +6036,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
-        
+
                 if (plotsWithDate > 0) {
                     const avgDiffTime = totalAgeInDays / plotsWithDate;
                     const avgDiffDays = Math.ceil(avgDiffTime / (1000 * 60 * 60 * 24));
@@ -6169,7 +6156,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                 });
             },
-            
+
             saveCigarrinha() {
                 this._saveEntry({
                     formType: 'cigarrinha',
@@ -6304,7 +6291,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             },
-            
+
             editEntry(type, id) {
                 if (type === 'apontamentoPlantio') {
                     const entry = App.state.apontamentosPlantio.find(e => e.id === id);
@@ -6350,9 +6337,9 @@ document.addEventListener('DOMContentLoaded', () => {
                  const progressEls = App.elements.cadastros.importProgress;
 
                  reader.onload = async (event) => {
-                     const CHUNK_SIZE = 400; 
+                     const CHUNK_SIZE = 400;
                      const PAUSE_DURATION = 50;
-                     
+
                      try {
                          const csv = event.target.result;
                          const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
@@ -6361,7 +6348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          if (totalLines <= 0) {
                              App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return;
                          }
-                         
+
                          progressEls.container.style.display = 'block';
                          progressEls.text.textContent = `A iniciar importação de ${totalLines} linhas...`;
                          progressEls.bar.value = 0;
@@ -6383,7 +6370,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          if (headerIndexes.farm_code === -1 || headerIndexes.farm_name === -1 || headerIndexes.talhao_name === -1) {
                              throw new Error('Cabeçalhos essenciais (Cód;FAZENDA;TALHÃO) não encontrados no ficheiro CSV.');
                          }
-                         
+
                          const fazendasToUpdate = {};
                          for (let i = 1; i < lines.length; i++) {
                              const data = lines[i].split(';');
@@ -6418,7 +6405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              const tch = parseFloat(data[headerIndexes.talhao_tch]?.trim().replace(',', '.')) || 0;
                              const producao = area * tch;
 
-                             if (talhao) { 
+                             if (talhao) {
                                  talhao.area = area;
                                  talhao.tch = tch;
                                  talhao.producao = producao;
@@ -6426,7 +6413,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                  talhao.corte = parseInt(data[headerIndexes.talhao_corte]?.trim()) || talhao.corte;
                                  talhao.distancia = parseFloat(data[headerIndexes.talhao_distancia]?.trim().replace(',', '.')) || talhao.distancia;
                                  talhao.dataUltimaColheita = this.formatDateForInput(data[headerIndexes.talhao_ultima_colheita]?.trim()) || talhao.dataUltimaColheita;
-                             } else { 
+                             } else {
                                  fazendasToUpdate[farmCode].talhoes.push({
                                      id: Date.now() + i, name: talhaoName,
                                      area: area,
@@ -6439,12 +6426,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                  });
                              }
                          }
-                         
+
                          const farmCodes = Object.keys(fazendasToUpdate);
                          for (let i = 0; i < farmCodes.length; i += CHUNK_SIZE) {
                              const chunk = farmCodes.slice(i, i + CHUNK_SIZE);
                              const batch = writeBatch(db);
-                             
+
                              chunk.forEach(code => {
                                  const farmData = fazendasToUpdate[code];
                                  const docRef = farmData.id ? doc(db, 'fazendas', farmData.id) : doc(collection(db, 'fazendas'));
@@ -6510,7 +6497,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
                          const totalLines = lines.length - 1;
                          if (totalLines <= 0) { App.ui.showAlert('O ficheiro CSV está vazio ou contém apenas o cabeçalho.', "error"); return; }
-                         
+
                          App.ui.setLoading(true, `A iniciar importação de ${totalLines} pessoas...`);
                          await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -6524,7 +6511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          }
 
                          const localPersonnel = JSON.parse(JSON.stringify(App.state.personnel));
-                         
+
                          for (let i = 1; i < lines.length; i += CHUNK_SIZE) {
                              const chunk = lines.slice(i, i + CHUNK_SIZE);
                              const batch = writeBatch(db);
@@ -6555,7 +6542,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              App.ui.setLoading(true, `A processar... ${progress} de ${totalLines} pessoas.`);
                              await new Promise(resolve => setTimeout(resolve, PAUSE_DURATION));
                          }
-                         
+
                          App.ui.showAlert(`Importação concluída!`, 'success');
                      } catch (e) {
                          App.ui.showAlert('Erro ao processar o ficheiro CSV.', "error");
@@ -6665,7 +6652,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async importHarvestReport(file, type) {
                 if (!file) return;
-        
+
                 const reader = new FileReader();
                 reader.onload = async (event) => {
                     App.ui.setLoading(true, `A processar relatório de talhões ${type === 'closed' ? 'encerrados' : 'em andamento'}...`);
@@ -6673,18 +6660,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         const csv = event.target.result;
                         const lines = csv.split(/\r\n|\n/).filter(line => line.trim() !== '');
                         if (lines.length <= 1) throw new Error("O ficheiro CSV está vazio ou contém apenas o cabeçalho.");
-        
+
                         const headers = lines[0].split(';').map(h => h.trim().toLowerCase());
                         const requiredHeaders = type === 'progress' ? ['codigofazenda', 'talhao', 'areacolhida', 'producaocolhida'] : ['codigofazenda', 'talhao'];
                         if (!requiredHeaders.every(h => headers.includes(h))) {
                             throw new Error(`Cabeçalhos em falta. O ficheiro deve conter: ${requiredHeaders.join('; ')}`);
                         }
-        
+
                         const allPlans = JSON.parse(JSON.stringify(App.state.harvestPlans));
                         const fazendas = App.state.fazendas;
                         const changesSummary = {};
                         let notFoundTalhoes = [];
-        
+
                         const closedTalhaoIdsFromCSV = new Set();
                         if (type === 'closed') {
                             for (let i = 1; i < lines.length; i++) {
@@ -6701,7 +6688,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         }
-        
+
                         if (type === 'progress') {
                             for (let i = 1; i < lines.length; i++) {
                                 const data = lines[i].split(';');
@@ -6709,21 +6696,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const farmCode = row.codigofazenda;
                                 const talhaoName = row.talhao?.toUpperCase();
                                 if (!farmCode || !talhaoName) continue;
-        
+
                                 const farm = fazendas.find(f => f.code === farmCode);
                                 const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === talhaoName);
                                 if (!talhao) {
                                     if (!notFoundTalhoes.includes(`${farmCode}-${talhaoName}`)) notFoundTalhoes.push(`${farmCode}-${talhaoName}`);
                                     continue;
                                 }
-        
+
                                 let talhaoFoundInAnyPlan = false;
                                 for (const plan of allPlans) {
                                     for (const group of plan.sequence) {
                                         if (group.fazendaCodigo === farmCode && group.plots.some(p => p.talhaoId === talhao.id)) {
                                             talhaoFoundInAnyPlan = true;
                                             if (!changesSummary[plan.frontName]) changesSummary[plan.frontName] = { updated: [], removed: [] };
-        
+
                                             const areaColhida = parseFloat(row.areacolhida?.replace(',', '.')) || 0;
                                             const producaoColhida = parseFloat(row.producaocolhida?.replace(',', '.')) || 0;
                                             group.areaColhida = (group.areaColhida || 0) + areaColhida;
@@ -6737,25 +6724,25 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         }
-        
+
                         if (type === 'closed') {
                             for (const plan of allPlans) {
                                 if (!plan.closedTalhaoIds) plan.closedTalhaoIds = [];
                                 closedTalhaoIdsFromCSV.forEach(id => {
                                     if (!plan.closedTalhaoIds.includes(id)) plan.closedTalhaoIds.push(id);
                                 });
-        
+
                                 const newSequence = [];
                                 plan.sequence.forEach(group => {
                                     const originalPlotCount = group.plots.length;
                                     group.plots = group.plots.filter(plot => !closedTalhaoIdsFromCSV.has(plot.talhaoId));
                                     const removedPlotsCount = originalPlotCount - group.plots.length;
-        
+
                                     if (removedPlotsCount > 0) {
                                         if (!changesSummary[plan.frontName]) changesSummary[plan.frontName] = { updated: [], removed: [] };
                                         changesSummary[plan.frontName].removed.push(`${removedPlotsCount} talhão(ões) do grupo ${group.fazendaCodigo}`);
                                     }
-        
+
                                     if (group.plots.length > 0) {
                                         let newTotalArea = 0;
                                         let newTotalProducao = 0;
@@ -6777,17 +6764,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 plan.sequence = newSequence;
                             }
                         }
-        
+
                         const batch = writeBatch(db);
                         allPlans.forEach(plan => {
                             const docRef = doc(db, 'harvestPlans', plan.id);
                             batch.set(docRef, plan);
                         });
                         await batch.commit();
-        
+
                         let summaryMessage = "Sincronização Concluída!\n\n";
                         const updatedPlans = Object.keys(changesSummary);
-        
+
                         if (updatedPlans.length > 0) {
                             updatedPlans.forEach(planName => {
                                 summaryMessage += `Plano "${planName}" atualizado:\n`;
@@ -6802,18 +6789,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             summaryMessage += "Nenhum plano foi alterado.\n";
                         }
-        
+
                         if (notFoundTalhoes.length > 0) {
                             summaryMessage += `\nAviso: ${notFoundTalhoes.length} talhões do relatório não foram encontrados em nenhum plano ativo: ${notFoundTalhoes.join(', ')}`;
                         }
-        
+
                         const { confirmationModal } = App.elements;
                         confirmationModal.title.textContent = "Resumo da Sincronização";
                         confirmationModal.message.textContent = summaryMessage;
                         confirmationModal.confirmBtn.textContent = "OK";
                         confirmationModal.cancelBtn.style.display = 'none';
                         confirmationModal.overlay.classList.add('show');
-                        
+
                         const closeHandler = () => {
                             confirmationModal.overlay.classList.remove('show');
                             confirmationModal.confirmBtn.removeEventListener('click', closeHandler);
@@ -6825,7 +6812,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         confirmationModal.confirmBtn.addEventListener('click', closeHandler);
                         confirmationModal.closeBtn.addEventListener('click', closeHandler);
-        
+
                     } catch (e) {
                         App.ui.showAlert(`Erro ao importar: ${e.message}`, "error", 6000);
                         console.error(e);
@@ -7919,7 +7906,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const prompt = `
                     Otimize a seguinte sequência de colheita de cana-de-açúcar para o mês de ${new Date(plan.startDate).toLocaleString('pt-BR', { month: 'long' })}.
                     Sua tarefa é ser um especialista em agronomia e otimizar a logística de colheita.
-                    
+
                     Critérios de otimização, em ordem de importância:
                     1.  **Potencial de Açúcar (ATR):** Priorize o ATR mais alto. É o fator mais importante.
                     2.  **Maturador:** Se houver maturador aplicado, a colheita ideal é entre 15 e 30 dias após a aplicação. Priorize talhões nessa janela.
@@ -8090,7 +8077,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             updateUserPosition(lat, lng) {
                 const userPosition = [lng, lat]; // Mapbox uses [lng, lat]
-                
+
                 if (!App.state.mapboxMap) return;
 
                 if (!App.state.mapboxUserMarker) {
@@ -8334,7 +8321,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (App.state.selectedMapFeature) {
                              map.setFeatureState({ source: sourceId, id: App.state.selectedMapFeature.id }, { selected: false });
                         }
-                        
+
                         if (App.state.selectedMapFeature && App.state.selectedMapFeature.id === clickedFeature.id) {
                             App.state.selectedMapFeature = null;
                             this.hideTalhaoInfo();
@@ -8362,7 +8349,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (const key in feature.properties) {
                     props[key.toUpperCase()] = feature.properties[key];
                 }
-                
+
                 for (const key of keys) {
                     if (props[key.toUpperCase()] !== undefined) {
                         return props[key.toUpperCase()];
@@ -8427,7 +8414,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 contentEl.querySelector('.btn-download-map').addEventListener('click', () => {
                     this.startOfflineMapDownload(feature);
                 });
-                
+
                 this.hideTrapInfo();
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
@@ -8485,7 +8472,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (diasDesdeInstalacao > 7) {
                     color = '#d32f2f'; // Vermelho (Atrasado)
                 }
-                
+
                 const el = document.createElement('div');
                 el.className = 'mapbox-marker';
                 el.style.width = '30px';
@@ -8506,7 +8493,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const marker = new mapboxgl.Marker(el)
                         .setLngLat([trap.longitude, trap.latitude])
                         .addTo(App.state.mapboxMap);
-                    
+
                     el.addEventListener('click', (e) => { e.stopPropagation(); this.showTrapInfo(trap.id); });
                     App.state.mapboxTrapMarkers[markerId] = marker; // Armazena com o ID correto
                 }
@@ -8558,7 +8545,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showTrapPlacementModal(state, data = null) {
                 const { overlay, body, confirmBtn, manualBtn } = App.elements.trapPlacementModal;
                 let content = '';
-                
+
                 confirmBtn.style.display = 'none';
                 manualBtn.style.display = 'inline-flex';
 
@@ -8618,7 +8605,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         manualBtn.style.display = 'none';
                         break;
                 }
-                
+
                 body.innerHTML = content;
                 overlay.classList.add('show');
                 App.state.trapPlacementMode = state;
@@ -8761,12 +8748,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     async () => {
                         try {
                             await App.data.deleteDocument('armadilhas', trapId);
-                            
+
                             if (App.state.mapboxTrapMarkers[trapId]) {
                                 App.state.mapboxTrapMarkers[trapId].remove();
                                 delete App.state.mapboxTrapMarkers[trapId];
                             }
-                            
+
                             App.state.armadilhas = App.state.armadilhas.filter(t => t.id !== trapId);
 
                             App.ui.showAlert("Armadilha excluída com sucesso.", "info");
@@ -8799,13 +8786,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     true // needsInput
                 );
-                
+
                 const input = App.elements.confirmationModal.input;
                 input.value = trap.observacoes || '';
                 input.placeholder = 'Digite suas observações...';
                 App.elements.confirmationModal.confirmBtn.textContent = "Salvar";
             },
-            
+
             showTrapInfo(trapId) {
                 try {
                     const trap = App.state.armadilhas.find(t => t.id === trapId);
@@ -8891,12 +8878,12 @@ document.addEventListener('DOMContentLoaded', () => {
             hideTrapInfo() {
                 App.elements.monitoramentoAereo.trapInfoBox.classList.remove('visible');
             },
-            
+
             // Verifica o status das armadilhas para gerar notificações de coleta
             checkTrapStatusAndNotify() {
                 const activeTraps = App.state.armadilhas.filter(t => t.status === 'Ativa');
                 let newNotificationsForBell = [];
-                
+
                 activeTraps.forEach(trap => {
                     if (!trap.dataInstalacao) {
                         return;
@@ -8960,7 +8947,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 notificationEl.dataset.trapId = notification.trapId;
 
                 const iconClass = notification.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
-                
+
                 notificationEl.innerHTML = `
                     <button class="close-btn">&times;</button>
                     <div class="icon"><i class="fas ${iconClass}"></i></div>
@@ -8969,9 +8956,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <p>${notification.message}</p>
                     </div>
                 `;
-                
+
                 container.appendChild(notificationEl);
-                
+
                 const dismiss = () => {
                     notificationEl.classList.add('dismiss');
                     notificationEl.addEventListener('animationend', () => {
@@ -9298,7 +9285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { hasLongLabels = false, indexAxis = 'x' } = options;
                 const styles = getComputedStyle(document.documentElement);
                 const isDarkTheme = document.body.classList.contains('theme-dark');
-                
+
                 const textColor = isDarkTheme ? '#FFFFFF' : styles.getPropertyValue('--color-text').trim();
                 const borderColor = styles.getPropertyValue('--color-border').trim();
 
@@ -9308,11 +9295,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     maintainAspectRatio: false,
                     scales: {
                         x: {
-                            grid: { 
+                            grid: {
                                 display: false,
                                 color: borderColor
                             },
-                            ticks: { 
+                            ticks: {
                                 color: textColor,
                                 autoSkip: !hasLongLabels,
                                 maxRotation: hasLongLabels && indexAxis === 'x' ? 10 : 0,
@@ -9320,7 +9307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         },
                         y: {
-                            grid: { 
+                            grid: {
                                 display: false,
                                 color: borderColor
                             },
@@ -11052,7 +11039,7 @@ document.addEventListener('DOMContentLoaded', () => {
             generateArmadilhaPDF() {
                 const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                
+
                 const farmId = fazendaFiltro.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
                 const reportType = tipoRelatorio.value;
@@ -11062,7 +11049,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fim: fim.value,
                     fazendaCodigo: farm ? farm.code : ''
                 };
-                
+
                 if (reportType === 'coletadas') {
                     this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas_coletadas.pdf');
                 } else {
@@ -11083,7 +11070,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fim: fim.value,
                     fazendaCodigo: farm ? farm.code : ''
                 };
-                
+
                 if (reportType === 'coletadas') {
                     this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas_coletadas.csv');
                 } else {
@@ -11094,7 +11081,7 @@ document.addEventListener('DOMContentLoaded', () => {
             generateMonitoramentoPDF() { // Now generates Trap Report
                 const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                
+
                 const farmId = fazendaFiltro.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
 
@@ -11325,11 +11312,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // INÍCIO: NOVO MÓDULO DE PLANEJAMENTO E OS (PARTES 1, 2, 3)
     // Adicionar este objeto inteiro no final do app.js, antes de App.init()
 
-    App.planejamentoOSModule = {
+    App.planejamentoModule = {
 
         // (Parte 1, 2, 3) Inicialização e Event Listeners
         init() {
-            const els = App.elements.planejamentoOS;
+            const els = App.elements.planejamento;
 
             // (Parte 1) Listeners do Modal de Ponto
             els.pontoModal.closeBtn.addEventListener('click', () => this.hidePontoEditModal());
@@ -11381,142 +11368,6 @@ document.addEventListener('DOMContentLoaded', () => {
             els.executarPontoModal.cancelBtn.addEventListener('click', () => this.hideExecutarPontoModal());
             els.executarPontoModal.confirmBtn.addEventListener('click', () => this.confirmarExecucaoPonto());
             els.executarPontoModal.fotos.addEventListener('change', (e) => this.previewFotosExecucao(e));
-
-        // [REDESIGN] Listeners do Acompanhamento de OS
-        const mapEls = App.elements.mapa;
-        mapEls.btnAcompanhamentoOS.addEventListener('click', () => this.toggleOSTrackingMode());
-        mapEls.osTrackingPanel.closeBtn.addEventListener('click', () => this.toggleOSTrackingMode(false));
-    },
-
-    // [REDESIGN] Modo de Acompanhamento de OS
-    toggleOSTrackingMode(forceState) {
-        const isActive = App.elements.mapa.osTrackingPanel.panel.classList.toggle('visible', forceState);
-        App.elements.mapa.btnAcompanhamentoOS.classList.toggle('active', isActive);
-
-        if (isActive) {
-            this.renderOSTrackingPanel();
-            // Desativa outros modos para evitar conflitos
-            App.planejamentoOSModule.removeMapListeners();
-            App.ui.showAlert("Modo de Acompanhamento de OS ativado.", "info");
-        } else {
-            // Limpa marcadores da OS quando fecha o painel
-            this.clearOSRouteFromMap();
-        }
-    },
-
-    renderOSTrackingPanel() {
-        const contentEl = App.elements.mapa.osTrackingPanel.content;
-        const osList = App.state.instalacaoOrdensDeServico.filter(os => ['Planejada', 'Em Execução'].includes(os.status));
-        const users = App.state.users;
-
-        let userOptions = '<option value="">Todos os Responsáveis</option>';
-        users.forEach(u => {
-            userOptions += `<option value="${u.id}">${u.username}</option>`;
-        });
-
-        contentEl.innerHTML = `
-            <div class="os-tracking-filter-bar">
-                <select id="os-tracking-user-filter">${userOptions}</select>
-            </div>
-            <div id="os-tracking-list">
-                ${osList.length === 0 ? '<p style="padding: 15px; text-align: center;">Nenhuma OS ativa.</p>' : ''}
-            </div>
-        `;
-
-        this.renderOSTrackingList(osList);
-
-        contentEl.querySelector('#os-tracking-user-filter').addEventListener('change', (e) => {
-            const selectedUserId = e.target.value;
-            const filteredOS = selectedUserId ? osList.filter(os => os.responsavelOSId === selectedUserId) : osList;
-            this.renderOSTrackingList(filteredOS);
-        });
-
-        contentEl.querySelector('#os-tracking-list').addEventListener('click', (e) => {
-            const item = e.target.closest('.os-tracking-item');
-            if (item) {
-                const osId = item.dataset.id;
-
-                // Des-seleciona o item anterior
-                const currentSelected = contentEl.querySelector('.os-tracking-item.selected');
-                if (currentSelected) {
-                    currentSelected.classList.remove('selected');
-                }
-                // Seleciona o novo
-                item.classList.add('selected');
-
-                this.showOSRouteOnMap(osId);
-            }
-        });
-    },
-
-    renderOSTrackingList(osList) {
-        const listEl = document.getElementById('os-tracking-list');
-        listEl.innerHTML = osList.map(os => {
-            const responsavel = App.state.users.find(u => u.id === os.responsavelOSId);
-            return `
-                <div class="os-tracking-item" data-id="${os.id}">
-                    <div class="os-tracking-item-header">
-                        <span class="os-number">${os.numeroOS}</span>
-                        <span class="plano-status ${os.status === 'Planejada' ? 'pendente' : 'em-execucao'}">${os.status}</span>
-                    </div>
-                    <div class="os-tracking-item-body">
-                        <p><i class="fas fa-user"></i> ${responsavel ? responsavel.username : 'N/A'}</p>
-                        <p><i class="fas fa-map-marker-alt"></i> ${os.pontosIds.length} pontos</p>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    },
-
-    showOSRouteOnMap(osId) {
-        this.clearOSRouteFromMap();
-        const os = App.state.instalacaoOrdensDeServico.find(o => o.id === osId);
-        if (!os) return;
-
-        const bounds = new mapboxgl.LngLatBounds();
-        const pointsOnMap = [];
-
-        os.pontosIds.forEach(pontoId => {
-            const ponto = App.state.instalacaoPontos.find(p => p.id === pontoId);
-            if (ponto && ponto.coordenadas) {
-                const lngLat = [ponto.coordenadas.lng, ponto.coordenadas.lat];
-                pointsOnMap.push(ponto);
-                bounds.extend(lngLat);
-
-                const el = document.createElement('div');
-                el.className = 'mapbox-marker';
-                let color = '#f57c00'; // Laranja (Em OS)
-                let icon = 'fa-arrow-down';
-                if (ponto.status === 'Instalado') {
-                    color = '#388e3c'; // Verde
-                    icon = 'fa-check';
-                }
-
-                el.style.cssText = `width: 30px; height: 30px; border-radius: 50%; background-color: ${color}; border: 2px solid white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.3);`;
-                el.innerHTML = `<i class="fas ${icon}" style="color: white; font-size: 14px;"></i>`;
-                el.title = `Ponto OS: ${ponto.status}`;
-
-                const marker = new mapboxgl.Marker(el)
-                    .setLngLat(lngLat)
-                    .setPopup(new mapboxgl.Popup().setText(`Ponto da OS ${os.numeroOS} - Status: ${ponto.status}`))
-                    .addTo(App.state.mapboxMap);
-
-                App.state.mapPlanejamentoMarkers[`os_point_${ponto.id}`] = marker;
-            }
-        });
-
-        if (pointsOnMap.length > 0) {
-            App.state.mapboxMap.fitBounds(bounds, { padding: 80, maxZoom: 16 });
-        }
-    },
-
-    clearOSRouteFromMap() {
-        Object.keys(App.state.mapPlanejamentoMarkers).forEach(markerId => {
-            if (markerId.startsWith('os_point_')) {
-                App.state.mapPlanejamentoMarkers[markerId].remove();
-                delete App.state.mapPlanejamentoMarkers[markerId];
-            }
-        });
         },
 
         // (Parte 1) Gerenciamento de Listeners do Mapa
@@ -12209,5 +12060,3 @@ document.addEventListener('DOMContentLoaded', () => {
     App.init();
     window.App = App; // Expor para testes e depuração
 });
-
-

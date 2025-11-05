@@ -1066,6 +1066,66 @@
         right: 10px;
         z-index: 3;
       }
+
+      /* [NOVO] Estilos para o Painel de Acompanhamento de OS */
+      #os-tracking-panel .info-box-content {
+        padding: 0;
+        max-height: calc(100vh - 150px);
+        overflow-y: auto;
+      }
+      .os-tracking-filter-bar {
+        padding: 10px;
+        background-color: var(--color-bg);
+        border-bottom: 1px solid var(--color-border);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .os-tracking-filter-bar select {
+        width: auto;
+        flex-grow: 1;
+      }
+      #os-tracking-list {
+        display: flex;
+        flex-direction: column;
+      }
+      .os-tracking-item {
+        padding: 12px 15px;
+        border-bottom: 1px solid var(--color-border);
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+      }
+      .os-tracking-item:hover {
+        background-color: var(--color-primary-light);
+      }
+      .os-tracking-item:last-child {
+        border-bottom: none;
+      }
+      .os-tracking-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+      }
+      .os-tracking-item-header .os-number {
+        color: var(--color-primary);
+      }
+      .os-tracking-item-body {
+        font-size: 13px;
+        color: var(--color-text-light);
+        margin-top: 4px;
+      }
+      .os-tracking-item-body p {
+        margin: 2px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .os-tracking-item.selected {
+        background-color: var(--color-primary-light);
+        border-left: 3px solid var(--color-primary);
+        padding-left: 12px;
+      }
       
       #notification-container {
           position: fixed;
@@ -3207,6 +3267,9 @@
                      <button id="btnHistory" class="map-control-btn" title="Histórico de Rastreio">
                         <i class="fas fa-history"></i>
                     </button>
+                    <button id="btnAcompanhamentoOS" class="map-control-btn" title="Modo de Acompanhamento de OS">
+                        <i class="fas fa-tasks"></i>
+                    </button>
                     <button id="btnToggleRiskView" class="map-control-btn" title="Visualização de Risco" style="display: none;">
                         <i class="fas fa-biohazard"></i>
                     </button>
@@ -3222,6 +3285,19 @@
                     <button id="close-trap-info-box" class="modal-close-btn">&times;</button>
                     <div id="trap-info-box-content"></div>
                 </div>
+
+                <!-- NOVO: Painel de Acompanhamento de OS -->
+                <div id="os-tracking-panel" class="info-box">
+                    <button id="close-os-tracking-panel" class="modal-close-btn">&times;</button>
+                    <div class="info-title">
+                        <i class="fas fa-tasks"></i>
+                        <span>Acompanhamento de OS</span>
+                    </div>
+                    <div id="os-tracking-panel-content" class="info-box-content">
+                        <!-- Conteúdo será preenchido dinamicamente -->
+                    </div>
+                </div>
+
             </div>
         </div>
 
