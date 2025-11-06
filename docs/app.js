@@ -738,6 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     closeBtn: document.getElementById('instalacaoPontoModalCloseBtn'),
                     cancelBtn: document.getElementById('instalacaoPontoModalCancelBtn'),
                     saveBtn: document.getElementById('instalacaoPontoModalSaveBtn'),
+                    deleteBtn: document.getElementById('instalacaoPontoModalDeleteBtn'),
                     pontoId: document.getElementById('instalacaoPontoId'),
                     lat: document.getElementById('instalacaoPontoLat'),
                     lng: document.getElementById('instalacaoPontoLng'),
@@ -750,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Tela de Lista de Pontos (Parte 2)
                 listaPontos: {
                     tab: document.getElementById('listaPontosPlanejados'),
-                    tabelaCorpo: document.getElementById('corpoTabelaPontosPlanejados'),
+                    container: document.getElementById('corpoListaPontosPlanejados'),
                     filtroFazenda: document.getElementById('filtroPontoFazenda'),
                     filtroTalhao: document.getElementById('filtroPontoTalhao'),
                     filtroData: document.getElementById('filtroPontoData'),
@@ -11334,6 +11335,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // (Parte 1) Listeners do Modal de Ponto
             els.pontoModal.closeBtn.addEventListener('click', () => this.hidePontoEditModal());
             els.pontoModal.cancelBtn.addEventListener('click', () => this.hidePontoEditModal());
+            els.pontoModal.deleteBtn.addEventListener('click', () => this.deletePontoPlanejado());
             els.pontoModal.overlay.addEventListener('click', (e) => {
                 if (e.target === els.pontoModal.overlay) this.hidePontoEditModal();
             });
@@ -11639,9 +11641,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.innerHTML = `<i class="fas fa-map-pin" style="color: white; font-size: 14px;"></i>`;
                 el.title = `Ponto: ${ponto.status}`;
 
-                const marker = new mapboxgl.Marker(el)
+                const marker = new mapboxgl.Marker(el, { draggable: true })
                     .setLngLat([ponto.coordenadas.lng, ponto.coordenadas.lat])
                     .addTo(map);
+
+                marker.on('dragend', () => {
+                    const newLngLat = marker.getLngLat();
+                    const updateData = {
+                        coordenadas: {
+                            lat: newLngLat.lat,
+                            lng: newLngLat.lng
+                        }
+                    };
+                    App.data.updateDocument('instalacaoPontos', ponto.id, updateData)
+                        .then(() => App.ui.showAlert("Posição do ponto atualizada.", "success"))
+                        .catch(err => {
+                            App.ui.showAlert("Erro ao atualizar a posição.", "error");
+                            console.error(err);
+                            // Revert marker position on failure
+                            marker.setLngLat([ponto.coordenadas.lng, ponto.coordenadas.lat]);
+                        });
+                });
 
                 el.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -11654,6 +11674,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // (Parte 1) Cria um marcador temporário e abre o modal
         criarPontoPlanejadoDraft(lngLat) {
+            const point = turf.point([lngLat.lng, lngLat.lat]);
+            let foundFeature = null;
+
+            if (App.state.geoJsonData && App.state.geoJsonData.features) {
+                for (const feature of App.state.geoJsonData.features) {
+                    if (turf.booleanPointInPolygon(point, feature)) {
+                        foundFeature = feature;
+                        break;
+                    }
+                }
+            }
+
+            let farmId = null;
+            let talhaoId = null;
+
+            if (foundFeature) {
+                const farmCode = App.mapModule._findProp(foundFeature, ['FUNDO_AGR']);
+                const talhaoName = App.mapModule._findProp(foundFeature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+
+                const farm = App.state.fazendas.find(f => String(f.code).trim() === String(farmCode).trim());
+                if (farm) {
+                    farmId = farm.id;
+                    const talhao = farm.talhoes.find(t => t.name.trim().toUpperCase() === talhaoName.trim().toUpperCase());
+                    if (talhao) {
+                        talhaoId = talhao.id;
+                    }
+                }
+            }
+
+
             // Remove o marcador de "rascunho" anterior, se houver
             const draftId = 'plan_DRAFT';
             if (App.state.mapboxTrapMarkers[draftId]) {
@@ -11674,11 +11724,11 @@ document.addEventListener('DOMContentLoaded', () => {
             App.state.mapboxTrapMarkers[draftId] = marker;
             App.state.currentEditingPontoId = null; // Indica que é um novo ponto
 
-            this.showPontoEditModal(null, lngLat);
+            this.showPontoEditModal(null, lngLat, { farmId, talhaoId });
         },
 
         // (Parte 1) Abre o modal de edição/criação de ponto
-        showPontoEditModal(pontoData, newLngLat = null) {
+        showPontoEditModal(pontoData, newLngLat = null, preselectedIds = {}) {
             const els = App.elements.planejamento.pontoModal;
             const today = new Date().toISOString().split('T')[0];
 
@@ -11688,6 +11738,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (pontoData) {
                 // Editando um ponto existente
+                els.deleteBtn.style.display = 'block';
                 App.state.currentEditingPontoId = pontoData.id;
                 els.title.textContent = "Editar Ponto Planejado";
                 els.pontoId.value = pontoData.id;
@@ -11703,19 +11754,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.descricao.value = pontoData.descricao || '';
             } else if (newLngLat) {
                 // Criando um novo ponto (draft)
+                els.deleteBtn.style.display = 'none';
                 App.state.currentEditingPontoId = null;
                 els.title.textContent = "Novo Ponto Planejado";
                 els.pontoId.value = '';
                 els.lat.value = newLngLat.lat;
                 els.lng.value = newLngLat.lng;
-                els.fazenda.value = '';
-                els.talhao.innerHTML = '<option value="">Selecione uma fazenda...</option>';
+                els.fazenda.value = preselectedIds.farmId || '';
+                if (preselectedIds.farmId) {
+                    this.populateTalhaoSelect(preselectedIds.farmId, els.talhao, preselectedIds.talhaoId);
+                } else {
+                    els.talhao.innerHTML = '<option value="">Selecione uma fazenda...</option>';
+                }
                 els.responsavel.value = App.state.currentUser.uid; // Padrão para o usuário atual
                 els.dataPrevista.value = today;
                 els.descricao.value = '';
             }
 
             els.overlay.classList.add('show');
+        },
+
+        deletePontoPlanejado() {
+            const pontoId = App.elements.planejamentoOS.pontoModal.pontoId.value;
+            if (!pontoId) return;
+
+            App.ui.showConfirmationModal(
+                "Tem certeza que deseja excluir este ponto planejado? Esta ação não pode ser desfeita.",
+                async () => {
+                    try {
+                        await App.data.deleteDocument('instalacaoPontos', pontoId);
+                        App.ui.showAlert("Ponto excluído com sucesso!", "success");
+                        this.hidePontoEditModal();
+                    } catch (error) {
+                        App.ui.showAlert("Erro ao excluir o ponto.", "error");
+                        console.error("Erro ao excluir ponto:", error);
+                    }
+                }
+            );
         },
 
         hidePontoEditModal() {
@@ -11827,9 +11902,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // (Parte 2) Renderiza a lista de pontos para geração de OS
         renderPontosPlanejadosList() {
-            const els = App.elements.planejamento.listaPontos;
-            const corpoTabela = els.tabelaCorpo;
-            corpoTabela.innerHTML = '';
+            const els = App.elements.planejamentoOS.listaPontos;
+            const container = els.container;
+            container.innerHTML = '';
 
             const filtroFazenda = els.filtroFazenda.value;
             const filtroTalhao = els.filtroTalhao.value;
@@ -11844,7 +11919,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (pontosFiltrados.length === 0) {
-                corpoTabela.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">Nenhum ponto planejado encontrado.</td></tr>';
+                container.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum ponto planejado encontrado.</p>';
                 return;
             }
 
@@ -11855,15 +11930,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 const talhao = fazenda?.talhoes.find(t => t.id == ponto.talhaoId);
                 const responsavel = App.state.users.find(u => u.id === ponto.responsavelId);
 
-                const row = corpoTabela.insertRow();
-                row.innerHTML = `
-                    <td data-label="Selecionar" style="text-align: center;"><input type="checkbox" class="ponto-checkbox" data-id="${ponto.id}"></td>
-                    <td data-label="Fazenda">${fazenda ? fazenda.name : 'N/A'}</td>
-                    <td data-label="Talhão">${talhao ? talhao.name : 'N/A'}</td>
-                    <td data-label="Data Prevista">${ponto.dataPrevistaInstalacao}</td>
-                    <td data-label="Responsável">${responsavel ? responsavel.username : 'N/A'}</td>
-                    <td data-label="Status"><span class="plano-status pendente">${ponto.status}</span></td>
+                const card = document.createElement('div');
+                card.className = 'plano-card';
+                card.dataset.id = ponto.id;
+
+                card.innerHTML = `
+                    <div class="plano-card-checkbox">
+                        <input type="checkbox" class="ponto-checkbox" data-id="${ponto.id}">
+                    </div>
+                    <div class="plano-card-content">
+                        <div class="plano-header">
+                            <span class="plano-title"><i class="fas fa-map-pin"></i> ${fazenda ? fazenda.name : 'N/A'} - ${talhao ? talhao.name : 'N/A'}</span>
+                            <span class="plano-status pendente">${ponto.status}</span>
+                        </div>
+                        <div class="plano-details">
+                            <div><i class="fas fa-calendar-day"></i> Previsto: ${ponto.dataPrevistaInstalacao}</div>
+                            <div><i class="fas fa-user"></i> Resp.: ${responsavel ? responsavel.username : 'N/A'}</div>
+                        </div>
+                    </div>
                 `;
+                container.appendChild(card);
             });
 
             this.updateEstadoBtnGerarOS();
@@ -11871,21 +11957,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // (Parte 2) Ativa/Desativa o botão "Gerar OS"
         updateEstadoBtnGerarOS() {
-            const checkboxes = document.querySelectorAll('#corpoTabelaPontosPlanejados .ponto-checkbox:checked');
-            App.elements.planejamento.listaPontos.btnGerarOS.disabled = checkboxes.length === 0;
+            const checkboxes = document.querySelectorAll('#corpoListaPontosPlanejados .ponto-checkbox:checked');
+            App.elements.planejamentoOS.listaPontos.btnGerarOS.disabled = checkboxes.length === 0;
         },
 
         // (Parte 2) Checkbox "Selecionar Todos"
         toggleSelecionarTodosPontos(checked) {
-            const checkboxes = document.querySelectorAll('#corpoTabelaPontosPlanejados .ponto-checkbox');
+            const checkboxes = document.querySelectorAll('#corpoListaPontosPlanejados .ponto-checkbox');
             checkboxes.forEach(cb => cb.checked = checked);
             this.updateEstadoBtnGerarOS();
         },
 
         // (Parte 2) Abre o modal de geração de OS
         showGerarOSModal() {
-            const els = App.elements.planejamento.gerarOSModal;
-            const checkboxes = document.querySelectorAll('#corpoTabelaPontosPlanejados .ponto-checkbox:checked');
+            const els = App.elements.planejamentoOS.gerarOSModal;
+            const checkboxes = document.querySelectorAll('#corpoListaPontosPlanejados .ponto-checkbox:checked');
 
             if (checkboxes.length === 0) return;
 
@@ -11904,9 +11990,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // (Parte 2) Confirma e chama o backend para gerar a OS
         async confirmarGeracaoOS() {
             App.ui.setLoading(true, "A gerar Ordem de Serviço...");
-            const els = App.elements.planejamento.gerarOSModal;
+            const els = App.elements.planejamentoOS.gerarOSModal;
 
-            const pontosIds = Array.from(document.querySelectorAll('#corpoTabelaPontosPlanejados .ponto-checkbox:checked'))
+            const pontosIds = Array.from(document.querySelectorAll('#corpoListaPontosPlanejados .ponto-checkbox:checked'))
                                 .map(cb => cb.dataset.id);
 
             const responsavelOSId = els.responsavel.value;
@@ -11950,7 +12036,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // (Parte 2/3) Renderiza a lista de Ordens de Serviço
         renderOSList() {
-            const els = App.elements.planejamento.listaOS;
+            const els = App.elements.planejamentoOS.listaOS;
             els.container.innerHTML = '';
 
             const filtroStatus = els.filtroStatus.value;

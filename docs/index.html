@@ -2700,23 +2700,23 @@
 
 <!-- (Parte 2 e 3) Tela de Lista de Ordens de Serviço -->
 <section id="listaOrdensDeServico" class="tab-content card" aria-label="Ordens de Serviço" tabindex="0" hidden>
-    <h2><i class="fas fa-clipboard-list"></i> Ordens de Serviço de Instalação</h2>
-    <div class="dashboard-filters" style="margin-top: 15px;">
-        <label for="filtroOSStatus">Status:</label>
-        <select id="filtroOSStatus" class="filtro-os">
-            <option value="">Todos</option>
-            <option value="Planejada">Planejada</option>
-            <option value="Em Execução">Em Execução</option>
-            <option value="Concluída">Concluída</option>
-            <option value="Atrasada">Atrasada</option>
-            <option value="Cancelada">Cancelada</option>
-        </select>
-        <label for="filtroOSResponsavel">Responsável:</label>
-        <select id="filtroOSResponsavel" class="filtro-os"></select>
-    </div>
-    <div id="containerListaOS" style="margin-top: 20px;">
-        <!-- Cards das OS serão inseridos pelo app.js -->
-    </div>
+    <h2><i class="fas fa-clipboard-list"></i> Ordens de Serviço de Instalação</h2>
+    <div class="dashboard-filters" style="margin-top: 15px;">
+        <label for="filtroOSStatus">Status:</label>
+        <select id="filtroOSStatus" class="filtro-os">
+            <option value="">Todos</option>
+            <option value="Planejada">Planejada</option>
+            <option value="Em Execução">Em Execução</option>
+            <option value="Concluída">Concluída</option>
+            <option value="Atrasada">Atrasada</option>
+            <option value="Cancelada">Cancelada</option>
+        </select>
+        <label for="filtroOSResponsavel">Responsável:</label>
+        <select id="filtroOSResponsavel" class="filtro-os"></select>
+    </div>
+    <div id="containerListaOS" class="card-grid" style="margin-top: 20px;">
+        <!-- Cards das OS serão inseridos pelo app.js -->
+    </div>
 </section>
 
 
@@ -3346,10 +3346,13 @@
                 </div>
             </div>
         </div>
-        <div class="modal-footer">
-            <button id="instalacaoPontoModalCancelBtn" class="btn-secondary">Cancelar</button>
-            <button id="instalacaoPontoModalSaveBtn" class="save">Salvar Ponto</button>
-        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+            <button id="instalacaoPontoModalDeleteBtn" class="btn-secondary" style="background-color: var(--color-danger); display: none;"><i class="fas fa-trash"></i> Excluir</button>
+            <div>
+                <button id="instalacaoPontoModalCancelBtn" class="btn-secondary">Cancelar</button>
+                <button id="instalacaoPontoModalSaveBtn" class="save">Salvar Ponto</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -3367,26 +3370,12 @@
             <input type="date" id="filtroPontoData" class="filtro-pontos" style="padding: 6px 10px; font-size: 13px; max-width: 150px;">
         </div>
         <div class="button-group">
-            <button id="btnGerarOS" class="save" disabled><i class="fas fa-plus"></i> Gerar OS</button>
-        </div>
-    </div>
-    <div class="table-responsive" style="margin-top: 20px;">
-        <table id="tabelaPontosPlanejados" class="harvestPlanTable">
-            <thead>
-                <tr>
-                    <th><input type="checkbox" id="selecionarTodosPontos"></th>
-                    <th>Fazenda</th>
-                    <th>Talhão</th>
-                    <th>Data Prevista</th>
-                    <th>Responsável</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody id="corpoTabelaPontosPlanejados">
-                <!-- Linhas serão inseridas pelo app.js -->
-            </tbody>
-        </table>
-    </div>
+            <button id="btnGerarOS" class="save" disabled><i class="fas fa-plus"></i> Gerar OS</button>
+        </div>
+    </div>
+    <div id="corpoListaPontosPlanejados" class="card-grid" style="margin-top: 20px;">
+        <!-- Cards serão inseridos pelo app.js -->
+    </div>
 </section>
 
 <!-- (Parte 2) Modal de Geração de OS -->
