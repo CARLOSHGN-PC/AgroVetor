@@ -2664,38 +2664,24 @@
 
 <!-- (Parte 2) Tela de Lista de Pontos Planejados (para Gerar OS) -->
 <section id="listaPontosPlanejados" class="tab-content card" aria-label="Pontos Planejados" tabindex="0" hidden>
-    <h2><i class="fas fa-map-marked-alt"></i> Pontos de Instalação Planejados</h2>
-    <p>Selecione os pontos que deseja incluir em uma nova Ordem de Serviço (OS).</p>
-    <div class="card-header-actions">
-        <div class="dashboard-filters">
-            <label for="filtroPontoFazenda">Fazenda:</label>
-            <select id="filtroPontoFazenda" class="filtro-pontos"></select>
-            <label for="filtroPontoTalhao">Talhão:</label>
-            <select id="filtroPontoTalhao" class="filtro-pontos"></select>
-            <label for="filtroPontoData">Data Prevista:</label>
-            <input type="date" id="filtroPontoData" class="filtro-pontos" style="padding: 6px 10px; font-size: 13px; max-width: 150px;">
-        </div>
-        <div class="button-group">
-            <button id="btnGerarOS" class="save" disabled><i class="fas fa-plus"></i> Gerar OS</button>
-        </div>
-    </div>
-    <div class="table-responsive" style="margin-top: 20px;">
-        <table id="tabelaPontosPlanejados" class="harvestPlanTable">
-            <thead>
-                <tr>
-                    <th><input type="checkbox" id="selecionarTodosPontos"></th>
-                    <th>Fazenda</th>
-                    <th>Talhão</th>
-                    <th>Data Prevista</th>
-                    <th>Responsável</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody id="corpoTabelaPontosPlanejados">
-                <!-- Linhas serão inseridas pelo app.js -->
-            </tbody>
-        </table>
-    </div>
+    <h2><i class="fas fa-map-marked-alt"></i> Pontos de Instalação Planejados</h2>
+    <p>Selecione os pontos que deseja incluir em uma nova Ordem de Serviço (OS).</p>
+    <div class="card-header-actions">
+        <div class="dashboard-filters">
+            <label for="filtroPontoFazenda">Fazenda:</label>
+            <select id="filtroPontoFazenda" class="filtro-pontos"></select>
+            <label for="filtroPontoTalhao">Talhão:</label>
+            <select id="filtroPontoTalhao" class="filtro-pontos"></select>
+            <label for="filtroPontoData">Data Prevista:</label>
+            <input type="date" id="filtroPontoData" class="filtro-pontos" style="padding: 6px 10px; font-size: 13px; max-width: 150px;">
+        </div>
+        <div class="button-group">
+            <button id="btnGerarOS" class="save" disabled><i class="fas fa-plus"></i> Gerar OS</button>
+        </div>
+    </div>
+    <div id="corpoListaPontosPlanejados" class="card-grid" style="margin-top: 20px;">
+        <!-- Cards serão inseridos pelo app.js -->
+    </div>
 </section>
 
 <!-- (Parte 2 e 3) Tela de Lista de Ordens de Serviço -->
@@ -2714,7 +2700,7 @@
         <label for="filtroOSResponsavel">Responsável:</label>
         <select id="filtroOSResponsavel" class="filtro-os"></select>
     </div>
-    <div id="containerListaOS" class="card-grid" style="margin-top: 20px;">
+    <div id="containerListaOS" style="margin-top: 20px;">
         <!-- Cards das OS serão inseridos pelo app.js -->
     </div>
 </section>
@@ -3306,54 +3292,51 @@
 
 <!-- (Parte 1) Modal de Edição do Ponto de Instalação -->
 <div id="instalacaoPontoModal" class="modal-overlay">
-    <div class="modal-content" style="max-width: 500px;">
-        <div class="modal-header">
-            <h2 id="instalacaoPontoModalTitle">Editar Ponto Planejado</h2>
-            <button id="instalacaoPontoModalCloseBtn" class="modal-close-btn">&times;</button>
-        </div>
-        <div class="modal-body">
-            <input type="hidden" id="instalacaoPontoId">
-            <input type="hidden" id="instalacaoPontoLat">
-            <input type="hidden" id="instalacaoPontoLng">
-           
-            <div class="form-row">
-                <div class="form-col">
-                    <label for="instalacaoPontoFazenda" class="required">Fazenda:</label>
-                    <!-- Este select deve ser populado pelo app.js com as fazendas existentes -->
-                    <select id="instalacaoPontoFazenda" required></select>
-                </div>
-                <div class="form-col">
-                    <label for="instalacaoPontoTalhao" class="required">Talhão:</label>
-                    <!-- Este select deve ser populado pelo app.js com base na fazenda -->
-                    <select id="instalacaoPontoTalhao" required></select>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-col">
-                    <label for="instalacaoPontoResponsavel" class="required">Responsável:</label>
-                    <!-- Este select deve ser populado pelo app.js com os usuários -->
-                    <select id="instalacaoPontoResponsavel" required></select>
-                </div>
-                <div class="form-col">
-                    <label for="instalacaoPontoDataPrevista" class="required">Data Prevista:</label>
-                    <input type="date" id="instalacaoPontoDataPrevista" required>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-col">
-                    <label for="instalacaoPontoDescricao">Observações:</label>
-                    <textarea id="instalacaoPontoDescricao" placeholder="Detalhes adicionais..."></textarea>
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
-            <button id="instalacaoPontoModalDeleteBtn" class="btn-secondary" style="background-color: var(--color-danger); display: none;"><i class="fas fa-trash"></i> Excluir</button>
-            <div>
-                <button id="instalacaoPontoModalCancelBtn" class="btn-secondary">Cancelar</button>
-                <button id="instalacaoPontoModalSaveBtn" class="save">Salvar Ponto</button>
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2 id="instalacaoPontoModalTitle">Editar Ponto Planejado</h2>
+            <button id="instalacaoPontoModalCloseBtn" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="instalacaoPontoId">
+            <input type="hidden" id="instalacaoPontoLat">
+            <input type="hidden" id="instalacaoPontoLng">
+
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="instalacaoPontoFazenda" class="required">Fazenda:</label>
+                    <select id="instalacaoPontoFazenda" required></select>
+                </div>
+                <div class="form-col">
+                    <label for="instalacaoPontoTalhao" class="required">Talhão:</label>
+                    <select id="instalacaoPontoTalhao" required></select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="instalacaoPontoResponsavel" class="required">Responsável:</label>
+                    <select id="instalacaoPontoResponsavel" required></select>
+                </div>
+                <div class="form-col">
+                    <label for="instalacaoPontoDataPrevista" class="required">Data Prevista:</label>
+                    <input type="date" id="instalacaoPontoDataPrevista" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="instalacaoPontoDescricao">Observações:</label>
+                    <textarea id="instalacaoPontoDescricao" placeholder="Detalhes adicionais..."></textarea>
+                </div>
             </div>
         </div>
-    </div>
+        <div class="modal-footer">
+            <div class="danger-zone">
+                 <button id="instalacaoPontoModalDeleteBtn" class="btn-secondary" style="background-color: var(--color-danger); display: none;"><i class="fas fa-trash"></i> Excluir</button>
+            </div>
+            <button id="instalacaoPontoModalCancelBtn" class="btn-secondary">Cancelar</button>
+            <button id="instalacaoPontoModalSaveBtn" class="save">Salvar Ponto</button>
+        </div>
+    </div>
 </div>
 
 <!-- (Parte 2) Tela de Lista de Pontos Planejados (para Gerar OS) -->

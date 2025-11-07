@@ -843,10 +843,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         native: {
             init() {
-                if (window.Capacitor && Capacitor.isNativePlatform()) {
-                    this.configureStatusBar();
-                    this.registerPushNotifications();
-                    this.listenForNetworkChanges(); // Adiciona o listener de rede
+                // Adicionado um guarda para verificar se o Capacitor está disponível
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    try {
+                        this.configureStatusBar();
+                    } catch (e) {
+                        console.error("Failed to configure StatusBar:", e);
+                    }
+                    try {
+                        this.registerPushNotifications();
+                    } catch (e) {
+                        console.error("Failed to register PushNotifications:", e);
+                    }
+                    try {
+                        this.listenForNetworkChanges(); // Adiciona o listener de rede
+                    } catch (e) {
+                        console.error("Failed to listen for NetworkChanges:", e);
+                    }
                 }
             },
 
@@ -11344,7 +11357,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // (Parte 2) Listeners da Lista de Pontos e Modal de OS
             els.listaPontos.checkSelecionarTodos.addEventListener('change', (e) => this.toggleSelecionarTodosPontos(e.target.checked));
-            els.listaPontos.tabelaCorpo.addEventListener('change', (e) => {
+            els.listaPontos.container.addEventListener('change', (e) => {
                 if (e.target.classList.contains('ponto-checkbox')) {
                     this.updateEstadoBtnGerarOS();
                 }
@@ -11957,13 +11970,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // (Parte 2) Ativa/Desativa o botão "Gerar OS"
         updateEstadoBtnGerarOS() {
-            const checkboxes = document.querySelectorAll('#corpoListaPontosPlanejados .ponto-checkbox:checked');
+            const container = App.elements.planejamentoOS.listaPontos.container;
+            const checkboxes = container.querySelectorAll('.ponto-checkbox:checked');
             App.elements.planejamentoOS.listaPontos.btnGerarOS.disabled = checkboxes.length === 0;
         },
 
         // (Parte 2) Checkbox "Selecionar Todos"
         toggleSelecionarTodosPontos(checked) {
-            const checkboxes = document.querySelectorAll('#corpoListaPontosPlanejados .ponto-checkbox');
+            const container = App.elements.planejamentoOS.listaPontos.container;
+            const checkboxes = container.querySelectorAll('.ponto-checkbox');
             checkboxes.forEach(cb => cb.checked = checked);
             this.updateEstadoBtnGerarOS();
         },
@@ -11991,8 +12006,8 @@ document.addEventListener('DOMContentLoaded', () => {
         async confirmarGeracaoOS() {
             App.ui.setLoading(true, "A gerar Ordem de Serviço...");
             const els = App.elements.planejamentoOS.gerarOSModal;
-
-            const pontosIds = Array.from(document.querySelectorAll('#corpoListaPontosPlanejados .ponto-checkbox:checked'))
+            const container = App.elements.planejamentoOS.listaPontos.container;
+            const pontosIds = Array.from(container.querySelectorAll('.ponto-checkbox:checked'))
                                 .map(cb => cb.dataset.id);
 
             const responsavelOSId = els.responsavel.value;
