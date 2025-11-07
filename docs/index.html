@@ -3447,8 +3447,150 @@
     <!-- Capacitor script -->
     <script src="capacitor.js"></script>
 
+    <!-- [NOVO] Modal para Planejamento de Instalação de Pontos -->
+    <div id="instalacaoPontoModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="instalacaoPontoModalTitle">Planejar Ponto de Instalação</h2>
+                <button id="instalacaoPontoModalCloseBtn" class="modal-close-btn">&times;</button>
+            </div>
+            <input type="hidden" id="instalacaoPontoId">
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="instalacaoPontoFazenda" class="required">Fazenda:</label>
+                    <select id="instalacaoPontoFazenda" required></select>
+                </div>
+                <div class="form-col">
+                    <label for="instalacaoPontoTalhao" class="required">Talhão:</label>
+                    <select id="instalacaoPontoTalhao" required></select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="instalacaoPontoResponsavel" class="required">Responsável:</label>
+                    <select id="instalacaoPontoResponsavel" required></select>
+                </div>
+                <div class="form-col">
+                    <label for="instalacaoPontoDataPrevista" class="required">Data Prevista:</label>
+                    <input type="date" id="instalacaoPontoDataPrevista" required>
+                </div>
+            </div>
+            <label for="instalacaoPontoDescricao">Descrição / Observações:</label>
+            <textarea id="instalacaoPontoDescricao" placeholder="Ex: Ponto próximo à divisa norte..."></textarea>
+            <div class="modal-footer">
+                <button id="instalacaoPontoDeleteBtn" class="btn-secondary" style="background: var(--color-danger); margin-right: auto; display: none;"><i class="fas fa-trash"></i> Excluir</button>
+                <button id="instalacaoPontoCancelBtn" class="btn-secondary">Cancelar</button>
+                <button id="instalacaoPontoSaveBtn" class="save"><i class="fas fa-save"></i> Salvar Ponto</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- [NOVO] Telas e Modais para Ordem de Serviço (OS) -->
+    <section id="listaPontosPlanejados" class="tab-content card" hidden>
+        <h2><i class="fas fa-tasks"></i> Pontos Planejados para OS</h2>
+        <div class="card" style="border-left-color: var(--color-info);">
+            <h3><i class="fas fa-filter"></i> Filtros</h3>
+            <div class="form-row">
+                <div class="form-col"><label for="filtroPontoFazenda">Fazenda:</label><select id="filtroPontoFazenda"></select></div>
+                <div class="form-col"><label for="filtroPontoTalhao">Talhão:</label><select id="filtroPontoTalhao"></select></div>
+                <div class="form-col"><label for="filtroPontoData">Data Prevista:</label><input type="date" id="filtroPontoData"></div>
+            </div>
+            <button id="btnAplicarFiltrosPontos" class="save" style="max-width: 200px;"><i class="fas fa-filter"></i> Aplicar</button>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+            <h3><i class="fas fa-map-pin"></i> Pontos com Status "Planejado"</h3>
+            <button id="btnGerarOS" class="save" disabled><i class="fas fa-file-invoice"></i> Gerar OS</button>
+        </div>
+        <div id="pontosPlanejadosList" style="margin-top: 15px;">
+            <!-- A lista de pontos em formato de card será renderizada aqui -->
+        </div>
+    </section>
+
+    <div id="gerarOSModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Gerar Ordem de Serviço</h2>
+                <button id="gerarOSModalCloseBtn" class="modal-close-btn">&times;</button>
+            </div>
+            <p><strong>Pontos Selecionados:</strong> <span id="gerarOSNumPontos">0</span></p>
+            <div id="gerarOSPontosResumo" style="max-height: 150px; overflow-y: auto; background: var(--color-bg); padding: 10px; border-radius: var(--border-radius); margin: 10px 0;"></div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="gerarOSResponsavel" class="required">Responsável pela OS:</label>
+                    <select id="gerarOSResponsavel" required></select>
+                </div>
+            </div>
+            <label for="gerarOSObservacoes">Observações (Opcional):</label>
+            <textarea id="gerarOSObservacoes" placeholder="Instruções para a equipe..."></textarea>
+            <div class="modal-footer">
+                <button id="gerarOSCancelBtn" class="btn-secondary">Cancelar</button>
+                <button id="gerarOSConfirmBtn" class="save"><i class="fas fa-check"></i> Confirmar e Gerar OS</button>
+            </div>
+        </div>
+    </div>
+
+    <section id="listaOrdensDeServico" class="tab-content card" hidden>
+        <h2><i class="fas fa-file-invoice"></i> Ordens de Serviço de Instalação</h2>
+        <div class="card" style="border-left-color: var(--color-info);">
+            <h3><i class="fas fa-filter"></i> Filtros</h3>
+            <div class="form-row">
+                <div class="form-col"><label for="filtroOSAno">Ano:</label><input type="number" id="filtroOSAno" placeholder="Ex: 2024"></div>
+                <div class="form-col"><label for="filtroOSStatus">Status:</label><select id="filtroOSStatus"></select></div>
+                <div class="form-col"><label for="filtroOSResponsavel">Responsável:</label><select id="filtroOSResponsavel"></select></div>
+            </div>
+            <button id="btnAplicarFiltrosOS" class="save" style="max-width: 200px;"><i class="fas fa-filter"></i> Aplicar</button>
+        </div>
+        <div id="ordensDeServicoList" class="plano-list-container" style="margin-top: 20px;">
+            <!-- A lista de OS em formato de card será renderizada aqui -->
+        </div>
+    </section>
+
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
+
+    <!-- [NOVO] Tela de Execução de OS e Modal -->
+    <section id="osExecutionScreen" class="tab-content" hidden>
+        <div class="card">
+            <div class="dashboard-header">
+                <h2 id="osExecutionTitle"><i class="fas fa-hammer"></i> Execução da Ordem de Serviço</h2>
+                <button id="btnVoltarParaListaOS" class="btn-back-dashboard"><i class="fas fa-arrow-left"></i> Voltar para Lista</button>
+            </div>
+        </div>
+        <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
+             <div id="os-execution-map" style="width: 100%; height: 400px; border-radius: var(--border-radius); margin-bottom: 20px;"></div>
+             <h3><i class="fas fa-map-pin"></i> Pontos da OS</h3>
+             <div id="os-execution-points-list" style="margin-top: 15px;">
+                 <!-- Lista de pontos da OS será renderizada aqui -->
+             </div>
+        </div>
+    </section>
+
+    <div id="instalacaoExecucaoModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="instalacaoExecucaoModalTitle">Executar Instalação</h2>
+                <button id="instalacaoExecucaoModalCloseBtn" class="modal-close-btn">&times;</button>
+            </div>
+            <input type="hidden" id="execucaoPontoId">
+            <div class="form-col">
+                <label class="required">Foto(s) da Instalação:</label>
+                <div class="upload-area" id="photoUploadArea">
+                    <i class="fas fa-camera fa-2x" style="color: var(--color-primary);"></i>
+                    <p>Clique para adicionar fotos</p>
+                </div>
+                <input type="file" id="photoInput" accept="image/*" multiple style="display: none;">
+                <div id="photo-preview-container" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                    <!-- Previews das fotos aqui -->
+                </div>
+            </div>
+            <label for="execucaoObservacoes">Observações (Opcional):</label>
+            <textarea id="execucaoObservacoes" placeholder="Ex: Solo muito seco, armadilha danificada..."></textarea>
+            <div class="modal-footer">
+                <button id="instalacaoExecucaoCancelBtn" class="btn-secondary">Cancelar</button>
+                <button id="instalacaoExecucaoConfirmBtn" class="save"><i class="fas fa-check"></i> Confirmar Execução</button>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>
