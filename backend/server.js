@@ -11,9 +11,13 @@ const axios = require('axios');
 const shp = require('shpjs');
 const pointInPolygon = require('point-in-polygon');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const turf = require('@turf/turf');
 const csv = require('csv-parser');
 const { Readable } = require('stream');
 const xlsx = require('xlsx');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
+
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -3199,6 +3203,245 @@ try {
             res.status(500).send('Erro ao gerar relatório.');
         }
     });
+
+    // --- [NOVO] ENDPOINT PARA GERAÇÃO DE ORDEM DE SERVIÇO (OS) ---
+    app.post('/api/os/generate', async (req, res) => {
+        const { pontosIds, responsavelOSId, observacoes, criadoPorUserId, companyId } = req.body;
+
+        if (!pontosIds || !Array.isArray(pontosIds) || pontosIds.length === 0) {
+            return res.status(400).json({ message: 'A lista de IDs de pontos é obrigatória.' });
+        }
+        if (!responsavelOSId) {
+            return res.status(400).json({ message: 'O responsável pela OS é obrigatório.' });
+        }
+        if (!criadoPorUserId) {
+            return res.status(400).json({ message: 'O ID do criador é obrigatório.' });
+        }
+         if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
+
+
+        try {
+            const ano = new Date().getFullYear();
+            const counterRef = db.collection('osCounters').doc(String(ano));
+
+            const newOSRef = db.collection('instalacaoOrdensDeServico').doc();
+
+            await db.runTransaction(async (transaction) => {
+                // 1. Validar se todos os pontos ainda estão "Planejado"
+                const pontosRefs = pontosIds.map(id => db.collection('instalacaoPontos').doc(id));
+                const pontosDocs = await transaction.getAll(...pontosRefs);
+
+                for (const pontoDoc of pontosDocs) {
+                    if (!pontoDoc.exists) {
+                        throw new Error(`Ponto com ID ${pontoDoc.id} não encontrado.`);
+                    }
+                    const pontoData = pontoDoc.data();
+                    if (pontoData.status !== 'Planejado') {
+                        throw new Error(`O ponto ${pontoDoc.id} não está mais no status "Planejado". A operação foi cancelada.`);
+                    }
+                     if (pontoData.companyId !== companyId) {
+                        throw new Error(`O ponto ${pontoDoc.id} não pertence à empresa correta.`);
+                    }
+                }
+
+                // 2. Incrementar o contador de OS atomicamente
+                const counterDoc = await transaction.get(counterRef);
+                let newSeq = 1;
+                if (counterDoc.exists) {
+                    newSeq = counterDoc.data().lastSeq + 1;
+                }
+                transaction.set(counterRef, { lastSeq: newSeq }, { merge: true });
+
+                const numeroOS = `OS-${ano}-${String(newSeq).padStart(3, '0')}`;
+
+                // 3. Criar a nova Ordem de Serviço
+                const newOSData = {
+                    id: newOSRef.id,
+                    companyId: companyId,
+                    numeroOS: numeroOS,
+                    ano: ano,
+                    sequencial: newSeq,
+                    pontosIds: pontosIds,
+                    responsavelOSId: responsavelOSId,
+                    dataCriacao: admin.firestore.FieldValue.serverTimestamp(),
+                    prazoExecucao: null, // Conforme especificado, não há função de cálculo de prazo
+                    status: "Planejada",
+                    observacoes: observacoes || "",
+                    criadoPorUserId: criadoPorUserId,
+                    criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+                    syncStatus: "synced"
+                };
+                transaction.set(newOSRef, newOSData);
+
+                // 4. Atualizar cada ponto selecionado
+                pontosRefs.forEach(pontoRef => {
+                    transaction.update(pontoRef, {
+                        osId: newOSRef.id,
+                        status: 'Em OS',
+                        responsavelId: responsavelOSId, // Sobrescreve o responsável
+                        updatedEm: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+            });
+
+            res.status(201).json({ message: 'Ordem de Serviço gerada com sucesso!', osId: newOSRef.id });
+
+        } catch (error) {
+            console.error("Erro na transação de geração de OS:", error);
+            res.status(500).json({ message: `Erro ao gerar Ordem de Serviço: ${error.message}` });
+        }
+    });
+
+    // --- [NOVO] ENDPOINT PARA EXECUÇÃO DE PONTO DA OS ---
+    app.post('/api/os/execute', upload.any(), async (req, res) => {
+        // Para offline, os arquivos vêm no payload. Para online, vêm como req.files.
+        const isOffline = req.get('Content-Type').includes('application/json');
+
+        const payload = isOffline ? req.body : JSON.parse(req.body.payload);
+        const { pontoId, observacoes, concluidoPorUserId, companyId, osId, photos: base64Photos } = payload;
+        const files = req.files;
+
+        if (!pontoId || !concluidoPorUserId || !companyId || !osId) {
+            return res.status(400).json({ message: 'Dados insuficientes para executar o ponto.' });
+        }
+        if ((!files || files.length === 0) && (!base64Photos || base64Photos.length === 0)) {
+            return res.status(400).json({ message: 'Pelo menos uma foto é obrigatória.' });
+        }
+
+        try {
+            const dataInstalacao = admin.firestore.FieldValue.serverTimestamp();
+            let photoURLs = [];
+
+            // 1. Upload das fotos para o Storage
+            if (files && files.length > 0) { // Upload online via multipart/form-data
+                photoURLs = await Promise.all(
+                    files.map(async (file) => {
+                        const filePath = `instalacoes/${companyId}/${osId}/${pontoId}/${Date.now()}_${file.originalname}`;
+                        const fileUpload = bucket.file(filePath);
+                        await fileUpload.save(file.buffer, { metadata: { contentType: file.mimetype }, public: true });
+                        return fileUpload.publicUrl();
+                    })
+                );
+            } else if (base64Photos && base64Photos.length > 0) { // Upload offline via JSON com base64
+                 photoURLs = await Promise.all(
+                    base64Photos.map(async (photo) => {
+                        const filePath = `instalacoes/${companyId}/${osId}/${pontoId}/${Date.now()}_${photo.name}`;
+                        const buffer = Buffer.from(photo.base64.split(',')[1], 'base64');
+                        const fileUpload = bucket.file(filePath);
+                        await fileUpload.save(buffer, { metadata: { contentType: photo.type }, public: true });
+                        return fileUpload.publicUrl();
+                    })
+                );
+            }
+
+
+            // 2. Executar a lógica de atualização no Firestore dentro de uma transação
+            await db.runTransaction(async (transaction) => {
+                const pontoRef = db.collection('instalacaoPontos').doc(pontoId);
+                const osRef = db.collection('instalacaoOrdensDeServico').doc(osId);
+
+                const pontoDoc = await transaction.get(pontoRef);
+                if (!pontoDoc.exists) throw new Error("Ponto de instalação não encontrado.");
+
+                const pontoData = pontoDoc.data();
+                if (pontoData.status !== 'Em OS') throw new Error("Este ponto não está mais pendente de execução.");
+                if (pontoData.companyId !== companyId) throw new Error("Este ponto não pertence à sua empresa.");
+
+                // Lógica de "Find or Upsert" da Armadilha
+                const armadilhasCollection = db.collection('armadilhas');
+
+                // Firestore não suporta queries de proximidade geoespacial nativamente na transação.
+                // A query é feita fora para encontrar candidatos, e a validação ocorre dentro.
+                const center = new admin.firestore.GeoPoint(pontoData.coordenadas.lat, pontoData.coordenadas.lng);
+                const latOffset = 0.00009 * 5; // Aproximadamente 5 metros
+                const lonOffset = 0.00009 * 5;
+
+                const proximityQuery = armadilhasCollection
+                    .where('companyId', '==', companyId)
+                    .where('latitude', '>=', center.latitude - latOffset)
+                    .where('latitude', '<=', center.latitude + latOffset)
+                    .where('longitude', '>=', center.longitude - lonOffset)
+                    .where('longitude', '<=', center.longitude + lonOffset);
+
+                const proximitySnapshot = await proximityQuery.get();
+                let armadilhaRef = null;
+
+                // Etapa de refinamento com Turf.js
+                if (!proximitySnapshot.empty) {
+                    const from = turf.point([center.longitude, center.latitude]);
+                    for (const doc of proximitySnapshot.docs) {
+                        const armadilha = doc.data();
+                        const to = turf.point([armadilha.longitude, armadilha.latitude]);
+                        const distanceInMeters = turf.distance(from, to, { units: 'meters' });
+
+                        if (distanceInMeters <= 5) {
+                            armadilhaRef = doc.ref;
+                            break; // Encontrou a correspondência, pode parar
+                        }
+                    }
+                }
+
+                // Se nenhuma correspondência foi encontrada dentro de 5m, cria uma nova.
+                if (!armadilhaRef) {
+                    armadilhaRef = db.collection('armadilhas').doc(); // Cria um novo ID
+                    transaction.set(armadilhaRef, {
+                        id: armadilhaRef.id,
+                        companyId: companyId,
+                        latitude: pontoData.coordenadas.lat,
+                        longitude: pontoData.coordenadas.lng,
+                        status: 'Ativa',
+                        installationRecords: []
+                    });
+                }
+
+                const installationRecord = {
+                    instaladoEm: dataInstalacao,
+                    instaladoPor: concluidoPorUserId,
+                    pontoId: pontoId,
+                    osId: osId,
+                    photoURLs: photoURLs,
+                    observacoes: observacoes || ""
+                };
+                transaction.update(armadilhaRef, {
+                    installationRecords: admin.firestore.FieldValue.arrayUnion(installationRecord),
+                    status: 'Ativa'
+                });
+
+                transaction.update(pontoRef, {
+                    status: 'Instalado',
+                    dataInstalacao: dataInstalacao,
+                    concluidoPorUserId: concluidoPorUserId,
+                    fotoURLs: photoURLs,
+                    observacoes: observacoes || "",
+                    updatedEm: admin.firestore.FieldValue.serverTimestamp(),
+                    armadilhaId: armadilhaRef.id
+                });
+
+                const osDoc = await transaction.get(osRef);
+                const osData = osDoc.data();
+                const allPontosRefs = osData.pontosIds.map(id => db.collection('instalacaoPontos').doc(id));
+                const allPontosDocs = await transaction.getAll(...allPontosRefs);
+
+                const allDone = allPontosDocs.every(doc => {
+                    if (doc.id === pontoId) return true;
+                    return doc.exists && doc.data().status === 'Instalado';
+                });
+
+                if (allDone) {
+                    transaction.update(osRef, { status: 'Concluída' });
+                }
+            });
+
+            res.status(200).json({ message: "Ponto executado e armadilha registada com sucesso!" });
+
+        } catch (error) {
+            console.error("Erro na execução do ponto:", error);
+            res.status(500).json({ message: `Erro ao executar ponto: ${error.message}` });
+        }
+    });
+
 
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
