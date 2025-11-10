@@ -899,6 +899,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             App.state.currentUser = { ...user, ...userDoc };
 
+                            // ** FIX: Garante que o Super Admin não tem companyId na sessão principal **
+                            if (App.state.currentUser.role === 'super-admin') {
+                                App.state.currentUser.companyId = null;
+                            }
+
                             // Validação CRÍTICA para o modelo multi-empresa
                             if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
                                 App.auth.logout();
@@ -1271,6 +1276,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.renderMenu(); // Re-renderiza o menu com flags desativadas
                 });
                 App.state.unsubscribeListeners.push(unsubscribeGlobalConfigs);
+
+                // ** NOVO: Listener para Notificações do Sistema (ex: novos módulos) **
+                const userId = App.state.currentUser.uid;
+                if (userId) {
+                    const notificationsQuery = query(
+                        collection(db, "notifications"),
+                        where("userId", "==", userId),
+                        where("read", "==", false),
+                        orderBy("timestamp", "desc")
+                    );
+                    const unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
+                        snapshot.docChanges().forEach((change) => {
+                            if (change.type === "added") {
+                                const notification = change.doc.data();
+                                App.ui.showSystemNotification(notification.title, notification.message, notification.type);
+
+                                // Marca a notificação como lida para não aparecer novamente
+                                const notificationRef = doc(db, "notifications", change.doc.id);
+                                updateDoc(notificationRef, { read: true });
+                            }
+                        });
+                    }, (error) => {
+                        console.error("Erro ao ouvir notificações do sistema: ", error);
+                    });
+                    App.state.unsubscribeListeners.push(unsubscribeNotifications);
+                }
+
 
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
@@ -8082,7 +8114,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['boolean', ['feature-state', 'risk'], false], 0.5,
                                 ['boolean', ['feature-state', 'selected'], false], 0.85,
                                 ['boolean', ['feature-state', 'hover'], false], 0.60,
-                                0.0
+                                0.2
                             ]
                         }
                     });
@@ -8209,16 +8241,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     ${riskInfoHTML}
                     <div class="info-item">
-                        <span class="label">Fundo Agrícola</span>
-                        <span class="value">${fundoAgricola}</span>
+                        <span class="label">Fundo Agrícola / Talhão</span>
+                        <span class="value">${fundoAgricola} / ${talhaoNome}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">Fazenda</span>
                         <span class="value">${fazendaNome}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Talhão</span>
-                        <span class="value">${talhaoNome}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">Variedade</span>
@@ -8229,18 +8257,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="value">${(typeof areaHa === 'number' ? areaHa : 0).toFixed(2).replace('.',',')} ha</span>
                     </div>
                     <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
-                        <button class="btn-download-map save" style="width: 100%;">
-                            <i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline
+                        <button class="btn-download-shapefile save" style="width: 100%;">
+                            <i class="fas fa-file-archive"></i> Baixar Shapefile do Talhão
                         </button>
-                    </div>
-                    <div class="download-progress-container" style="display: none; padding: 0 20px 20px 20px;">
-                        <p class="download-progress-text" style="margin-bottom: 5px; font-size: 14px; color: var(--color-text-light);"></p>
-                        <progress class="download-progress-bar" value="0" max="100" style="width: 100%;"></progress>
                     </div>
                 `;
 
-                contentEl.querySelector('.btn-download-map').addEventListener('click', () => {
-                    this.startOfflineMapDownload(feature);
+                contentEl.querySelector('.btn-download-shapefile').addEventListener('click', () => {
+                    this.downloadTalhaoAsShapefile(feature);
                 });
                 
                 this.hideTrapInfo();
@@ -8255,6 +8279,39 @@ document.addEventListener('DOMContentLoaded', () => {
             startOfflineMapDownload(feature) { ... },
             async downloadTiles(urls) { ... },
             */
+
+            downloadTalhaoAsShapefile(feature) {
+                if (typeof shpwrite === 'undefined') {
+                    App.ui.showAlert("A biblioteca de exportação de Shapefile não está carregada.", "error");
+                    return;
+                }
+
+                const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
+                const talhaoNome = this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                const filename = `Talhao_${fundoAgricola}_${talhaoNome}`;
+
+                const geojson = {
+                    type: 'FeatureCollection',
+                    features: [feature]
+                };
+
+                const options = {
+                    folder: filename,
+                    types: {
+                        point: `${filename}_points`,
+                        polygon: `${filename}_polygons`,
+                        line: `${filename}_lines`
+                    }
+                };
+
+                try {
+                    shpwrite.download(geojson, options);
+                    App.ui.showAlert("A transferir o Shapefile do talhão...", "success");
+                } catch (error) {
+                    console.error("Erro ao gerar o Shapefile:", error);
+                    App.ui.showAlert("Não foi possível gerar o Shapefile.", "error");
+                }
+            },
 
             hideTalhaoInfo() {
                 if (App.state.selectedMapFeature) {
@@ -11130,7 +11187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.addEventListener('offline', () => {
-        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        App.ui.showSystemNotification("Offline", "Conexão perdida. A operar em modo offline.", "warning");
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
             App.state.connectionCheckInterval = null;
