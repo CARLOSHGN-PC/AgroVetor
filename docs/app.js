@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 6 for the new offline-credentials store
-            this.dbPromise = openDB('agrovetor-offline-storage', 6, {
+            // Version 7 for the new offline-map-tiles store
+            this.dbPromise = openDB('agrovetor-offline-storage', 7, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -72,6 +72,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (oldVersion < 6) {
                         db.createObjectStore('offline-credentials', { keyPath: 'email' });
+                    }
+                    if (oldVersion < 7) {
+                        db.createObjectStore('offline-map-tiles');
                     }
                 },
             });
@@ -158,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ],
             roles: {
                 admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
@@ -899,6 +902,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             App.state.currentUser = { ...user, ...userDoc };
 
+                            // Garante que o super-admin não está preso a uma companyId.
+                            if (App.state.currentUser.role === 'super-admin') {
+                                delete App.state.currentUser.companyId;
+                            }
+
                             // Validação CRÍTICA para o modelo multi-empresa
                             if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
                                 App.auth.logout();
@@ -1278,29 +1286,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
 
                 if (isSuperAdmin) {
-                    // Super Admin ouve TODOS os dados de todas as coleções relevantes
-                    companyScopedCollections.forEach(collectionName => {
-                        const q = collection(db, collectionName); // Sem filtro 'where'
-                        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                            const data = [];
-                            querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
-                            App.state[collectionName] = data;
-                            App.ui.renderSpecificContent(collectionName);
-                        }, (error) => {
-                            console.error(`Erro ao ouvir a coleção ${collectionName} como Super Admin: `, error);
-                        });
-                        App.state.unsubscribeListeners.push(unsubscribe);
-                    });
-
-                    // Super Admin também ouve a coleção de empresas
+                    // Super Admin agora ouve APENAS a coleção de empresas e as configurações globais.
+                    // Todos os outros dados serão carregados sob demanda ao "personificar" uma empresa.
                     const qCompanies = collection(db, 'companies');
                     const unsubscribeCompanies = onSnapshot(qCompanies, (querySnapshot) => {
                         const data = [];
                         querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
                         App.state['companies'] = data;
-                        App.ui.renderSpecificContent('companies');
+                        App.ui.renderSpecificContent('companies'); // Renderiza a lista de empresas
                     }, (error) => console.error(`Erro ao ouvir a coleção companies: `, error));
                     App.state.unsubscribeListeners.push(unsubscribeCompanies);
+
+                    // Limpa dados de outras coleções para garantir um estado limpo
+                    companyScopedCollections.forEach(collectionName => {
+                        App.state[collectionName] = [];
+                        App.ui.renderSpecificContent(collectionName);
+                    });
 
                     App.state.companyLogo = null;
                     App.ui.renderLogoPreview();
@@ -1369,8 +1370,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.renderLogoPreview();
                     });
                     App.state.unsubscribeListeners.push(unsubscribeConfig);
-                } else {
+                } else if (!isSuperAdmin) { // Adicionado para não exibir erro para Super Admin
                     console.error("Utilizador não é Super Admin e não tem companyId. Carregamento de dados bloqueado.");
+                }
+
+                // Listener para notificações do Firestore para o utilizador atual (ex: novas features)
+                const userId = App.state.currentUser.uid;
+                if (userId) {
+                    const qNotifications = query(
+                        collection(db, 'notifications'),
+                        where("userId", "==", userId),
+                        where("read", "==", false)
+                    );
+                    const unsubscribeNotifications = onSnapshot(qNotifications, (snapshot) => {
+                        snapshot.docChanges().forEach(async (change) => {
+                            if (change.type === "added") {
+                                const notification = change.doc.data();
+                                App.ui.showSystemNotification(notification.title, notification.message, notification.type);
+                                // Marca a notificação como lida no servidor para não ser exibida novamente
+                                await App.data.updateDocument('notifications', change.doc.id, { read: true });
+                            }
+                        });
+                    }, (error) => {
+                        console.error("Erro ao ouvir notificações do servidor: ", error);
+                    });
+                    App.state.unsubscribeListeners.push(unsubscribeNotifications);
                 }
             },
             async getDocument(collectionName, docId, options) {
@@ -1950,35 +1974,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     notifications.forEach(notif => {
                         const item = document.createElement('div');
+                        // A classe 'notification-item' provavelmente já tem 'display: flex'
                         item.className = `notification-item ${notif.type}`;
                         const timeAgo = this.timeSince(notif.timestamp);
 
-                        let iconClass = 'fa-info-circle'; // Default icon
+                        let iconClass = 'fa-info-circle';
+                        let iconColor = 'var(--color-info)';
                         const lowerCaseTitle = (notif.title || '').toLowerCase();
 
                         if (notif.trapId) {
-                            item.dataset.trapId = notif.trapId; // For click handler
+                            item.dataset.trapId = notif.trapId;
                             iconClass = 'fa-bug';
-                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
-                            if (notif.type === 'danger') iconClass = 'fa-exclamation-circle';
+                            if (notif.type === 'warning') iconColor = 'var(--color-warning)';
+                            else if (notif.type === 'danger') iconColor = 'var(--color-danger)';
+                            else iconColor = '#8BC34A'; // Verde para status normal de armadilha
                         } else if (lowerCaseTitle.includes('sincroniza')) {
                             iconClass = 'fa-sync-alt';
                             if (notif.logId) {
-                                item.dataset.logId = notif.logId; // Adiciona o ID do log para o clique
+                                item.dataset.logId = notif.logId;
                             }
-                            if (notif.type === 'success') iconClass = 'fa-check-circle';
-                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
-                            if (notif.type === 'error') iconClass = 'fa-exclamation-circle';
+                            if (notif.type === 'success') { iconClass = 'fa-check-circle'; iconColor = 'var(--color-success)'; }
+                            else if (notif.type === 'partial' || notif.type === 'warning') { iconClass = 'fa-exclamation-triangle'; iconColor = 'var(--color-warning)'; }
+                            else if (notif.type === 'failure' || notif.type === 'error' || notif.type === 'critical_error') { iconClass = 'fa-times-circle'; iconColor = 'var(--color-danger)'; }
+                            else { iconColor = 'var(--color-info)'; } // Para 'info'
+                        } else if (lowerCaseTitle.includes('nova funcionalidade')) {
+                            iconClass = 'fa-star';
+                            iconColor = 'var(--color-purple)';
+                        } else if (lowerCaseTitle.includes('conexão')) {
+                            iconClass = 'fa-wifi';
+                            if (notif.type === 'warning') { iconClass = 'fa-exclamation-triangle'; iconColor = 'var(--color-warning)'; }
+                            else { iconColor = 'var(--color-info)'; }
                         }
 
                         const itemTitle = notif.title || (notif.trapId ? 'Armadilha Requer Atenção' : 'Notificação do Sistema');
 
                         item.innerHTML = `
-                            <i class="fas ${iconClass}"></i>
+                            <div class="notification-icon" style="background-color: ${iconColor}22; color: ${iconColor}; min-width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-right: 15px;">
+                                <i class="fas ${iconClass}"></i>
+                            </div>
                             <div class="notification-item-content">
-                                <p><strong>${itemTitle}</strong></p>
-                                <p>${notif.message}</p>
-                                <div class="timestamp">${timeAgo}</div>
+                                <p style="font-weight: 600; margin: 0 0 4px 0; color: var(--color-text);">${itemTitle}</p>
+                                <p style="margin: 0; font-size: 14px; line-height: 1.4; color: var(--color-text-light);">${notif.message}</p>
+                                <div style="font-size: 12px; color: var(--color-text-light); margin-top: 5px;">${timeAgo}</div>
                             </div>
                         `;
                         list.appendChild(item);
@@ -7318,6 +7355,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.data.listenToAllData(); // This will now use the impersonated companyId
                 App.ui.renderMenu();
                 App.ui.showTab('dashboard');
+
+                // Garante que o estado de outras coleções seja limpo antes de personificar
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
+                companyScopedCollections.forEach(collectionName => {
+                    App.state[collectionName] = [];
+                });
+
+                // Reinicia os listeners para carregar os dados da empresa personificada
+                App.data.listenToAllData();
             },
 
             stopImpersonating() {
@@ -8082,7 +8128,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['boolean', ['feature-state', 'risk'], false], 0.5,
                                 ['boolean', ['feature-state', 'selected'], false], 0.85,
                                 ['boolean', ['feature-state', 'hover'], false], 0.60,
-                                0.0
+                                0.2 // Visibilidade base para todos os talhões
                             ]
                         }
                     });
@@ -8209,16 +8255,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     ${riskInfoHTML}
                     <div class="info-item">
-                        <span class="label">Fundo Agrícola</span>
-                        <span class="value">${fundoAgricola}</span>
+                        <span class="label">Fundo Agrícola / Talhão</span>
+                        <span class="value">${fundoAgricola} / ${talhaoNome}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">Fazenda</span>
                         <span class="value">${fazendaNome}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Talhão</span>
-                        <span class="value">${talhaoNome}</span>
                     </div>
                     <div class="info-item">
                         <span class="label">Variedade</span>
@@ -8247,14 +8289,108 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
 
-            // The offline map download feature is complex and relies on a specific Google Maps tile URL structure.
-            // Replicating this for Mapbox is non-trivial. Commenting out for now to focus on the core migration.
-            // A proper implementation would use Mapbox's own offline capabilities if needed.
-            /*
-            tileMath: { ... },
-            startOfflineMapDownload(feature) { ... },
-            async downloadTiles(urls) { ... },
-            */
+            tileMath: {
+                long2tile(lon, zoom) { return (Math.floor((lon + 180) / 360 * Math.pow(2, zoom))); },
+                lat2tile(lat, zoom) { return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))); },
+                tile2long(x, z) { return (x / Math.pow(2, z) * 360 - 180); },
+                tile2lat(y, z) {
+                    var n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+                    return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+                }
+            },
+
+            _getTileUrls(bbox, minZoom, maxZoom) {
+                const urls = [];
+                for (let z = minZoom; z <= maxZoom; z++) {
+                    const minX = this.tileMath.long2tile(bbox[0], z);
+                    const maxX = this.tileMath.long2tile(bbox[2], z);
+                    const minY = this.tileMath.lat2tile(bbox[3], z);
+                    const maxY = this.tileMath.lat2tile(bbox[1], z);
+
+                    for (let x = minX; x <= maxX; x++) {
+                        for (let y = minY; y <= maxY; y++) {
+                            // Mapbox Satellite tiles URL format
+                            const url = `https://api.mapbox.com/v4/mapbox.satellite/${z}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
+                            urls.push({ z, x, y, url });
+                        }
+                    }
+                }
+                return urls;
+            },
+
+            async startOfflineMapDownload(feature) {
+                const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
+                if (!fundoAgricola) {
+                    App.ui.showAlert("Não foi possível identificar o Fundo Agrícola para o download.", "error");
+                    return;
+                }
+
+                const bbox = turf.bbox(feature);
+                const minZoom = 13;
+                const maxZoom = 17; // Nível de zoom mais detalhado
+                const tileUrls = this._getTileUrls(bbox, minZoom, maxZoom);
+
+                if (tileUrls.length > 2000) { // Limite de segurança
+                    App.ui.showAlert(`A área é muito grande (${tileUrls.length} tiles). Selecione uma área menor ou contate o suporte.`, "error");
+                    return;
+                }
+
+                const confirmationMessage = `Você está prestes a baixar aproximadamente ${tileUrls.length} imagens do mapa para a fazenda ${fundoAgricola}. Isso pode usar uma quantidade significativa de dados e espaço de armazenamento. Deseja continuar?`;
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    await this.downloadTiles(tileUrls, fundoAgricola);
+                });
+            },
+
+            async downloadTiles(urls, farmId) {
+                const progressContainer = document.querySelector('.download-progress-container');
+                const progressBar = progressContainer.querySelector('.download-progress-bar');
+                const progressText = progressContainer.querySelector('.download-progress-text');
+                const downloadButton = document.querySelector('.btn-download-map');
+
+                downloadButton.style.display = 'none';
+                progressContainer.style.display = 'block';
+
+                let downloadedCount = 0;
+                let failedCount = 0;
+
+                const db = await OfflineDB.dbPromise;
+                const tx = db.transaction('offline-map-tiles', 'readwrite');
+                const store = tx.objectStore('offline-map-tiles');
+
+                for (const tile of urls) {
+                    try {
+                        const response = await fetch(tile.url);
+                        if (!response.ok) throw new Error(`Falha ao baixar: ${response.statusText}`);
+                        const blob = await response.blob();
+
+                        // A chave inclui o ID da fazenda para que possamos limpar os dados por fazenda se necessário
+                        const key = `${farmId}-${tile.z}-${tile.x}-${tile.y}`;
+                        await store.put(blob, key);
+
+                        downloadedCount++;
+                    } catch (error) {
+                        failedCount++;
+                        console.warn(`Falha ao baixar o tile ${tile.z}/${tile.x}/${tile.y}:`, error);
+                    }
+
+                    const progress = ((downloadedCount + failedCount) / urls.length) * 100;
+                    progressBar.value = progress;
+                    progressText.textContent = `A baixar... ${downloadedCount} de ${urls.length} (falhas: ${failedCount})`;
+                }
+
+                await tx.done;
+
+                if (failedCount > 0) {
+                    App.ui.showAlert(`Download concluído com ${failedCount} falhas. O mapa offline pode estar incompleto.`, "warning", 5000);
+                } else {
+                    App.ui.showAlert(`Mapa da fazenda ${farmId} baixado com sucesso!`, "success");
+                }
+
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    downloadButton.style.display = 'block';
+                }, 4000);
+            },
 
             hideTalhaoInfo() {
                 if (App.state.selectedMapFeature) {

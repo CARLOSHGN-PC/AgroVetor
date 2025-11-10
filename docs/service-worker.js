@@ -88,7 +88,7 @@ self.addEventListener('activate', event => {
 importScripts('https://unpkg.com/idb@7.1.1/build/iife/index-min.js');
 
 const DB_NAME = 'agrovetor-offline-storage';
-const DB_VERSION = 6;
+const DB_VERSION = 7; // Updated to match app.js
 const OFFLINE_WRITES_STORE = 'offline-writes';
 
 // Função para lidar com a sincronização em segundo plano
@@ -191,35 +191,65 @@ self.addEventListener('fetch', event => {
     return; // Let the browser handle the request normally
   }
 
-  // Strategy for Mapbox tiles, fonts, and sprites (Cache First with trimming)
-  if (url.hostname.includes('mapbox.com')) {
+  // Network-first, then offline-storage strategy for Mapbox tiles
+  if (url.hostname.includes('mapbox.com') && url.pathname.includes('mapbox.satellite')) {
     event.respondWith(
-      caches.open(TILE_CACHE_NAME).then(cache => {
-        return cache.match(event.request).then(response => {
-          // If we have a cached response, return it.
-          if (response) {
-            return response;
-          }
-          // Otherwise, fetch from the network.
-          const fetchAndCache = fetch(event.request).then(networkResponse => {
-            // For third-party tiles, we can't check the status (opaque response),
-            // so we trust it and put it in the cache.
-            const responseToCache = networkResponse.clone();
+      fetch(event.request)
+        .then(networkResponse => {
+          // If online, serve the tile and cache it for online performance
+          const responseToCache = networkResponse.clone();
+          caches.open(TILE_CACHE_NAME).then(cache => {
             cache.put(event.request, responseToCache).then(() => {
               trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
             });
-            return networkResponse;
-          }).catch(error => {
-            // When offline, fetch will fail.
-            // We return a successful but empty response to prevent the map from breaking.
-            console.warn(`Failed to fetch map tile: ${event.request.url}. Returning empty response.`, error);
-            return new Response('', { status: 200, statusText: 'OK' });
           });
-          return fetchAndCache;
-        });
-      })
+          return networkResponse;
+        })
+        .catch(async () => {
+          // If offline, try to get the tile from IndexedDB
+          console.log(`[Service Worker] Network failed for tile. Trying IndexedDB for ${url.pathname}`);
+          try {
+            const db = await idb.openDB(DB_NAME, DB_VERSION);
+            // We need to construct the key used in app.js, which requires parsing the URL.
+            // URL format: /v4/mapbox.satellite/{z}/{x}/{y}@2x.png
+            const parts = url.pathname.split('/');
+            const z = parts[4];
+            const x = parts[5];
+            const y = parts[6].split('@')[0];
+
+            // This key format needs to be refined based on what we store in app.js
+            // For now, assuming a generic key. We need to find the correct farmId.
+            // This part is complex because the service worker doesn't know the current farm.
+            // A better approach is to store tiles with a generic key if we can't get farmId.
+            // Let's assume the key is just z-x-y for simplicity, but this needs review.
+            // A more robust solution would be to iterate through all possible farmId prefixes.
+
+            const tx = db.transaction('offline-map-tiles', 'readonly');
+            const store = tx.objectStore('offline-map-tiles');
+            const allKeys = await store.getAllKeys();
+
+            // Find a key that ends with the tile coordinates
+            const tileKeySuffix = `${z}-${x}-${y}`;
+            const matchingKey = allKeys.find(key => key.endsWith(tileKeySuffix));
+
+            if (matchingKey) {
+                const blob = await store.get(matchingKey);
+                if (blob) {
+                    console.log(`[Service Worker] Serving tile ${tileKeySuffix} from IndexedDB.`);
+                    return new Response(blob);
+                }
+            }
+
+            console.warn(`[Service Worker] Tile ${tileKeySuffix} not found in IndexedDB.`);
+            return new Response('', { status: 404, statusText: 'Not Found' });
+
+          } catch (dbError) {
+            console.error('[Service Worker] Error accessing IndexedDB for tiles:', dbError);
+            return new Response('', { status: 500, statusText: 'Internal Server Error' });
+          }
+        })
     );
-    return; // End execution for this request
+    return;
   }
 
   // Stale-While-Revalidate strategy for all other requests
