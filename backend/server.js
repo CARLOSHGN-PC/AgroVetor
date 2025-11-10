@@ -26,38 +26,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 
-const authMiddleware = async (req, res, next) => {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(403).send({ message: 'Acesso não autorizado.' });
-    }
-
-    const idToken = authHeader.split('Bearer ')[1];
-    try {
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        req.user = decodedToken;
-        next();
-    } catch (error) {
-        console.error('Erro ao verificar o token de autenticação:', error);
-        return res.status(403).send({ message: 'Token inválido ou expirado.' });
-    }
-};
-
-const superAdminOnly = async (req, res, next) => {
-    try {
-        const userDoc = await db.collection('users').doc(req.user.uid).get();
-        if (userDoc.exists && userDoc.data().role === 'super-admin') {
-            next();
-        } else {
-            return res.status(403).send({ message: 'Acesso restrito a super administradores.' });
-        }
-    } catch(error) {
-        console.error('Erro ao verificar a função do utilizador:', error);
-        return res.status(500).send({ message: 'Erro ao verificar permissões.' });
-    }
-}
-
 try {
     if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
         throw new Error('A variável de ambiente FIREBASE_SERVICE_ACCOUNT_JSON não está definida.');
@@ -332,99 +300,6 @@ try {
             reject(err);
         }
     }
-
-    app.post('/api/notify-new-features', authMiddleware, superAdminOnly, async (req, res) => {
-        const { newlyEnabledFeatures, featureLabels } = req.body;
-
-        if (!Array.isArray(newlyEnabledFeatures) || newlyEnabledFeatures.length === 0) {
-            return res.status(400).json({ message: "A lista de 'newlyEnabledFeatures' é obrigatória." });
-        }
-         if (!featureLabels || typeof featureLabels !== 'object') {
-            return res.status(400).json({ message: "O objeto 'featureLabels' é obrigatório." });
-        }
-
-        try {
-            const chunkArray = (array, size) => {
-                const chunks = [];
-                for (let i = 0; i < array.length; i += size) {
-                    chunks.push(array.slice(i, i + size));
-                }
-                return chunks;
-            };
-
-            const featureChunks = chunkArray(newlyEnabledFeatures, 30);
-            const queryPromises = featureChunks.map(chunk =>
-                db.collection('companies').where('subscribedModules', 'array-contains-any', chunk).get()
-            );
-
-            const allSnapshots = await Promise.all(queryPromises);
-
-            const companyMap = new Map();
-            allSnapshots.forEach(snapshot => {
-                snapshot.docs.forEach(doc => {
-                    if (!companyMap.has(doc.id)) {
-                        companyMap.set(doc.id, { id: doc.id, ...doc.data() });
-                    }
-                });
-            });
-            const relevantCompanies = Array.from(companyMap.values());
-
-            if (relevantCompanies.length === 0) {
-                return res.status(200).json({ message: "Nenhuma empresa encontrada que subscreve aos módulos recém-ativados." });
-            }
-
-            const batch = db.batch();
-            let notificationCount = 0;
-            const companyAdminPromises = [];
-
-            relevantCompanies.forEach(company => {
-                const adminsQuery = db.collection('users')
-                    .where('companyId', '==', company.id)
-                    .where('role', 'in', ['admin', 'supervisor'])
-                    .get();
-                companyAdminPromises.push(adminsQuery.then(adminsSnapshot => ({ company, adminsSnapshot })));
-            });
-
-            const companyAdminsResults = await Promise.all(companyAdminPromises);
-
-            companyAdminsResults.forEach(({ company, adminsSnapshot }) => {
-                if (adminsSnapshot.empty) return;
-
-                const newFeaturesForThisCompany = newlyEnabledFeatures.filter(feature =>
-                    (company.subscribedModules || []).includes(feature)
-                );
-
-                if (newFeaturesForThisCompany.length === 0) return;
-
-                const labels = newFeaturesForThisCompany.map(key => featureLabels[key] || key).join(', ');
-                const message = `Novas funcionalidades disponíveis: ${labels}. Visite a secção correspondente para explorar.`;
-
-                adminsSnapshot.forEach(adminDoc => {
-                    const notificationRef = db.collection('notifications').doc();
-                    batch.set(notificationRef, {
-                        userId: adminDoc.id,
-                        companyId: company.id,
-                        title: "Nova Funcionalidade Ativada!",
-                        message: message,
-                        type: 'info',
-                        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                        read: false
-                    });
-                    notificationCount++;
-                });
-            });
-
-            if (notificationCount > 0) {
-                await batch.commit();
-            }
-
-            res.status(200).json({ message: `${notificationCount} notificações enviadas para administradores e supervisores.` });
-
-        } catch (error) {
-            console.error("Erro ao notificar administradores sobre novas features:", error);
-            res.status(500).json({ message: 'Ocorreu um erro ao tentar notificar os administradores.' });
-        }
-    });
 
     app.post('/api/delete/historical-data', async (req, res) => {
         const { companyId } = req.body;
