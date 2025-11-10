@@ -725,6 +725,191 @@ try {
         return data.sort((a, b) => new Date(a.date) - new Date(b.date));
     };
 
+    const getBoletimPlantioData = async (filters) => {
+        // 1. Obter todos os apontamentos de plantio dentro do intervalo de datas completo
+        const allPlantingData = await getPlantioData(filters);
+
+        // 2. Obter todos os dados das fazendas para calcular a área total
+        const farmsSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
+        const farmsData = {}; // Mapa de farmCode -> objeto da fazenda
+        const farmCodeToName = {};
+        farmsSnapshot.forEach(doc => {
+            const farm = doc.data();
+            farmsData[farm.code] = farm;
+            farmCodeToName[farm.code] = farm.name;
+        });
+
+        // 3. Processar os dados
+        const endDate = new Date(filters.fim + 'T03:00:00Z');
+        const prevDate = new Date(endDate);
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateStr = prevDate.toISOString().split('T')[0];
+        const endDateStr = filters.fim;
+
+        const aggregatedData = {}; // { frenteName: { farms: { farmKey: { ...data } } } }
+
+        allPlantingData.forEach(apontamento => {
+            const frenteName = apontamento.frenteDePlantioName || 'Sem Frente';
+            const farmCode = apontamento.farmCode;
+            // Pula registros que não têm um farmCode, pois não podem ser agregados corretamente
+            if (!farmCode) return;
+
+            const farmName = farmCodeToName[farmCode] || 'Fazenda Desconhecida';
+            const culture = apontamento.culture || 'N/A';
+            const key = `${farmCode} - ${farmName}`;
+
+            if (!aggregatedData[frenteName]) {
+                aggregatedData[frenteName] = { farms: {} };
+            }
+            if (!aggregatedData[frenteName].farms[key]) {
+                const farmDetails = farmsData[farmCode];
+                const totalAreaFarm = farmDetails?.talhoes?.reduce((sum, talhao) => sum + (talhao.area || 0), 0) || 0;
+
+                aggregatedData[frenteName].farms[key] = {
+                    farmCode: farmCode,
+                    farmName: farmName,
+                    culture: culture,
+                    diaAnterior: 0,
+                    diaAtual: 0,
+                    acumulado: 0,
+                    areaTotal: totalAreaFarm,
+                };
+            }
+
+            const farmGroup = aggregatedData[frenteName].farms[key];
+
+            // 'acumulado' é a soma de tudo dentro do período de filtro (já feito pelo getPlantioData)
+            farmGroup.acumulado += apontamento.totalArea;
+
+            // Soma 'diaAtual'
+            if (apontamento.date === endDateStr) {
+                farmGroup.diaAtual += apontamento.totalArea;
+            }
+
+            // Soma 'diaAnterior'
+            if (apontamento.date === prevDateStr) {
+                farmGroup.diaAnterior += apontamento.totalArea;
+            }
+        });
+
+        // 4. Cálculos finais e ordenação
+        for (const frenteName in aggregatedData) {
+            for (const farmKey in aggregatedData[frenteName].farms) {
+                const farm = aggregatedData[frenteName].farms[farmKey];
+                farm.percentual = farm.areaTotal > 0 ? (farm.acumulado / farm.areaTotal) * 100 : 0;
+                farm.saldo = farm.areaTotal - farm.acumulado;
+            }
+        }
+
+        return aggregatedData;
+    };
+
+    app.get('/reports/plantio/boletim-diario/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=boletim_diario_plantio.pdf');
+        doc.pipe(res);
+
+        try {
+            const filters = req.query;
+            const data = await getBoletimPlantioData(filters);
+            const title = 'Boletim Diário Agrícola - Plantio';
+
+            let currentY = await generatePdfHeader(doc, title, filters.companyId);
+
+            if (Object.keys(data).length === 0) {
+                doc.text('Nenhum dado encontrado para os filtros selecionados.');
+                generatePdfFooter(doc, filters.generatedBy);
+                doc.end();
+                return;
+            }
+
+            const headers = ['FRENTE', 'FAZENDA', 'CULTURA', 'DIA ANT.', 'DIA ATUAL', 'ACUMULADO', 'ÁREA TOTAL', '%', 'SALDO'];
+            const columnWidths = [80, 160, 80, 60, 60, 80, 80, 50, 80];
+
+            currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+
+            const grandTotals = { diaAnterior: 0, diaAtual: 0, acumulado: 0, areaTotal: 0 };
+
+            const sortedFrentes = Object.keys(data).sort();
+
+            for (const frenteName of sortedFrentes) {
+                const frenteData = data[frenteName];
+                const subTotals = { diaAnterior: 0, diaAtual: 0, acumulado: 0, areaTotal: 0 };
+
+                const sortedFarms = Object.keys(frenteData.farms).sort();
+
+                for (const farmKey of sortedFarms) {
+                    const farm = frenteData.farms[farmKey];
+                    const row = [
+                        frenteName,
+                        farm.farmName,
+                        farm.culture,
+                        formatNumber(farm.diaAnterior),
+                        formatNumber(farm.diaAtual),
+                        formatNumber(farm.acumulado),
+                        formatNumber(farm.areaTotal),
+                        `${formatNumber(farm.percentual)}%`,
+                        formatNumber(farm.saldo),
+                    ];
+                    currentY = await checkPageBreak(doc, currentY, title, 40);
+                    currentY = drawRow(doc, row, currentY, false, false, columnWidths);
+
+                    subTotals.diaAnterior += farm.diaAnterior;
+                    subTotals.diaAtual += farm.diaAtual;
+                    subTotals.acumulado += farm.acumulado;
+                    subTotals.areaTotal += farm.areaTotal;
+                }
+
+                // Subtotal da Frente
+                const subTotalPercent = subTotals.areaTotal > 0 ? (subTotals.acumulado / subTotals.areaTotal) * 100 : 0;
+                const subTotalSaldo = subTotals.areaTotal - subTotals.acumulado;
+                const subtotalRow = [
+                    'SUB TOTAL', '', '',
+                    formatNumber(subTotals.diaAnterior),
+                    formatNumber(subTotals.diaAtual),
+                    formatNumber(subTotals.acumulado),
+                    formatNumber(subTotals.areaTotal),
+                    `${formatNumber(subTotalPercent)}%`,
+                    formatNumber(subTotalSaldo),
+                ];
+                currentY = await checkPageBreak(doc, currentY, title, 40);
+                currentY = drawRow(doc, subtotalRow, currentY, false, true, columnWidths);
+                currentY += 10;
+
+                grandTotals.diaAnterior += subTotals.diaAnterior;
+                grandTotals.diaAtual += subTotals.diaAtual;
+                grandTotals.acumulado += subTotals.acumulado;
+                grandTotals.areaTotal += subTotals.areaTotal;
+            }
+
+            // Total Geral
+            const grandTotalPercent = grandTotals.areaTotal > 0 ? (grandTotals.acumulado / grandTotals.areaTotal) * 100 : 0;
+            const grandTotalSaldo = grandTotals.areaTotal - grandTotals.acumulado;
+            const totalRow = [
+                'TOTAL GERAL', '', '',
+                formatNumber(grandTotals.diaAnterior),
+                formatNumber(grandTotals.diaAtual),
+                formatNumber(grandTotals.acumulado),
+                formatNumber(grandTotals.areaTotal),
+                `${formatNumber(grandTotalPercent)}%`,
+                formatNumber(grandTotalSaldo),
+            ];
+            currentY = await checkPageBreak(doc, currentY, title, 40);
+            drawRow(doc, totalRow, currentY, false, true, columnWidths);
+
+            generatePdfFooter(doc, filters.generatedBy);
+            doc.end();
+        } catch (error) {
+            console.error("Erro ao gerar PDF do Boletim Diário de Plantio:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
     app.get('/reports/plantio/fazenda/pdf', async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
