@@ -214,7 +214,8 @@ document.addEventListener('DOMContentLoaded', () => {
             plantio: [], // Placeholder for Plantio data
             cigarrinha: [], // Placeholder for Cigarrinha data
             clima: [],
-                apontamentoPlantioFormIsDirty: false,
+            apontamentoPlantioFormIsDirty: false,
+            syncInterval: null,
         },
         
         elements: {
@@ -1057,6 +1058,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Limpa todos os listeners e processos em segundo plano
                 App.data.cleanupListeners();
                 App.actions.stopGpsTracking();
+                App.actions.stopAutoSync(); // Para a sincronização automática
                 App.charts.destroyAll(); // Destrói todas as instâncias de gráficos
 
                 // Limpa completamente o estado da aplicação para evitar "déjà vu"
@@ -1470,6 +1472,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
                 App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
                 App.actions.startGpsTracking(); // O rastreamento agora é manual
+                App.actions.startAutoSync(); // Inicia a sincronização automática
             },
             renderSpecificContent(collectionName) {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
@@ -6810,15 +6813,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showSystemNotification("Sincronização", `A enviar ${writesToSync.length} registos offline...`, 'info');
 
                     const successfulKeys = [];
+                    const unrecoverableKeys = [];
                     let successfulWrites = 0;
-                    let failedWrites = 0;
+                    let failedWrites = 0; // Erros recuperáveis (ex: rede)
+                    let discardedWrites = 0; // Erros irrecuperáveis (dados malformados)
 
                     // Etapa 2: Iterar sobre os dados em memória e tentar sincronizar
                     for (let i = 0; i < writesToSync.length; i++) {
                         const write = writesToSync[i];
                         const key = keysToSync[i];
                         try {
-                            // ADICIONADO: Verificação de segurança para o objeto de escrita
+                            // Verificação de segurança para o objeto de escrita
                             if (!write || typeof write !== 'object' || !write.collection || !write.data || !write.id) {
                                 throw new Error('Item de sincronização offline malformado ou inválido.');
                             }
@@ -6846,39 +6851,55 @@ document.addEventListener('DOMContentLoaded', () => {
                             successfulKeys.push(key);
 
                         } catch (error) {
-                            console.error(`Falha ao sincronizar o item:`, { write, error });
-                            // O log de falha agora é mais robusto
-                            logEntry.items.push({
-                                status: 'failure',
-                                collection: write?.collection || 'unknown', // Acesso seguro
-                                data: write?.data || write, // Loga o que tiver disponível
-                                error: error.message || 'Erro desconhecido'
-                            });
-                            failedWrites++;
+                            if (error.message === 'Item de sincronização offline malformado ou inválido.') {
+                                console.error('Item malformado encontrado e descartado:', { write, error });
+                                logEntry.items.push({
+                                    status: 'failure',
+                                    collection: 'malformed',
+                                    data: write || 'empty',
+                                    error: error.message
+                                });
+                                unrecoverableKeys.push(key); // Adiciona à lista de descarte
+                                discardedWrites++;
+                            } else {
+                                console.error(`Falha ao sincronizar o item (será tentado novamente):`, { write, error });
+                                logEntry.items.push({
+                                    status: 'failure',
+                                    collection: write?.collection || 'unknown',
+                                    data: write?.data || write,
+                                    error: error.message || 'Erro desconhecido'
+                                });
+                                failedWrites++; // Erro recuperável
+                            }
                         }
                     }
 
-                    // Etapa 3: Apagar todos os registos sincronizados com sucesso numa única transação
-                    if (successfulKeys.length > 0) {
+                    // Etapa 3: Apagar todos os registos sincronizados com sucesso E os irrecuperáveis
+                    const keysToDelete = [...successfulKeys, ...unrecoverableKeys];
+                    if (keysToDelete.length > 0) {
                         const deleteTx = db.transaction('offline-writes', 'readwrite');
-                        for (const key of successfulKeys) {
+                        for (const key of keysToDelete) {
                             deleteTx.store.delete(key);
                         }
                         await deleteTx.done;
-                        console.log(`${successfulKeys.length} registos offline foram apagados com sucesso.`);
+                        console.log(`${keysToDelete.length} registos offline (sincronizados ou corrompidos) foram apagados.`);
                     }
 
-                    // Etapa 4: Registar o resultado da sincronização
+                    // Etapa 4: Registar o resultado da sincronização com lógica melhorada
                     if (logEntry.items.length > 0) {
-                        if (failedWrites === 0) {
-                            logEntry.status = 'success';
-                            logEntry.details = `${successfulWrites} registos enviados com sucesso.`;
-                        } else if (successfulWrites > 0) {
-                            logEntry.status = 'partial';
-                            logEntry.details = `${successfulWrites} registos enviados. ${failedWrites} falharam e permanecerão offline.`;
+                        const parts = [];
+                        if (successfulWrites > 0) parts.push(`${successfulWrites} registos enviados com sucesso`);
+                        if (failedWrites > 0) parts.push(`${failedWrites} falharam e serão tentados novamente`);
+                        if (discardedWrites > 0) parts.push(`${discardedWrites} estavam corrompidos e foram descartados`);
+
+                        logEntry.details = parts.join('. ') + '.';
+
+                        if (failedWrites > 0) {
+                            logEntry.status = 'failure'; // Se algo falhou e precisa de nova tentativa, o status geral é de falha.
+                        } else if (discardedWrites > 0) {
+                            logEntry.status = 'partial'; // Se não há falhas de rede, mas algo foi descartado, é parcial.
                         } else {
-                            logEntry.status = 'failure';
-                            logEntry.details = `Não foi possível enviar ${failedWrites} registos. Eles permanecerão offline.`;
+                            logEntry.status = 'success';
                         }
 
                         const permanentLogEntry = { ...logEntry, timestamp: serverTimestamp() };
@@ -7581,6 +7602,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     App.ui.showAlert("Erro ao guardar as metas de plantio.", "error");
                     console.error("Error saving planting goals:", error);
+                }
+            },
+
+            startAutoSync() {
+                if (App.state.syncInterval) {
+                    console.log("A sincronização automática já está ativa.");
+                    return;
+                }
+                // Sincroniza a cada 1 hora
+                const umaHora = 60 * 60 * 1000;
+                App.state.syncInterval = setInterval(() => {
+                    if (navigator.onLine) {
+                        console.log("Sincronização automática em primeiro plano iniciada...");
+                        App.actions.syncOfflineWrites();
+                    } else {
+                        console.log("Sincronização automática ignorada (offline).");
+                    }
+                }, umaHora);
+                console.log("Sincronização automática em primeiro plano configurada para cada 1 hora.");
+            },
+
+            stopAutoSync() {
+                if (App.state.syncInterval) {
+                    clearInterval(App.state.syncInterval);
+                    App.state.syncInterval = null;
+                    console.log("Sincronização automática em primeiro plano parada.");
                 }
             },
 
@@ -11037,28 +11084,49 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         },
 
-        pwa: {
-            registerServiceWorker() {
-                if ('serviceWorker' in navigator) {
-                    window.addEventListener('load', () => {
-                        navigator.serviceWorker.register('./service-worker.js')
-                            .then(registration => {
-                                console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                            })
-                            .catch(error => {
-                                console.log('ServiceWorker registration failed: ', error);
-                            });
-                    });
+        pwa: {
+            registerServiceWorker() {
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', async () => {
+                        try {
+                            const registration = await navigator.serviceWorker.register('./service-worker.js');
+                            console.log('ServiceWorker registration successful with scope: ', registration.scope);
 
-                    window.addEventListener('beforeinstallprompt', (e) => {
-                        e.preventDefault();
-                        App.state.deferredInstallPrompt = e;
-                        App.elements.installAppBtn.style.display = 'flex';
-                        console.log(`'beforeinstallprompt' event was fired.`);
-                    });
-                }
-            }
-        }
+                            // ** NOVO: Lógica de Sincronização Periódica **
+                            if (registration && 'periodicSync' in registration) {
+                                const status = await navigator.permissions.query({
+                                    name: 'periodic-background-sync',
+                                });
+
+                                if (status.state === 'granted') {
+                                    // Tenta registrar a sincronização periódica
+                                    try {
+                                        await registration.periodicSync.register('sync-offline-writes', {
+                                            minInterval: 60 * 60 * 1000, // 1 hora
+                                        });
+                                        console.log("Sincronização periódica em segundo plano registrada.");
+                                    } catch (error) {
+                                        console.error("Falha ao registrar a sincronização periódica:", error);
+                                    }
+                                } else {
+                                    console.log("Permissão para sincronização periódica em segundo plano não concedida.");
+                                }
+                            }
+
+                        } catch (error) {
+                            console.log('ServiceWorker registration failed: ', error);
+                        }
+                    });
+
+                    window.addEventListener('beforeinstallprompt', (e) => {
+                        e.preventDefault();
+                        App.state.deferredInstallPrompt = e;
+                        App.elements.installAppBtn.style.display = 'flex';
+                        console.log(`'beforeinstallprompt' event was fired.`);
+                    });
+                }
+            }
+        }
     };
 
     window.addEventListener('offline', () => {

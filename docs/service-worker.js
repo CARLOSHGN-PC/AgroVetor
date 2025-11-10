@@ -84,6 +84,99 @@ self.addEventListener('activate', event => {
   );
 });
 
+// Importar a biblioteca IDB para uso no Service Worker
+importScripts('https://unpkg.com/idb@7.1.1/build/iife/index-min.js');
+
+const DB_NAME = 'agrovetor-offline-storage';
+const DB_VERSION = 6;
+const OFFLINE_WRITES_STORE = 'offline-writes';
+
+// Função para lidar com a sincronização em segundo plano
+async function doBackgroundSync() {
+    console.log('[Service Worker] Executando sincronização periódica em segundo plano...');
+    try {
+        const db = await idb.openDB(DB_NAME, DB_VERSION);
+        const writesToSync = await db.getAll(OFFLINE_WRITES_STORE);
+        const keysToSync = await db.getAllKeys(OFFLINE_WRITES_STORE);
+
+        if (writesToSync.length === 0) {
+            console.log('[Service Worker] Nenhum dado para sincronizar.');
+            return;
+        }
+
+        const successfulKeys = [];
+        const unrecoverableKeys = [];
+        let failedWrites = 0;
+
+        for (let i = 0; i < writesToSync.length; i++) {
+            const write = writesToSync[i];
+            const key = keysToSync[i];
+            try {
+                if (!write || typeof write !== 'object' || !write.collection || !write.data || !write.id) {
+                    throw new Error('Item de sincronização malformado.');
+                }
+
+                // A URL do backend precisa ser explícita aqui
+                const backendUrl = 'https://agrovetor-backend.onrender.com';
+                let endpoint = '';
+                let method = 'POST'; // Assumimos POST por padrão
+
+                // Lógica simples para determinar o endpoint. Pode precisar ser mais robusta.
+                if (write.type === 'update' && write.docId) {
+                    endpoint = `/api/update/${write.collection}/${write.docId}`;
+                    method = 'PUT';
+                } else {
+                    endpoint = `/api/save/${write.collection}/${write.id}`;
+                }
+
+                const response = await fetch(backendUrl + endpoint, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(write.data)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Falha na API: ${response.status} ${errorText}`);
+                }
+
+                successfulKeys.push(key);
+
+            } catch (error) {
+                if (error.message.includes('malformado')) {
+                    unrecoverableKeys.push(key); // Marcar para descarte
+                } else {
+                    failedWrites++; // Erro de rede, será tentado novamente
+                }
+                console.error(`[Service Worker] Falha ao sincronizar item:`, { write, error: error.message });
+            }
+        }
+
+        const keysToDelete = [...successfulKeys, ...unrecoverableKeys];
+        if (keysToDelete.length > 0) {
+            const tx = db.transaction(OFFLINE_WRITES_STORE, 'readwrite');
+            for (const key of keysToDelete) {
+                tx.store.delete(key);
+            }
+            await tx.done;
+        }
+
+        console.log(`[Service Worker] Sincronização concluída. Sucesso: ${successfulKeys.length}, Falhas (rede): ${failedWrites}, Descartados: ${unrecoverableKeys.length}.`);
+
+    } catch (error) {
+        console.error('[Service Worker] Erro crítico durante a sincronização em segundo plano:', error);
+    }
+}
+
+
+// Listener para o evento de sincronização periódica
+self.addEventListener('periodicsync', (event) => {
+    if (event.tag === 'sync-offline-writes') {
+        event.waitUntil(doBackgroundSync());
+    }
+});
+
+
 // Fetch event: intercept requests
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
