@@ -191,34 +191,44 @@ self.addEventListener('fetch', event => {
     return; // Let the browser handle the request normally
   }
 
-  // Strategy for Mapbox tiles, fonts, and sprites (Cache First with trimming)
+  // Strategy for Mapbox resources (tiles, fonts, sprites)
   if (url.hostname.includes('mapbox.com')) {
-    event.respondWith(
-      caches.open(TILE_CACHE_NAME).then(cache => {
-        return cache.match(event.request).then(response => {
-          // If we have a cached response, return it.
-          if (response) {
-            return response;
+    event.respondWith((async () => {
+      // Custom strategy for satellite tiles: IndexedDB first, then network, then cache
+      if (url.hostname.includes('api.mapbox.com') && url.pathname.includes('mapbox.satellite')) {
+        try {
+          // 1. Try to get from IndexedDB (for pre-downloaded tiles)
+          const db = await idb.openDB('agrovetor-offline-storage', 6);
+          const tileBlob = await db.get('offline-map-tiles', event.request.url);
+          if (tileBlob) {
+            // console.log(`[SW] Serving tile from IndexedDB: ${event.request.url}`);
+            return new Response(tileBlob);
           }
-          // Otherwise, fetch from the network.
-          const fetchAndCache = fetch(event.request).then(networkResponse => {
-            // For third-party tiles, we can't check the status (opaque response),
-            // so we trust it and put it in the cache.
-            const responseToCache = networkResponse.clone();
-            cache.put(event.request, responseToCache).then(() => {
-              trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
-            });
-            return networkResponse;
-          }).catch(error => {
-            // When offline, fetch will fail.
-            // We return a successful but empty response to prevent the map from breaking.
-            console.warn(`Failed to fetch map tile: ${event.request.url}. Returning empty response.`, error);
-            return new Response('', { status: 200, statusText: 'OK' });
-          });
-          return fetchAndCache;
-        });
-      })
-    );
+        } catch (error) {
+          console.error(`[SW] Error accessing IndexedDB for tiles:`, error);
+        }
+      }
+
+      // General strategy for all other mapbox resources (or as fallback for tiles)
+      // Network first, then cache.
+      const cache = await caches.open(TILE_CACHE_NAME);
+      try {
+        const networkResponse = await fetch(event.request);
+        const responseToCache = networkResponse.clone();
+        await cache.put(event.request, responseToCache);
+        trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
+        return networkResponse;
+      } catch (error) {
+        // If network fails, try the cache
+        const cachedResponse = await cache.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        // If all else fails, return an empty response to prevent map breaking
+        console.warn(`[SW] Failed to fetch map resource from network & cache: ${event.request.url}.`);
+        return new Response('', { status: 200, statusText: 'OK' });
+      }
+    })());
     return; // End execution for this request
   }
 
