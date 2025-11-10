@@ -640,7 +640,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tipo: document.getElementById('tipoRelatorioPlantio'),
                 btnPDF: document.getElementById('btnPDFPlantio'),
                 btnExcel: document.getElementById('btnExcelPlantio'),
-                btnPDFBoletim: null, // Será criado dinamicamente
             },
                 lancamentoClima: {
                     form: document.getElementById('formLancamentoClima'),
@@ -1929,20 +1928,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio'].includes(id)) this.setDefaultDatesForEntryForms();
-
-                if (id === 'relatorioPlantio') {
-                    if (!App.elements.relatorioPlantio.btnPDFBoletim) {
-                        const btnContainer = App.elements.relatorioPlantio.btnPDF.parentElement;
-                        const newBtn = document.createElement('button');
-                        newBtn.id = 'btnPDFBoletimPlantio';
-                        newBtn.className = 'save';
-                        newBtn.innerHTML = '<i class="fas fa-file-pdf"></i> Gerar Boletim Diário (PDF)';
-                        newBtn.style.marginLeft = '10px';
-                        btnContainer.appendChild(newBtn);
-                        App.elements.relatorioPlantio.btnPDFBoletim = newBtn;
-                        newBtn.addEventListener('click', () => App.reports.generateBoletimPlantioPDF());
-                    }
-                }
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
@@ -11096,21 +11081,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     riskOnly: riskOnlyCheckbox ? riskOnlyCheckbox.checked : false
                 };
                 this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
-            },
-
-            generateBoletimPlantioPDF() {
-                const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
-                }
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                };
-                this._fetchAndDownloadReport('plantio/boletim-diario/pdf', filters, 'boletim_diario_plantio.pdf');
             },
         },
 
