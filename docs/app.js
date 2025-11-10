@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 6 for the new offline-credentials store
-            this.dbPromise = openDB('agrovetor-offline-storage', 6, {
+            // Version 7 for the new offline-map-tiles store
+            this.dbPromise = openDB('agrovetor-offline-storage', 7, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -72,6 +72,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (oldVersion < 6) {
                         db.createObjectStore('offline-credentials', { keyPath: 'email' });
+                    }
+                    if (oldVersion < 7) {
+                        db.createObjectStore('offline-map-tiles');
                     }
                 },
             });
@@ -898,6 +901,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             App.state.currentUser = { ...user, ...userDoc };
+
+                            // Garante que o super-admin não está ligado a nenhuma empresa no estado da aplicação
+                            if (App.state.currentUser.role === 'super-admin') {
+                                App.state.currentUser.companyId = null;
+                            }
 
                             // Validação CRÍTICA para o modelo multi-empresa
                             if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
@@ -1933,13 +1941,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.closeAllMenus();
             },
 
-            // ALTERAÇÃO PONTO 4: Nova função para atualizar o sino de notificação
             updateNotificationBell() {
                 const { list, count, noNotifications } = App.elements.notificationBell;
                 const notifications = App.state.trapNotifications;
                 const unreadCount = App.state.unreadNotificationCount;
 
-                list.innerHTML = ''; // Limpa a lista atual
+                list.innerHTML = '';
 
                 if (notifications.length === 0) {
                     noNotifications.style.display = 'flex';
@@ -1948,49 +1955,87 @@ document.addEventListener('DOMContentLoaded', () => {
                     noNotifications.style.display = 'none';
                     list.style.display = 'block';
 
-                    notifications.forEach(notif => {
-                        const item = document.createElement('div');
-                        item.className = `notification-item ${notif.type}`;
-                        const timeAgo = this.timeSince(notif.timestamp);
+                    // Agrupar notificações de sincronização
+                    const syncNotifications = notifications.filter(n => n.title && n.title.toLowerCase().includes('sincroniza'));
+                    const otherNotifications = notifications.filter(n => !n.title || !n.title.toLowerCase().includes('sincroniza'));
 
-                        let iconClass = 'fa-info-circle'; // Default icon
-                        const lowerCaseTitle = (notif.title || '').toLowerCase();
-
-                        if (notif.trapId) {
-                            item.dataset.trapId = notif.trapId; // For click handler
-                            iconClass = 'fa-bug';
-                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
-                            if (notif.type === 'danger') iconClass = 'fa-exclamation-circle';
-                        } else if (lowerCaseTitle.includes('sincroniza')) {
-                            iconClass = 'fa-sync-alt';
-                            if (notif.logId) {
-                                item.dataset.logId = notif.logId; // Adiciona o ID do log para o clique
-                            }
-                            if (notif.type === 'success') iconClass = 'fa-check-circle';
-                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
-                            if (notif.type === 'error') iconClass = 'fa-exclamation-circle';
-                        }
-
-                        const itemTitle = notif.title || (notif.trapId ? 'Armadilha Requer Atenção' : 'Notificação do Sistema');
-
-                        item.innerHTML = `
-                            <i class="fas ${iconClass}"></i>
-                            <div class="notification-item-content">
-                                <p><strong>${itemTitle}</strong></p>
-                                <p>${notif.message}</p>
-                                <div class="timestamp">${timeAgo}</div>
-                            </div>
-                        `;
-                        list.appendChild(item);
+                    // Renderizar outras notificações primeiro
+                    otherNotifications.forEach(notif => {
+                        const item = this._createNotificationItemHTML(notif);
+                        list.innerHTML += item;
                     });
+
+                    // Renderizar um item de resumo para sincronização, se houver
+                    if (syncNotifications.length > 0) {
+                        const latestSync = syncNotifications[0]; // A mais recente
+                        const successCount = syncNotifications.filter(n => n.type === 'success').length;
+                        const errorCount = syncNotifications.filter(n => n.type === 'error' || n.type === 'failure').length;
+
+                        let summaryMessage = `${syncNotifications.length} operações de sincronização recentes.`;
+                        if (successCount > 0) summaryMessage += ` ${successCount} com sucesso.`;
+                        if (errorCount > 0) summaryMessage += ` ${errorCount} com falha.`;
+
+                        const summaryNotif = {
+                            title: "Resumo da Sincronização",
+                            message: summaryMessage,
+                            type: errorCount > 0 ? 'error' : 'success',
+                            timestamp: latestSync.timestamp,
+                            logId: latestSync.logId // Link para o log mais recente
+                        };
+                        const summaryItem = this._createNotificationItemHTML(summaryNotif);
+                        list.innerHTML += summaryItem;
+                    }
                 }
 
                 if (unreadCount > 0) {
-                    count.textContent = unreadCount;
+                    count.textContent = unreadCount > 9 ? '9+' : unreadCount;
                     count.classList.add('visible');
                 } else {
                     count.classList.remove('visible');
                 }
+            },
+
+            _createNotificationItemHTML(notif) {
+                const timeAgo = this.timeSince(notif.timestamp);
+                let iconClass = 'fa-info-circle';
+                let iconColor = 'var(--color-info)';
+                const lowerCaseTitle = (notif.title || '').toLowerCase();
+
+                const typeMap = {
+                    'success': { icon: 'fa-check-circle', color: 'var(--color-success)' },
+                    'info': { icon: 'fa-info-circle', color: 'var(--color-info)' },
+                    'warning': { icon: 'fa-exclamation-triangle', color: 'var(--color-warning)' },
+                    'danger': { icon: 'fa-exclamation-circle', color: 'var(--color-danger)' },
+                    'error': { icon: 'fa-exclamation-circle', color: 'var(--color-danger)' }
+                };
+
+                if (typeMap[notif.type]) {
+                    iconClass = typeMap[notif.type].icon;
+                    iconColor = typeMap[notif.type].color;
+                }
+
+                // Ícones específicos por título
+                if (notif.trapId) iconClass = 'fa-bug';
+                if (lowerCaseTitle.includes('sincroniza')) iconClass = 'fa-sync-alt';
+                if (lowerCaseTitle.includes('nova funcionalidade')) iconClass = 'fa-star';
+
+
+                const dataAttributes = [];
+                if (notif.trapId) dataAttributes.push(`data-trap-id="${notif.trapId}"`);
+                if (notif.logId) dataAttributes.push(`data-log-id="${notif.logId}"`);
+
+                return `
+                    <div class="notification-item-new" ${dataAttributes.join(' ')}>
+                        <div class="notification-icon" style="background-color: ${iconColor}20; color: ${iconColor};">
+                            <i class="fas ${iconClass}"></i>
+                        </div>
+                        <div class="notification-content">
+                            <p class="notification-title">${notif.title}</p>
+                            <p class="notification-message">${notif.message}</p>
+                            <p class="notification-timestamp">${timeAgo}</p>
+                        </div>
+                    </div>
+                `;
             },
 
             timeSince(date) {
@@ -3591,6 +3636,33 @@ document.addEventListener('DOMContentLoaded', () => {
                         const email = document.getElementById('offlineEmail').value.trim();
                         const password = document.getElementById('offlinePassword').value;
                         App.auth.loginOffline(email, password);
+                    });
+                }
+
+                if (!map.getLayer('talhoes-labels')) {
+                    map.addLayer({
+                        id: 'talhoes-labels',
+                        type: 'symbol',
+                        source: sourceId,
+                        layout: {
+                            'text-field': [
+                                'format',
+                                ['upcase', ['get', 'FUNDO_AGR']],
+                                { 'font-scale': 1.0, 'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'] },
+                                '\n',
+                                {},
+                                ['upcase', ['coalesce', ['get', 'CD_TALHAO'], ['get', 'COD_TALHAO'], ['get', 'TALHAO']]],
+                                { 'font-scale': 0.8, 'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'] }
+                            ],
+                            'text-size': 14,
+                            'text-allow-overlap': false,
+                            'symbol-placement': 'point',
+                        },
+                        paint: {
+                            'text-color': '#FFFFFF',
+                            'text-halo-color': 'rgba(0,0,0,0.8)',
+                            'text-halo-width': 1.5
+                        }
                     });
                 }
 
@@ -6783,16 +6855,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.syncGpsLocations(); // Sync GPS data
                 console.log("Iniciando a verificação de dados offline...");
 
-                const logEntry = {
-                    userId: App.state.currentUser.uid,
-                    username: App.state.currentUser.username || App.state.currentUser.email,
-                    companyId: App.state.currentUser.companyId,
-                    timestamp: new Date(),
-                    status: '',
-                    details: '',
-                    items: []
-                };
-
                 try {
                     const db = await OfflineDB.dbPromise;
                     if (!db) {
@@ -6800,7 +6862,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    // Etapa 1: Ler todos os dados e chaves pendentes de uma só vez
                     const writesToSync = await db.getAll('offline-writes');
                     const keysToSync = await db.getAllKeys('offline-writes');
 
@@ -6812,30 +6873,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.ui.showSystemNotification("Sincronização", `A enviar ${writesToSync.length} registos offline...`, 'info');
 
+                    const logEntry = {
+                        userId: App.state.currentUser.uid,
+                        username: App.state.currentUser.username || App.state.currentUser.email,
+                        companyId: App.state.currentUser.companyId,
+                        timestamp: new Date(),
+                        status: '',
+                        details: '',
+                        items: []
+                    };
+
                     const successfulKeys = [];
                     const unrecoverableKeys = [];
                     let successfulWrites = 0;
-                    let failedWrites = 0; // Erros recuperáveis (ex: rede)
-                    let discardedWrites = 0; // Erros irrecuperáveis (dados malformados)
+                    let failedWrites = 0;
+                    let discardedWrites = 0;
 
-                    // Etapa 2: Iterar sobre os dados em memória e tentar sincronizar
                     for (let i = 0; i < writesToSync.length; i++) {
                         const write = writesToSync[i];
                         const key = keysToSync[i];
                         try {
-                            // Verificação de segurança para o objeto de escrita
                             if (!write || typeof write !== 'object' || !write.collection || !write.data || !write.id) {
                                 throw new Error('Item de sincronização offline malformado ou inválido.');
                             }
 
                             let dataToSync = write.data;
-                            // Handle trap installation date conversion
-                            if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
-                                dataToSync = { ...dataToSync, dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao)) };
-                            }
-                            // Handle trap collection date conversion
-                            if (write.collection === 'armadilhas' && typeof write.data.dataColeta === 'string') {
-                                dataToSync = { ...dataToSync, dataColeta: Timestamp.fromDate(new Date(write.data.dataColeta)) };
+                            if (write.collection === 'armadilhas') {
+                                if (typeof write.data.dataInstalacao === 'string') {
+                                    dataToSync = { ...dataToSync, dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao)) };
+                                }
+                                if (typeof write.data.dataColeta === 'string') {
+                                    dataToSync = { ...dataToSync, dataColeta: Timestamp.fromDate(new Date(write.data.dataColeta)) };
+                                }
                             }
 
                             if (write.type === 'update' && write.docId) {
@@ -6844,37 +6913,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                 await App.data.setDocument(write.collection, write.id, dataToSync);
                             }
 
-                            logEntry.items.push({
-                                status: 'success', collection: write.collection, data: write.data, error: null
-                            });
+                            logEntry.items.push({ status: 'success', collection: write.collection, data: write.data, error: null });
                             successfulWrites++;
                             successfulKeys.push(key);
 
                         } catch (error) {
                             if (error.message === 'Item de sincronização offline malformado ou inválido.') {
-                                console.error('Item malformado encontrado e descartado:', { write, error });
-                                logEntry.items.push({
-                                    status: 'failure',
-                                    collection: 'malformed',
-                                    data: write || 'empty',
-                                    error: error.message
-                                });
-                                unrecoverableKeys.push(key); // Adiciona à lista de descarte
+                                logEntry.items.push({ status: 'failure', collection: 'malformed', data: write || 'empty', error: error.message });
+                                unrecoverableKeys.push(key);
                                 discardedWrites++;
                             } else {
-                                console.error(`Falha ao sincronizar o item (será tentado novamente):`, { write, error });
-                                logEntry.items.push({
-                                    status: 'failure',
-                                    collection: write?.collection || 'unknown',
-                                    data: write?.data || write,
-                                    error: error.message || 'Erro desconhecido'
-                                });
-                                failedWrites++; // Erro recuperável
+                                logEntry.items.push({ status: 'failure', collection: write?.collection || 'unknown', data: write?.data || write, error: error.message || 'Erro desconhecido' });
+                                failedWrites++;
                             }
                         }
                     }
 
-                    // Etapa 3: Apagar todos os registos sincronizados com sucesso E os irrecuperáveis
                     const keysToDelete = [...successfulKeys, ...unrecoverableKeys];
                     if (keysToDelete.length > 0) {
                         const deleteTx = db.transaction('offline-writes', 'readwrite');
@@ -6882,29 +6936,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             deleteTx.store.delete(key);
                         }
                         await deleteTx.done;
-                        console.log(`${keysToDelete.length} registos offline (sincronizados ou corrompidos) foram apagados.`);
                     }
 
-                    // Etapa 4: Registar o resultado da sincronização com lógica melhorada
                     if (logEntry.items.length > 0) {
                         const parts = [];
                         if (successfulWrites > 0) parts.push(`${successfulWrites} registos enviados com sucesso`);
                         if (failedWrites > 0) parts.push(`${failedWrites} falharam e serão tentados novamente`);
                         if (discardedWrites > 0) parts.push(`${discardedWrites} estavam corrompidos e foram descartados`);
-
                         logEntry.details = parts.join('. ') + '.';
 
-                        if (failedWrites > 0) {
-                            logEntry.status = 'failure'; // Se algo falhou e precisa de nova tentativa, o status geral é de falha.
-                        } else if (discardedWrites > 0) {
-                            logEntry.status = 'partial'; // Se não há falhas de rede, mas algo foi descartado, é parcial.
-                        } else {
-                            logEntry.status = 'success';
-                        }
+                        if (failedWrites > 0) logEntry.status = 'failure';
+                        else if (discardedWrites > 0) logEntry.status = 'partial';
+                        else logEntry.status = 'success';
 
                         const permanentLogEntry = { ...logEntry, timestamp: serverTimestamp() };
                         const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
 
+                        // Notificação única com resumo
                         App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
                     }
 
@@ -7376,88 +7424,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                console.log("Features recém-ativadas:", newlyEnabledFeatures);
-
                 try {
-                    // 1. Lidar com a limitação de 10 elementos do Firestore para 'array-contains-any'
-                    const chunkArray = (array, size) => {
-                        const chunks = [];
-                        for (let i = 0; i < array.length; i += size) {
-                            chunks.push(array.slice(i, i + size));
-                        }
-                        return chunks;
-                    };
+                    const idToken = await auth.currentUser.getIdToken();
 
-                    const featureChunks = chunkArray(newlyEnabledFeatures, 10);
-                    const queryPromises = featureChunks.map(chunk => {
-                        const q = query(collection(db, 'companies'), where('subscribedModules', 'array-contains-any', chunk));
-                        return getDocs(q);
+                    const featureLabels = newlyEnabledFeatures.reduce((acc, key) => {
+                        const menuItem = App.config.menuConfig.flatMap(item => item.submenu || [item]).find(i => i.permission === key);
+                        acc[key] = menuItem ? menuItem.label : key;
+                        return acc;
+                    }, {});
+
+                    const response = await fetch(`${App.config.backendUrl}/api/notify-new-features`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${idToken}`
+                        },
+                        body: JSON.stringify({
+                            newlyEnabledFeatures,
+                            featureLabels
+                        })
                     });
 
-                    const allSnapshots = await Promise.all(queryPromises);
+                    const result = await response.json();
 
-                    // Consolidar e remover duplicatas
-                    const companyMap = new Map();
-                    allSnapshots.forEach(snapshot => {
-                        snapshot.docs.forEach(doc => {
-                            if (!companyMap.has(doc.id)) {
-                                companyMap.set(doc.id, { id: doc.id, ...doc.data() });
-                            }
-                        });
-                    });
-                    const relevantCompanies = Array.from(companyMap.values());
-
-
-                    if (relevantCompanies.length === 0) {
-                        console.log("Nenhuma empresa encontrada que subscreva aos módulos recém-ativados.");
-                        return;
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Erro no servidor ao enviar notificações.');
                     }
 
-                    const batch = writeBatch(db);
-                    let notificationCount = 0;
-
-                    // 2. Para cada empresa, encontrar os seus administradores
-                    for (const company of relevantCompanies) {
-                        const adminsQuery = query(collection(db, 'users'), where('companyId', '==', company.id), where('role', '==', 'admin'));
-                        const adminsSnapshot = await getDocs(adminsQuery);
-
-                        if (adminsSnapshot.empty) continue;
-
-                        // 3. Descobrir quais features são novas para esta empresa específica
-                        const newFeaturesForThisCompany = newlyEnabledFeatures.filter(feature =>
-                            (company.subscribedModules || []).includes(feature)
-                        );
-
-                        if (newFeaturesForThisCompany.length === 0) continue;
-
-                        const featureLabels = newFeaturesForThisCompany.map(key => {
-                            const menuItem = App.config.menuConfig.flatMap(item => item.submenu || [item]).find(i => i.permission === key);
-                            return menuItem ? menuItem.label : key;
-                        }).join(', ');
-
-                        const message = `Novas funcionalidades estão disponíveis para a sua empresa: ${featureLabels}. Visite a secção correspondente para explorar.`;
-
-                        // 4. Criar uma notificação para cada administrador
-                        adminsSnapshot.forEach(adminDoc => {
-                            const notificationRef = doc(collection(db, 'notifications')); // Cria uma nova notificação com ID automático
-                            batch.set(notificationRef, {
-                                userId: adminDoc.id,
-                                companyId: company.id,
-                                title: "Nova Funcionalidade Ativada!",
-                                message: message,
-                                type: 'info',
-                                timestamp: serverTimestamp(),
-                                read: false
-                            });
-                            notificationCount++;
-                        });
-                    }
-
-                    if (notificationCount > 0) {
-                        await batch.commit();
-                        console.log(`${notificationCount} notificações enviadas para administradores.`);
-                        App.ui.showAlert(`${notificationCount} administradores de empresas foram notificados sobre as novas funcionalidades.`, "info", 5000);
-                    }
+                    App.ui.showAlert(result.message, 'info', 5000);
 
                 } catch (error) {
                     console.error("Erro ao notificar administradores sobre novas features:", error);
@@ -8082,7 +8076,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['boolean', ['feature-state', 'risk'], false], 0.5,
                                 ['boolean', ['feature-state', 'selected'], false], 0.85,
                                 ['boolean', ['feature-state', 'hover'], false], 0.60,
-                                0.0
+                                0.2
                             ]
                         }
                     });
@@ -8247,14 +8241,91 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
 
-            // The offline map download feature is complex and relies on a specific Google Maps tile URL structure.
-            // Replicating this for Mapbox is non-trivial. Commenting out for now to focus on the core migration.
-            // A proper implementation would use Mapbox's own offline capabilities if needed.
-            /*
-            tileMath: { ... },
-            startOfflineMapDownload(feature) { ... },
-            async downloadTiles(urls) { ... },
-            */
+            tileMath: {
+                long2tile(lon, zoom) { return (Math.floor((lon + 180) / 360 * Math.pow(2, zoom))); },
+                lat2tile(lat, zoom) { return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))); },
+                tile2long(x, z) {
+                    const n = Math.PI - 2 * Math.PI * x / Math.pow(2, z);
+                    return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+                },
+                tile2lat(y, z) {
+                    const n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+                    return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+                }
+            },
+
+            startOfflineMapDownload(feature) {
+                const downloadButton = document.querySelector('.btn-download-map');
+                const progressContainer = document.querySelector('.download-progress-container');
+                const progressBar = document.querySelector('.download-progress-bar');
+                const progressText = document.querySelector('.download-progress-text');
+
+                if (downloadButton.disabled) return;
+
+                downloadButton.disabled = true;
+                downloadButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> A preparar...`;
+                progressContainer.style.display = 'block';
+                progressBar.value = 0;
+                progressText.textContent = 'A calcular área para download...';
+
+                const bbox = turf.bbox(feature);
+                const zoomLevels = [14, 15, 16, 17, 18];
+                const allTileUrls = [];
+                const accessToken = mapboxgl.accessToken;
+
+                zoomLevels.forEach(zoom => {
+                    const minTileX = this.tileMath.long2tile(bbox[0], zoom);
+                    const maxTileX = this.tileMath.long2tile(bbox[2], zoom);
+                    const minTileY = this.tileMath.lat2tile(bbox[3], zoom); // Note: lat uses bbox[3] for min Y
+                    const maxTileY = this.tileMath.lat2tile(bbox[1], zoom); // Note: lat uses bbox[1] for max Y
+
+                    for (let x = minTileX; x <= maxTileX; x++) {
+                        for (let y = minTileY; y <= maxTileY; y++) {
+                            const url = `https://api.mapbox.com/v4/mapbox.satellite/${zoom}/${x}/${y}@2x.png?access_token=${accessToken}`;
+                            allTileUrls.push({ url, zoom, x, y });
+                        }
+                    }
+                });
+
+                progressText.textContent = `A iniciar download de ${allTileUrls.length} imagens...`;
+                this.downloadTiles(allTileUrls, progressBar, progressText, downloadButton);
+            },
+
+            async downloadTiles(tileUrls, progressBar, progressText, downloadButton) {
+                let downloadedCount = 0;
+                const totalTiles = tileUrls.length;
+                progressBar.max = totalTiles;
+
+                const db = await openDB('agrovetor-offline-storage', 6); // Ensure DB is open
+
+                for (const tile of tileUrls) {
+                    try {
+                        const response = await fetch(tile.url);
+                        if (!response.ok) {
+                            console.warn(`Falha ao baixar o tile: ${tile.url}`);
+                            continue;
+                        }
+                        const blob = await response.blob();
+                        await db.put('offline-map-tiles', blob, tile.url);
+
+                        downloadedCount++;
+                        const percentage = (downloadedCount / totalTiles) * 100;
+                        progressBar.value = downloadedCount;
+                        progressText.textContent = `A baixar... ${downloadedCount} de ${totalTiles} (${percentage.toFixed(1)}%)`;
+
+                    } catch (error) {
+                        console.error(`Erro ao processar o tile ${tile.url}:`, error);
+                    }
+                }
+
+                progressText.textContent = 'Download concluído!';
+                downloadButton.innerHTML = `<i class="fas fa-check"></i> Mapa salvo offline!`;
+                setTimeout(() => {
+                    downloadButton.disabled = false;
+                    downloadButton.innerHTML = `<i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline`;
+                    document.querySelector('.download-progress-container').style.display = 'none';
+                }, 5000);
+            },
 
             hideTalhaoInfo() {
                 if (App.state.selectedMapFeature) {
