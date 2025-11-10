@@ -34,8 +34,6 @@ const urlsToCache = [
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
   'https://unpkg.com/shpjs@latest/dist/shp.js',
-  'https://unpkg.com/shp-write@0.3.2/shp-write.js',
-  'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
   'https://unpkg.com/idb@7.1.1/build/index.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
