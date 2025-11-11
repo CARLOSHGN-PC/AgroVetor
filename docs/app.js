@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Adiciona as definições de projeção para o Proj4js
     if (window.proj4) {
-        proj4.defs("EPSG:31983", "+proj=utm +zone=23 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+        proj4.defs("EPSG:4674", "+proj=longlat +ellps=GRS80 +no_defs");
         proj4.defs("WGS84", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
     } else {
         console.error("Proj4js não foi carregado. A reprojeção de coordenadas não funcionará.");
@@ -8033,7 +8033,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         geojson.features.forEach(feature => {
                             if (feature.geometry && feature.geometry.coordinates) {
                                 feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                    polygon.map(coord => proj4("EPSG:31983", "WGS84", coord))
+                                    polygon.map(coord => proj4("EPSG:4674", "WGS84", coord))
                                 );
                             }
                         });
@@ -8077,7 +8077,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             geojson.features.forEach(feature => {
                                 if (feature.geometry && feature.geometry.coordinates) {
                                     feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                        polygon.map(coord => proj4("EPSG:31983", "WGS84", coord))
+                                        polygon.map(coord => proj4("EPSG:4674", "WGS84", coord))
                                     );
                                 }
                             });
@@ -8137,15 +8137,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         paint: {
                             'fill-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f', // Vermelho para risco
-                                '#37474F' // Um cinza-azulado escuro
+                                ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
+                                ['boolean', ['feature-state', 'hover'], false], '#546E7A', // Lighter shade for hover
+                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f', // Red for risk
+                                '#37474F' // Default dark grey-blue
                             ],
                             'fill-opacity': [
                                 'case',
-                                ['boolean', ['feature-state', 'risk'], false], 0.6,
-                                ['boolean', ['feature-state', 'selected'], false], 0.5,
-                                ['boolean', ['feature-state', 'hover'], false], 0.4,
-                                0.3 // Opacidade padrão um pouco mais escura
+                                ['boolean', ['feature-state', 'selected'], false], 0.6, // Selected is most opaque
+                                ['boolean', ['feature-state', 'hover'], false], 0.5,
+                                ['boolean', ['feature-state', 'risk'], false], 0.4, // Risk opacity
+                                0.3 // Default opacity
                             ]
                         }
                     });
@@ -8157,8 +8159,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: labelLayerId,
                         type: 'symbol',
                         source: sourceId,
-                        minzoom: 13, // Não mostra os rótulos até um zoom mais próximo
+                        minzoom: 12, // Exibe os rótulos um pouco mais cedo
                         layout: {
+                            'symbol-placement': 'point', // Garante que o rótulo está ancorado ao centro do polígono
                             'text-field': [
                                 'format',
                                 ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.8 },
@@ -8167,8 +8170,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             ],
                             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
                             'text-size': 12,
-                            'text-allow-overlap': true, // Permite que os rótulos se sobreponham para garantir que apareçam
-                            'text-pitch-alignment': 'viewport', // Mantém os rótulos legíveis ao inclinar o mapa
+                            'text-ignore-placement': true, // Força a exibição do rótulo mesmo que colida com outros
+                            'text-allow-overlap': true, // Redundante com o acima, mas mantido por segurança
+                            'text-pitch-alignment': 'viewport',
                         },
                         paint: {
                             'text-color': '#FFFFFF',
