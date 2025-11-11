@@ -8040,7 +8040,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (feature.geometry && feature.geometry.coordinates) {
                                 try {
                                     feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                        polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                        polygon.filter(coord => Array.isArray(coord) && coord.length >= 2 && Number.isFinite(coord[0]) && Number.isFinite(coord[1]))
+                                               .map(coord => proj4(sourceProjection, destProjection, coord))
                                     );
                                 } catch (e) {
                                     console.error("Erro ao reprojetar uma das coordenadas da feature. A feature pode não ser exibida corretamente.", e);
@@ -8092,7 +8093,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (feature.geometry && feature.geometry.coordinates) {
                                     try {
                                         feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                            polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                            polygon.filter(coord => Array.isArray(coord) && coord.length >= 2 && Number.isFinite(coord[0]) && Number.isFinite(coord[1]))
+                                                   .map(coord => proj4(sourceProjection, destProjection, coord))
                                         );
                                     } catch (e) {
                                         console.error("Erro ao reprojetar coordenada do cache:", e);
