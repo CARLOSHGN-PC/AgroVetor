@@ -8161,7 +8161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
                                 ['boolean', ['feature-state', 'hover'], false], '#607D8B', // Lighter grey for hover
                                 ['boolean', ['feature-state', 'risk'], false], '#d32f2f', // Red for risk
-                                '#263238' // Even darker grey-blue as requested
+                                '#1C1C1C' // Darker grey as requested
                             ],
                             'fill-opacity': [
                                 'case',
@@ -9041,6 +9041,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     map.setPaintProperty('talhoes-layer', 'fill-color', App.ui._getThemeColors().primary);
                     map.setPaintProperty('talhoes-layer', 'fill-opacity', defaultFillOpacity);
                     map.setPaintProperty('talhoes-border-layer', 'line-opacity', defaultLineOpacity);
+                    // [BUGFIX] Make all labels visible when risk view is turned off
+                    map.setPaintProperty('talhoes-labels', 'text-opacity', 1.0);
                     this.loadTraps();
                     console.log("Risk view desativada. Revertendo para a visualização padrão.");
                     console.log("--- [END] calculateAndApplyRiskView ---");
@@ -9145,6 +9147,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         'case',
                         ['boolean', ['feature-state', 'risk'], false], 0.9,
                         0.0 // Invisível se não estiver em risco
+                    ]);
+
+                    // [BUGFIX] Hide labels for non-risk farms
+                    map.setPaintProperty('talhoes-labels', 'text-opacity', [
+                        'case',
+                        ['boolean', ['feature-state', 'risk'], false], 1.0, // Visible if in risk
+                        0.0 // Invisible if not in risk
                     ]);
 
                     const allSourceFeatures = map.querySourceFeatures('talhoes-source');
