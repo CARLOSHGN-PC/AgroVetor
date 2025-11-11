@@ -8052,7 +8052,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
                     // Normaliza as propriedades para garantir que os rótulos funcionem
+                    let featureIdCounter = 0;
                     geojson.features.forEach(feature => {
+                        feature.id = featureIdCounter++; // **HOTFIX** Adiciona um ID numérico único
                         const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
                         const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
                         feature.properties.AGV_FUNDO = String(fundo).trim();
@@ -8101,7 +8103,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         // Normaliza as propriedades também para o cache offline
+                        let featureIdCounter = 0;
                         geojson.features.forEach(feature => {
+                            feature.id = featureIdCounter++; // **HOTFIX** Adiciona um ID numérico único
                             const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
                             const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
                             feature.properties.AGV_FUNDO = String(fundo).trim();
@@ -8155,16 +8159,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             'fill-color': [
                                 'case',
                                 ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
-                                ['boolean', ['feature-state', 'hover'], false], '#546E7A', // Lighter shade for hover
+                                ['boolean', ['feature-state', 'hover'], false], '#607D8B', // Lighter grey for hover
                                 ['boolean', ['feature-state', 'risk'], false], '#d32f2f', // Red for risk
-                                '#37474F' // Default dark grey-blue
+                                '#263238' // Even darker grey-blue as requested
                             ],
                             'fill-opacity': [
                                 'case',
-                                ['boolean', ['feature-state', 'selected'], false], 0.75, // Aumentado
-                                ['boolean', ['feature-state', 'hover'], false], 0.65, // Aumentado
-                                ['boolean', ['feature-state', 'risk'], false], 0.55, // Aumentado
-                                0.45 // Opacidade padrão aumentada
+                                ['boolean', ['feature-state', 'selected'], false], 0.8,
+                                ['boolean', ['feature-state', 'hover'], false], 0.7,
+                                ['boolean', ['feature-state', 'risk'], false], 0.6,
+                                0.5 // Default opacity
                             ]
                         }
                     });
@@ -8176,25 +8180,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: labelLayerId,
                         type: 'symbol',
                         source: sourceId,
-                        minzoom: 11, // Reduzido para que os rótulos apareçam mais cedo
+                        minzoom: 10, // Show labels even earlier
                         layout: {
-                            'symbol-placement': 'point', // Garante que o rótulo está ancorado ao centro do polígono
+                            'symbol-placement': 'point',
                             'text-field': [
                                 'format',
-                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.8 },
+                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 },
                                 '\n', {},
-                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.1 }
+                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
                             ],
-                            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-                            'text-size': 12,
-                            'text-ignore-placement': true, // Força a exibição do rótulo mesmo que colida com outros
-                            'text-allow-overlap': true, // Redundante com o acima, mas mantido por segurança
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 14, // Larger font size
+                            'text-ignore-placement': true,
+                            'text-allow-overlap': true,
                             'text-pitch-alignment': 'viewport',
                         },
                         paint: {
                             'text-color': '#FFFFFF',
-                            'text-halo-color': 'rgba(0, 0, 0, 0.8)', // Adiciona um contorno preto para legibilidade
-                            'text-halo-width': 1.5
+                            'text-halo-color': 'rgba(0, 0, 0, 0.9)', // Darker halo
+                            'text-halo-width': 2 // Thicker halo for better contrast
                         }
                     });
                 }
@@ -9258,7 +9262,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const featureCollection = turf.featureCollection(foundFeatures);
+                // **HOTFIX** Pega os IDs das features encontradas
+                const foundFeatureIds = foundFeatures.map(f => f.id);
+
+                // **HOTFIX** Usa os IDs para consultar as features que estão na fonte do mapa (que têm o ID correto para setFeatureState)
+                const sourceFeatures = mapboxMap.querySourceFeatures('talhoes-source', {
+                    filter: ['in', ['id'], ...foundFeatureIds]
+                });
+
+                if (sourceFeatures.length === 0) {
+                     App.ui.showAlert(`Nenhum fundo agrícola correspondente encontrado na fonte do mapa.`, "warning");
+                    return;
+                }
+
+                const featureCollection = turf.featureCollection(sourceFeatures);
                 const bbox = turf.bbox(featureCollection);
                 const bounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
 
@@ -9268,15 +9285,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 1500
                 });
 
-                const featureIds = foundFeatures.map(f => f.id);
-                featureIds.forEach(id => {
+                const featureIdsToHighlight = sourceFeatures.map(f => f.id);
+                featureIdsToHighlight.forEach(id => {
                     mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: true });
                 });
-                mapboxMap.searchedFarmFeatureIds = featureIds;
+                mapboxMap.searchedFarmFeatureIds = featureIdsToHighlight;
 
                 // Remove o destaque após 8 segundos
                 setTimeout(() => {
-                    featureIds.forEach(id => {
+                    featureIdsToHighlight.forEach(id => {
                         if (mapboxMap.searchedFarmFeatureIds && mapboxMap.searchedFarmFeatureIds.includes(id)) {
                              mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
                         }
