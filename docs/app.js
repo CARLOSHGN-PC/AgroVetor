@@ -959,7 +959,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             } catch (error) {
                                 console.error("Falha crítica ao carregar dados iniciais:", error);
                                 App.auth.logout();
-                                App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
+                                // Exibe uma mensagem de erro mais detalhada, se disponível
+                                const errorMessage = error.message || "Não foi possível carregar as configurações da aplicação. Tente novamente.";
+                                App.ui.showLoginMessage(errorMessage, "error");
                             }
 
                         } else {
@@ -996,9 +998,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (error.code === 'auth/network-request-failed') {
                         App.ui.showLoginMessage("Erro de rede. Verifique sua conexão e tente novamente.");
                     } else {
-                        App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
+                        // Tentativa de exibir uma mensagem de erro mais informativa
+                        const errorMessage = error.message || "Ocorreu um erro desconhecido ao fazer login.";
+                        App.ui.showLoginMessage(errorMessage);
                     }
-                    console.error("Erro de login:", error.code, error.message);
+                    console.error("Erro de login:", error);
                     // Apenas para o loading em caso de erro. Em caso de sucesso, a checkSession cuidará disso.
                     App.ui.setLoading(false);
                 }
@@ -8036,19 +8040,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (window.proj4) {
                         const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
                         const destProjection = "WGS84";
-                        geojson.features.forEach(feature => {
-                            if (feature.geometry && feature.geometry.coordinates) {
-                                try {
-                                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                        polygon.filter(coord => Array.isArray(coord) && coord.length >= 2 && Number.isFinite(coord[0]) && Number.isFinite(coord[1]))
-                                               .map(coord => proj4(sourceProjection, destProjection, coord))
-                                    );
-                                } catch (e) {
-                                    console.error("Erro ao reprojetar uma das coordenadas da feature. A feature pode não ser exibida corretamente.", e);
+
+                        // Filtra as features para remover geometrias inválidas
+                        geojson.features = geojson.features.filter(feature => {
+                            if (!feature.geometry || !feature.geometry.coordinates) {
+                                return false; // Remove features sem geometria
+                            }
+                            try {
+                                const newPolygons = feature.geometry.coordinates.map(polygon => {
+                                    // Filtra coordenadas inválidas e depois reprojeta
+                                    const validCoords = polygon.filter(coord => Array.isArray(coord) && coord.length >= 2 && Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
+                                    if (validCoords.length < 4) { // Um polígono válido precisa de pelo menos 4 pontos (3 vértices + fecho)
+                                        return null;
+                                    }
+                                    return validCoords.map(coord => proj4(sourceProjection, destProjection, coord));
+                                }).filter(p => p !== null); // Remove polígonos que se tornaram inválidos
+
+                                if (newPolygons.length === 0) {
+                                    return false; // Se não sobrou nenhum polígono, a feature é inválida
                                 }
+                                feature.geometry.coordinates = newPolygons;
+                                return true;
+                            } catch (e) {
+                                console.error("Erro ao processar a geometria da feature. A feature será descartada.", e, feature);
+                                return false; // Descarta a feature se ocorrer um erro
                             }
                         });
-                        console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
+                        console.log(`Reprojeção e validação de coordenadas concluídas. Features válidas: ${geojson.features.length}`);
                     }
 
 
@@ -8089,19 +8107,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (window.proj4) {
                             const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
                             const destProjection = "WGS84";
-                            geojson.features.forEach(feature => {
-                                if (feature.geometry && feature.geometry.coordinates) {
-                                    try {
-                                        feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                            polygon.filter(coord => Array.isArray(coord) && coord.length >= 2 && Number.isFinite(coord[0]) && Number.isFinite(coord[1]))
-                                                   .map(coord => proj4(sourceProjection, destProjection, coord))
-                                        );
-                                    } catch (e) {
-                                        console.error("Erro ao reprojetar coordenada do cache:", e);
+
+                            // Filtra as features para remover geometrias inválidas
+                            geojson.features = geojson.features.filter(feature => {
+                                if (!feature.geometry || !feature.geometry.coordinates) {
+                                    return false; // Remove features sem geometria
+                                }
+                                try {
+                                    const newPolygons = feature.geometry.coordinates.map(polygon => {
+                                        const validCoords = polygon.filter(coord => Array.isArray(coord) && coord.length >= 2 && Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
+                                        if (validCoords.length < 4) { // Um polígono precisa de pelo menos 4 pontos
+                                            return null;
+                                        }
+                                        return validCoords.map(coord => proj4(sourceProjection, destProjection, coord));
+                                    }).filter(p => p !== null);
+
+                                    if (newPolygons.length === 0) {
+                                        return false;
                                     }
+                                    feature.geometry.coordinates = newPolygons;
+                                    return true;
+                                } catch (e) {
+                                    console.error("Erro ao processar a geometria da feature do cache. A feature será descartada.", e, feature);
+                                    return false;
                                 }
                             });
-                            console.log(`Reprojeção de coordenadas do cache de ${sourceProjection} para ${destProjection} concluída.`);
+                             console.log(`Reprojeção e validação de coordenadas do cache concluídas. Features válidas: ${geojson.features.length}`);
                         }
 
                         // Normaliza as propriedades também para o cache offline
