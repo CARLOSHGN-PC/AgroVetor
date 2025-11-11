@@ -116,7 +116,7 @@ service cloud.firestore {
         (
           'companyId' in resource.data && resource.data.companyId != null && resource.data.companyId != '' &&
           canAccessCompanyData(resource.data.companyId) && (
-            getUserRole() in ['admin', 'administrador', 'Lider', 'Supervisor'] ||
+            getUserRole() in ['admin', 'administrador', 'Lider', 'Supervisor', 'lider', 'supervisor'] ||
             request.auth.uid == resource.data.instaladoPor
           )
         ) ||

@@ -899,6 +899,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             App.state.currentUser = { ...user, ...userDoc };
 
+                            // Garante que o super-admin não tenha um companyId na sessão
+                            if (App.state.currentUser.role === 'super-admin') {
+                                App.state.currentUser.companyId = null;
+                            }
+
                             // Validação CRÍTICA para o modelo multi-empresa
                             if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
                                 App.auth.logout();
@@ -1325,6 +1330,39 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.unsubscribeListeners.push(unsubscribe);
                     });
 
+                    // Listener de notificações movido para aqui - apenas para utilizadores de empresa
+                    const userRole = App.state.currentUser?.role;
+                    if (userRole === 'admin' || userRole === 'supervisor') {
+                        const notificationsQuery = query(
+                            collection(db, 'notifications'),
+                            where('companyId', '==', companyId)
+                        );
+
+                        const unsubscribeNotifications = onSnapshot(notificationsQuery, (querySnapshot) => {
+                            const batch = writeBatch(db);
+                            let notificationCount = 0;
+
+                            querySnapshot.forEach((doc) => {
+                                const notification = doc.data();
+                                App.ui.showSystemNotification(notification.title, notification.message, notification.type);
+                                batch.delete(doc.ref);
+                                notificationCount++;
+                            });
+
+                            if (notificationCount > 0) {
+                                batch.commit().then(() => {
+                                    console.log(`${notificationCount} notificações do Firestore foram processadas e excluídas.`);
+                                }).catch(error => {
+                                    console.error("Erro ao excluir notificações do Firestore:", error);
+                                });
+                            }
+                        }, (error) => {
+                            console.error("Erro ao ouvir a coleção de notificações do Firestore: ", error);
+                        });
+                        App.state.unsubscribeListeners.push(unsubscribeNotifications);
+                    }
+
+
                     // **NOVO**: Ouvir o documento da própria empresa para obter os módulos subscritos
                     const companyDocRef = doc(db, 'companies', companyId);
                     const unsubscribeCompany = onSnapshot(companyDocRef, (doc) => {
@@ -1582,14 +1620,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 alertContainer.className = `show ${type}`;
                 setTimeout(() => alertContainer.classList.remove('show'), duration);
 
-                // Adicionado para salvar a notificação
-                const notification = {
-                    title: type.charAt(0).toUpperCase() + type.slice(1), // ex: "Success"
-                    message: message,
-                    type: type,
-                    timestamp: new Date()
-                };
-                App.actions.saveNotification(notification);
+                // Em vez de apenas salvar, chama a função de notificação do sistema
+                // que lida com a atualização do estado, da UI e o salvamento.
+                const title = type.charAt(0).toUpperCase() + type.slice(1);
+                this.showSystemNotification(title, message, type);
             },
 
             showSystemNotification(title, message, type = 'info', options = {}) {
@@ -2337,6 +2371,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentlyEditedTalhoes.forEach(t => {
                         if (!talhoesToShow.some(ts => ts.id === t.id)) {
                             talhoesToShow.push(t);
+                        }
+                    });
+                }
+
+                const labelLayerId = 'talhoes-label-layer';
+                if (!map.getLayer(labelLayerId)) {
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        layout: {
+                            'text-field': ['format',
+                                ['get', 'FUNDO_AGR'], { 'font-scale': 0.8 },
+                                '\n', {},
+                                ['get', 'CD_TALHAO'], { 'font-scale': 1.2 }
+                            ],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 12,
+                            'text-allow-overlap': false
+                        },
+                        paint: {
+                            'text-color': '#ffffff',
+                            'text-halo-color': '#000000',
+                            'text-halo-width': 1.5
                         }
                     });
                 }
@@ -8008,6 +8066,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("Processando e desenhando os talhões no mapa...");
                     const geojson = await shp(buffer);
 
+                    // Normaliza as chaves das propriedades para maiúsculas
+                    geojson.features.forEach(feature => {
+                        const newProps = {};
+                        for (const key in feature.properties) {
+                            newProps[key.toUpperCase()] = feature.properties[key];
+                        }
+                        feature.properties = newProps;
+                    });
+
+
                     App.state.geoJsonData = geojson;
                     if (App.state.mapboxMap) {
                         this.loadShapesOnMap();
@@ -8082,7 +8150,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['boolean', ['feature-state', 'risk'], false], 0.5,
                                 ['boolean', ['feature-state', 'selected'], false], 0.85,
                                 ['boolean', ['feature-state', 'hover'], false], 0.60,
-                                0.0
+                                0.2
                             ]
                         }
                     });
@@ -8247,14 +8315,92 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
 
-            // The offline map download feature is complex and relies on a specific Google Maps tile URL structure.
-            // Replicating this for Mapbox is non-trivial. Commenting out for now to focus on the core migration.
-            // A proper implementation would use Mapbox's own offline capabilities if needed.
-            /*
-            tileMath: { ... },
-            startOfflineMapDownload(feature) { ... },
-            async downloadTiles(urls) { ... },
-            */
+            tileMath: {
+                long2tile(lon, zoom) { return (Math.floor((lon + 180) / 360 * Math.pow(2, zoom))); },
+                lat2tile(lat, zoom) { return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))); }
+            },
+
+            startOfflineMapDownload(feature) {
+                const downloadBtn = document.querySelector('.btn-download-map');
+                const progressContainer = document.querySelector('.download-progress-container');
+                const progressText = document.querySelector('.download-progress-text');
+                const progressBar = document.querySelector('.download-progress-bar');
+
+                if (downloadBtn.disabled) return;
+
+                downloadBtn.disabled = true;
+                progressContainer.style.display = 'block';
+                progressText.textContent = 'A calcular área para download...';
+                progressBar.value = 0;
+
+                const MIN_ZOOM = 14;
+                const MAX_ZOOM = 18;
+                const urls = [];
+                const accessToken = mapboxgl.accessToken;
+
+                const boundingBox = turf.bbox(feature); // [minLng, minLat, maxLng, maxLat]
+
+                for (let z = MIN_ZOOM; z <= MAX_ZOOM; z++) {
+                    const minTileX = this.tileMath.long2tile(boundingBox[0], z);
+                    const maxTileX = this.tileMath.long2tile(boundingBox[2], z);
+                    const minTileY = this.tileMath.lat2tile(boundingBox[3], z); // Latitude é invertida
+                    const maxTileY = this.tileMath.lat2tile(boundingBox[1], z);
+
+                    for (let x = minTileX; x <= maxTileX; x++) {
+                        for (let y = minTileY; y <= maxTileY; y++) {
+                            // Estilo Mapbox Satellite Streets v12
+                            const tileUrl = `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/${z}/${x}/${y}@2x?access_token=${accessToken}`;
+                            urls.push(tileUrl);
+                        }
+                    }
+                }
+
+                progressText.textContent = `0 de ${urls.length} imagens baixadas...`;
+                this.downloadTiles(urls);
+            },
+
+            async downloadTiles(urls) {
+                const progressText = document.querySelector('.download-progress-text');
+                const progressBar = document.querySelector('.download-progress-bar');
+                const downloadBtn = document.querySelector('.btn-download-map');
+
+                let downloadedCount = 0;
+                const totalTiles = urls.length;
+                const CHUNK_SIZE = 10; // Baixa em lotes de 10
+
+                for (let i = 0; i < totalTiles; i += CHUNK_SIZE) {
+                    const chunk = urls.slice(i, i + CHUNK_SIZE);
+                    const promises = chunk.map(async (url) => {
+                        try {
+                            const cache = await caches.open('mapbox-tiles');
+                            let response = await cache.match(url);
+                            if (!response) {
+                                response = await fetch(url, { mode: 'cors' });
+                                if (response.ok) {
+                                    await cache.put(url, response);
+                                } else {
+                                    console.warn(`Falha ao baixar o tile: ${url}, status: ${response.status}`);
+                                }
+                            }
+                            downloadedCount++;
+                        } catch (error) {
+                            console.error(`Erro ao baixar ou armazenar em cache o tile ${url}:`, error);
+                        }
+                    });
+
+                    await Promise.all(promises);
+
+                    progressBar.value = (downloadedCount / totalTiles) * 100;
+                    progressText.textContent = `${downloadedCount} de ${totalTiles} imagens baixadas...`;
+                }
+
+                progressText.textContent = 'Download concluído!';
+                App.ui.showAlert('Mapa da fazenda salvo para uso offline.', 'success');
+                setTimeout(() => {
+                    downloadBtn.disabled = false;
+                    document.querySelector('.download-progress-container').style.display = 'none';
+                }, 3000);
+            },
 
             hideTalhaoInfo() {
                 if (App.state.selectedMapFeature) {
