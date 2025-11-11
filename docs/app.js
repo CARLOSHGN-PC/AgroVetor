@@ -37,7 +37,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Adiciona as definições de projeção para o Proj4js
     if (window.proj4) {
-        proj4.defs("EPSG:4674", "+proj=longlat +ellps=GRS80 +no_defs");
+        // Definição para SIRGAS 2000 geográfico (graus)
+        proj4.defs("EPSG:4674", "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs");
+        // Definição para SIRGAS 2000 / UTM zone 22S (metros) - a mais provável para o SHP
+        proj4.defs("EPSG:31982", "+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+        // Definição padrão para WGS84 (usado pelo Mapbox)
         proj4.defs("WGS84", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
     } else {
         console.error("Proj4js não foi carregado. A reprojeção de coordenadas não funcionará.");
@@ -8028,16 +8032,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("Processando e desenhando os talhões no mapa...");
                     let geojson = await shp(buffer);
 
-                    // REPROJEÇÃO: Converte as coordenadas de SIRGAS 2000 para WGS84
+                    // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
                     if (window.proj4) {
+                        const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
+                        const destProjection = "WGS84";
                         geojson.features.forEach(feature => {
                             if (feature.geometry && feature.geometry.coordinates) {
-                                feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                    polygon.map(coord => proj4("EPSG:4674", "WGS84", coord))
-                                );
+                                try {
+                                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                        polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                    );
+                                } catch (e) {
+                                    console.error("Erro ao reprojetar coordenada:", coord, e);
+                                }
                             }
                         });
-                        console.log("Reprojeção de coordenadas concluída.");
+                        console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
                     }
 
 
@@ -8072,15 +8082,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showAlert("A carregar mapa do cache offline.", "info");
                         let geojson = await shp(buffer);
 
-                        // REPROJEÇÃO: Converte as coordenadas de SIRGAS 2000 para WGS84
+                        // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
                         if (window.proj4) {
+                            const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
+                            const destProjection = "WGS84";
                             geojson.features.forEach(feature => {
                                 if (feature.geometry && feature.geometry.coordinates) {
-                                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                        polygon.map(coord => proj4("EPSG:4674", "WGS84", coord))
-                                    );
+                                    try {
+                                        feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                            polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                        );
+                                    } catch (e) {
+                                        console.error("Erro ao reprojetar coordenada do cache:", coord, e);
+                                    }
                                 }
                             });
+                            console.log(`Reprojeção de coordenadas do cache de ${sourceProjection} para ${destProjection} concluída.`);
                         }
 
                         // Normaliza as propriedades também para o cache offline
@@ -8144,10 +8161,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             ],
                             'fill-opacity': [
                                 'case',
-                                ['boolean', ['feature-state', 'selected'], false], 0.6, // Selected is most opaque
-                                ['boolean', ['feature-state', 'hover'], false], 0.5,
-                                ['boolean', ['feature-state', 'risk'], false], 0.4, // Risk opacity
-                                0.3 // Default opacity
+                                ['boolean', ['feature-state', 'selected'], false], 0.75, // Aumentado
+                                ['boolean', ['feature-state', 'hover'], false], 0.65, // Aumentado
+                                ['boolean', ['feature-state', 'risk'], false], 0.55, // Aumentado
+                                0.45 // Opacidade padrão aumentada
                             ]
                         }
                     });
@@ -8159,7 +8176,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: labelLayerId,
                         type: 'symbol',
                         source: sourceId,
-                        minzoom: 12, // Exibe os rótulos um pouco mais cedo
+                        minzoom: 11, // Reduzido para que os rótulos apareçam mais cedo
                         layout: {
                             'symbol-placement': 'point', // Garante que o rótulo está ancorado ao centro do polígono
                             'text-field': [
@@ -8190,13 +8207,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         paint: {
                             'line-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'searched'], false], '#FFEB3B', // Amarelo Brilhante para pesquisado
-                                '#FFD700' // Cor original
+                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF', // Ciano brilhante para selecionado
+                                ['boolean', ['feature-state', 'searched'], false], '#00FFFF', // Ciano brilhante para pesquisado
+                                '#FFFFFF' // Borda branca padrão
                             ],
                             'line-width': [
                                 'case',
+                                ['boolean', ['feature-state', 'selected'], false], 3,
                                 ['boolean', ['feature-state', 'searched'], false], 4,
-                                2
+                                1.5 // Borda padrão mais sutil
                             ],
                             'line-opacity': 0.9
                         }
