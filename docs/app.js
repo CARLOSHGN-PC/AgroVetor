@@ -35,6 +35,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
+    // Adiciona as definições de projeção para o Proj4js
+    if (window.proj4) {
+        proj4.defs("EPSG:31983", "+proj=utm +zone=23 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+        proj4.defs("WGS84", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+    } else {
+        console.error("Proj4js não foi carregado. A reprojeção de coordenadas não funcionará.");
+    }
+
+
     enableIndexedDbPersistence(db)
         .catch((err) => {
             if (err.code == 'failed-precondition') {
@@ -8017,7 +8026,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
 
                     console.log("Processando e desenhando os talhões no mapa...");
-                    const geojson = await shp(buffer);
+                    let geojson = await shp(buffer);
+
+                    // REPROJEÇÃO: Converte as coordenadas de SIRGAS 2000 para WGS84
+                    if (window.proj4) {
+                        geojson.features.forEach(feature => {
+                            if (feature.geometry && feature.geometry.coordinates) {
+                                feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                    polygon.map(coord => proj4("EPSG:31983", "WGS84", coord))
+                                );
+                            }
+                        });
+                        console.log("Reprojeção de coordenadas concluída.");
+                    }
+
+
+                    // Normaliza as propriedades para garantir que os rótulos funcionem
+                    geojson.features.forEach(feature => {
+                        const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                        const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
+                        feature.properties.AGV_FUNDO = String(fundo).trim();
+                        feature.properties.AGV_TALHAO = String(talhao).trim();
+                    });
+
 
                     App.state.geoJsonData = geojson;
                     if (App.state.mapboxMap) {
@@ -8039,7 +8070,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
                     if (buffer) {
                         App.ui.showAlert("A carregar mapa do cache offline.", "info");
-                        const geojson = await shp(buffer);
+                        let geojson = await shp(buffer);
+
+                        // REPROJEÇÃO: Converte as coordenadas de SIRGAS 2000 para WGS84
+                        if (window.proj4) {
+                            geojson.features.forEach(feature => {
+                                if (feature.geometry && feature.geometry.coordinates) {
+                                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                        polygon.map(coord => proj4("EPSG:31983", "WGS84", coord))
+                                    );
+                                }
+                            });
+                        }
+
+                        // Normaliza as propriedades também para o cache offline
+                        geojson.features.forEach(feature => {
+                            const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                            const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
+                            feature.properties.AGV_FUNDO = String(fundo).trim();
+                            feature.properties.AGV_TALHAO = String(talhao).trim();
+                        });
+
                         App.state.geoJsonData = geojson;
                         if (App.state.mapboxMap) {
                             this.loadShapesOnMap();
@@ -8064,6 +8115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sourceId = 'talhoes-source';
                 const layerId = 'talhoes-layer';
                 const borderLayerId = 'talhoes-border-layer';
+                const labelLayerId = 'talhoes-labels';
 
                 if (map.getSource(sourceId)) {
                     map.getSource(sourceId).setData(App.state.geoJsonData);
@@ -8085,39 +8137,43 @@ document.addEventListener('DOMContentLoaded', () => {
                         paint: {
                             'fill-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f',
-                                '#000000' // Cor de fundo escura
+                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f', // Vermelho para risco
+                                '#37474F' // Um cinza-azulado escuro
                             ],
                             'fill-opacity': [
                                 'case',
-                                ['boolean', ['feature-state', 'risk'], false], 0.5,
-                                ['boolean', ['feature-state', 'selected'], false], 0.4,
-                                ['boolean', ['feature-state', 'hover'], false], 0.3,
-                                0.2 // Opacidade padrão
+                                ['boolean', ['feature-state', 'risk'], false], 0.6,
+                                ['boolean', ['feature-state', 'selected'], false], 0.5,
+                                ['boolean', ['feature-state', 'hover'], false], 0.4,
+                                0.3 // Opacidade padrão um pouco mais escura
                             ]
                         }
                     });
                 }
 
                 // Adicionar rótulos aos polígonos
-                if (!map.getLayer('talhoes-labels')) {
+                if (!map.getLayer(labelLayerId)) {
                     map.addLayer({
-                        id: 'talhoes-labels',
+                        id: labelLayerId,
                         type: 'symbol',
                         source: sourceId,
+                        minzoom: 13, // Não mostra os rótulos até um zoom mais próximo
                         layout: {
                             'text-field': [
                                 'format',
-                                ['upcase', ['get', 'FUNDO_AGR']], { 'font-scale': 0.8 },
+                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.8 },
                                 '\n', {},
-                                ['upcase', ['get', 'CD_TALHAO']], { 'font-scale': 0.8 }
+                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.1 }
                             ],
                             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
                             'text-size': 12,
-                            'text-allow-overlap': false
+                            'text-allow-overlap': true, // Permite que os rótulos se sobreponham para garantir que apareçam
+                            'text-pitch-alignment': 'viewport', // Mantém os rótulos legíveis ao inclinar o mapa
                         },
                         paint: {
-                            'text-color': '#ffffff'
+                            'text-color': '#FFFFFF',
+                            'text-halo-color': 'rgba(0, 0, 0, 0.8)', // Adiciona um contorno preto para legibilidade
+                            'text-halo-width': 1.5
                         }
                     });
                 }
