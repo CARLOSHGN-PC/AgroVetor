@@ -887,6 +887,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (userDoc && userDoc.active) {
                             let companyDoc = null;
+                            // [CORREÇÃO] Se for super-admin, o companyId deve ser ignorado para acesso global.
+                            if (userDoc.role === 'super-admin') {
+                                delete userDoc.companyId; // Garante que a sessão do super-admin não fique presa a uma empresa.
+                            }
+
                             // Bloqueia o login se a empresa do utilizador estiver inativa
                             if (userDoc.role !== 'super-admin' && userDoc.companyId) {
                                 companyDoc = await App.data.getDocument('companies', userDoc.companyId);
@@ -1942,6 +1947,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.innerHTML = ''; // Limpa a lista atual
 
                 if (notifications.length === 0) {
+                    noNotifications.innerHTML = '<i class="fas fa-bell-slash"></i><p>Nenhuma notificação nova.</p>';
                     noNotifications.style.display = 'flex';
                     list.style.display = 'none';
                 } else {
@@ -1950,28 +1956,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     notifications.forEach(notif => {
                         const item = document.createElement('div');
-                        item.className = `notification-item ${notif.type}`;
                         const timeAgo = this.timeSince(notif.timestamp);
 
-                        let iconClass = 'fa-info-circle'; // Default icon
-                        const lowerCaseTitle = (notif.title || '').toLowerCase();
+                        let iconClass = 'fa-info-circle';
+                        let typeClass = notif.type || 'info';
 
+                        const lowerCaseTitle = (notif.title || '').toLowerCase();
                         if (notif.trapId) {
-                            item.dataset.trapId = notif.trapId; // For click handler
+                            item.dataset.trapId = notif.trapId;
                             iconClass = 'fa-bug';
-                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
-                            if (notif.type === 'danger') iconClass = 'fa-exclamation-circle';
                         } else if (lowerCaseTitle.includes('sincroniza')) {
                             iconClass = 'fa-sync-alt';
-                            if (notif.logId) {
-                                item.dataset.logId = notif.logId; // Adiciona o ID do log para o clique
-                            }
-                            if (notif.type === 'success') iconClass = 'fa-check-circle';
-                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
-                            if (notif.type === 'error') iconClass = 'fa-exclamation-circle';
+                            if (notif.logId) item.dataset.logId = notif.logId;
                         }
 
                         const itemTitle = notif.title || (notif.trapId ? 'Armadilha Requer Atenção' : 'Notificação do Sistema');
+                        item.className = `notification-item ${typeClass}`;
 
                         item.innerHTML = `
                             <i class="fas ${iconClass}"></i>
@@ -6677,31 +6677,42 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async saveNotification(notification) {
+                // Sempre salva no IndexedDB primeiro para uma UI rápida e consistência offline
                 try {
                     const db = await OfflineDB.dbPromise;
                     const tx = db.transaction('notifications', 'readwrite');
                     const store = tx.objectStore('notifications');
-
-                    // 1. Adiciona a nova notificação
                     await store.add(notification);
-
-                    // 2. Conta os itens
                     const count = await store.count();
-
-                    // 3. Se a contagem exceder 15, deleta os mais antigos
-                    if (count > 15) {
+                    if (count > 20) { // Aumentado para 20
                         let cursor = await store.openCursor();
-                        const toDelete = count - 15;
+                        const toDelete = count - 20;
                         for (let i = 0; i < toDelete; i++) {
                             await cursor.delete();
                             cursor = await cursor.continue();
                         }
                     }
-
                     await tx.done;
-
                 } catch (error) {
-                    console.error("Erro ao salvar ou limpar notificações no IndexedDB:", error);
+                    console.error("Erro ao salvar notificação no IndexedDB:", error);
+                }
+
+                // [CORREÇÃO] Tenta salvar no Firestore se estiver online
+                if (navigator.onLine && App.state.currentUser) {
+                    try {
+                        const notificationData = {
+                            ...notification,
+                            userId: App.state.currentUser.uid, // Garante que a notificação é para o utilizador atual
+                            companyId: App.state.currentUser.companyId, // Adiciona companyId para consulta
+                            read: false // Estado inicial
+                        };
+                        // Usa addDocument para gerar um ID automático no Firestore
+                        await App.data.addDocument('notifications', notificationData);
+                        console.log("Notificação guardada no Firestore.");
+                    } catch (error) {
+                        console.error("Não foi possível guardar a notificação no Firestore (pode ser um problema de permissão ou de rede):", error);
+                        // Não mostra um alerta de erro para não poluir a UI, o log no console é suficiente.
+                    }
                 }
             },
 
@@ -8075,15 +8086,38 @@ document.addEventListener('DOMContentLoaded', () => {
                             'fill-color': [
                                 'case',
                                 ['boolean', ['feature-state', 'risk'], false], '#d32f2f',
-                                themeColors.primary
+                                '#000000' // Cor de fundo escura
                             ],
                             'fill-opacity': [
                                 'case',
                                 ['boolean', ['feature-state', 'risk'], false], 0.5,
-                                ['boolean', ['feature-state', 'selected'], false], 0.85,
-                                ['boolean', ['feature-state', 'hover'], false], 0.60,
-                                0.0
+                                ['boolean', ['feature-state', 'selected'], false], 0.4,
+                                ['boolean', ['feature-state', 'hover'], false], 0.3,
+                                0.2 // Opacidade padrão
                             ]
+                        }
+                    });
+                }
+
+                // Adicionar rótulos aos polígonos
+                if (!map.getLayer('talhoes-labels')) {
+                    map.addLayer({
+                        id: 'talhoes-labels',
+                        type: 'symbol',
+                        source: sourceId,
+                        layout: {
+                            'text-field': [
+                                'format',
+                                ['upcase', ['get', 'FUNDO_AGR']], { 'font-scale': 0.8 },
+                                '\n', {},
+                                ['upcase', ['get', 'CD_TALHAO']], { 'font-scale': 0.8 }
+                            ],
+                            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+                            'text-size': 12,
+                            'text-allow-overlap': false
+                        },
+                        paint: {
+                            'text-color': '#ffffff'
                         }
                     });
                 }
@@ -8247,14 +8281,97 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
 
-            // The offline map download feature is complex and relies on a specific Google Maps tile URL structure.
-            // Replicating this for Mapbox is non-trivial. Commenting out for now to focus on the core migration.
-            // A proper implementation would use Mapbox's own offline capabilities if needed.
-            /*
-            tileMath: { ... },
-            startOfflineMapDownload(feature) { ... },
-            async downloadTiles(urls) { ... },
-            */
+            tileMath: {
+                long2tile(lon, zoom) { return (Math.floor((lon + 180) / 360 * Math.pow(2, zoom))); },
+                lat2tile(lat, zoom) { return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))); },
+                tile2long(x, z) { return (x / Math.pow(2, z) * 360 - 180); },
+                tile2lat(y, z) {
+                    const n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+                    return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+                }
+            },
+
+            startOfflineMapDownload(feature) {
+                const ZOOM_LEVELS = [14, 15, 16, 17];
+                const infoBox = App.elements.monitoramentoAereo.infoBox;
+                const progressContainer = infoBox.querySelector('.download-progress-container');
+                const progressText = infoBox.querySelector('.download-progress-text');
+                const progressBar = infoBox.querySelector('.download-progress-bar');
+
+                const bbox = turf.bbox(feature);
+                const [minLng, minLat, maxLng, maxLat] = bbox;
+
+                let totalTilesToDownload = 0;
+                const allTileUrls = [];
+
+                ZOOM_LEVELS.forEach(zoom => {
+                    const minX = this.tileMath.long2tile(minLng, zoom);
+                    const maxX = this.tileMath.long2tile(maxLng, zoom);
+                    const minY = this.tileMath.lat2tile(maxLat, zoom);
+                    const maxY = this.tileMath.lat2tile(minLat, zoom);
+
+                    for (let x = minX; x <= maxX; x++) {
+                        for (let y = minY; y <= maxY; y++) {
+                            const satelliteUrl = `https://api.mapbox.com/v4/mapbox.satellite/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
+                            const streetsUrl = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
+                            allTileUrls.push(satelliteUrl);
+                            allTileUrls.push(streetsUrl);
+                            totalTilesToDownload += 2;
+                        }
+                    }
+                });
+
+                infoBox.querySelector('.btn-download-map').style.display = 'none';
+                progressContainer.style.display = 'block';
+                progressText.textContent = `A preparar para baixar ${totalTilesToDownload} tiles...`;
+                progressBar.value = 0;
+                progressBar.max = totalTilesToDownload;
+
+                this.downloadTiles(allTileUrls);
+            },
+
+            async downloadTiles(urls) {
+                const infoBox = App.elements.monitoramentoAereo.infoBox;
+                const progressContainer = infoBox.querySelector('.download-progress-container');
+                const progressText = infoBox.querySelector('.download-progress-text');
+                const progressBar = infoBox.querySelector('.download-progress-bar');
+                let downloadedCount = 0;
+                let failedCount = 0;
+
+                const db = await OfflineDB.dbPromise;
+
+                for (const url of urls) {
+                    try {
+                        const existing = await db.get('offline-map-tiles', url);
+                        if (existing) {
+                            downloadedCount++;
+                        } else {
+                            const response = await fetch(url);
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                            const blob = await response.blob();
+                            await db.put('offline-map-tiles', blob, url);
+                            downloadedCount++;
+                        }
+                    } catch (error) {
+                        failedCount++;
+                        console.warn(`Falha ao baixar ou guardar o tile: ${url}`, error);
+                    }
+
+                    progressBar.value = downloadedCount + failedCount;
+                    progressText.textContent = `A baixar... ${downloadedCount}/${urls.length} (Falhas: ${failedCount})`;
+                }
+
+                if (failedCount > 0) {
+                     App.ui.showAlert(`Download concluído com ${failedCount} falhas.`, 'warning');
+                } else {
+                     App.ui.showAlert('Download do mapa offline concluído com sucesso!', 'success');
+                }
+
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    infoBox.querySelector('.btn-download-map').style.display = 'block';
+                }, 5000);
+            },
 
             hideTalhaoInfo() {
                 if (App.state.selectedMapFeature) {
