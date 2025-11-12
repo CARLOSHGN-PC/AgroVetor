@@ -35,6 +35,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
+    // Adiciona as definições de projeção para o Proj4js
+    if (window.proj4) {
+        // Definição para SIRGAS 2000 geográfico (graus)
+        proj4.defs("EPSG:4674", "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs");
+        // Definição para SIRGAS 2000 / UTM zone 22S (metros) - a mais provável para o SHP
+        proj4.defs("EPSG:31982", "+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+        // Definição padrão para WGS84 (usado pelo Mapbox)
+        proj4.defs("WGS84", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+    } else {
+        console.error("Proj4js não foi carregado. A reprojeção de coordenadas não funcionará.");
+    }
+
+
     enableIndexedDbPersistence(db)
         .catch((err) => {
             if (err.code == 'failed-precondition') {
@@ -887,6 +900,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (userDoc && userDoc.active) {
                             let companyDoc = null;
+                            // [CORREÇÃO] Se for super-admin, o companyId deve ser ignorado para acesso global.
+                            if (userDoc.role === 'super-admin') {
+                                delete userDoc.companyId; // Garante que a sessão do super-admin não fique presa a uma empresa.
+                            }
+
                             // Bloqueia o login se a empresa do utilizador estiver inativa
                             if (userDoc.role !== 'super-admin' && userDoc.companyId) {
                                 companyDoc = await App.data.getDocument('companies', userDoc.companyId);
@@ -1942,6 +1960,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.innerHTML = ''; // Limpa a lista atual
 
                 if (notifications.length === 0) {
+                    noNotifications.innerHTML = '<i class="fas fa-bell-slash"></i><p>Nenhuma notificação nova.</p>';
                     noNotifications.style.display = 'flex';
                     list.style.display = 'none';
                 } else {
@@ -1950,28 +1969,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     notifications.forEach(notif => {
                         const item = document.createElement('div');
-                        item.className = `notification-item ${notif.type}`;
                         const timeAgo = this.timeSince(notif.timestamp);
 
-                        let iconClass = 'fa-info-circle'; // Default icon
-                        const lowerCaseTitle = (notif.title || '').toLowerCase();
+                        let iconClass = 'fa-info-circle';
+                        let typeClass = notif.type || 'info';
 
+                        const lowerCaseTitle = (notif.title || '').toLowerCase();
                         if (notif.trapId) {
-                            item.dataset.trapId = notif.trapId; // For click handler
+                            item.dataset.trapId = notif.trapId;
                             iconClass = 'fa-bug';
-                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
-                            if (notif.type === 'danger') iconClass = 'fa-exclamation-circle';
                         } else if (lowerCaseTitle.includes('sincroniza')) {
                             iconClass = 'fa-sync-alt';
-                            if (notif.logId) {
-                                item.dataset.logId = notif.logId; // Adiciona o ID do log para o clique
-                            }
-                            if (notif.type === 'success') iconClass = 'fa-check-circle';
-                            if (notif.type === 'warning') iconClass = 'fa-exclamation-triangle';
-                            if (notif.type === 'error') iconClass = 'fa-exclamation-circle';
+                            if (notif.logId) item.dataset.logId = notif.logId;
                         }
 
                         const itemTitle = notif.title || (notif.trapId ? 'Armadilha Requer Atenção' : 'Notificação do Sistema');
+                        item.className = `notification-item ${typeClass}`;
 
                         item.innerHTML = `
                             <i class="fas ${iconClass}"></i>
@@ -6677,31 +6690,42 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async saveNotification(notification) {
+                // Sempre salva no IndexedDB primeiro para uma UI rápida e consistência offline
                 try {
                     const db = await OfflineDB.dbPromise;
                     const tx = db.transaction('notifications', 'readwrite');
                     const store = tx.objectStore('notifications');
-
-                    // 1. Adiciona a nova notificação
                     await store.add(notification);
-
-                    // 2. Conta os itens
                     const count = await store.count();
-
-                    // 3. Se a contagem exceder 15, deleta os mais antigos
-                    if (count > 15) {
+                    if (count > 20) { // Aumentado para 20
                         let cursor = await store.openCursor();
-                        const toDelete = count - 15;
+                        const toDelete = count - 20;
                         for (let i = 0; i < toDelete; i++) {
                             await cursor.delete();
                             cursor = await cursor.continue();
                         }
                     }
-
                     await tx.done;
-
                 } catch (error) {
-                    console.error("Erro ao salvar ou limpar notificações no IndexedDB:", error);
+                    console.error("Erro ao salvar notificação no IndexedDB:", error);
+                }
+
+                // [CORREÇÃO] Tenta salvar no Firestore se estiver online
+                if (navigator.onLine && App.state.currentUser) {
+                    try {
+                        const notificationData = {
+                            ...notification,
+                            userId: App.state.currentUser.uid, // Garante que a notificação é para o utilizador atual
+                            companyId: App.state.currentUser.companyId, // Adiciona companyId para consulta
+                            read: false // Estado inicial
+                        };
+                        // Usa addDocument para gerar um ID automático no Firestore
+                        await App.data.addDocument('notifications', notificationData);
+                        console.log("Notificação guardada no Firestore.");
+                    } catch (error) {
+                        console.error("Não foi possível guardar a notificação no Firestore (pode ser um problema de permissão ou de rede):", error);
+                        // Não mostra um alerta de erro para não poluir a UI, o log no console é suficiente.
+                    }
                 }
             },
 
@@ -8006,7 +8030,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
 
                     console.log("Processando e desenhando os talhões no mapa...");
-                    const geojson = await shp(buffer);
+                    let geojson = await shp(buffer);
+
+                    // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
+                    if (window.proj4) {
+                        const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
+                        const destProjection = "WGS84";
+                        geojson.features.forEach(feature => {
+                            if (feature.geometry && feature.geometry.coordinates) {
+                                try {
+                                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                        polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                    );
+                                } catch (e) {
+                                    console.error("Erro ao reprojetar coordenada:", coord, e);
+                                }
+                            }
+                        });
+                        console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
+                    }
+
+
+                    // Normaliza as propriedades para garantir que os rótulos funcionem
+                    let featureIdCounter = 0;
+                    geojson.features.forEach(feature => {
+                        feature.id = featureIdCounter++; // **HOTFIX** Adiciona um ID numérico único
+                        const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                        const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
+                        feature.properties.AGV_FUNDO = String(fundo).trim();
+                        feature.properties.AGV_TALHAO = String(talhao).trim();
+                    });
+
 
                     App.state.geoJsonData = geojson;
                     if (App.state.mapboxMap) {
@@ -8028,7 +8082,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
                     if (buffer) {
                         App.ui.showAlert("A carregar mapa do cache offline.", "info");
-                        const geojson = await shp(buffer);
+                        let geojson = await shp(buffer);
+
+                        // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
+                        if (window.proj4) {
+                            const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
+                            const destProjection = "WGS84";
+                            geojson.features.forEach(feature => {
+                                if (feature.geometry && feature.geometry.coordinates) {
+                                    try {
+                                        feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                            polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                        );
+                                    } catch (e) {
+                                        console.error("Erro ao reprojetar coordenada do cache:", coord, e);
+                                    }
+                                }
+                            });
+                            console.log(`Reprojeção de coordenadas do cache de ${sourceProjection} para ${destProjection} concluída.`);
+                        }
+
+                        // Normaliza as propriedades também para o cache offline
+                        let featureIdCounter = 0;
+                        geojson.features.forEach(feature => {
+                            feature.id = featureIdCounter++; // **HOTFIX** Adiciona um ID numérico único
+                            const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                            const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
+                            feature.properties.AGV_FUNDO = String(fundo).trim();
+                            feature.properties.AGV_TALHAO = String(talhao).trim();
+                        });
+
                         App.state.geoJsonData = geojson;
                         if (App.state.mapboxMap) {
                             this.loadShapesOnMap();
@@ -8053,6 +8136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sourceId = 'talhoes-source';
                 const layerId = 'talhoes-layer';
                 const borderLayerId = 'talhoes-border-layer';
+                const labelLayerId = 'talhoes-labels';
 
                 if (map.getSource(sourceId)) {
                     map.getSource(sourceId).setData(App.state.geoJsonData);
@@ -8074,16 +8158,47 @@ document.addEventListener('DOMContentLoaded', () => {
                         paint: {
                             'fill-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f',
-                                themeColors.primary
+                                ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
+                                ['boolean', ['feature-state', 'hover'], false], '#607D8B', // Lighter grey for hover
+                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f', // Red for risk
+                                '#1C1C1C'
                             ],
                             'fill-opacity': [
                                 'case',
-                                ['boolean', ['feature-state', 'risk'], false], 0.5,
-                                ['boolean', ['feature-state', 'selected'], false], 0.85,
-                                ['boolean', ['feature-state', 'hover'], false], 0.60,
-                                0.0
+                                ['boolean', ['feature-state', 'selected'], false], 0.9,
+                                ['boolean', ['feature-state', 'hover'], false], 0.8,
+                                ['boolean', ['feature-state', 'risk'], false], 0.6,
+                                0.7 // Default opacity
                             ]
+                        }
+                    });
+                }
+
+                // Adicionar rótulos aos polígonos
+                if (!map.getLayer(labelLayerId)) {
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 10, // Show labels even earlier
+                        layout: {
+                            'symbol-placement': 'point',
+                            'text-field': [
+                                'format',
+                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 },
+                                '\n', {},
+                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
+                            ],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 14, // Larger font size
+                            'text-ignore-placement': true,
+                            'text-allow-overlap': true,
+                            'text-pitch-alignment': 'viewport',
+                        },
+                        paint: {
+                            'text-color': '#FFFFFF',
+                            'text-halo-color': 'rgba(0, 0, 0, 0.9)', // Darker halo
+                            'text-halo-width': 2 // Thicker halo for better contrast
                         }
                     });
                 }
@@ -8096,13 +8211,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         paint: {
                             'line-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'searched'], false], '#FFEB3B', // Amarelo Brilhante para pesquisado
-                                '#FFD700' // Cor original
+                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF', // Ciano brilhante para selecionado
+                                ['boolean', ['feature-state', 'searched'], false], '#00FFFF', // Ciano brilhante para pesquisado
+                                '#FFFFFF' // Borda branca padrão
                             ],
                             'line-width': [
                                 'case',
+                                ['boolean', ['feature-state', 'selected'], false], 3,
                                 ['boolean', ['feature-state', 'searched'], false], 4,
-                                2
+                                1.5 // Borda padrão mais sutil
                             ],
                             'line-opacity': 0.9
                         }
@@ -8247,14 +8364,97 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
 
-            // The offline map download feature is complex and relies on a specific Google Maps tile URL structure.
-            // Replicating this for Mapbox is non-trivial. Commenting out for now to focus on the core migration.
-            // A proper implementation would use Mapbox's own offline capabilities if needed.
-            /*
-            tileMath: { ... },
-            startOfflineMapDownload(feature) { ... },
-            async downloadTiles(urls) { ... },
-            */
+            tileMath: {
+                long2tile(lon, zoom) { return (Math.floor((lon + 180) / 360 * Math.pow(2, zoom))); },
+                lat2tile(lat, zoom) { return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))); },
+                tile2long(x, z) { return (x / Math.pow(2, z) * 360 - 180); },
+                tile2lat(y, z) {
+                    const n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+                    return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+                }
+            },
+
+            startOfflineMapDownload(feature) {
+                const ZOOM_LEVELS = [14, 15, 16, 17];
+                const infoBox = App.elements.monitoramentoAereo.infoBox;
+                const progressContainer = infoBox.querySelector('.download-progress-container');
+                const progressText = infoBox.querySelector('.download-progress-text');
+                const progressBar = infoBox.querySelector('.download-progress-bar');
+
+                const bbox = turf.bbox(feature);
+                const [minLng, minLat, maxLng, maxLat] = bbox;
+
+                let totalTilesToDownload = 0;
+                const allTileUrls = [];
+
+                ZOOM_LEVELS.forEach(zoom => {
+                    const minX = this.tileMath.long2tile(minLng, zoom);
+                    const maxX = this.tileMath.long2tile(maxLng, zoom);
+                    const minY = this.tileMath.lat2tile(maxLat, zoom);
+                    const maxY = this.tileMath.lat2tile(minLat, zoom);
+
+                    for (let x = minX; x <= maxX; x++) {
+                        for (let y = minY; y <= maxY; y++) {
+                            const satelliteUrl = `https://api.mapbox.com/v4/mapbox.satellite/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
+                            const streetsUrl = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
+                            allTileUrls.push(satelliteUrl);
+                            allTileUrls.push(streetsUrl);
+                            totalTilesToDownload += 2;
+                        }
+                    }
+                });
+
+                infoBox.querySelector('.btn-download-map').style.display = 'none';
+                progressContainer.style.display = 'block';
+                progressText.textContent = `A preparar para baixar ${totalTilesToDownload} tiles...`;
+                progressBar.value = 0;
+                progressBar.max = totalTilesToDownload;
+
+                this.downloadTiles(allTileUrls);
+            },
+
+            async downloadTiles(urls) {
+                const infoBox = App.elements.monitoramentoAereo.infoBox;
+                const progressContainer = infoBox.querySelector('.download-progress-container');
+                const progressText = infoBox.querySelector('.download-progress-text');
+                const progressBar = infoBox.querySelector('.download-progress-bar');
+                let downloadedCount = 0;
+                let failedCount = 0;
+
+                const db = await OfflineDB.dbPromise;
+
+                for (const url of urls) {
+                    try {
+                        const existing = await db.get('offline-map-tiles', url);
+                        if (existing) {
+                            downloadedCount++;
+                        } else {
+                            const response = await fetch(url);
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                            const blob = await response.blob();
+                            await db.put('offline-map-tiles', blob, url);
+                            downloadedCount++;
+                        }
+                    } catch (error) {
+                        failedCount++;
+                        console.warn(`Falha ao baixar ou guardar o tile: ${url}`, error);
+                    }
+
+                    progressBar.value = downloadedCount + failedCount;
+                    progressText.textContent = `A baixar... ${downloadedCount}/${urls.length} (Falhas: ${failedCount})`;
+                }
+
+                if (failedCount > 0) {
+                     App.ui.showAlert(`Download concluído com ${failedCount} falhas.`, 'warning');
+                } else {
+                     App.ui.showAlert('Download do mapa offline concluído com sucesso!', 'success');
+                }
+
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    infoBox.querySelector('.btn-download-map').style.display = 'block';
+                }, 5000);
+            },
 
             hideTalhaoInfo() {
                 if (App.state.selectedMapFeature) {
@@ -8827,20 +9027,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 map.riskFarmFeatureIds = [];
 
-                // Define as propriedades de pintura padrão para a visualização normal
-                const defaultFillOpacity = [
-                    'case',
-                    ['boolean', ['feature-state', 'selected'], false], 0.85,
-                    ['boolean', ['feature-state', 'hover'], false], 0.60,
-                    0.0 // Por padrão, os talhões são transparentes
-                ];
-                const defaultLineOpacity = 0.9;
-
                 if (!App.state.riskViewActive) {
                     App.elements.monitoramentoAereo.btnToggleRiskView.classList.remove('active');
-                    map.setPaintProperty('talhoes-layer', 'fill-color', App.ui._getThemeColors().primary);
-                    map.setPaintProperty('talhoes-layer', 'fill-opacity', defaultFillOpacity);
-                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', defaultLineOpacity);
+
+                    const themeColors = App.ui._getThemeColors();
+                    // Restaura as propriedades de pintura originais para a visualização normal
+                    map.setPaintProperty('talhoes-layer', 'fill-color', [
+                        'case',
+                        ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
+                        ['boolean', ['feature-state', 'hover'], false], '#607D8B', // Cinza claro para hover
+                        ['boolean', ['feature-state', 'risk'], false], '#d32f2f', // Vermelho para risco
+                        '#1C1C1C' // Cinza escuro padrão
+                    ]);
+                    map.setPaintProperty('talhoes-layer', 'fill-opacity', [
+                        'case',
+                        ['boolean', ['feature-state', 'selected'], false], 0.8,
+                        ['boolean', ['feature-state', 'hover'], false], 0.7,
+                        ['boolean', ['feature-state', 'risk'], false], 0.6,
+                        0.5 // Opacidade padrão
+                    ]);
+                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', 0.9);
+
+                    // Garante que todos os rótulos sejam exibidos ao desativar a visualização de risco
+                    map.setFilter('talhoes-labels', null);
                     this.loadTraps();
                     console.log("Risk view desativada. Revertendo para a visualização padrão.");
                     console.log("--- [END] calculateAndApplyRiskView ---");
@@ -8959,24 +9168,34 @@ document.addEventListener('DOMContentLoaded', () => {
                             map.setFeatureState({ source: 'talhoes-source', id: id }, { risk: true });
                         });
                         map.riskFarmFeatureIds = featureIds;
+
+                        // Get the string representations of the farm codes in risk
+                        const farmCodesInRiskAsStrings = Array.from(farmsInRisk, code => String(code));
+
+                        // Filter labels to show only those for farms in risk
+                        const labelFilter = ['in', ['get', 'AGV_FUNDO'], ['literal', farmCodesInRiskAsStrings]];
+                        map.setFilter('talhoes-labels', labelFilter);
+
                         App.ui.showAlert(`${farmsInRisk.size} fazenda(s) em risco foram destacadas.`, 'info');
                     } else {
-                         // Isso pode acontecer se o código da fazenda em risco não corresponder a nenhuma feature do mapa
-                        console.warn("[RISK_DEBUG] Fazendas em risco calculadas, mas nenhuma feature correspondente encontrada no mapa.");
+                         // This can happen if the farm code in risk doesn't match any map feature
+                        console.warn("[RISK_DEBUG] Risk farms calculated, but no corresponding features found on the map.");
                         App.ui.showAlert('Nenhuma fazenda em risco foi identificada no mapa.', 'success');
-                         // Reverte para a visualização padrão para evitar um mapa em branco
+                         // Revert to default view to avoid a blank map
                         map.setPaintProperty('talhoes-layer', 'fill-color', App.ui._getThemeColors().primary);
-                        map.setPaintProperty('talhoes-layer', 'fill-opacity', defaultFillOpacity);
-                        map.setPaintProperty('talhoes-border-layer', 'line-opacity', defaultLineOpacity);
+                        map.setPaintProperty('talhoes-layer', 'fill-opacity', 0.5);
+                        map.setPaintProperty('talhoes-border-layer', 'line-opacity', 0.9);
+                        map.setFilter('talhoes-labels', null); // Show all labels
                     }
 
                 } else {
-                    console.log("[RISK_DEBUG] Nenhuma fazenda em risco encontrada. Exibindo todos os talhões normalmente.");
+                    console.log("[RISK_DEBUG] No risk farms found. Displaying all plots normally.");
                     App.ui.showAlert('Nenhuma fazenda em risco foi identificada no período.', 'success');
-                    // Garante que o mapa não fique em branco, revertendo para a visualização padrão
-                    map.setPaintProperty('talhoes-layer', 'fill-color', App.ui._getThemeColors().primary);
-                    map.setPaintProperty('talhoes-layer', 'fill-opacity', defaultFillOpacity);
-                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', defaultLineOpacity);
+                    // Ensure the map doesn't stay blank by reverting to the default view
+                    map.setPaintProperty('talhoes-layer', 'fill-color', '#1C1C1C');
+                    map.setPaintProperty('talhoes-layer', 'fill-opacity', 0.7);
+                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', 0.9);
+                    map.setFilter('talhoes-labels', null); // Show all labels
                 }
 
                 console.log("--- [END] calculateAndApplyRiskView ---");
@@ -9062,7 +9281,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const featureCollection = turf.featureCollection(foundFeatures);
+                // **HOTFIX** Pega os IDs das features encontradas
+                const foundFeatureIds = foundFeatures.map(f => f.id);
+
+                // **HOTFIX** Usa os IDs para consultar as features que estão na fonte do mapa (que têm o ID correto para setFeatureState)
+                const sourceFeatures = mapboxMap.querySourceFeatures('talhoes-source', {
+                    filter: ['in', ['id'], ...foundFeatureIds]
+                });
+
+                if (sourceFeatures.length === 0) {
+                     App.ui.showAlert(`Nenhum fundo agrícola correspondente encontrado na fonte do mapa.`, "warning");
+                    return;
+                }
+
+                const featureCollection = turf.featureCollection(sourceFeatures);
                 const bbox = turf.bbox(featureCollection);
                 const bounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
 
@@ -9072,15 +9304,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 1500
                 });
 
-                const featureIds = foundFeatures.map(f => f.id);
-                featureIds.forEach(id => {
+                const featureIdsToHighlight = sourceFeatures.map(f => f.id);
+                featureIdsToHighlight.forEach(id => {
                     mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: true });
                 });
-                mapboxMap.searchedFarmFeatureIds = featureIds;
+                mapboxMap.searchedFarmFeatureIds = featureIdsToHighlight;
 
                 // Remove o destaque após 8 segundos
                 setTimeout(() => {
-                    featureIds.forEach(id => {
+                    featureIdsToHighlight.forEach(id => {
                         if (mapboxMap.searchedFarmFeatureIds && mapboxMap.searchedFarmFeatureIds.includes(id)) {
                              mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
                         }
