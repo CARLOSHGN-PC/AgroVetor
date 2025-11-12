@@ -4,6 +4,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // --- FUNÇÕES AUXILIARES ---
+    // Funções para obter dados do documento do utilizador que faz a requisição.
+    // Separar a obtenção do documento da obtenção do campo para evitar recursividade.
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
@@ -13,44 +15,52 @@ service cloud.firestore {
     }
 
     function getUserCompanyId() {
-      // Retorna o companyId do usuário, ou nulo se não existir (importante para super-admin).
-      return getUserData().get('companyId', null);
-    }
-
-    // Função de acesso principal:
-    // Garante que o usuário seja um super-admin OU pertença à empresa correta.
-    // O super-admin não deve ser restringido por um companyId.
-    function canAccessCompanyData(companyId) {
-      return getUserRole() == 'super-admin' || (getUserCompanyId() != null && getUserCompanyId() == companyId);
+      return getUserData().companyId;
     }
 
     // --- REGRAS GERAIS ---
 
+    // Coleção de Empresas (companies)
+    // Apenas super-admins podem ler a lista completa e escrever (criar/editar/apagar).
     match /companies/{companyId} {
       allow read, write: if getUserRole() == 'super-admin';
+      // Um utilizador pode obter (get) os dados da sua própria empresa para validações.
       allow get: if request.auth.uid != null && getUserCompanyId() == companyId;
     }
 
+    // Coleção de Utilizadores (users)
     match /users/{userId} {
+      // LEITURA: Um utilizador pode ler os seus próprios dados. Um super-admin pode ler tudo.
+      // Um admin pode ler os dados de utilizadores da sua própria empresa.
       allow get: if request.auth.uid == userId
                   || getUserRole() == 'super-admin'
                   || (getUserRole() == 'admin' && getUserCompanyId() == get(/databases/$(database)/documents/users/$(userId)).data.companyId);
 
-      allow list: if getUserRole() in ['admin', 'super-admin'];
+      // LISTAGEM: Apenas admins e super-admins podem listar utilizadores (a filtragem por empresa é feita no lado do cliente).
+      allow list: if getUserRole() == 'admin' || getUserRole() == 'super-admin';
 
+      // CRIAÇÃO: Um super-admin pode criar qualquer utilizador. Um admin só pode criar utilizadores para a sua própria empresa.
       allow create: if getUserRole() == 'super-admin'
                    || (getUserRole() == 'admin' && request.resource.data.companyId == getUserCompanyId());
 
+      // ATUALIZAÇÃO: Um utilizador pode atualizar os seus próprios dados. Um super-admin pode atualizar tudo.
+      // Um admin pode atualizar utilizadores da sua empresa, mas não pode promover ninguém a super-admin.
       allow update: if request.auth.uid == userId
                    || getUserRole() == 'super-admin'
-                   || (getUserRole() == 'admin'
-                       && get(/databases/$(database)/documents/users/$(userId)).data.companyId == getUserCompanyId()
-                       && request.resource.data.role != 'super-admin');
+                   || (getUserRole() == 'admin' && get(/databases/$(database)/documents/users/$(userId)).data.companyId == getUserCompanyId() && request.resource.data.role != 'super-admin');
 
+      // EXCLUSÃO: É proibida para evitar a remoção acidental de registos de autenticação. A desativação é feita por 'update'.
       allow delete: if false;
     }
 
     // --- REGRAS PARA COLEÇÕES DE DADOS ESPECÍFICAS DA EMPRESA ---
+    // A lógica é a mesma para todas:
+    // - Super Admin pode fazer tudo.
+    // - Utilizadores podem ler/escrever/apagar dados que pertencem à sua empresa.
+    // - Utilizadores podem criar dados se o novo documento tiver o ID da sua empresa.
+    function canAccessCompanyData(companyId) {
+      return getUserRole() == 'super-admin' || getUserCompanyId() == companyId;
+    }
 
     match /fazendas/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
@@ -93,20 +103,31 @@ service cloud.firestore {
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
     match /armadilhas/{trapId} {
+      // Read, update, and create rules remain the same.
+      // canAccessCompanyData correctly handles super-admin access for these.
       allow read, update: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
 
-      // [CORRIGIDO] Regra de exclusão simplificada e mais segura.
-      allow delete: if getUserRole() == 'super-admin'
-                  || (
-                      canAccessCompanyData(resource.data.companyId) && (
-                          getUserRole() in ['admin', 'administrador', 'Lider', 'Supervisor'] ||
-                          request.auth.uid == resource.data.instaladoPor
-                      )
-                  )
-                  // Regra para dados legados sem companyId, apenas para admins.
-                  || (!('companyId' in resource.data) && getUserRole() in ['admin', 'administrador', 'super-admin']);
+      // A single, consolidated delete rule to handle all cases correctly.
+      allow delete: if
+        // Case 1: Super-admin has unrestricted delete access.
+        (getUserRole() == 'super-admin') ||
+        // Case 2: Standard data deletion for other roles.
+        (
+          'companyId' in resource.data && resource.data.companyId != null && resource.data.companyId != '' &&
+          canAccessCompanyData(resource.data.companyId) && (
+            getUserRole() in ['admin', 'administrador', 'Lider', 'Supervisor'] ||
+            request.auth.uid == resource.data.instaladoPor
+          )
+        ) ||
+        // Case 3: Legacy data deletion for other roles.
+        (
+          (!('companyId' in resource.data) || resource.data.companyId == null || resource.data.companyId == '') &&
+          (getUserRole() in ['admin', 'administrador', 'Lider', 'Supervisor'])
+        );
 
+      // Rule for the 'coletas' subcollection.
+      // Allows access if the user can access the parent trap document.
       match /coletas/{coletaId} {
         allow read, write, delete: if canAccessCompanyData(get(/databases/$(database)/documents/armadilhas/$(trapId)).data.companyId);
       }
@@ -122,34 +143,53 @@ service cloud.firestore {
       allow read, write: if request.auth.uid == userId;
     }
 
+    // Coleção de Configurações Globais
+    // Qualquer utilizador autenticado pode ler as configurações para renderizar o menu corretamente.
+    // Apenas super-admins podem escrever/alterar as configurações.
     match /global_configs/{docId} {
       allow read: if request.auth.uid != null;
       allow write: if getUserRole() == 'super-admin';
     }
 
+    // sync_history_store: Logs detalhados de sincronização
     match /sync_history_store/{docId} {
+      // Criação: Qualquer utilizador autenticado pode criar um log para si mesmo.
       allow create: if request.auth.uid == request.resource.data.userId;
+
+      // Leitura: Admins e super-admins podem ler logs da sua empresa. Utilizadores normais podem ler os seus próprios logs.
       allow read: if canAccessCompanyData(resource.data.companyId) || request.auth.uid == resource.data.userId;
+
+      // Atualização: O dono do log pode atualizar (para a lógica de retentativa), e o super-admin também.
       allow update: if request.auth.uid == resource.data.userId || getUserRole() == 'super-admin';
+
+      // Exclusão: Apenas super-admins podem apagar para manter a trilha de auditoria.
       allow delete: if getUserRole() == 'super-admin';
     }
 
+    // configChangeHistory: Logs de auditoria para alterações de configurações.
     match /configChangeHistory/{docId} {
-      allow create: if (getUserRole() in ['admin', 'super-admin']) && canAccessCompanyData(request.resource.data.companyId);
-      allow list: if getUserRole() in ['admin', 'super-admin'];
-      allow get: if (getUserRole() in ['admin', 'super-admin']) && canAccessCompanyData(resource.data.companyId);
+      // Criação: Apenas admins ou super-admins podem criar logs de auditoria para a sua própria empresa.
+      allow create: if (getUserRole() == 'admin' || getUserRole() == 'super-admin') && canAccessCompanyData(request.resource.data.companyId);
+
+      // Leitura: Apenas admins ou super-admins podem ler o histórico. A filtragem por empresa é feita no cliente.
+      allow list: if getUserRole() == 'admin' || getUserRole() == 'super-admin';
+
+      // Get: Apenas admins ou super-admins da empresa correspondente podem ler um documento específico.
+      allow get: if (getUserRole() == 'admin' || getUserRole() == 'super-admin') && canAccessCompanyData(resource.data.companyId);
+
+      // Ninguém pode alterar um log de auditoria para garantir a integridade.
       allow update: if false;
+      // Apenas super-admins podem apagar para manutenção.
       allow delete: if getUserRole() == 'super-admin';
     }
 
-    // [CORRIGIDO] notifications: Notificações para utilizadores
+    // notifications: Notificações para utilizadores (ex: novas features)
     match /notifications/{docId} {
-      // Criação: Super-admins podem criar para qualquer um. Utilizadores normais podem criar para si mesmos.
-      allow create: if getUserRole() == 'super-admin' || request.auth.uid == request.resource.data.userId;
+      // Criação: Apenas super-admins podem criar notificações.
+      allow create: if getUserRole() == 'super-admin';
 
-      // Acesso (Leitura, Atualização, Exclusão): Utilizadores só podem aceder às suas próprias notificações. Super-admin pode ler tudo.
+      // Acesso (Leitura, Atualização, Exclusão): Utilizadores só podem aceder às suas próprias notificações.
       allow read, update, delete: if request.auth.uid == resource.data.userId;
-      allow list: if getUserRole() == 'super-admin'; // Permite que o super-admin liste todas se necessário.
     }
   }
 }

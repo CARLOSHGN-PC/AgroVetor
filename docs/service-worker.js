@@ -177,45 +177,6 @@ self.addEventListener('periodicsync', (event) => {
 });
 
 
-const DB_VERSION = 7; // Incremented for new object store
-const OFFLINE_WRITES_STORE = 'offline-writes';
-const TILE_STORE_NAME = 'offline-map-tiles';
-
-let dbPromise;
-function getDb() {
-    if (!dbPromise) {
-        dbPromise = idb.openDB(DB_NAME, DB_VERSION, {
-            upgrade(db, oldVersion) {
-                if (oldVersion < 7) {
-                    if (!db.objectStoreNames.contains(TILE_STORE_NAME)) {
-                        db.createObjectStore(TILE_STORE_NAME);
-                    }
-                }
-            }
-        });
-    }
-    return dbPromise;
-}
-
-async function getTileFromIndexedDB(request) {
-    try {
-        const db = await getDb();
-        const tileBlob = await db.get(TILE_STORE_NAME, request.url);
-        if (tileBlob) {
-            return new Response(tileBlob, {
-                headers: {
-                    'Content-Type': 'image/png'
-                }
-            });
-        }
-        return null;
-    } catch (error) {
-        console.error('Error fetching tile from IndexedDB:', error);
-        return null;
-    }
-}
-
-
 // Fetch event: intercept requests
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
@@ -230,37 +191,35 @@ self.addEventListener('fetch', event => {
     return; // Let the browser handle the request normally
   }
 
-  // Strategy for Mapbox tiles: IndexedDB first, then Cache API, then Network
-  if (url.hostname.includes('api.mapbox.com') && (url.pathname.includes('mapbox.satellite') || url.pathname.includes('mapbox.mapbox-streets-v8'))) {
+  // Strategy for Mapbox tiles, fonts, and sprites (Cache First with trimming)
+  if (url.hostname.includes('mapbox.com')) {
     event.respondWith(
-      getTileFromIndexedDB(event.request).then(indexedDbResponse => {
-        if (indexedDbResponse) {
-          return indexedDbResponse;
-        }
-
-        // Fallback to the Cache API if not in IndexedDB
-        return caches.open(TILE_CACHE_NAME).then(cache => {
-          return cache.match(event.request).then(cacheResponse => {
-            if (cacheResponse) {
-              return cacheResponse;
-            }
-
-            // Fallback to network if not in cache
-            return fetch(event.request).then(networkResponse => {
-              const responseToCache = networkResponse.clone();
-              cache.put(event.request, responseToCache).then(() => {
-                trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
-              });
-              return networkResponse;
-            }).catch(error => {
-              console.warn(`Failed to fetch map tile: ${event.request.url}. Returning empty response.`, error);
-              return new Response('', { status: 200, statusText: 'OK' });
+      caches.open(TILE_CACHE_NAME).then(cache => {
+        return cache.match(event.request).then(response => {
+          // If we have a cached response, return it.
+          if (response) {
+            return response;
+          }
+          // Otherwise, fetch from the network.
+          const fetchAndCache = fetch(event.request).then(networkResponse => {
+            // For third-party tiles, we can't check the status (opaque response),
+            // so we trust it and put it in the cache.
+            const responseToCache = networkResponse.clone();
+            cache.put(event.request, responseToCache).then(() => {
+              trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
             });
+            return networkResponse;
+          }).catch(error => {
+            // When offline, fetch will fail.
+            // We return a successful but empty response to prevent the map from breaking.
+            console.warn(`Failed to fetch map tile: ${event.request.url}. Returning empty response.`, error);
+            return new Response('', { status: 200, statusText: 'OK' });
           });
+          return fetchAndCache;
         });
       })
     );
-    return;
+    return; // End execution for this request
   }
 
   // Stale-While-Revalidate strategy for all other requests
