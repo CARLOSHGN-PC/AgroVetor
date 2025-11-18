@@ -8445,9 +8445,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (failedCount > 0) {
-                     App.ui.showAlert(`Download concluído com ${failedCount} falhas.`, 'warning');
+                    App.ui.showAlert(`Download concluído. ${downloadedCount} tiles baixados, ${failedCount} falhas.`, 'warning');
                 } else {
-                     App.ui.showAlert('Download do mapa offline concluído com sucesso!', 'success');
+                    App.ui.showAlert(`Download do mapa offline concluído com sucesso! ${downloadedCount} tiles baixados.`, 'success');
                 }
 
                 setTimeout(() => {
@@ -9286,7 +9286,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // **HOTFIX** Usa os IDs para consultar as features que estão na fonte do mapa (que têm o ID correto para setFeatureState)
                 const sourceFeatures = mapboxMap.querySourceFeatures('talhoes-source', {
-                    filter: ['in', ['id'], ...foundFeatureIds]
+                    filter: ['in', ['id'], ['literal', foundFeatureIds]]
                 });
 
                 if (sourceFeatures.length === 0) {
