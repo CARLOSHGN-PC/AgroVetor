@@ -176,6 +176,9 @@ self.addEventListener('periodicsync', (event) => {
     }
 });
 
+
+const DB_VERSION = 7; // Incremented for new object store
+const OFFLINE_WRITES_STORE = 'offline-writes';
 const TILE_STORE_NAME = 'offline-map-tiles';
 
 let dbPromise;
