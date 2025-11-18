@@ -177,6 +177,8 @@ self.addEventListener('periodicsync', (event) => {
 });
 
 
+const DB_VERSION = 7; // Incremented for new object store
+const OFFLINE_WRITES_STORE = 'offline-writes';
 const TILE_STORE_NAME = 'offline-map-tiles';
 
 let dbPromise;
@@ -221,11 +223,6 @@ self.addEventListener('fetch', event => {
   }
 
   const url = new URL(event.request.url);
-
-  // Explicitly ignore favicon requests to prevent 404 errors in the service worker logs.
-  if (url.pathname.endsWith('/favicon.ico')) {
-    return;
-  }
 
   // ADDED: Explicitly ignore shapefile downloads to let the app handle them
   if (url.pathname.endsWith('.zip')) {
