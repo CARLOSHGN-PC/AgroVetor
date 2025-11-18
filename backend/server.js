@@ -347,7 +347,6 @@ try {
         }
     });
 
-    app.options('/api/track/batch', cors(corsOptions)); // Lida com a requisição pre-flight
     app.post('/api/track/batch', async (req, res) => {
         const { locations } = req.body;
 
