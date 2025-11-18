@@ -8048,7 +8048,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                             if (!Array.isArray(coord) || coord.length < 2 || !isFinite(coord[0]) || !isFinite(coord[1])) {
                                                 throw new Error(`Coordenada inválida encontrada: ${JSON.stringify(coord)}`);
                                             }
-                                            return proj4(sourceProjection, destProjection, coord);
+                                            // Garante que estamos a usar apenas 2 dimensões (ignora o valor Z/altitude)
+                                            const coord2D = [coord[0], coord[1]];
+                                            return proj4(sourceProjection, destProjection, coord2D);
                                         });
                                         return reprojectedPolygon;
                                     } catch (e) {
@@ -8107,7 +8109,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 if (!Array.isArray(coord) || coord.length < 2 || !isFinite(coord[0]) || !isFinite(coord[1])) {
                                                     throw new Error(`Coordenada inválida do cache encontrada: ${JSON.stringify(coord)}`);
                                                 }
-                                                return proj4(sourceProjection, destProjection, coord);
+                                                const coord2D = [coord[0], coord[1]];
+                                                return proj4(sourceProjection, destProjection, coord2D);
                                             });
                                             return reprojectedPolygon;
                                         } catch (e) {
