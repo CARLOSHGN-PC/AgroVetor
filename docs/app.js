@@ -8043,7 +8043,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         polygon.map(coord => proj4(sourceProjection, destProjection, coord))
                                     );
                                 } catch (e) {
-                                    console.error("Erro ao reprojetar coordenada:", e);
+                                    console.error("Erro ao reprojetar coordenada:", coord, e);
                                 }
                             }
                         });
@@ -8095,7 +8095,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                             polygon.map(coord => proj4(sourceProjection, destProjection, coord))
                                         );
                                     } catch (e) {
-                                        console.error("Erro ao reprojetar coordenada do cache:", e);
+                                        console.error("Erro ao reprojetar coordenada do cache:", coord, e);
                                     }
                                 }
                             });
