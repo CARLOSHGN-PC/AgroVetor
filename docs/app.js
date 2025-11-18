@@ -8040,13 +8040,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (feature.geometry && feature.geometry.coordinates) {
                                 try {
                                     feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                        polygon.map(coord => {
-                                            if (Array.isArray(coord) && coord.length >= 2 && isFinite(coord[0]) && isFinite(coord[1])) {
-                                                return proj4(sourceProjection, destProjection, coord);
-                                            }
-                                            console.warn('Coordenada inválida ignorada:', coord);
-                                            return null; // Retorna nulo para coordenadas inválidas
-                                        }).filter(c => c !== null) // Filtra as coordenadas nulas
+                                        polygon.map(coord => proj4(sourceProjection, destProjection, coord))
                                     );
                                 } catch (e) {
                                     console.error("Erro ao reprojetar coordenada:", e);
@@ -8098,13 +8092,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (feature.geometry && feature.geometry.coordinates) {
                                     try {
                                         feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                            polygon.map(coord => {
-                                                if (Array.isArray(coord) && coord.length >= 2 && isFinite(coord[0]) && isFinite(coord[1])) {
-                                                    return proj4(sourceProjection, destProjection, coord);
-                                                }
-                                                console.warn('Coordenada inválida do cache ignorada:', coord);
-                                                return null;
-                                            }).filter(c => c !== null)
+                                            polygon.map(coord => proj4(sourceProjection, destProjection, coord))
                                         );
                                     } catch (e) {
                                         console.error("Erro ao reprojetar coordenada do cache:", e);
