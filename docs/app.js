@@ -8143,7 +8143,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     map.addSource(sourceId, {
                         type: 'geojson',
-                        data: App.state.geoJsonData
+                        data: App.state.geoJsonData,
+                        generateId: true // Important for feature state
                     });
                 }
 
@@ -9269,7 +9270,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 mapboxMap.searchedFarmFeatureIds = [];
 
-                // Procura diretamente no GeoJSON local
+                // Procura diretamente no GeoJSON pela propriedade FUNDO_AGR
                 const foundFeatures = geoJsonData.features.filter(feature => {
                     const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
                     return fundoAgricola && String(fundoAgricola).toUpperCase().includes(searchTerm);
@@ -9280,7 +9281,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const featureCollection = turf.featureCollection(foundFeatures);
+                // **HOTFIX** Pega os IDs das features encontradas
+                const foundFeatureIds = foundFeatures.map(f => f.id);
+
+                // **HOTFIX** Usa os IDs para consultar as features que estão na fonte do mapa (que têm o ID correto para setFeatureState)
+                const sourceFeatures = mapboxMap.querySourceFeatures('talhoes-source', {
+                    filter: ['in', ['id'], ...foundFeatureIds]
+                });
+
+                if (sourceFeatures.length === 0) {
+                     App.ui.showAlert(`Nenhum fundo agrícola correspondente encontrado na fonte do mapa.`, "warning");
+                    return;
+                }
+
+                const featureCollection = turf.featureCollection(sourceFeatures);
                 const bbox = turf.bbox(featureCollection);
                 const bounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
 
@@ -9290,7 +9304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 1500
                 });
 
-                const featureIdsToHighlight = foundFeatures.map(f => f.id);
+                const featureIdsToHighlight = sourceFeatures.map(f => f.id);
                 featureIdsToHighlight.forEach(id => {
                     mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: true });
                 });
@@ -9299,13 +9313,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Remove o destaque após 8 segundos
                 setTimeout(() => {
                     featureIdsToHighlight.forEach(id => {
-                        // Verifica se o ID ainda está na lista de pesquisa antes de remover o estado
                         if (mapboxMap.searchedFarmFeatureIds && mapboxMap.searchedFarmFeatureIds.includes(id)) {
                              mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: false });
                         }
                     });
-                    // Limpa a lista de IDs após o timeout para permitir uma nova pesquisa
-                    mapboxMap.searchedFarmFeatureIds = [];
                 }, 8000);
             },
         },
