@@ -9286,7 +9286,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // **HOTFIX** Usa os IDs para consultar as features que estão na fonte do mapa (que têm o ID correto para setFeatureState)
                 const sourceFeatures = mapboxMap.querySourceFeatures('talhoes-source', {
-                    filter: ['in', ['id'], ['literal', foundFeatureIds]]
+                    filter: ['in', ['id'], ...foundFeatureIds]
                 });
 
                 if (sourceFeatures.length === 0) {
