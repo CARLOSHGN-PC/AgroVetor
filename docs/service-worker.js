@@ -218,11 +218,6 @@ async function getTileFromIndexedDB(request) {
 
 // Fetch event: intercept requests
 self.addEventListener('fetch', event => {
-  // Adicionado para ignorar o favicon.ico e evitar erros 404 no cache
-  if (event.request.url.includes('favicon.ico')) {
-    return;
-  }
-
   if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
     return;
   }
