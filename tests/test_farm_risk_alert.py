@@ -58,7 +58,8 @@ def test_risk_view_logic(browser_context):
                 on: () => {},
                 getCanvas: () => ({style: {cursor: ''}}),
                 flyTo: () => {},
-                fitBounds: () => {}
+                fitBounds: () => {},
+                setFilter: () => {}
             };
         """)
 
