@@ -247,15 +247,15 @@ self.addEventListener('fetch', event => {
 
             // Fallback to network if not in cache
             return fetch(event.request).then(networkResponse => {
-              const responseToCache = networkResponse.clone();
-              cache.put(event.request, responseToCache).then(() => {
-                trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
-              });
+              // Only cache successful responses
+              if (networkResponse && networkResponse.ok) {
+                const responseToCache = networkResponse.clone();
+                cache.put(event.request, responseToCache).then(() => {
+                  trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
+                });
+              }
               return networkResponse;
-            }).catch(error => {
-              console.warn(`Failed to fetch map tile: ${event.request.url}. Returning empty response.`, error);
-              return new Response('', { status: 200, statusText: 'OK' });
-            });
+            }); // Let network errors propagate to the browser/app
           });
         });
       })

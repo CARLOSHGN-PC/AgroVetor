@@ -8297,7 +8297,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 for (const key of keys) {
                     if (props[key.toUpperCase()] !== undefined) {
-                        return props[key.toUpperCase()];
+                        // Garante que o retorno seja sempre uma string
+                        return String(props[key.toUpperCase()]);
                     }
                 }
                 return 'Não identificado';
@@ -9273,7 +9274,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Procura diretamente no GeoJSON pela propriedade FUNDO_AGR
                 const foundFeatures = geoJsonData.features.filter(feature => {
                     const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
-                    return fundoAgricola && String(fundoAgricola).toUpperCase().includes(searchTerm);
+                    return fundoAgricola && fundoAgricola.toUpperCase().includes(searchTerm);
                 });
 
                 if (foundFeatures.length === 0) {
