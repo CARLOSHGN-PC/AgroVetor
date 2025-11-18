@@ -1488,7 +1488,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
-                // App.mapModule.initMap(); // MOVED to showTab for lazy initialization
+                App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
                 App.actions.startGpsTracking(); // O rastreamento agora é manual
                 App.actions.startAutoSync(); // Inicia a sincronização automática
             },
@@ -1855,11 +1855,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    // Lazy initialization of the map
-                    if (!App.state.mapboxMap) {
-                        App.mapModule.initMap();
-                    } else {
-                        // Force a resize if the map already exists and we are just switching back to it
+                    if (App.state.mapboxMap) {
+                        // Força o redimensionamento do mapa para o contêiner visível
                         setTimeout(() => App.state.mapboxMap.resize(), 0);
                     }
                 } else {
@@ -8041,21 +8038,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const destProjection = "WGS84";
                         geojson.features.forEach(feature => {
                             if (feature.geometry && feature.geometry.coordinates) {
-                                feature.geometry.coordinates = feature.geometry.coordinates.map(polygon => {
-                                    try {
-                                        // Process each ring (polygon)
-                                        const reprojectedPolygon = polygon.map(coord => {
-                                            if (!Array.isArray(coord) || coord.length < 2 || !isFinite(coord[0]) || !isFinite(coord[1])) {
-                                                throw new Error(`Coordenada inválida encontrada: ${JSON.stringify(coord)}`);
-                                            }
-                                            return proj4(sourceProjection, destProjection, coord);
-                                        });
-                                        return reprojectedPolygon;
-                                    } catch (e) {
-                                        console.error("Erro ao processar um polígono no shapefile. O polígono será ignorado.", e.message);
-                                        return []; // Return an empty array for the invalid polygon
-                                    }
-                                }).filter(polygon => polygon.length > 0); // Filter out empty (invalid) polygons
+                                try {
+                                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                        polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                    );
+                                } catch (e) {
+                                    console.error("Erro ao reprojetar coordenada:", coord, e);
+                                }
                             }
                         });
                         console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
@@ -8101,20 +8090,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             const destProjection = "WGS84";
                             geojson.features.forEach(feature => {
                                 if (feature.geometry && feature.geometry.coordinates) {
-                                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon => {
-                                        try {
-                                            const reprojectedPolygon = polygon.map(coord => {
-                                                if (!Array.isArray(coord) || coord.length < 2 || !isFinite(coord[0]) || !isFinite(coord[1])) {
-                                                    throw new Error(`Coordenada inválida do cache encontrada: ${JSON.stringify(coord)}`);
-                                                }
-                                                return proj4(sourceProjection, destProjection, coord);
-                                            });
-                                            return reprojectedPolygon;
-                                        } catch (e) {
-                                            console.error("Erro ao processar um polígono do cache do shapefile. O polígono será ignorado.", e.message);
-                                            return [];
-                                        }
-                                    }).filter(polygon => polygon.length > 0);
+                                    try {
+                                        feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                            polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                        );
+                                    } catch (e) {
+                                        console.error("Erro ao reprojetar coordenada do cache:", coord, e);
+                                    }
                                 }
                             });
                             console.log(`Reprojeção de coordenadas do cache de ${sourceProjection} para ${destProjection} concluída.`);
