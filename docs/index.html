@@ -1151,7 +1151,7 @@
         color: var(--color-danger);
       }
 
-      /* [NOVO] Estilos para o sino e dropdown de notificações */
+      /* [REDESIGN] Modern Notification Bell & Dropdown */
       .notification-bell {
         position: relative;
         z-index: 1201;
@@ -1159,7 +1159,6 @@
       #notification-bell-toggle {
         background: rgba(255, 255, 255, 0.1);
         color: var(--color-white);
-        padding: 8px;
         border-radius: 50%;
         width: 48px;
         height: 48px;
@@ -1176,27 +1175,36 @@
       }
       #notification-bell-toggle i {
         font-size: 20px;
+        transition: transform 0.3s ease;
+      }
+      #notification-bell-toggle:hover i {
+        animation: bell-ring 0.5s ease;
+      }
+      @keyframes bell-ring {
+        0%, 100% { transform: rotate(0); }
+        25% { transform: rotate(15deg); }
+        75% { transform: rotate(-15deg); }
       }
       #notification-count {
         position: absolute;
-        top: 5px;
-        right: 5px;
+        top: 2px;
+        right: 2px;
         background-color: var(--color-danger);
         color: white;
         border-radius: 50%;
-        width: 18px;
-        height: 18px;
-        font-size: 11px;
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
         font-weight: bold;
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid white;
+        border: 2px solid var(--color-primary-dark);
         transform: scale(0);
-        transition: transform 0.2s ease;
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       }
       #notification-count.visible {
-          transform: scale(1);
+        transform: scale(1);
       }
       #notification-dropdown {
         position: absolute;
@@ -1204,11 +1212,11 @@
         right: 0;
         background: var(--color-surface);
         color: var(--color-text);
-        border-radius: var(--border-radius);
-        box-shadow: var(--shadow-lg);
-        width: 320px;
-        max-height: 400px;
-        overflow-y: auto;
+        border-radius: var(--border-radius-lg);
+        box-shadow: var(--shadow-xl);
+        width: 360px;
+        max-height: 500px;
+        overflow: hidden;
         transition: opacity 0.2s ease, transform 0.2s ease;
         transform-origin: top right;
         opacity: 0;
@@ -1220,11 +1228,39 @@
       }
       #notification-dropdown.show {
         opacity: 1;
-        transform: translateY(0);
+        transform: scale(1) translateY(0);
         pointer-events: auto;
       }
+      .notification-header {
+        padding: 12px 16px;
+        font-weight: 600;
+        border-bottom: 1px solid var(--color-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        background: var(--color-surface);
+        z-index: 1;
+      }
+      .notification-header button {
+        font-size: 13px;
+        background: none;
+        border: none;
+        color: var(--color-info);
+        cursor: pointer;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+      .notification-header button:hover {
+        color: var(--color-primary-dark);
+      }
+      #notification-list {
+        overflow-y: auto;
+        flex-grow: 1;
+      }
       .notification-item {
-        padding: 12px;
+        padding: 12px 16px;
         border-bottom: 1px solid var(--color-border);
         cursor: pointer;
         transition: background-color 0.2s ease;
@@ -1240,54 +1276,52 @@
       }
       .notification-item i {
         font-size: 16px;
-        margin-top: 3px;
-        width: 20px;
+        margin-top: 4px;
+        width: 24px;
+        height: 24px;
         text-align: center;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
       }
-      .notification-item.warning i { color: var(--color-warning); }
-      .notification-item.danger i { color: var(--color-danger); }
+      .notification-item.info i { background-color: var(--color-info); }
+      .notification-item.success i { background-color: var(--color-success); }
+      .notification-item.warning i { background-color: var(--color-warning); }
+      .notification-item.danger i, .notification-item.error i { background-color: var(--color-danger); }
+      .notification-item-content { flex-grow: 1; }
       .notification-item-content p {
         margin: 0;
-        font-size: 13px;
+        font-size: 14px;
         line-height: 1.4;
-        word-break: break-word; /* Garante que o texto quebre e não estoure o container */
+        word-break: break-word;
       }
       .notification-item-content p strong {
         font-weight: 600;
         color: var(--color-text);
+        display: block;
+        margin-bottom: 2px;
       }
       .notification-item-content .timestamp {
-        font-size: 11px;
+        font-size: 12px;
         color: var(--color-text-light);
         margin-top: 4px;
       }
-      .notification-header {
-        padding: 12px;
-        font-weight: 600;
-        border-bottom: 1px solid var(--color-border);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        position: sticky;
-        top: 0;
-        background: var(--color-surface);
-      }
-      .notification-header button {
-        font-size: 11px;
-        background: none;
-        border: none;
-        color: var(--color-info);
-        cursor: pointer;
-        font-weight: 500;
-      }
       #no-notifications {
-        padding: 40px 20px;
+        padding: 50px 20px;
         text-align: center;
         color: var(--color-text-light);
         flex-grow: 1;
-        display: flex;
+        display: none; /* Alterado */
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+      }
+      #no-notifications i {
+        font-size: 48px;
+        color: var(--color-border);
+        margin-bottom: 15px;
       }
       
       /* ALTERAÇÃO PONTO 1: Centralizar botão de coletar armadilha */
@@ -3440,6 +3474,9 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
     <!-- Turf.js for spatial analysis -->
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+
+    <!-- Proj4.js for coordinate reprojection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.min.js" integrity="sha512-Xc9+1uP2n/3/O/45gK/yHqj/t/fG0e/j/gP/b/2i2c/m3/d/Jg/a/f/H/V" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <!-- Crypto-JS for hashing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
