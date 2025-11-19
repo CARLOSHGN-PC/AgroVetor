@@ -347,6 +347,44 @@ try {
         }
     });
 
+    app.post('/api/track/batch', async (req, res) => {
+        const locations = req.body;
+
+        if (!Array.isArray(locations) || locations.length === 0) {
+            return res.status(400).json({ message: 'O corpo da requisição deve ser um array de localizações não vazio.' });
+        }
+
+        try {
+            const batch = db.batch();
+            let validLocations = 0;
+
+            for (const loc of locations) {
+                const { userId, latitude, longitude, timestamp, companyId } = loc;
+
+                if (userId && latitude !== undefined && longitude !== undefined && timestamp && companyId) {
+                    const docRef = db.collection('locationHistory').doc(); // Auto-generate ID
+                    batch.set(docRef, {
+                        userId: userId,
+                        companyId: companyId,
+                        location: new admin.firestore.GeoPoint(parseFloat(latitude), parseFloat(longitude)),
+                        timestamp: new Date(timestamp) // Convert ISO string/timestamp number to Firestore Timestamp
+                    });
+                    validLocations++;
+                }
+            }
+
+            if (validLocations === 0) {
+                return res.status(400).json({ message: 'Nenhuma localização válida fornecida no lote.' });
+            }
+
+            await batch.commit();
+            res.status(200).send({ message: `${validLocations} localizações registradas com sucesso.` });
+        } catch (error) {
+            console.error("Erro ao registrar localizações em lote:", error);
+            res.status(500).json({ message: 'Erro no servidor ao registrar localizações em lote.' });
+        }
+    });
+
     app.get('/api/history', async (req, res) => {
         const { userId, startDate, endDate, companyId } = req.query;
 
