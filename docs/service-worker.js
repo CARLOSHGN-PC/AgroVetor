@@ -1,21 +1,21 @@
 const CACHE_NAME = 'agrovetor-cache-v13'; // Incremented version for update
-const TILE_CACHE_NAME = 'agrovetor-tile-cache-v5'; // Incremented tile cache
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
-// Helper function to limit the size of the tile cache
-const trimCache = (cacheName, maxItems) => {
-  caches.open(cacheName).then(cache => {
-    cache.keys().then(keys => {
-      if (keys.length > maxItems) {
-        // Delete the oldest items to keep the cache at the defined size
-        const itemsToDelete = keys.slice(0, keys.length - maxItems);
-        Promise.all(itemsToDelete.map(key => cache.delete(key)))
-          .then(() => {
-            console.log(`Cache ${cacheName} trimmed. ${itemsToDelete.length} items deleted.`);
-          });
-      }
-    });
-  });
+// Helper function to limit the size of the IndexedDB tile cache
+const trimIdbCache = async (dbName, storeName, maxItems) => {
+    try {
+        const db = await idb.openDB(dbName, DB_VERSION);
+        const keys = await db.getAllKeys(storeName);
+        if (keys.length > maxItems) {
+            const keysToDelete = keys.slice(0, keys.length - maxItems);
+            const tx = db.transaction(storeName, 'readwrite');
+            await Promise.all(keysToDelete.map(key => tx.store.delete(key)));
+            await tx.done;
+            console.log(`IndexedDB cache ${storeName} trimmed. ${keysToDelete.length} items deleted.`);
+        }
+    } catch (error) {
+        console.error(`Failed to trim IndexedDB cache ${storeName}:`, error);
+    }
 };
 
 const urlsToCache = [
@@ -66,7 +66,7 @@ self.addEventListener('install', event => {
 
 // Activate event: clean up old caches and take control
 self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME, TILE_CACHE_NAME];
+  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
@@ -215,6 +215,18 @@ async function getTileFromIndexedDB(request) {
     }
 }
 
+async function saveTileToIndexedDB(request, response) {
+    try {
+        const db = await getDb();
+        const blob = await response.blob();
+        await db.put(TILE_STORE_NAME, blob, request.url);
+        // Trim the cache after a successful save
+        await trimIdbCache(DB_NAME, TILE_STORE_NAME, MAX_TILES_IN_CACHE);
+    } catch (error) {
+        console.error('Error saving tile to IndexedDB:', error);
+    }
+}
+
 
 // Fetch event: intercept requests
 self.addEventListener('fetch', event => {
@@ -230,35 +242,30 @@ self.addEventListener('fetch', event => {
     return; // Let the browser handle the request normally
   }
 
-  // Strategy for Mapbox tiles: IndexedDB first, then Cache API, then Network
+  // Strategy for Mapbox tiles: IndexedDB first, then Network, while saving to IndexedDB in background
   if (url.hostname.includes('api.mapbox.com') && (url.pathname.includes('mapbox.satellite') || url.pathname.includes('mapbox.mapbox-streets-v8'))) {
     event.respondWith(
-      getTileFromIndexedDB(event.request).then(indexedDbResponse => {
-        if (indexedDbResponse) {
-          return indexedDbResponse;
-        }
-
-        // Fallback to the Cache API if not in IndexedDB
-        return caches.open(TILE_CACHE_NAME).then(cache => {
-          return cache.match(event.request).then(cacheResponse => {
-            if (cacheResponse) {
-              return cacheResponse;
+        (async () => {
+            const cachedResponse = await getTileFromIndexedDB(event.request);
+            if (cachedResponse) {
+                return cachedResponse;
             }
 
-            // Fallback to network if not in cache
-            return fetch(event.request).then(networkResponse => {
-              // Only cache successful responses
-              if (networkResponse && networkResponse.ok) {
-                const responseToCache = networkResponse.clone();
-                cache.put(event.request, responseToCache).then(() => {
-                  trimCache(TILE_CACHE_NAME, MAX_TILES_IN_CACHE);
-                });
-              }
-              return networkResponse;
-            }); // Let network errors propagate to the browser/app
-          });
-        });
-      })
+            try {
+                const networkResponse = await fetch(event.request);
+                if (networkResponse && networkResponse.ok) {
+                    // Clone the response to save it to IndexedDB while also returning it
+                    const responseToCache = networkResponse.clone();
+                    // Don't wait for this to finish, do it in the background
+                    event.waitUntil(saveTileToIndexedDB(event.request, responseToCache));
+                }
+                return networkResponse;
+            } catch (error) {
+                console.error(`Fetch failed for tile ${event.request.url}:`, error);
+                // Optionally return a placeholder image or an error response
+                return new Response('', { status: 408, statusText: 'Request timed out.' });
+            }
+        })()
     );
     return;
   }

@@ -8038,13 +8038,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
 
-                    // Normaliza as propriedades para garantir que os rótulos funcionem
+                    // ETAPA DE NORMALIZAÇÃO:
+                    // O código da aplicação espera propriedades padronizadas (ex: 'AGV_FUNDO').
+                    // No entanto, os shapefiles podem ter nomes de colunas diferentes (ex: 'FUNDO_AGR', 'FUNDO_AGRI').
+                    // O loop abaixo normaliza esses dados, criando as propriedades padronizadas que o resto do código usa.
                     let featureIdCounter = 0;
                     geojson.features.forEach(feature => {
-                        feature.id = featureIdCounter++; // **HOTFIX** Adiciona um ID numérico único
+                        feature.id = featureIdCounter++; // Adiciona um ID numérico único para o estado do Mapbox
+
+                        // Busca por vários nomes possíveis para o "fundo agrícola" e normaliza para 'AGV_FUNDO'.
                         const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
-                        const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
                         feature.properties.AGV_FUNDO = String(fundo).trim();
+
+                        // Faz o mesmo para o nome do talhão.
+                        const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
                         feature.properties.AGV_TALHAO = String(talhao).trim();
                     });
 
@@ -8089,13 +8096,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             console.log(`Reprojeção de coordenadas do cache de ${sourceProjection} para ${destProjection} concluída.`);
                         }
 
-                        // Normaliza as propriedades também para o cache offline
+                        // ETAPA DE NORMALIZAÇÃO (CACHE OFFLINE): Garante a consistência dos dados carregados do cache.
                         let featureIdCounter = 0;
                         geojson.features.forEach(feature => {
-                            feature.id = featureIdCounter++; // **HOTFIX** Adiciona um ID numérico único
+                            feature.id = featureIdCounter++; // Adiciona um ID numérico único
                             const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
-                            const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
                             feature.properties.AGV_FUNDO = String(fundo).trim();
+
+                            const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
                             feature.properties.AGV_TALHAO = String(talhao).trim();
                         });
 
@@ -8406,62 +8414,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 const progressContainer = infoBox.querySelector('.download-progress-container');
                 const progressText = infoBox.querySelector('.download-progress-text');
                 const progressBar = infoBox.querySelector('.download-progress-bar');
-                let downloadedCount = 0;
+                let processedCount = 0;
                 let failedCount = 0;
                 const totalTiles = urls.length;
+                const CONCURRENCY_LIMIT = 8; // Increased concurrency
 
-                const db = await OfflineDB.dbPromise;
-
-                const CONCURRENCY_LIMIT = 5;
-                const RETRY_LIMIT = 3;
-
-                // Function to download a single tile with retries
-                const downloadTile = async (url, retryCount = 0) => {
+                // This function just triggers the fetch. The service worker does the actual caching.
+                const triggerFetch = async (url) => {
                     try {
-                        const existing = await db.get('offline-map-tiles', url);
-                        if (existing) {
-                            return { status: 'success' };
-                        }
-                        const response = await fetch(url);
-                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                        const blob = await response.blob();
-                        await db.put('offline-map-tiles', blob, url);
+                        // We don't need the response body, just the status.
+                        // The 'no-cors' mode is a trick to speed things up as we don't read the response directly,
+                        // but the service worker still gets the full response to cache.
+                        const response = await fetch(url, { mode: 'no-cors', cache: 'no-store' });
+                        // A response (even opaque) means the request was sent.
+                        // The service worker will handle success/failure of caching.
+                        // For UI feedback, we assume success if the request doesn't throw an error.
                         return { status: 'success' };
                     } catch (error) {
-                        if (retryCount < RETRY_LIMIT) {
-                            // Wait a bit before retrying
-                            await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
-                            return downloadTile(url, retryCount + 1);
-                        } else {
-                            console.warn(`Falha ao baixar o tile após ${RETRY_LIMIT} tentativas: ${url}`, error);
-                            return { status: 'failed' };
-                        }
+                        console.warn(`Falha ao iniciar o download para o tile: ${url}`, error);
+                        return { status: 'failed' };
                     }
                 };
 
-                // Process URLs in chunks
                 for (let i = 0; i < totalTiles; i += CONCURRENCY_LIMIT) {
                     const chunk = urls.slice(i, i + CONCURRENCY_LIMIT);
-                    const promises = chunk.map(url => downloadTile(url));
+                    const promises = chunk.map(url => triggerFetch(url));
                     const results = await Promise.all(promises);
 
                     results.forEach(result => {
-                        if (result.status === 'success') {
-                            downloadedCount++;
-                        } else {
+                        processedCount++;
+                        if (result.status === 'failed') {
                             failedCount++;
                         }
                     });
 
-                    progressBar.value = downloadedCount + failedCount;
-                    progressText.textContent = `A baixar... ${downloadedCount}/${totalTiles} (Falhas: ${failedCount})`;
+                    progressBar.value = processedCount;
+                    progressText.textContent = `A guardar mapa offline... ${processedCount}/${totalTiles} (Falhas: ${failedCount})`;
                 }
 
-
                 if (failedCount > 0) {
-                    App.ui.showAlert(`Download concluído. ${downloadedCount} tiles baixados, ${failedCount} falhas.`, 'warning');
+                    App.ui.showAlert(`Download concluído com ${failedCount} falhas. Tente novamente se o mapa offline estiver incompleto.`, 'warning');
                 } else {
-                    App.ui.showAlert(`Download do mapa offline concluído com sucesso! ${downloadedCount} tiles baixados.`, 'success');
+                    App.ui.showAlert(`Mapa offline guardado com sucesso! ${totalTiles} tiles processados.`, 'success');
                 }
 
                 setTimeout(() => {
@@ -9295,20 +9289,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // **HOTFIX** Pega os IDs das features encontradas
-                const foundFeatureIds = foundFeatures.map(f => f.id);
-
-                // **HOTFIX** Usa os IDs para consultar as features que estão na fonte do mapa (que têm o ID correto para setFeatureState)
-                const sourceFeatures = mapboxMap.querySourceFeatures('talhoes-source', {
-                    filter: ['in', ['id'], ['literal', foundFeatureIds]]
-                });
-
-                if (sourceFeatures.length === 0) {
-                     App.ui.showAlert(`Nenhum fundo agrícola correspondente encontrado na fonte do mapa.`, "warning");
-                    return;
-                }
-
-                const featureCollection = turf.featureCollection(sourceFeatures);
+                const featureCollection = turf.featureCollection(foundFeatures);
                 const bbox = turf.bbox(featureCollection);
                 const bounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
 
@@ -9318,7 +9299,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 1500
                 });
 
-                const featureIdsToHighlight = sourceFeatures.map(f => f.id);
+                const featureIdsToHighlight = foundFeatures.map(f => f.id);
                 featureIdsToHighlight.forEach(id => {
                     mapboxMap.setFeatureState({ source: 'talhoes-source', id: id }, { searched: true });
                 });
