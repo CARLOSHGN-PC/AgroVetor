@@ -698,14 +698,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
-            whatsNewModal: {
-                overlay: document.getElementById('whatsNewModal'),
-                title: document.getElementById('whatsNewModalTitle'),
-                date: document.getElementById('whatsNewModalDate'),
-                content: document.getElementById('whatsNewModalContent'),
-                closeBtn: document.getElementById('whatsNewModalCloseBtn'),
-                okBtn: document.getElementById('whatsNewModalOkBtn'),
-            },
         },
 
         isFeatureGloballyActive(featureKey) {
@@ -1499,7 +1491,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
                 App.actions.startGpsTracking(); // O rastreamento agora é manual
                 App.actions.startAutoSync(); // Inicia a sincronização automática
-                App.actions.checkForUpdates();
             },
             renderSpecificContent(collectionName) {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
@@ -4389,37 +4380,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-                const whatsNewModal = App.elements.whatsNewModal;
-                if (whatsNewModal.closeBtn) whatsNewModal.closeBtn.addEventListener('click', () => App.ui.closeWhatsNewModal());
-                if (whatsNewModal.okBtn) whatsNewModal.okBtn.addEventListener('click', () => App.ui.closeWhatsNewModal());
-                if (whatsNewModal.overlay) whatsNewModal.overlay.addEventListener('click', e => { if(e.target === whatsNewModal.overlay) App.ui.closeWhatsNewModal(); });
-
-            },
-
-            showWhatsNewModal(releaseNote) {
-                const { overlay, title, date, content } = App.elements.whatsNewModal;
-                if (!overlay || !releaseNote) return;
-
-                title.innerHTML = `<i class="fas fa-star" style="color: var(--color-warning);"></i> ${releaseNote.title || 'O que há de novo?'}`;
-                date.textContent = releaseNote.releaseDate || 'Data não disponível';
-                content.innerHTML = releaseNote.content || '<p>Não foi possível carregar as notas da atualização.</p>'; // Use innerHTML to render HTML content from Firestore
-
-                overlay.classList.add('show');
-
-                // Store the version to be saved when the modal is closed
-                overlay.dataset.version = releaseNote.version;
-            },
-
-            closeWhatsNewModal() {
-                const { overlay } = App.elements.whatsNewModal;
-                if (!overlay) return;
-
-                const versionToSave = overlay.dataset.version;
-                if (versionToSave) {
-                    localStorage.setItem('lastSeenVersion', versionToSave);
-                }
-                overlay.classList.remove('show');
-            },
+            }
         },
         
         actions: {
@@ -7745,25 +7706,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     passwordInput.value = '';
                 }
             },
-
-            async checkForUpdates() {
-                try {
-                    const q = query(collection(db, "releaseNotes"), orderBy("version", "desc"), where("active", "==", true));
-                    const querySnapshot = await getDocs(q);
-
-                    if (!querySnapshot.empty) {
-                        const latestNote = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
-                        const lastSeenVersion = localStorage.getItem('lastSeenVersion');
-
-                        // The version is a numeric timestamp, so we compare them as numbers
-                        if (!lastSeenVersion || parseFloat(latestNote.version) > parseFloat(lastSeenVersion)) {
-                            App.ui.showWhatsNewModal(latestNote);
-                        }
-                    }
-                } catch (error) {
-                    console.error("Erro ao verificar as notas de atualização:", error);
-                }
-            },
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
@@ -9949,32 +9891,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            showWhatsNewModal(releaseNote) {
-                const { overlay, title, date, content } = App.elements.whatsNewModal;
-                if (!overlay || !releaseNote) return;
-
-                title.innerHTML = `<i class="fas fa-star" style="color: var(--color-warning);"></i> ${releaseNote.title || 'O que há de novo?'}`;
-                date.textContent = releaseNote.releaseDate || 'Data não disponível';
-                content.innerHTML = releaseNote.content || '<p>Não foi possível carregar as notas da atualização.</p>'; // Use innerHTML to render HTML content from Firestore
-
-                overlay.classList.add('show');
-
-                // Store the version to be saved when the modal is closed
-                overlay.dataset.version = releaseNote.version;
-            },
-
-            closeWhatsNewModal() {
-                const { overlay } = App.elements.whatsNewModal;
-                if (!overlay) return;
-
-                const versionToSave = overlay.dataset.version;
-                if (versionToSave) {
-                    localStorage.setItem('lastSeenVersion', versionToSave);
-                }
-                overlay.classList.remove('show');
-            },
-
-            async renderBrocaDashboardCharts() {
+            async renderPlantioDashboardCharts() {
                 const startDateEl = document.getElementById('plantioDashboardInicio');
                 const endDateEl = document.getElementById('plantioDashboardFim');
                 const culturaEl = document.getElementById('plantioDashboardCultura');
