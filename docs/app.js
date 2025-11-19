@@ -3,10 +3,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebas
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
+// Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
+import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-    // CORREÇÃO: Usa a versão IIFE da biblioteca idb, que é carregada globalmente no index.html.
-    const { openDB } = idb;
 
     // Lógica da Tela de Abertura
     const splashScreen = document.getElementById('splash-screen');
@@ -166,7 +166,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Super Admin', icon: 'fas fa-user-shield',
                     submenu: [
                         { label: 'Gerir Empresas', icon: 'fas fa-building', target: 'gerenciarEmpresas', permission: 'superAdmin' },
-                        { label: 'Gerenciar Comunicados', icon: 'fas fa-bullhorn', target: 'gerenciarComunicados', permission: 'superAdmin' },
                     ]
                 }
             ],
@@ -230,16 +229,9 @@ document.addEventListener('DOMContentLoaded', () => {
             clima: [],
             apontamentoPlantioFormIsDirty: false,
             syncInterval: null,
-            comunicados: [], // Para armazenar os comunicados
         },
         
         elements: {
-            comunicadoModal: {
-                overlay: document.getElementById('comunicadoModal'),
-                title: document.getElementById('comunicadoModalTitle'),
-                body: document.getElementById('comunicadoModalBody'),
-                closeBtn: document.getElementById('comunicadoModalCloseBtn'),
-            },
             loadingOverlay: document.getElementById('loading-overlay'),
             loadingProgressText: document.getElementById('loading-progress-text'),
             loginScreen: document.getElementById('loginScreen'),
@@ -725,7 +717,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
-            this.checkAndShowComunicado();
             OfflineDB.init();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
@@ -1332,16 +1323,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.companyLogo = null;
                     App.ui.renderLogoPreview();
 
-                    // Listener para comunicados (apenas para Super Admins)
-                    const qComunicados = collection(db, 'comunicados');
-                    const unsubscribeComunicados = onSnapshot(qComunicados, (querySnapshot) => {
-                        const data = [];
-                        querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
-                        App.state.comunicados = data;
-                        App.ui.renderComunicadosList();
-                    }, (error) => console.error(`Erro ao ouvir a coleção comunicados: `, error));
-                    App.state.unsubscribeListeners.push(unsubscribeComunicados);
-
                 } else if (companyId) {
                     // Utilizador normal ouve apenas os dados da sua própria empresa
                     companyScopedCollections.forEach(collectionName => {
@@ -1436,58 +1417,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         ui: {
-            showComunicadoModal: (comunicado) => {
-                const modal = App.elements.comunicadoModal;
-                modal.title.innerHTML = `<i class="fas fa-bullhorn"></i> ${comunicado.titulo}`;
-
-                let versionHtml = comunicado.versao ? `<span style="background-color: var(--color-purple); color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; margin-right: 10px;">${comunicado.versao}</span>` : '';
-                let typeHtml = `<span style="background-color: var(--color-${comunicado.tipo}); color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500;">${comunicado.tipo}</span>`;
-
-                modal.body.innerHTML = `
-                    <div style="margin-bottom: 15px;">${versionHtml}${typeHtml}</div>
-                    <div style="line-height: 1.7;">${comunicado.mensagem}</div>
-                `;
-                modal.overlay.classList.add('show');
-            },
-
-            closeComunicadoModal: () => {
-                const modal = App.elements.comunicadoModal;
-                modal.overlay.classList.remove('show');
-            },
-
-            renderComunicadosList() {
-                const listEl = document.getElementById('listaComunicados');
-                if (!listEl) return;
-
-                if (App.state.comunicados.length === 0) {
-                    listEl.innerHTML = '<p>Nenhum comunicado ativo.</p>';
-                    return;
-                }
-
-                const comunicadosOrdenados = [...App.state.comunicados].sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate());
-
-                listEl.innerHTML = comunicadosOrdenados.map(comunicado => {
-                    const data = comunicado.createdAt ? comunicado.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
-                    return `
-                        <div class="plano-card" style="border-left-color: var(--color-${comunicado.tipo});">
-                            <div class="plano-header">
-                                <span class="plano-title"><i class="fas fa-bullhorn"></i> ${comunicado.titulo}</span>
-                                <span class="plano-status" style="background-color: var(--color-purple);">${comunicado.versao || 'Geral'}</span>
-                            </div>
-                            <div class="plano-details" style="grid-template-columns: 1fr;">
-                                <div><i class="fas fa-info-circle"></i> <strong>Tipo:</strong> ${comunicado.tipo}</div>
-                                <div><i class="fas fa-users"></i> <strong>Destino:</strong> ${comunicado.target === 'new' ? 'Novos Utilizadores' : 'Todos'}</div>
-                                <div><i class="fas fa-calendar-alt"></i> <strong>Criado em:</strong> ${data}</div>
-                            </div>
-                            <p style="margin-top: 10px; white-space: pre-wrap;">${comunicado.mensagem}</p>
-                            <div class="plano-actions">
-                                <button class="btn-excluir" style="background-color: var(--color-info);" data-action="edit-comunicado" data-id="${comunicado.id}"><i class="fas fa-edit"></i> Editar</button>
-                                <button class="btn-excluir" data-action="delete-comunicado" data-id="${comunicado.id}"><i class="fas fa-trash"></i> Excluir</button>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            },
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
                 return {
@@ -1966,9 +1895,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderCompaniesList();
                     this.renderCompanyModules('newCompanyModules');
                     this.renderGlobalFeatures(); // NOVO
-                }
-                if (id === 'gerenciarComunicados') {
-                    App.ui.renderComunicadosList();
                 }
                 if (id === 'cadastros') {
                     this.renderFarmSelect();
@@ -3834,22 +3760,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyEls = App.elements.companyManagement;
                 if (companyEls.btnCreate) companyEls.btnCreate.addEventListener('click', () => App.actions.createCompany());
 
+                const btnSaveGlobalFeatures = document.getElementById('btnSaveGlobalFeatures');
                 if (btnSaveGlobalFeatures) {
                     btnSaveGlobalFeatures.addEventListener('click', () => App.actions.saveGlobalFeatures());
                 }
-
-            // Listeners para o modal de comunicado
-            const comunicadoModal = App.elements.comunicadoModal;
-            if (comunicadoModal.overlay) {
-                comunicadoModal.overlay.addEventListener('click', (e) => {
-                    if (e.target === comunicadoModal.overlay) {
-                        App.ui.closeComunicadoModal();
-                    }
-                });
-            }
-            if (comunicadoModal.closeBtn) {
-                comunicadoModal.closeBtn.addEventListener('click', () => App.ui.closeComunicadoModal());
-            }
 
                 if (companyEls.list) companyEls.list.addEventListener('click', e => {
                     const button = e.target.closest('button[data-action]');
@@ -4373,30 +4287,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                // Listeners para a seção de comunicados
-                const btnSalvarComunicado = document.getElementById('btnSalvarComunicado');
-                if (btnSalvarComunicado) {
-                    btnSalvarComunicado.addEventListener('click', App.actions.saveComunicado);
-                }
-                const listaComunicados = document.getElementById('listaComunicados');
-                if (listaComunicados) {
-                    listaComunicados.addEventListener('click', (e) => {
-                        const button = e.target.closest('button[data-action]');
-                        if (button) {
-                            const { action, id } = button.dataset;
-                            if (action === 'delete-comunicado') {
-                                App.actions.deleteComunicado(id);
-                            } else if (action === 'edit-comunicado') {
-                                App.actions.editComunicado(id);
-                            }
-                        }
-                    });
-                }
-                const btnCancelarEdicaoComunicado = document.getElementById('btnCancelarEdicaoComunicado');
-                if (btnCancelarEdicaoComunicado) {
-                    btnCancelarEdicaoComunicado.addEventListener('click', App.actions.cancelEditComunicado);
-                }
-
                 const syncHistoryList = document.getElementById('syncHistoryList');
                 if (syncHistoryList) {
                     syncHistoryList.addEventListener('click', e => {
@@ -4494,139 +4384,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
-            async saveComunicado(event) {
-                event.preventDefault();
-                const form = document.getElementById('formNovoComunicado');
-                const comunicadoId = form.dataset.editingId;
-
-                const comunicado = {
-                    titulo: form.titulo.value.trim(),
-                    mensagem: form.mensagem.value.trim(),
-                    versao: form.versao.value.trim(),
-                    tipo: form.tipo.value,
-                    target: form.target.value,
-                    updatedAt: App.firebase.Timestamp.now(),
-                };
-
-                if (!comunicado.titulo || !comunicado.mensagem) {
-                    App.ui.showSystemNotification('Erro', 'Título e mensagem são obrigatórios.', 'error');
-                    return;
-                }
-
-                App.ui.setLoading(true);
-                try {
-                    if (comunicadoId) {
-                        await App.data.updateDocument('comunicados', comunicadoId, comunicado);
-                        App.ui.showSystemNotification('Sucesso', 'Comunicado atualizado com sucesso!', 'success');
-                    } else {
-                        comunicado.createdAt = App.firebase.Timestamp.now();
-                        comunicado.createdBy = App.state.currentUser.uid;
-                        await App.data.addDocument('comunicados', comunicado);
-                        App.ui.showSystemNotification('Sucesso', 'Comunicado salvo com sucesso!', 'success');
-                    }
-                    form.reset();
-                    delete form.dataset.editingId;
-                    document.getElementById('formComunicadoTitle').textContent = 'Novo Comunicado';
-                    document.getElementById('btnSalvarComunicado').textContent = 'Salvar Comunicado';
-                } catch (error) {
-                    console.error("Erro ao salvar comunicado:", error);
-                    App.ui.showSystemNotification('Erro', 'Não foi possível salvar o comunicado.', 'error');
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-
-            async deleteComunicado(comunicadoId) {
-                if (!confirm('Tem certeza que deseja excluir este comunicado?')) {
-                    return;
-                }
-
-                App.ui.setLoading(true);
-                try {
-                    await App.data.deleteDocument('comunicados', comunicadoId);
-                    App.ui.showSystemNotification('Sucesso', 'Comunicado excluído com sucesso!', 'success');
-                } catch (error) {
-                    console.error("Erro ao excluir comunicado:", error);
-                    App.ui.showSystemNotification('Erro', 'Não foi possível excluir o comunicado.', 'error');
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-
-            editComunicado(comunicadoId) {
-                const comunicado = App.state.comunicados.find(c => c.id === comunicadoId);
-                if (!comunicado) return;
-
-                const form = document.getElementById('formNovoComunicado');
-                form.dataset.editingId = comunicadoId;
-                form.titulo.value = comunicado.titulo;
-                form.mensagem.value = comunicado.mensagem;
-                form.versao.value = comunicado.versao;
-                form.tipo.value = comunicado.tipo;
-                form.target.value = comunicado.target;
-
-                document.getElementById('formComunicadoTitle').textContent = 'Editar Comunicado';
-                document.getElementById('btnSalvarComunicado').textContent = 'Salvar Alterações';
-                form.scrollIntoView({ behavior: 'smooth' });
-            },
-
-            cancelEditComunicado() {
-                const form = document.getElementById('formNovoComunicado');
-                form.reset();
-                delete form.dataset.editingId;
-                document.getElementById('formComunicadoTitle').textContent = 'Novo Comunicado';
-                document.getElementById('btnSalvarComunicado').textContent = 'Salvar Comunicado';
-            },
-
-            async checkAndShowComunicado() {
-                if (!App.state.currentUser) return;
-
-                const user = App.state.currentUser;
-
-                try {
-                    // Fetch all active announcements
-                    const q = App.firebase.query(App.firebase.collection(App.db, 'comunicados'));
-                    const querySnapshot = await App.firebase.getDocs(q);
-                    const allAnnouncements = [];
-                    querySnapshot.forEach(doc => allAnnouncements.push({ id: doc.id, ...doc.data() }));
-
-                    if (allAnnouncements.length === 0) return;
-
-                    // Get announcements already seen by the user
-                    const userDocRef = App.firebase.doc(App.db, 'users', user.uid);
-                    const userDoc = await App.firebase.getDoc(userDocRef);
-                    const seenAnnouncements = userDoc.exists() && userDoc.data().seenAnnouncements ? userDoc.data().seenAnnouncements : [];
-
-                    // Filter for unseen announcements based on target
-                    const userCreationTime = new Date(user.metadata.creationTime);
-                    const unseenAnnouncements = allAnnouncements.filter(ann => {
-                        if (seenAnnouncements.includes(ann.id)) return false; // Already seen
-
-                        if (ann.target === 'all') {
-                            return true; // For everyone
-                        }
-                        if (ann.target === 'new') {
-                            // For new users, if announcement was created after user was created
-                            const annCreationTime = ann.createdAt.toDate();
-                            return annCreationTime > userCreationTime;
-                        }
-                        return false;
-                    });
-
-                    if (unseenAnnouncements.length > 0) {
-                        unseenAnnouncements.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate());
-                        const latestAnnouncement = unseenAnnouncements[0];
-
-                        App.ui.showComunicadoModal(latestAnnouncement);
-
-                        const updatedSeen = [...new Set([...seenAnnouncements, latestAnnouncement.id])];
-                        await App.firebase.updateDoc(userDocRef, { seenAnnouncements: updatedSeen });
-                    }
-                } catch (error) {
-                    console.error("Erro ao verificar comunicados:", error);
-                }
-            },
-
             async viewConfigHistory() {
                 const modal = App.elements.configHistoryModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';

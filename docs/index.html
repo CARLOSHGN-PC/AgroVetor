@@ -2810,52 +2810,6 @@
                 </div>
             </section>
 
-            <section id="gerenciarComunicados" class="tab-content card" aria-label="Gerenciar Comunicados" tabindex="0" hidden>
-                <h2><i class="fas fa-bullhorn"></i> Gerenciar Comunicados</h2>
-                <div class="card" style="border-left-color: var(--color-purple);">
-                    <h3><i class="fas fa-plus-circle"></i> Criar Novo Comunicado</h3>
-                    <input type="hidden" id="comunicadoId">
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="comunicadoTitulo" class="required">Título:</label>
-                            <input type="text" id="comunicadoTitulo" placeholder="Ex: Nova Versão Disponível!">
-                        </div>
-                        <div class="form-col">
-                            <label for="comunicadoTipo">Tipo de Comunicado:</label>
-                            <select id="comunicadoTipo">
-                                <option value="info">Informativo (Azul)</option>
-                                <option value="success">Sucesso (Verde)</option>
-                                <option value="warning">Aviso (Amarelo)</option>
-                                <option value="danger">Urgente (Vermelho)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="comunicadoMensagem" class="required">Mensagem:</label>
-                            <textarea id="comunicadoMensagem" placeholder="Descreva a atualização ou o comunicado aqui..." rows="4"></textarea>
-                        </div>
-                    </div>
-                     <div class="form-row">
-                        <div class="form-col">
-                            <label for="comunicadoVersao">Versão (Opcional):</label>
-                            <input type="text" id="comunicadoVersao" placeholder="Ex: v2.3.1">
-                        </div>
-                        <div class="form-col">
-                             <label for="comunicadoTarget">Destino:</label>
-                            <select id="comunicadoTarget">
-                                <option value="all">Todos os Utilizadores</option>
-                                <option value="new">Apenas Novos Utilizadores (Boas-vindas)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button id="btnSalvarComunicado" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Salvar Comunicado</button>
-                    <button id="btnCancelarEdicaoComunicado" class="btn-secondary" style="max-width: 250px; display: none;"><i class="fas fa-times"></i> Cancelar Edição</button>
-                </div>
-                <h3><i class="fas fa-list-ul"></i> Comunicados Ativos</h3>
-                <div id="listaComunicados"></div>
-            </section>
-
             <section id="cadastrarPessoas" class="tab-content card" aria-label="Cadastrar Pessoas" tabindex="0" hidden>
                 <h2><i class="fas fa-id-card"></i> Cadastro de Pessoas</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
@@ -3523,7 +3477,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
 
     <!-- Proj4.js for coordinate reprojection -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.min.js" integrity="sha512-Xc9+1uP2n/3/O/45gK/yHqj/t/fG0e/j/gP/b/2i2c/m3/d/Jg/a/f/H/V" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <!-- Crypto-JS for hashing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -3532,7 +3486,7 @@
     <script src="capacitor.js"></script>
 
     <!-- Script principal da aplicação -->
-    <script src="./app.js"></script>
+    <script type="module" src="./app.js"></script>
 
 </body>
 </html>
