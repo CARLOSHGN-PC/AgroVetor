@@ -46,8 +46,8 @@ def test_risk_view_highlights_correct_farm(browser_context):
             window.App.state.geoJsonData = {
                 "type": "FeatureCollection",
                 "features": [
-                    { "type": "Feature", "id": 1, "properties": { "FUNDO_AGR": "123" }, "geometry": { "type": "Polygon", "coordinates": [[[-48.0, -21.0], [-48.1, -21.0], [-48.1, -21.1], [-48.0, -21.1], [-48.0, -21.0]]] } },
-                    { "type": "Feature", "id": 2, "properties": { "FUNDO_AGR": "456" }, "geometry": { "type": "Polygon", "coordinates": [[[-48.2, -21.2], [-48.3, -21.2], [-48.3, -21.3], [-48.2, -21.3], [-48.2, -21.2]]] } }
+                        { "type": "Feature", "id": 1, "properties": { "AGV_FUNDO": "123", "AGV_TALHAO": "T1" }, "geometry": { "type": "Polygon", "coordinates": [[[-48.0, -21.0], [-48.1, -21.0], [-48.1, -21.1], [-48.0, -21.1], [-48.0, -21.0]]] } },
+                        { "type": "Feature", "id": 2, "properties": { "AGV_FUNDO": "456", "AGV_TALHAO": "T2" }, "geometry": { "type": "Polygon", "coordinates": [[[-48.2, -21.2], [-48.3, -21.2], [-48.3, -21.3], [-48.2, -21.3], [-48.2, -21.2]]] } }
                 ]
             };
 

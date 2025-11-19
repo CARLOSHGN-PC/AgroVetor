@@ -1593,21 +1593,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
             showAlert(message, type = 'success', duration = 3000) {
-                const { alertContainer } = App.elements;
-                if (!alertContainer) return;
-                const icons = { success: 'check-circle', error: 'exclamation-circle', warning: 'info-circle', info: 'info-circle' };
-                alertContainer.innerHTML = `<i class="fas fa-${icons[type] || 'info-circle'}"></i> ${message}`;
-                alertContainer.className = `show ${type}`;
-                setTimeout(() => alertContainer.classList.remove('show'), duration);
-
-                // Adicionado para salvar a notificação
-                const notification = {
-                    title: type.charAt(0).toUpperCase() + type.slice(1), // ex: "Success"
-                    message: message,
-                    type: type,
-                    timestamp: new Date()
-                };
-                App.actions.saveNotification(notification);
+                const title = type.charAt(0).toUpperCase() + type.slice(1);
+                this.showSystemNotification(title, message, type);
             },
 
             showSystemNotification(title, message, type = 'info', options = {}) {
@@ -8306,9 +8293,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // ALTERAÇÃO PONTO 5: Melhoria na busca de propriedades do Shapefile
             showTalhaoInfo(feature, riskPercentage = null) { // feature is now a GeoJSON feature
-                const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
+                const fundoAgricola = feature.properties.AGV_FUNDO || 'Não identificado';
                 const fazendaNome = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
-                const talhaoNome = this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
+                const talhaoNome = feature.properties.AGV_TALHAO || 'Não identificado';
                 const areaHa = this._findProp(feature, ['AREA_HA', 'AREA', 'HECTARES']);
                 const variedade = this._findProp(feature, ['VARIEDADE', 'CULTURA']);
 
@@ -8421,29 +8408,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 const progressBar = infoBox.querySelector('.download-progress-bar');
                 let downloadedCount = 0;
                 let failedCount = 0;
+                const totalTiles = urls.length;
 
                 const db = await OfflineDB.dbPromise;
 
-                for (const url of urls) {
+                const CONCURRENCY_LIMIT = 5;
+                const RETRY_LIMIT = 3;
+
+                // Function to download a single tile with retries
+                const downloadTile = async (url, retryCount = 0) => {
                     try {
                         const existing = await db.get('offline-map-tiles', url);
                         if (existing) {
+                            return { status: 'success' };
+                        }
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const blob = await response.blob();
+                        await db.put('offline-map-tiles', blob, url);
+                        return { status: 'success' };
+                    } catch (error) {
+                        if (retryCount < RETRY_LIMIT) {
+                            // Wait a bit before retrying
+                            await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
+                            return downloadTile(url, retryCount + 1);
+                        } else {
+                            console.warn(`Falha ao baixar o tile após ${RETRY_LIMIT} tentativas: ${url}`, error);
+                            return { status: 'failed' };
+                        }
+                    }
+                };
+
+                // Process URLs in chunks
+                for (let i = 0; i < totalTiles; i += CONCURRENCY_LIMIT) {
+                    const chunk = urls.slice(i, i + CONCURRENCY_LIMIT);
+                    const promises = chunk.map(url => downloadTile(url));
+                    const results = await Promise.all(promises);
+
+                    results.forEach(result => {
+                        if (result.status === 'success') {
                             downloadedCount++;
                         } else {
-                            const response = await fetch(url);
-                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                            const blob = await response.blob();
-                            await db.put('offline-map-tiles', blob, url);
-                            downloadedCount++;
+                            failedCount++;
                         }
-                    } catch (error) {
-                        failedCount++;
-                        console.warn(`Falha ao baixar ou guardar o tile: ${url}`, error);
-                    }
+                    });
 
                     progressBar.value = downloadedCount + failedCount;
-                    progressText.textContent = `A baixar... ${downloadedCount}/${urls.length} (Falhas: ${failedCount})`;
+                    progressText.textContent = `A baixar... ${downloadedCount}/${totalTiles} (Falhas: ${failedCount})`;
                 }
+
 
                 if (failedCount > 0) {
                     App.ui.showAlert(`Download concluído. ${downloadedCount} tiles baixados, ${failedCount} falhas.`, 'warning');
@@ -8578,8 +8591,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'success':
                         const feature = data[0];
                         const fazendaNome = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
-                        const talhaoName = this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-                        const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
+                        const talhaoName = feature.properties.AGV_TALHAO || 'Não identificado';
+                        const fundoAgricola = feature.properties.AGV_FUNDO || 'Não identificado';
 
                         content = `<p style="font-weight: 500;">Confirme o local de instalação:</p>
                                    <div class="location-confirmation-box">
@@ -8607,8 +8620,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'manual_confirm':
                         const manualFeature = data.feature;
                         const manualFazendaNome = this._findProp(manualFeature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
-                        const manualTalhaoName = this._findProp(manualFeature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']);
-                        const manualFundoAgricola = this._findProp(manualFeature, ['FUNDO_AGR']);
+                        const manualTalhaoName = manualFeature.properties.AGV_TALHAO || 'Não identificado';
+                        const manualFundoAgricola = manualFeature.properties.AGV_FUNDO || 'Não identificado';
 
                         content = `<p style="font-weight: 500;">Confirmar instalação manual:</p>
                                    <div class="location-confirmation-box">
@@ -8650,8 +8663,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     instaladoPor: App.state.currentUser.uid,
                     status: "Ativa",
                     fazendaNome: feature ? this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) : 'Não identificado',
-                    fazendaCode: feature ? this._findProp(feature, ['FUNDO_AGR']) : null,
-                    talhaoNome: feature ? this._findProp(feature, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) : 'Não identificado',
+                    fazendaCode: feature ? feature.properties.AGV_FUNDO : null,
+                    talhaoNome: feature ? feature.properties.AGV_TALHAO : 'Não identificado',
                     companyId: App.state.currentUser.companyId
                 };
 
@@ -9159,7 +9172,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const allSourceFeatures = map.querySourceFeatures('talhoes-source');
                     const featuresToHighlight = allSourceFeatures.filter(feature => {
-                        const farmCode = this._findProp(feature, ['FUNDO_AGR']);
+                        const farmCode = feature.properties.AGV_FUNDO;
                         return farmsInRisk.has(parseInt(String(farmCode).trim(), 10));
                     });
 
@@ -9271,9 +9284,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 mapboxMap.searchedFarmFeatureIds = [];
 
-                // Procura diretamente no GeoJSON pela propriedade FUNDO_AGR
+                // Procura diretamente no GeoJSON pela propriedade normalizada AGV_FUNDO
                 const foundFeatures = geoJsonData.features.filter(feature => {
-                    const fundoAgricola = this._findProp(feature, ['FUNDO_AGR']);
+                    const fundoAgricola = feature.properties.AGV_FUNDO;
                     return fundoAgricola && fundoAgricola.toUpperCase().includes(searchTerm);
                 });
 
