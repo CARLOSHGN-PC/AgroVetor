@@ -1123,7 +1123,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             initiateUserCreation() {
                 const els = App.elements.users;
-                const email = els.username.value.trim();
+                // FIX: Directly access the DOM element to prevent using a stale cached reference.
+                const email = document.getElementById('newUserUsername').value.trim();
                 const password = els.password.value;
                 const role = els.role.value;
                 if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
