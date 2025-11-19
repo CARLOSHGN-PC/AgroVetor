@@ -6935,10 +6935,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
+                // The backend endpoint expects a direct array, not an object with a 'locations' property.
                 const response = await fetch(`${App.config.backendUrl}/api/track/batch`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ locations: locationsToSync }),
+                    body: JSON.stringify(locationsToSync),
                 });
 
                 if (response.ok) {
@@ -6948,7 +6949,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     await tx.done;
                     console.log(`${locationsToSync.length} localizações GPS offline foram sincronizadas e limpas.`);
                 } else {
-                    console.error("Falha ao sincronizar localizações GPS em lote.");
+                    // Log the error for better debugging
+                    const errorText = await response.text();
+                    console.error("Falha ao sincronizar localizações GPS em lote.", response.status, errorText);
                 }
             } catch (error) {
                 console.error("Erro de rede ao sincronizar localizações GPS:", error);
