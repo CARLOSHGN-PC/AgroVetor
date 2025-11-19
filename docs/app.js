@@ -783,11 +783,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const coordinates = await Geolocation.getCurrentPosition();
                     console.log('Localização Atual:', coordinates);
                     // Exemplo de como usar:
-                    // App.ui.showAlert(`Lat: ${coordinates.coords.latitude}, Lng: ${coordinates.coords.longitude}`);
+                    // App.ui.showSystemNotification("Localização", `Lat: ${coordinates.coords.latitude}, Lng: ${coordinates.coords.longitude}`);
                     return coordinates;
                 } catch (e) {
                     console.error("Erro ao obter localização", e);
-                    App.ui.showAlert("Não foi possível obter a sua localização. Verifique as permissões do aplicativo.", "error");
+                    App.ui.showSystemNotification("Erro de Localização", "Não foi possível obter a sua localização. Verifique as permissões do aplicativo.", "error");
                     return null;
                 }
             },
@@ -814,7 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return watchId;
                 } catch (e) {
                     console.error("Erro ao iniciar o watchPosition", e);
-                    App.ui.showAlert("Não foi possível iniciar o monitoramento de localização.", "error");
+                    App.ui.showSystemNotification("Erro de Localização", "Não foi possível iniciar o monitoramento de localização.", "error");
                     return null;
                 }
             },
@@ -833,7 +833,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (permStatus.receive !== 'granted') {
                     // 3. Se a permissão for negada, informar o usuário
-                    App.ui.showAlert('A permissão para notificações não foi concedida.', 'warning');
+                    App.ui.showSystemNotification("Aviso", "A permissão para notificações não foi concedida.", "warning");
                     return;
                 }
 
@@ -874,10 +874,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('Notificação Push recebida:', notification);
                     // Exibe um alerta para o usuário, já que a notificação não aparece
                     // na barra de status quando o app está aberto.
-                    App.ui.showAlert(
-                        `${notification.title}: ${notification.body}`,
-                        'info',
-                        5000
+                    App.ui.showSystemNotification(
+                        notification.title,
+                        notification.body,
+                        'info'
                     );
                 });
 
@@ -1005,7 +1005,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             async loginOffline(email, password) {
                 if (!email || !password) {
-                    App.ui.showAlert("Por favor, insira e-mail e senha.", "warning");
+                    App.ui.showSystemNotification("Aviso", "Por favor, insira e-mail e senha.", "warning");
                     return;
                 }
 
@@ -1013,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const credentials = await OfflineDB.get('offline-credentials', email.toLowerCase());
 
                     if (!credentials) {
-                        App.ui.showAlert("Credenciais offline não encontradas para este e-mail. Faça login online primeiro e habilite o acesso offline.", "error");
+                        App.ui.showSystemNotification("Erro", "Credenciais offline não encontradas para este e-mail. Faça login online primeiro e habilite o acesso offline.", "error");
                         return;
                     }
 
@@ -1062,10 +1062,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.setLoading(false);
                         }
                     } else {
-                        App.ui.showAlert("Senha offline incorreta.", "error");
+                        App.ui.showSystemNotification("Erro", "Senha offline incorreta.", "error");
                     }
                 } catch (error) {
-                    App.ui.showAlert("Ocorreu um erro durante o login offline.", "error");
+                    App.ui.showSystemNotification("Erro", "Ocorreu um erro durante o login offline.", "error");
                     console.error("Erro no login offline:", error);
                 }
             },
@@ -1123,7 +1123,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const email = els.username.value.trim();
                 const password = els.password.value;
                 const role = els.role.value;
-                if (!email || !password) { App.ui.showAlert("Preencha e-mail e senha.", "error"); return; }
+                if (!email || !password) { App.ui.showSystemNotification("Erro", "Preencha e-mail e senha.", "error"); return; }
 
                 const permissions = {};
                 els.permissionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -1149,7 +1149,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                     await App.data.createUserData(newUser.uid, userData);
                     
-                    App.ui.showAlert(`Utilizador ${email} criado com sucesso!`);
+                    App.ui.showSystemNotification("Sucesso", `Utilizador ${email} criado com sucesso!`);
                     els.username.value = '';
                     els.password.value = '';
                     els.role.value = 'user';
@@ -1174,7 +1174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             await App.state.adminAction();
                             App.ui.closeAdminPasswordConfirmModal();
                         } catch (error) {
-                            App.ui.showAlert(`Erro ao executar ação offline: ${error.message}`, "error");
+                            App.ui.showSystemNotification("Erro", `Erro ao executar ação offline: ${error.message}`, "error");
                         } finally {
                             App.state.adminAction = null;
                             App.elements.adminPasswordConfirmModal.passwordInput.value = '';
@@ -1185,7 +1185,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Fluxo online normal com verificação de senha
-                if (!adminPassword) { App.ui.showAlert("Por favor, insira a sua senha de administrador para confirmar.", "error"); return; }
+                if (!adminPassword) { App.ui.showSystemNotification("Erro", "Por favor, insira a sua senha de administrador para confirmar.", "error"); return; }
                 App.ui.setLoading(true, "A autenticar e executar ação...");
 
                 try {
@@ -1199,13 +1199,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } catch (error) {
                     if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
-                        App.ui.showAlert("A sua senha de administrador está incorreta.", "error");
+                        App.ui.showSystemNotification("Erro", "A sua senha de administrador está incorreta.", "error");
                     } else if (error.code === 'auth/email-already-in-use') {
-                        App.ui.showAlert("Este e-mail já está em uso por outro utilizador.", "error");
+                        App.ui.showSystemNotification("Erro", "Este e-mail já está em uso por outro utilizador.", "error");
                     } else if (error.code === 'auth/weak-password') {
-                        App.ui.showAlert("A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
+                        App.ui.showSystemNotification("Erro", "A senha do novo utilizador deve ter pelo menos 6 caracteres.", "error");
                     } else {
-                        App.ui.showAlert(`Erro ao executar ação: ${error.message}`, "error");
+                        App.ui.showSystemNotification("Erro", `Erro ao executar ação: ${error.message}`, "error");
                         console.error("Erro na ação de administrador:", error);
                     }
                 } finally {
@@ -1222,10 +1222,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         await App.data.updateDocument('users', userId, { active: false });
                         App.actions.removeUserProfileLocally(userId);
-                        App.ui.showAlert(`Utilizador ${userToDelete.username} desativado.`);
+                        App.ui.showSystemNotification("Sucesso", `Utilizador ${userToDelete.username} desativado.`);
                         App.ui.closeUserEditModal();
                     } catch (error) {
-                        App.ui.showAlert("Erro ao desativar utilizador.", "error");
+                        App.ui.showSystemNotification("Erro", "Erro ao desativar utilizador.", "error");
                     }
                 });
             },
@@ -1234,7 +1234,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!user) return;
                 const newStatus = !user.active;
                 await App.data.updateDocument('users', userId, { active: newStatus });
-                App.ui.showAlert(`Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
+                App.ui.showSystemNotification("Sucesso", `Utilizador ${user.username} ${newStatus ? 'ativado' : 'desativado'}.`);
             },
             async resetUserPassword(userId) {
                 const user = App.state.users.find(u => u.id === userId);
@@ -1243,9 +1243,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal(`Deseja enviar um e-mail de redefinição de senha para ${user.email}?`, async () => {
                     try {
                         await sendPasswordResetEmail(auth, user.email);
-                        App.ui.showAlert(`E-mail de redefinição enviado para ${user.email}.`, 'success');
+                        App.ui.showSystemNotification("Sucesso", `E-mail de redefinição enviado para ${user.email}.`, 'success');
                     } catch (error) {
-                        App.ui.showAlert("Erro ao enviar e-mail de redefinição.", "error");
+                        App.ui.showSystemNotification("Erro", "Erro ao enviar e-mail de redefinição.", "error");
                         console.error(error);
                     }
                 });
@@ -1259,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 await App.data.updateDocument('users', userId, { role, permissions });
-                App.ui.showAlert("Alterações guardadas com sucesso!");
+                App.ui.showSystemNotification("Sucesso", "Alterações guardadas com sucesso!");
                 App.ui.closeUserEditModal();
             }
         },
@@ -4552,7 +4552,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, App.config.inactivityTimeout - App.config.inactivityWarningTime);
         
                     App.state.inactivityTimer = setTimeout(() => {
-                        App.ui.showAlert('Sessão expirada por inatividade.', 'warning');
+                    App.ui.showSystemNotification("Aviso", "Sessão expirada por inatividade.", "warning");
                         App.auth.logout();
                     }, App.config.inactivityTimeout);
                 }
@@ -4581,9 +4581,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newPassword = els.newPassword.value;
                 const confirmNewPassword = els.confirmNewPassword.value;
                 
-                if (!currentPassword || !newPassword || !confirmNewPassword) { App.ui.showAlert("Preencha todos os campos.", "error"); return; }
-                if (newPassword !== confirmNewPassword) { App.ui.showAlert("As novas senhas não coincidem.", "error"); return; }
-                if (newPassword.length < 6) { App.ui.showAlert("A nova senha deve ter pelo menos 6 caracteres.", "error"); return; }
+                if (!currentPassword || !newPassword || !confirmNewPassword) { App.ui.showSystemNotification("Erro", "Preencha todos os campos.", "error"); return; }
+                if (newPassword !== confirmNewPassword) { App.ui.showSystemNotification("Erro", "As novas senhas não coincidem.", "error"); return; }
+                if (newPassword.length < 6) { App.ui.showSystemNotification("Erro", "A nova senha deve ter pelo menos 6 caracteres.", "error"); return; }
                 
                 App.ui.setLoading(true, "A alterar senha...");
                 try {
@@ -4593,16 +4593,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     await reauthenticateWithCredential(user, credential);
                     await updatePassword(user, newPassword);
                     
-                    App.ui.showAlert("Senha alterada com sucesso!", "success");
+                    App.ui.showSystemNotification("Sucesso", "Senha alterada com sucesso!", "success");
                     els.overlay.classList.remove('show');
                     els.currentPassword.value = '';
                     els.newPassword.value = '';
                     els.confirmNewPassword.value = '';
                 } catch (error) {
                     if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                        App.ui.showAlert("A senha atual está incorreta.", "error");
+                        App.ui.showSystemNotification("Erro", "A senha atual está incorreta.", "error");
                     } else {
-                        App.ui.showAlert("Erro ao alterar senha. Tente fazer login novamente.", "error");
+                        App.ui.showSystemNotification("Erro", "Erro ao alterar senha. Tente fazer login novamente.", "error");
                     }
                     console.error("Erro ao alterar senha:", error);
                 } finally {
@@ -4647,11 +4647,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const name = farmName.value.trim().toUpperCase();
                 const types = Array.from(farmTypeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
 
-                if (!code || !name) { App.ui.showAlert("Código e Nome da fazenda são obrigatórios.", "error"); return; }
+                if (!code || !name) { App.ui.showSystemNotification("Erro", "Código e Nome da fazenda são obrigatórios.", "error"); return; }
                 
                 const existingFarm = App.state.fazendas.find(f => f.code === code);
                 if (existingFarm) {
-                    App.ui.showAlert("Já existe uma fazenda com este código.", "error");
+                    App.ui.showSystemNotification("Erro", "Já existe uma fazenda com este código.", "error");
                     return;
                 }
 
@@ -4660,18 +4660,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (App.state.currentUser.role === 'super-admin') {
                         targetCompanyId = App.elements.cadastros.adminTargetCompanyFarms.value;
                         if (!targetCompanyId) {
-                            App.ui.showAlert("Como Super Admin, você deve selecionar uma empresa alvo para criar a fazenda.", "error");
+                            App.ui.showSystemNotification("Erro", "Como Super Admin, você deve selecionar uma empresa alvo para criar a fazenda.", "error");
                             return;
                         }
                     }
                     try {
                         await App.data.addDocument('fazendas', { code, name, types, talhoes: [], companyId: targetCompanyId });
-                        App.ui.showAlert("Fazenda adicionada com sucesso!");
+                        App.ui.showSystemNotification("Sucesso", "Fazenda adicionada com sucesso!");
                         farmCode.value = ''; 
                         farmName.value = '';
                         farmTypeCheckboxes.forEach(cb => cb.checked = false);
                     } catch (error) {
-                        App.ui.showAlert("Erro ao guardar fazenda.", "error");
+                        App.ui.showSystemNotification("Erro", "Erro ao guardar fazenda.", "error");
                     }
                 });
             },
@@ -4682,16 +4682,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newTypes = Array.from(modal.typeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
 
                 if (!newName) {
-                    App.ui.showAlert("O nome da fazenda não pode ficar em branco.", "error");
+                    App.ui.showSystemNotification("Erro", "O nome da fazenda não pode ficar em branco.", "error");
                     return;
                 }
 
                 try {
                     await App.data.updateDocument('fazendas', farmId, { name: newName, types: newTypes });
-                    App.ui.showAlert("Dados da fazenda atualizados com sucesso!");
+                    App.ui.showSystemNotification("Sucesso", "Dados da fazenda atualizados com sucesso!");
                     App.ui.closeEditFarmModal();
                 } catch (error) {
-                    App.ui.showAlert("Erro ao atualizar os dados da fazenda.", "error");
+                    App.ui.showSystemNotification("Erro", "Erro ao atualizar os dados da fazenda.", "error");
                     console.error(error);
                 }
             },
@@ -4702,11 +4702,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal(`Tem a certeza que deseja excluir a fazenda "${farm.name}" e todos os seus talhões? Esta ação é irreversível.`, async () => {
                     try {
                         await App.data.deleteDocument('fazendas', farmId);
-                        App.ui.showAlert('Fazenda excluída com sucesso.', 'info');
+                        App.ui.showSystemNotification("Sucesso", "Fazenda excluída com sucesso.", 'info');
                         App.elements.cadastros.farmSelect.value = '';
                         App.elements.cadastros.talhaoManagementContainer.style.display = 'none';
                     } catch (error) {
-                        App.ui.showAlert('Erro ao excluir a fazenda.', 'error');
+                        App.ui.showSystemNotification("Erro", "Erro ao excluir a fazenda.", 'error');
                         console.error(error);
                     }
                 });
@@ -4714,7 +4714,7 @@ document.addEventListener('DOMContentLoaded', () => {
             deleteAllFarms() {
                 App.ui.showConfirmationModal("ATENÇÃO! Você está prestes a excluir TODAS as fazendas e talhões cadastrados. Esta ação é IRREVERSÍVEL. Digite 'EXCLUIR TUDO' para confirmar.", async (confirmationInput) => {
                     if (confirmationInput !== 'EXCLUIR TUDO') {
-                        App.ui.showAlert("A confirmação não corresponde. Ação cancelada.", "warning");
+                        App.ui.showSystemNotification("Aviso", "A confirmação não corresponde. Ação cancelada.", "warning");
                         return;
                     }
                     
@@ -4726,9 +4726,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             batch.delete(docRef);
                         });
                         await batch.commit();
-                        App.ui.showAlert('Todas as fazendas foram excluídas com sucesso.', 'success');
+                        App.ui.showSystemNotification("Sucesso", "Todas as fazendas foram excluídas com sucesso.", 'success');
                     } catch (error) {
-                        App.ui.showAlert('Erro ao excluir todas as fazendas.', 'error');
+                        App.ui.showSystemNotification("Erro", "Erro ao excluir todas as fazendas.", 'error');
                         console.error(error);
                     } finally {
                         App.ui.setLoading(false);
@@ -4744,10 +4744,10 @@ document.addEventListener('DOMContentLoaded', () => {
             async saveTalhao() {
                 const { farmSelect, talhaoId, talhaoName, talhaoArea, talhaoTCH, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita } = App.elements.cadastros;
                 const farmId = farmSelect.value;
-                if (!farmId) { App.ui.showAlert("Selecione uma fazenda.", "error"); return; }
+                if (!farmId) { App.ui.showSystemNotification("Erro", "Selecione uma fazenda.", "error"); return; }
                 
                 const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) { App.ui.showAlert("Fazenda selecionada não encontrada.", "error"); return; }
+                if (!farm) { App.ui.showSystemNotification("Erro", "Fazenda selecionada não encontrada.", "error"); return; }
                 
                 const talhaoData = {
                     id: talhaoId.value ? parseInt(talhaoId.value) : Date.now(),
@@ -4760,7 +4760,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     distancia: parseFloat(talhaoDistancia.value) || 0,
                     dataUltimaColheita: this.formatDateForInput(talhaoUltimaColheita.value)
                 };
-                if (!talhaoData.name || isNaN(talhaoData.area) || isNaN(talhaoData.tch)) { App.ui.showAlert("Nome, Área e TCH do talhão são obrigatórios.", "error"); return; }
+                if (!talhaoData.name || isNaN(talhaoData.area) || isNaN(talhaoData.tch)) { App.ui.showSystemNotification("Erro", "Nome, Área e TCH do talhão são obrigatórios.", "error"); return; }
                 
                 App.ui.showConfirmationModal(`Tem a certeza que deseja guardar o talhão ${talhaoData.name}?`, async () => {
                     let updatedTalhoes = farm.talhoes ? [...farm.talhoes] : [];
@@ -4774,11 +4774,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     try {
                         await App.data.updateDocument('fazendas', farm.id, { talhoes: updatedTalhoes });
-                        App.ui.showAlert("Talhão guardado com sucesso!");
+                        App.ui.showSystemNotification("Sucesso", "Talhão guardado com sucesso!");
                         [talhaoId, talhaoName, talhaoArea, talhaoTCH, talhaoProducao, talhaoCorte, talhaoVariedade, talhaoDistancia, talhaoUltimaColheita].forEach(el => el.value = '');
                         App.elements.cadastros.talhaoName.focus();
                     } catch(error) {
-                        App.ui.showAlert("Erro ao guardar talhão.", "error");
+                        App.ui.showSystemNotification("Erro", "Erro ao guardar talhão.", "error");
                         console.error("Erro ao guardar talhão:", error);
                     }
                 });
@@ -4807,9 +4807,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         const updatedTalhoes = farm.talhoes.filter(t => t.id != talhaoId);
                         try {
                             await App.data.updateDocument('fazendas', farm.id, { talhoes: updatedTalhoes });
-                            App.ui.showAlert('Talhão excluído com sucesso.', 'info');
+                            App.ui.showSystemNotification("Sucesso", "Talhão excluído com sucesso.", 'info');
                         } catch(e) {
-                            App.ui.showAlert('Erro ao excluir talhão.', 'error');
+                            App.ui.showSystemNotification("Erro", "Erro ao excluir talhão.", 'error');
                         }
                     });
                 }
@@ -4820,7 +4820,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const providerValue = provider.value.trim();
                 const obsValue = obs.value.trim();
                 if (!nameValue || !providerValue) {
-                    App.ui.showAlert("O Nome da Frente e o Prestador Vinculado são obrigatórios.", "error");
+                    App.ui.showSystemNotification("Erro", "O Nome da Frente e o Prestador Vinculado são obrigatórios.", "error");
                     return;
                 }
 
@@ -4841,14 +4841,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         if (existingId) {
                             if (!navigator.onLine) {
-                                App.ui.showAlert("A edição não está disponível offline. Conecte-se para atualizar.", "warning");
+                                App.ui.showSystemNotification("Aviso", "A edição não está disponível offline. Conecte-se para atualizar.", "warning");
                                 return;
                             }
                             await App.data.updateDocument('frentesDePlantio', existingId, data);
-                            App.ui.showAlert("Frente de Plantio atualizada com sucesso!");
+                            App.ui.showSystemNotification("Sucesso", "Frente de Plantio atualizada com sucesso!");
                         } else {
                             await App.data.addDocument('frentesDePlantio', data);
-                            App.ui.showAlert("Frente de Plantio guardada com sucesso!");
+                            App.ui.showSystemNotification("Sucesso", "Frente de Plantio guardada com sucesso!");
                         }
                         id.value = '';
                         name.value = '';
@@ -4863,14 +4863,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             try {
                                 const entryId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                                 await OfflineDB.add('offline-writes', { id: entryId, collection: 'frentesDePlantio', data: data });
-                                App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                                App.ui.showSystemNotification("Sucesso", "Guardado offline. Será enviado quando houver conexão.", 'info');
                                 id.value = ''; name.value = ''; provider.value = ''; obs.value = '';
                             } catch (offlineError) {
-                                App.ui.showAlert("Falha crítica ao guardar offline.", "error");
+                                App.ui.showSystemNotification("Erro", "Falha crítica ao guardar offline.", "error");
                                 console.error("Erro ao guardar offline:", offlineError);
                             }
                         } else {
-                            App.ui.showAlert(errorMessage, "error");
+                            App.ui.showSystemNotification("Erro", errorMessage, "error");
                         }
                     } finally {
                         App.ui.setLoading(false);
@@ -7104,7 +7104,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         (error) => {
                             if (error.code === error.PERMISSION_DENIED) {
                                 console.warn("Permissão de localização (Web) não concedida.");
-                                App.ui.showAlert("Para rastreamento de localização, por favor, ative os serviços de localização no seu navegador.", "info");
+                                App.ui.showSystemNotification("Localização", "Para rastreamento de localização, por favor, ative os serviços de localização no seu navegador.", "info");
                             } else {
                                 console.error("Falha ao obter permissão de localização (Web):", error.message);
                             }
@@ -7146,13 +7146,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const end = endDate.value;
 
                 if (!userId || !start || !end) {
-                    App.ui.showAlert("Por favor, selecione um utilizador e um intervalo de datas.", "warning");
+                    App.ui.showSystemNotification("Filtro Inválido", "Por favor, selecione um utilizador e um intervalo de datas.", "warning");
                     return;
                 }
 
                 const map = App.state.mapboxMap;
                 if (!map) {
-                    App.ui.showAlert("O mapa principal não foi inicializado.", "error");
+                    App.ui.showSystemNotification("Erro de Mapa", "O mapa principal não foi inicializado.", "error");
                     return;
                 }
 
@@ -7170,7 +7170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const historyData = await response.json();
 
                     if (historyData.length === 0) {
-                        App.ui.showAlert("Nenhum dado de localização encontrado para este período.", "info");
+                        App.ui.showSystemNotification("Histórico", "Nenhum dado de localização encontrado para este período.", "info");
                         return;
                     }
 
@@ -7226,7 +7226,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     map.fitBounds(bounds, { padding: 80, duration: 1000 });
 
                 } catch (error) {
-                    App.ui.showAlert(`Erro ao buscar histórico: ${error.message}`, 'error');
+                    App.ui.showSystemNotification("Erro de Histórico", `Erro ao buscar histórico: ${error.message}`, 'error');
                 } finally {
                     App.ui.setLoading(false);
                 }
@@ -7250,7 +7250,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         map.removeSource(sourceId);
                     }
                 });
-                 App.ui.showAlert("Rota do histórico limpa.", "info");
+                 App.ui.showSystemNotification("Histórico", "Rota do histórico limpa.", "info");
             },
 
             async getAtrPrediction() {
@@ -7299,14 +7299,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             atrInput.placeholder = 'ATR Previsto';
                         } else {
                             atrInput.placeholder = 'Sem histórico';
-                            App.ui.showAlert('Nenhum histórico de ATR encontrado para esta fazenda.', 'info');
+                            App.ui.showSystemNotification('Previsão de ATR', 'Nenhum histórico de ATR encontrado para esta fazenda.', 'info');
                         }
                     } else {
                          atrInput.placeholder = 'Sem histórico';
                     }
                 } catch (error) {
                     console.error("Erro ao buscar ATR previsto:", error);
-                    App.ui.showAlert(`Não foi possível calcular o ATR: ${error.message}`, 'error');
+                    App.ui.showSystemNotification('Erro de IA', `Não foi possível calcular o ATR: ${error.message}`, 'error');
                     atrInput.placeholder = 'Erro ao calcular';
                 } finally {
                     if(atrSpinner) atrSpinner.style.display = 'none';
@@ -7320,7 +7320,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const companyToImpersonate = App.state.companies.find(c => c.id === companyId);
                 if (!companyToImpersonate) {
-                    App.ui.showAlert("Empresa não encontrada.", "error");
+                    App.ui.showSystemNotification("Erro", "Empresa não encontrada.", "error");
                     return;
                 }
 
@@ -7364,7 +7364,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async saveGlobalFeatures() {
                 const grid = document.getElementById('globalFeaturesGrid');
                 if (!grid) {
-                    App.ui.showAlert("Elemento de controlo de features não encontrado.", "error");
+                    App.ui.showSystemNotification("Erro Interno", "Elemento de controlo de features não encontrado.", "error");
                     return;
                 }
 
@@ -7379,13 +7379,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A guardar e notificar...");
                 try {
                     await App.data.setDocument('global_configs', 'main', newGlobalConfigs);
-                    App.ui.showAlert("Configurações globais guardadas com sucesso!", "success");
+                    App.ui.showSystemNotification("Sucesso", "Configurações globais guardadas com sucesso!", "success");
 
                     // Lógica de notificação
                     await this.notifyAdminsOfNewFeatures(oldGlobalConfigs, newGlobalConfigs);
 
                 } catch (error) {
-                    App.ui.showAlert("Erro ao guardar as configurações globais.", "error");
+                    App.ui.showSystemNotification("Erro", "Erro ao guardar as configurações globais.", "error");
                     console.error("Erro ao guardar configurações globais:", error);
                 } finally {
                     App.ui.setLoading(false);
@@ -7480,12 +7480,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (notificationCount > 0) {
                         await batch.commit();
                         console.log(`${notificationCount} notificações enviadas para administradores.`);
-                        App.ui.showAlert(`${notificationCount} administradores de empresas foram notificados sobre as novas funcionalidades.`, "info", 5000);
+                        App.ui.showSystemNotification("Notificação", `${notificationCount} administradores de empresas foram notificados sobre as novas funcionalidades.`, "info");
                     }
 
                 } catch (error) {
                     console.error("Erro ao notificar administradores sobre novas features:", error);
-                    App.ui.showAlert("Ocorreu um erro ao tentar notificar os administradores.", "error");
+                    App.ui.showSystemNotification("Erro de Notificação", "Ocorreu um erro ao tentar notificar os administradores.", "error");
                 }
             },
 
@@ -7536,13 +7536,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (trapsToDeleteCount > 0) {
                             App.ui.setLoading(true, `A apagar ${trapsToDeleteCount} armadilhas duplicadas...`);
                             await batch.commit();
-                            App.ui.showAlert(`${trapsToDeleteCount} armadilhas duplicadas foram removidas com sucesso!`, 'success');
+                            App.ui.showSystemNotification("Limpeza de Dados", `${trapsToDeleteCount} armadilhas duplicadas foram removidas com sucesso!`, 'success');
                         } else {
-                            App.ui.showAlert("Nenhuma armadilha duplicada foi encontrada.", 'info');
+                            App.ui.showSystemNotification("Limpeza de Dados", "Nenhuma armadilha duplicada foi encontrada.", 'info');
                         }
                     } catch (error) {
                         console.error("Erro ao remover armadilhas duplicadas:", error);
-                        App.ui.showAlert(`Ocorreu um erro: ${error.message}`, 'error');
+                        App.ui.showSystemNotification("Erro de Limpeza", `Ocorreu um erro: ${error.message}`, 'error');
                     } finally {
                         App.ui.setLoading(false);
                     }
@@ -7622,9 +7622,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // ATUALIZAÇÃO IMEDIATA DO ESTADO LOCAL
                     App.state.companyConfig.plantingGoals = newGoals;
 
-                    App.ui.showAlert("Metas de plantio guardadas com sucesso!", "success");
+                    App.ui.showSystemNotification("Sucesso", "Metas de plantio guardadas com sucesso!", "success");
                 } catch (error) {
-                    App.ui.showAlert("Erro ao guardar as metas de plantio.", "error");
+                    App.ui.showSystemNotification("Erro", "Erro ao guardar as metas de plantio.", "error");
                     console.error("Error saving planting goals:", error);
                 }
             },
@@ -7661,12 +7661,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currentUser = App.state.currentUser;
 
                 if (!password) {
-                    App.ui.showAlert("Por favor, insira a sua senha atual para confirmar.", "error");
+                    App.ui.showSystemNotification("Aviso", "Por favor, insira a sua senha atual para confirmar.", "error");
                     return;
                 }
 
                 if (!navigator.onLine) {
-                    App.ui.showAlert("É preciso estar online para habilitar o login offline pela primeira vez.", "warning");
+                    App.ui.showSystemNotification("Aviso", "É preciso estar online para habilitar o login offline pela primeira vez.", "warning");
                     return;
                 }
 
@@ -7704,14 +7704,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 4. Guardar no IndexedDB
                     await OfflineDB.set('offline-credentials', credentialsToStore);
 
-                    App.ui.showAlert("Login offline habilitado/atualizado com sucesso!", "success");
+                    App.ui.showSystemNotification("Sucesso", "Login offline habilitado/atualizado com sucesso!", "success");
                     App.ui.closeEnableOfflineLoginModal();
 
                 } catch (error) {
                     if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
-                        App.ui.showAlert("A senha está incorreta.", "error");
+                        App.ui.showSystemNotification("Erro", "A senha está incorreta.", "error");
                     } else {
-                        App.ui.showAlert("Ocorreu um erro ao habilitar o login offline.", "error");
+                        App.ui.showSystemNotification("Erro", "Ocorreu um erro ao habilitar o login offline.", "error");
                         console.error("Erro ao habilitar login offline:", error);
                     }
                 } finally {
@@ -7740,7 +7740,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     return await response.json();
                 } catch (error) {
-                    App.ui.showAlert(`Erro ao comunicar com a IA: ${error.message}`, 'error');
+                    App.ui.showSystemNotification("Erro de IA", `Erro ao comunicar com a IA: ${error.message}`, 'error');
                     console.error("Erro na chamada da API Gemini:", error);
                     return null;
                 } finally {
@@ -7751,7 +7751,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async getOptimizedHarvestSequence() {
                 const plan = App.state.activeHarvestPlan;
                 if (!plan || plan.sequence.length === 0) {
-                    App.ui.showAlert("Adicione fazendas à sequência antes de otimizar.", "warning");
+                    App.ui.showSystemNotification("Aviso", "Adicione fazendas à sequência antes de otimizar.", "warning");
                     return;
                 }
 
@@ -7810,16 +7810,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     plan.sequence = newSequence;
                     App.ui.renderHarvestSequence();
-                    App.ui.showAlert("Sequência de colheita otimizada pela IA!", "success");
+                    App.ui.showSystemNotification("Sucesso", "Sequência de colheita otimizada pela IA!", "success");
                 } else {
-                    App.ui.showAlert("A IA não conseguiu otimizar a sequência ou retornou um formato inválido.", "error");
+                    App.ui.showSystemNotification("Erro de IA", "A IA não conseguiu otimizar a sequência ou retornou um formato inválido.", "error");
                 }
             },
 
             async getPlanningSuggestions() {
                 const pendingPlans = App.state.planos.filter(p => p.status === 'Pendente');
                 if (pendingPlans.length === 0) {
-                    App.ui.showAlert("Não há inspeções pendentes para analisar.", "info");
+                    App.ui.showSystemNotification("Aviso", "Não há inspeções pendentes para analisar.", "info");
                     return;
                 }
 
@@ -7869,7 +7869,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     modal.cancelBtn.style.display = 'none';
 
                 } else {
-                    App.ui.showAlert("A IA não conseguiu gerar sugestões ou retornou um formato inválido.", "error");
+                    App.ui.showSystemNotification("Erro de IA", "A IA não conseguiu gerar sugestões ou retornou um formato inválido.", "error");
                 }
             },
 
@@ -7880,7 +7880,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.state.mapboxMap) return; // Evita reinicialização
                 if (typeof mapboxgl === 'undefined') {
                     console.error("Mapbox GL JS não está carregado.");
-                    App.ui.showAlert("Erro ao carregar a biblioteca do mapa.", "error");
+                    App.ui.showSystemNotification("Erro de Mapa", "Erro ao carregar a biblioteca do mapa.", "error");
                     return;
                 }
 
@@ -7905,7 +7905,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } catch (e) {
                     console.error("Erro ao inicializar o Mapbox:", e);
-                    App.ui.showAlert("Não foi possível carregar o mapa.", "error");
+                    App.ui.showSystemNotification("Erro de Mapa", "Não foi possível carregar o mapa.", "error");
                 }
             },
 
@@ -7918,12 +7918,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         },
                         (error) => {
                             console.warn(`Erro de Geolocalização: ${error.message}`);
-                            App.ui.showAlert("Não foi possível obter sua localização.", "warning");
+                            App.ui.showSystemNotification("Localização", "Não foi possível obter sua localização.", "warning");
                         },
                         { enableHighAccuracy: true, timeout: 27000, maximumAge: 60000 }
                     );
                 } else {
-                    App.ui.showAlert("Geolocalização não é suportada pelo seu navegador.", "error");
+                    App.ui.showSystemNotification("Erro de Compatibilidade", "Geolocalização não é suportada pelo seu navegador.", "error");
                 }
             },
 
@@ -7955,7 +7955,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const userPosition = App.state.mapboxUserMarker.getLngLat();
                     App.state.mapboxMap.flyTo({ center: userPosition, zoom: 16 });
                 } else {
-                    App.ui.showAlert("Ainda não foi possível obter sua localização.", "info");
+                    App.ui.showSystemNotification("Localização", "Ainda não foi possível obter sua localização.", "info");
                 }
             },
 
@@ -7965,14 +7965,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!file) return;
 
                 if (!file.name.toLowerCase().endsWith('.zip')) {
-                    App.ui.showAlert("Por favor, selecione um arquivo .zip", "error");
+                    App.ui.showSystemNotification("Erro de Arquivo", "Por favor, selecione um arquivo .zip", "error");
                     input.value = '';
                     return;
                 }
 
                 const companyId = App.state.currentUser.companyId;
                 if (!companyId) {
-                    App.ui.showAlert("ID da empresa não encontrado. Não é possível fazer o upload.", "error");
+                    App.ui.showSystemNotification("Erro de Autenticação", "ID da empresa não encontrado. Não é possível fazer o upload.", "error");
                     return;
                 }
 
@@ -7988,7 +7988,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     await App.data.setDocument('config', companyId, { shapefileURL: downloadURL }, { merge: true });
 
-                    App.ui.showAlert("Arquivo enviado com sucesso! O mapa será atualizado em breve.", "success");
+                    App.ui.showSystemNotification("Sucesso", "Arquivo enviado com sucesso! O mapa será atualizado em breve.", "success");
 
                 } catch (error) {
                     console.error("Erro no upload do shapefile:", error);
@@ -8006,7 +8006,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 break;
                         }
                     }
-                    App.ui.showAlert(errorMessage, "error");
+                    App.ui.showSystemNotification("Erro de Upload", errorMessage, "error");
                 } finally {
                     App.ui.setLoading(false);
                     input.value = '';
@@ -8055,7 +8055,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let featureIdCounter = 0;
                     geojson.features.forEach(feature => {
                         feature.id = featureIdCounter++; // **HOTFIX** Adiciona um ID numérico único
-                        const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                        const fundo = this._findProp(feature, ['FUNDO_AGR']);
                         const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
                         feature.properties.AGV_FUNDO = String(fundo).trim();
                         feature.properties.AGV_TALHAO = String(talhao).trim();
@@ -8069,7 +8069,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("Contornos do mapa carregados com sucesso.");
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
-                    App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
+                    App.ui.showSystemNotification("Erro de Mapa", "Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
                     if (mapContainer) mapContainer.classList.remove('loading');
                     this.loadOfflineShapes();
                 }
@@ -8081,7 +8081,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
                     if (buffer) {
-                        App.ui.showAlert("A carregar mapa do cache offline.", "info");
+                        App.ui.showSystemNotification("Mapa Offline", "A carregar mapa do cache offline.", "info");
                         let geojson = await shp(buffer);
 
                         // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
@@ -8106,7 +8106,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         let featureIdCounter = 0;
                         geojson.features.forEach(feature => {
                             feature.id = featureIdCounter++; // **HOTFIX** Adiciona um ID numérico único
-                            const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                            const fundo = this._findProp(feature, ['FUNDO_AGR']);
                             const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
                             feature.properties.AGV_FUNDO = String(fundo).trim();
                             feature.properties.AGV_TALHAO = String(talhao).trim();
@@ -8119,7 +8119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (error) {
                     console.error("Erro crítico ao carregar ou processar o mapa offline:", error);
-                    App.ui.showAlert("Falha ao carregar os desenhos do mapa offline. O mapa pode não ser exibido, mas o aplicativo continuará a funcionar.", "error", 6000);
+                    App.ui.showSystemNotification("Erro Crítico de Mapa", "Falha ao carregar os desenhos do mapa offline. O mapa pode não ser exibido, mas o aplicativo continuará a funcionar.", "error");
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
@@ -8421,6 +8421,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const progressBar = infoBox.querySelector('.download-progress-bar');
                 let downloadedCount = 0;
                 let failedCount = 0;
+                let firstErrorMessage = null;
 
                 const db = await OfflineDB.dbPromise;
 
@@ -8438,6 +8439,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } catch (error) {
                         failedCount++;
+                        if (!firstErrorMessage) {
+                            firstErrorMessage = error.message;
+                        }
                         console.warn(`Falha ao baixar ou guardar o tile: ${url}`, error);
                     }
 
@@ -8446,9 +8450,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (failedCount > 0) {
-                    App.ui.showAlert(`Download concluído. ${downloadedCount} tiles baixados, ${failedCount} falhas.`, 'warning');
+                    const finalMessage = `Download concluído. ${downloadedCount} tiles baixados, ${failedCount} falhas. Primeira falha: ${firstErrorMessage}`;
+                    App.ui.showSystemNotification('Download de Mapa', finalMessage, 'warning');
                 } else {
-                    App.ui.showAlert(`Download do mapa offline concluído com sucesso! ${downloadedCount} tiles baixados.`, 'success');
+                    App.ui.showSystemNotification('Download de Mapa',`Download do mapa offline concluído com sucesso! ${downloadedCount} tiles baixados.`, 'success');
                 }
 
                 setTimeout(() => {
@@ -8522,7 +8527,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             promptInstallTrap() {
                 if (!App.state.mapboxUserMarker) {
-                    App.ui.showAlert("Localização do usuário não disponível para instalar a armadilha.", "error");
+                    App.ui.showSystemNotification("Erro de Localização", "Localização do usuário não disponível para instalar a armadilha.", "error");
                     return;
                 }
                 this.showTrapPlacementModal('loading');
@@ -8662,10 +8667,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const dataForFirestore = { ...newTrapData, dataInstalacao: Timestamp.fromDate(installDate) };
                         await App.data.setDocument('armadilhas', trapId, dataForFirestore);
                         this.addOrUpdateTrapMarker({ id: trapId, ...dataForFirestore });
-                        App.ui.showAlert(`Armadilha ${trapId.substring(0, 9)}... instalada com sucesso.`, "success");
+                        App.ui.showSystemNotification("Sucesso", `Armadilha ${trapId.substring(0, 9)}... instalada com sucesso.`, "success");
                     } else {
                         await OfflineDB.add('offline-writes', { id: trapId, collection: 'armadilhas', data: newTrapData });
-                        App.ui.showAlert('Armadilha guardada offline. Será enviada quando houver conexão.', 'info');
+                        App.ui.showSystemNotification("Modo Offline", 'Armadilha guardada offline. Será enviada quando houver conexão.', 'info');
                         const tempTrapForMarker = { ...newTrapData, dataInstalacao: installDate };
                         this.addOrUpdateTrapMarker(tempTrapForMarker);
                     }
@@ -8673,12 +8678,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Erro ao instalar armadilha, tentando guardar offline:", error);
                     try {
                         await OfflineDB.add('offline-writes', { id: trapId, collection: 'armadilhas', data: newTrapData });
-                        App.ui.showAlert('Falha ao conectar. Armadilha guardada offline.', 'warning');
+                        App.ui.showSystemNotification("Modo Offline", 'Falha ao conectar. Armadilha guardada offline.', 'warning');
                         const tempTrapForMarker = { ...newTrapData, dataInstalacao: installDate };
                         this.addOrUpdateTrapMarker(tempTrapForMarker);
                     } catch (offlineError) {
                         console.error("Falha crítica ao guardar armadilha offline:", offlineError);
-                        App.ui.showAlert("Falha crítica ao guardar a armadilha offline.", "error");
+                        App.ui.showSystemNotification("Erro Crítico", "Falha crítica ao guardar a armadilha offline.", "error");
                     }
                 } finally {
                     App.ui.setLoading(false);
@@ -8694,7 +8699,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     async (inputs) => {
                         const mothCount = parseInt(inputs.count, 10);
                         if (isNaN(mothCount) || mothCount < 0) {
-                            App.ui.showAlert("Por favor, insira um número válido de mariposas.", "error");
+                            App.ui.showSystemNotification("Erro de Dados", "Por favor, insira um número válido de mariposas.", "error");
                             return;
                         }
                         await this.collectTrap(trapId, mothCount, inputs.observations);
@@ -8722,7 +8727,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     delete App.state.mapboxTrapMarkers[trapId];
                 }
                 this.hideTrapInfo();
-                App.ui.showAlert("Coleta registrada. Sincronizando...", "info");
+                App.ui.showSystemNotification("Sincronizando", "Coleta registrada. Sincronizando...", "info");
 
                 const trapIndex = App.state.armadilhas.findIndex(t => t.id === trapId);
                 if (trapIndex > -1) {
@@ -8737,7 +8742,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // For online, use Firestore Timestamp
                     const onlineUpdateData = { ...updateData, dataColeta: Timestamp.fromDate(collectionTime) };
                     await App.data.updateDocument('armadilhas', trapId, onlineUpdateData);
-                    App.ui.showAlert("Coleta sincronizada com sucesso!", "success");
+                    App.ui.showSystemNotification("Sucesso", "Coleta sincronizada com sucesso!", "success");
 
                 } catch (error) {
                     console.error("Erro ao registrar coleta online, salvando offline:", error);
@@ -8749,10 +8754,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             docId: trapId, // The document to update
                             data: updateData // The data for the update
                         });
-                        App.ui.showAlert("Coleta salva offline. Será sincronizada quando houver conexão.", "info");
+                        App.ui.showSystemNotification("Modo Offline", "Coleta salva offline. Será sincronizada quando houver conexão.", "info");
                     } catch (offlineError) {
                         console.error("Falha crítica ao salvar coleta offline:", offlineError);
-                        App.ui.showAlert("Falha crítica ao salvar a coleta offline.", "error");
+                        App.ui.showSystemNotification("Erro Crítico", "Falha crítica ao salvar a coleta offline.", "error");
                         // Revert optimistic UI update if offline save also fails
                         const trap = App.state.armadilhas.find(t => t.id === trapId);
                         if (trap) {
@@ -8777,11 +8782,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             App.state.armadilhas = App.state.armadilhas.filter(t => t.id !== trapId);
 
-                            App.ui.showAlert("Armadilha excluída com sucesso.", "info");
+                            App.ui.showSystemNotification("Sucesso", "Armadilha excluída com sucesso.", "info");
                             this.hideTrapInfo();
                         } catch (error) {
                             console.error("Erro ao excluir armadilha:", error);
-                            App.ui.showAlert("Falha ao excluir armadilha.", "error");
+                            App.ui.showSystemNotification("Erro", "Falha ao excluir armadilha.", "error");
                         }
                     }
                 );
@@ -8799,10 +8804,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             await App.data.updateDocument('armadilhas', trapId, { observacoes: newObservations });
                             trap.observacoes = newObservations;
                             this.showTrapInfo(trapId);
-                            App.ui.showAlert("Observações atualizadas.", "success");
+                            App.ui.showSystemNotification("Sucesso", "Observações atualizadas.", "success");
                         } catch (error) {
                             console.error("Erro ao editar armadilha:", error);
-                            App.ui.showAlert("Falha ao atualizar observações.", "error");
+                            App.ui.showSystemNotification("Erro", "Falha ao atualizar observações.", "error");
                         }
                     },
                     true // needsInput
@@ -8892,7 +8897,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.monitoramentoAereo.trapInfoBox.classList.add('visible');
                 } catch (error) {
                     console.error("Erro ao exibir informações da armadilha:", error);
-                    App.ui.showAlert(`Não foi possível carregar os dados desta armadilha. Pode haver dados corrompidos. Erro: ${error.message}`, "error", 5000);
+                    App.ui.showSystemNotification("Erro de Dados", `Não foi possível carregar os dados desta armadilha. Pode haver dados corrompidos. Erro: ${error.message}`, "error");
                 }
             },
 
@@ -9065,7 +9070,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // --- 1. CALCULAR O RISCO PRIMEIRO ---
                 const currentUserCompanyId = App.state.currentUser.companyId;
                 if (!currentUserCompanyId && App.state.currentUser.role !== 'super-admin') {
-                    App.ui.showAlert("A sua conta não está associada a uma empresa.", "error");
+                    App.ui.showSystemNotification("Erro de Autenticação", "A sua conta não está associada a uma empresa.", "error");
                     console.log("--- [END] calculateAndApplyRiskView ---");
                     return;
                 }
@@ -9177,11 +9182,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         const labelFilter = ['in', ['get', 'AGV_FUNDO'], ['literal', farmCodesInRiskAsStrings]];
                         map.setFilter('talhoes-labels', labelFilter);
 
-                        App.ui.showAlert(`${farmsInRisk.size} fazenda(s) em risco foram destacadas.`, 'info');
+                        App.ui.showSystemNotification("Visualização de Risco", `${farmsInRisk.size} fazenda(s) em risco foram destacadas.`, 'info');
                     } else {
                          // This can happen if the farm code in risk doesn't match any map feature
                         console.warn("[RISK_DEBUG] Risk farms calculated, but no corresponding features found on the map.");
-                        App.ui.showAlert('Nenhuma fazenda em risco foi identificada no mapa.', 'success');
+                        App.ui.showSystemNotification("Visualização de Risco", 'Nenhuma fazenda em risco foi identificada no mapa.', 'success');
                          // Revert to default view to avoid a blank map
                         map.setPaintProperty('talhoes-layer', 'fill-color', App.ui._getThemeColors().primary);
                         map.setPaintProperty('talhoes-layer', 'fill-opacity', 0.5);
@@ -9191,7 +9196,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } else {
                     console.log("[RISK_DEBUG] No risk farms found. Displaying all plots normally.");
-                    App.ui.showAlert('Nenhuma fazenda em risco foi identificada no período.', 'success');
+                    App.ui.showSystemNotification("Visualização de Risco", 'Nenhuma fazenda em risco foi identificada no período.', 'success');
                     // Ensure the map doesn't stay blank by reverting to the default view
                     map.setPaintProperty('talhoes-layer', 'fill-color', '#1C1C1C');
                     map.setPaintProperty('talhoes-layer', 'fill-opacity', 0.7);
@@ -9259,7 +9264,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const { geoJsonData, mapboxMap } = App.state;
                 if (!geoJsonData || !mapboxMap) {
-                    App.ui.showAlert("Os dados do mapa ainda não foram carregados.", "error");
+                    App.ui.showSystemNotification("Erro de Mapa", "Os dados do mapa ainda não foram carregados.", "error");
                     return;
                 }
 
@@ -9278,7 +9283,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (foundFeatures.length === 0) {
-                    App.ui.showAlert(`Nenhum fundo agrícola encontrado com o termo "${searchInput.value}" no mapa.`, "info");
+                    App.ui.showSystemNotification("Pesquisa no Mapa", `Nenhum fundo agrícola encontrado com o termo "${searchInput.value}" no mapa.`, "info");
                     return;
                 }
 
@@ -9291,7 +9296,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (sourceFeatures.length === 0) {
-                     App.ui.showAlert(`Nenhum fundo agrícola correspondente encontrado na fonte do mapa.`, "warning");
+                     App.ui.showSystemNotification("Erro de Pesquisa", `Nenhum fundo agrícola correspondente encontrado na fonte do mapa.`, "warning");
                     return;
                 }
 
@@ -10889,7 +10894,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Security check: Abort if companyId is missing, preventing cross-tenant data leakage.
                     if (!cleanFilters.companyId) {
-                        App.ui.showAlert("Erro de segurança: ID da empresa não especificado. Não é possível gerar o relatório.", "error");
+                        App.ui.showSystemNotification("Erro de Segurança", "ID da empresa não especificado. Não é possível gerar o relatório.", "error");
                         console.error("Aborted report generation due to missing companyId.");
                         return;
                     }
@@ -10916,11 +10921,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             a.click();
                             window.URL.revokeObjectURL(url);
                             a.remove();
-                            App.ui.showAlert('Relatório gerado com sucesso!');
+                            App.ui.showSystemNotification("Sucesso", 'Relatório gerado com sucesso!');
                         })
                         .catch(error => {
                             console.error('Erro ao gerar relatório via API:', error);
-                            App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
+                            App.ui.showSystemNotification("Erro de Relatório", `Não foi possível gerar o relatório: ${error.message}`, "error");
                         })
                         .finally(() => {
                             App.ui.setLoading(false);
@@ -10929,7 +10934,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 generateBrocamentoPDF() {
                     const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
                     const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
@@ -10945,7 +10950,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 generateBrocamentoCSV() {
                     const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
                     const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
@@ -10961,7 +10966,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 generatePerdaPDF() {
                     const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
                     const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
@@ -10980,7 +10985,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 generatePerdaCSV() {
                     const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                     const farmId = filtroFazenda.value;
                     const farm = App.state.fazendas.find(f => f.id === farmId);
                     const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
@@ -11000,7 +11005,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 generateCigarrinhaPDF() {
                     const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
                     if (!filtroInicio.value || !filtroFim.value) {
-                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning");
                         return;
                     }
                     const farmId = filtroFazenda.value;
@@ -11016,7 +11021,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 generateCigarrinhaCSV() {
                     const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
                     if (!filtroInicio.value || !filtroFim.value) {
-                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning");
                         return;
                     }
                     const farmId = filtroFazenda.value;
@@ -11032,7 +11037,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 generateCigarrinhaAmostragemPDF() {
                     const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.cigarrinhaAmostragem;
                     if (!filtroInicio.value || !filtroFim.value) {
-                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning");
                         return;
                     }
                     const farmId = filtroFazenda.value;
@@ -11049,7 +11054,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 generateCigarrinhaAmostragemCSV() {
                     const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.cigarrinhaAmostragem;
                     if (!filtroInicio.value || !filtroFim.value) {
-                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                        App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning");
                         return;
                     }
                     const farmId = filtroFazenda.value;
@@ -11069,7 +11074,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const reportType = tipoRelatorioSelect.value;
                 
                 if (!planId) {
-                    App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
+                    App.ui.showSystemNotification("Aviso", "Por favor, selecione um plano de colheita.", "warning");
                     return;
                 }
                 
@@ -11112,7 +11117,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generateArmadilhaCSV() {
                 const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                    if (!inicio.value || !fim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
 
                 const farmId = fazendaFiltro.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -11133,7 +11138,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generateMonitoramentoPDF() { // Now generates Trap Report
                 const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                if (!inicio.value || !fim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                 
                 const farmId = fazendaFiltro.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -11148,7 +11153,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generatePlantioFazendaPDF() {
                 const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                if (!inicio.value || !fim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
                 const culturaValue = cultura.value;
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
@@ -11164,7 +11169,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generatePlantioFazendaExcel() {
                 const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                if (!inicio.value || !fim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
                 const culturaValue = cultura.value;
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
@@ -11180,7 +11185,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generatePlantioTalhaoPDF() {
                 const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                if (!inicio.value || !fim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
                 const culturaValue = cultura.value;
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
@@ -11196,7 +11201,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generatePlantioTalhaoExcel() {
                 const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                if (!inicio.value || !fim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
                 const culturaValue = cultura.value;
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
@@ -11213,7 +11218,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async generateClimaPDF() {
                 const { inicio, fim, fazenda } = App.elements.relatorioClima;
                 if (!inicio.value || !fim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning");
                     return;
                 }
                 const farm = App.state.fazendas.find(f => f.id === fazenda.value);
@@ -11251,7 +11256,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } catch (error) {
                     console.error("Erro ao capturar imagens dos gráficos:", error);
-                    App.ui.showAlert("Não foi possível adicionar os gráficos ao relatório. Gerando relatório apenas com dados.", "error");
+                    App.ui.showSystemNotification("Erro de Gráfico", "Não foi possível adicionar os gráficos ao relatório. Gerando relatório apenas com dados.", "error");
                     // Still generate the report without charts if there was an error
                     this._fetchAndDownloadReport('clima/pdf', filters, 'relatorio_clima.pdf');
                 } finally {
@@ -11261,7 +11266,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generateClimaCSV() {
                 const { inicio, fim, fazenda } = App.elements.relatorioClima;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                if (!inicio.value || !fim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
                 const farm = App.state.fazendas.find(f => f.id === fazenda.value);
                 const filters = {
                     inicio: inicio.value,
@@ -11273,7 +11278,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generateMonitoramentoCSV() { // Now generates Trap Report
                 const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                if (!inicio.value || !fim.value) { App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning"); return; }
 
                 const farmId = fazendaFiltro.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -11289,7 +11294,7 @@ document.addEventListener('DOMContentLoaded', () => {
             generateRiskViewPDF() {
                 const { inicio, fim } = App.elements.relatorioRisco;
                 if (!inicio.value || !fim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning");
                     return;
                 }
                 const riskOnlyCheckbox = document.getElementById('riskOnlyCheckbox');
@@ -11304,7 +11309,7 @@ document.addEventListener('DOMContentLoaded', () => {
             generateRiskViewCSV() {
                 const { inicio, fim } = App.elements.relatorioRisco;
                 if (!inicio.value || !fim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
+                    App.ui.showSystemNotification("Filtro Inválido", "Selecione Data Início e Fim.", "warning");
                     return;
                 }
                 const riskOnlyCheckbox = document.getElementById('riskOnlyCheckbox');
@@ -11363,7 +11368,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.addEventListener('offline', () => {
-        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        App.ui.showSystemNotification("Conexão", "Conexão perdida. A operar em modo offline.", "warning");
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
             App.state.connectionCheckInterval = null;
