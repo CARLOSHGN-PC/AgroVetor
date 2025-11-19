@@ -205,6 +205,22 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // system_settings: Configurações globais do sistema, como a mensagem de boas-vindas.
+    match /system_settings/{settingId} {
+      // Leitura: Qualquer utilizador autenticado pode ler.
+      allow read: if request.auth.uid != null;
+      // Escrita: Apenas super-admins podem modificar.
+      allow write: if getUserRole() == 'super-admin';
+    }
+
+    // system_announcements: Anúncios de atualização do sistema.
+    match /system_announcements/{announcementId} {
+      // Leitura: Qualquer utilizador autenticado pode ler.
+      allow read: if request.auth.uid != null;
+      // Escrita: Apenas super-admins podem criar, editar ou apagar anúncios.
+      allow write: if getUserRole() == 'super-admin';
+    }
+
     // notifications: Notificações para utilizadores (ex: novas features)
     match /notifications/{docId} {
       // Qualquer utilizador autenticado pode criar uma notificação (necessário para logs de sistema, etc.).

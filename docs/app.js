@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Super Admin', icon: 'fas fa-user-shield',
                     submenu: [
                         { label: 'Gerir Empresas', icon: 'fas fa-building', target: 'gerenciarEmpresas', permission: 'superAdmin' },
+                        { label: 'Comunicações', icon: 'fas fa-bullhorn', target: 'comunicacoes', permission: 'superAdmin' },
                     ]
                 }
             ],
@@ -955,6 +956,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (navigator.onLine) {
                                     App.actions.syncOfflineWrites();
                                 }
+
+                                App.actions.checkAnnouncements();
 
                             } catch (error) {
                                 console.error("Falha crítica ao carregar dados iniciais:", error);
@@ -1895,6 +1898,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderCompaniesList();
                     this.renderCompanyModules('newCompanyModules');
                     this.renderGlobalFeatures(); // NOVO
+                }
+                if (id === 'comunicacoes') {
+                    App.actions.loadCommunicationsData();
                 }
                 if (id === 'cadastros') {
                     this.renderFarmSelect();
@@ -3470,6 +3476,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            showAnnouncementModal(title, content, onOkCallback) {
+                const modal = document.getElementById('announcementModal');
+                const titleEl = document.getElementById('announcementModalTitle');
+                const bodyEl = document.getElementById('announcementModalBody');
+                const okBtn = document.getElementById('announcementModalOkBtn');
+
+                if (modal && titleEl && bodyEl && okBtn) {
+                    titleEl.textContent = title;
+                    // Basic markdown to HTML conversion
+                    let htmlContent = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                    htmlContent = htmlContent.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                    htmlContent = htmlContent.replace(/\n/g, '<br>');
+                    bodyEl.innerHTML = htmlContent;
+
+                    // Store the callback to be executed when the modal is closed.
+                    modal.onOkCallback = onOkCallback;
+
+                    modal.classList.add('show');
+                }
+            },
+
+            closeAnnouncementModal() {
+                const modal = document.getElementById('announcementModal');
+                if (modal) {
+                    modal.classList.remove('show');
+                    if (typeof modal.onOkCallback === 'function') {
+                        modal.onOkCallback();
+                        modal.onOkCallback = null; // Clear callback after execution
+                    }
+                }
+            },
+
             async renderSyncHistoryDetails(logId) {
                 const modal = App.elements.syncHistoryDetailModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
@@ -4380,10 +4418,63 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                const btnSaveWelcome = document.getElementById('btnSaveWelcomeMessage');
+                if (btnSaveWelcome) btnSaveWelcome.addEventListener('click', () => App.actions.saveWelcomeMessage());
+
+                const btnPublishUpdate = document.getElementById('btnPublishUpdate');
+                if (btnPublishUpdate) btnPublishUpdate.addEventListener('click', () => App.actions.publishUpdate());
+
+                const announcementModal = document.getElementById('announcementModal');
+                if (announcementModal) {
+                    const closeBtn = document.getElementById('announcementModalCloseBtn');
+                    const okBtn = document.getElementById('announcementModalOkBtn');
+                    if(closeBtn) closeBtn.addEventListener('click', () => App.ui.closeAnnouncementModal());
+                    if(okBtn) okBtn.addEventListener('click', () => App.ui.closeAnnouncementModal());
+                    announcementModal.addEventListener('click', e => {
+                        if (e.target === announcementModal) App.ui.closeAnnouncementModal();
+                    });
+                }
             }
         },
         
         actions: {
+            async checkAnnouncements() {
+                const user = App.state.currentUser;
+                if (!user || !navigator.onLine) return; // Only show modals when online
+
+                // 1. Check for welcome message for new users
+                if (!user.hasSeenWelcome) {
+                    const welcomeMsgDoc = await App.data.getDocument('system_settings', 'welcome_message');
+                    if (welcomeMsgDoc && welcomeMsgDoc.title && welcomeMsgDoc.content) {
+                        App.ui.showAnnouncementModal(welcomeMsgDoc.title, welcomeMsgDoc.content, async () => {
+                            await App.data.updateDocument('users', user.uid, { hasSeenWelcome: true });
+                        });
+                        // Stop here, show welcome message first, update will be shown on next login.
+                        return;
+                    } else {
+                        // Mark as seen even if there's no message to prevent re-checking every time.
+                        await App.data.updateDocument('users', user.uid, { hasSeenWelcome: true });
+                    }
+                }
+
+                // 2. Check for version update for existing users
+                const latestVersionDoc = await App.data.getDocument('system_settings', 'latest_version');
+                if (latestVersionDoc && latestVersionDoc.version) {
+                    const latestVersion = latestVersionDoc.version;
+                    const userLastSeenVersion = user.lastSeenVersion || '0.0.0';
+
+                    if (latestVersion !== userLastSeenVersion) {
+                        const announcementDoc = await App.data.getDocument('system_announcements', latestVersion);
+                        if (announcementDoc && announcementDoc.title && announcementDoc.content) {
+                            App.ui.showAnnouncementModal(announcementDoc.title, announcementDoc.content, async () => {
+                                await App.data.updateDocument('users', user.uid, { lastSeenVersion: latestVersion });
+                            });
+                        }
+                    }
+                }
+            },
+
             async viewConfigHistory() {
                 const modal = App.elements.configHistoryModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
@@ -7639,6 +7730,88 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearInterval(App.state.syncInterval);
                     App.state.syncInterval = null;
                     console.log("Sincronização automática em primeiro plano parada.");
+                }
+            },
+
+            async saveWelcomeMessage() {
+                const title = document.getElementById('welcomeMessageTitle').value.trim();
+                const content = document.getElementById('welcomeMessageContent').value.trim();
+
+                if (!title || !content) {
+                    App.ui.showAlert("O título e o conteúdo da mensagem de boas-vindas são obrigatórios.", "error");
+                    return;
+                }
+
+                const welcomeMessage = { title, content };
+
+                App.ui.setLoading(true, "Salvando mensagem...");
+                try {
+                    await App.data.setDocument('system_settings', 'welcome_message', welcomeMessage);
+                    App.ui.showAlert("Mensagem de boas-vindas salva com sucesso!", "success");
+                } catch (error) {
+                    App.ui.showAlert("Erro ao salvar a mensagem de boas-vindas.", "error");
+                    console.error("Erro ao salvar mensagem de boas-vindas:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async publishUpdate() {
+                const version = document.getElementById('updateVersion').value.trim();
+                const title = document.getElementById('updateTitle').value.trim();
+                const content = document.getElementById('updateContent').value.trim();
+
+                if (!version || !title || !content) {
+                    App.ui.showAlert("Versão, título e conteúdo são obrigatórios para publicar uma atualização.", "error");
+                    return;
+                }
+
+                const updateData = {
+                    version,
+                    title,
+                    content,
+                    publishedAt: serverTimestamp()
+                };
+
+                App.ui.setLoading(true, "Publicando atualização...");
+                try {
+                    // Salva a nova atualização com um ID baseado na versão para fácil acesso
+                    await App.data.setDocument('system_announcements', version, updateData);
+                    // Atualiza um ponteiro para a versão mais recente
+                    await App.data.setDocument('system_settings', 'latest_version', { version: version });
+
+                    App.ui.showAlert(`Atualização ${version} publicada com sucesso!`, "success");
+                    document.getElementById('updateVersion').value = '';
+                    document.getElementById('updateTitle').value = '';
+                    document.getElementById('updateContent').value = '';
+
+                } catch (error) {
+                    App.ui.showAlert("Erro ao publicar a atualização.", "error");
+                    console.error("Erro ao publicar atualização:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async loadCommunicationsData() {
+                try {
+                    const welcomeMsgDoc = await App.data.getDocument('system_settings', 'welcome_message');
+                    if (welcomeMsgDoc) {
+                        document.getElementById('welcomeMessageTitle').value = welcomeMsgDoc.title || '';
+                        document.getElementById('welcomeMessageContent').value = welcomeMsgDoc.content || '';
+                    }
+
+                    const latestVersionDoc = await App.data.getDocument('system_settings', 'latest_version');
+                    if (latestVersionDoc) {
+                        const latestAnnounceDoc = await App.data.getDocument('system_announcements', latestVersionDoc.version);
+                        if(latestAnnounceDoc) {
+                            document.getElementById('updateVersion').value = latestAnnounceDoc.version || '';
+                            document.getElementById('updateTitle').value = latestAnnounceDoc.title || '';
+                            document.getElementById('updateContent').value = latestAnnounceDoc.content || '';
+                        }
+                    }
+                } catch (error) {
+                    console.error("Erro ao carregar dados de comunicações:", error);
                 }
             },
 

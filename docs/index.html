@@ -2809,6 +2809,44 @@
                 </div>
             </section>
 
+            <section id="comunicacoes" class="tab-content card" aria-label="Comunicações" tabindex="0" hidden>
+                <h2><i class="fas fa-bullhorn"></i> Comunicações do Sistema</h2>
+
+                <div class="card" style="border-left-color: var(--color-info);">
+                    <h3><i class="fas fa-door-open"></i> Mensagem de Boas-Vindas para Novos Usuários</h3>
+                    <p>Esta mensagem será exibida como um modal na primeira vez que um novo usuário entrar no sistema.</p>
+                    <div class="form-col">
+                        <label for="welcomeMessageTitle" class="required">Título da Mensagem:</label>
+                        <input type="text" id="welcomeMessageTitle" placeholder="Ex: Bem-vindo ao AgroVetor!">
+                    </div>
+                    <div class="form-col">
+                        <label for="welcomeMessageContent" class="required">Conteúdo:</label>
+                        <textarea id="welcomeMessageContent" rows="6" placeholder="Escreva a mensagem de apresentação aqui. Você pode usar **negrito** e *itálico*."></textarea>
+                    </div>
+                    <button id="btnSaveWelcomeMessage" class="save" style="max-width: 300px;"><i class="fas fa-save"></i> Salvar Mensagem de Boas-Vindas</button>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-success); margin-top: 30px;">
+                    <h3><i class="fas fa-sync-alt"></i> Publicar Notas de Atualização</h3>
+                    <p>Publique uma nova nota de atualização. Ela será mostrada automaticamente para cada usuário na próxima vez que ele entrar no sistema.</p>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="updateVersion" class="required">Versão (ex: v1.3.0):</label>
+                            <input type="text" id="updateVersion" placeholder="v1.3.0">
+                        </div>
+                        <div class="form-col">
+                            <label for="updateTitle" class="required">Título da Atualização:</label>
+                            <input type="text" id="updateTitle" placeholder="Ex: Novas Funcionalidades no Dashboard!">
+                        </div>
+                    </div>
+                    <div class="form-col">
+                        <label for="updateContent" class="required">Detalhes da Atualização:</label>
+                        <textarea id="updateContent" rows="8" placeholder="Descreva as principais mudanças e novidades aqui. Use **negrito** e *itálico* para destacar."></textarea>
+                    </div>
+                    <button id="btnPublishUpdate" class="save" style="max-width: 300px; background: var(--color-success);"><i class="fas fa-paper-plane"></i> Publicar Atualização</button>
+                </div>
+            </section>
+
             <section id="cadastrarPessoas" class="tab-content card" aria-label="Cadastrar Pessoas" tabindex="0" hidden>
                 <h2><i class="fas fa-id-card"></i> Cadastro de Pessoas</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
@@ -3456,6 +3494,21 @@
                 <div class="modal-footer">
                     <button id="enableOfflineLoginModalCancelBtn" class="btn-secondary">Cancelar</button>
                     <button id="btnConfirmEnableOffline" class="save">Confirmar e Habilitar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="announcementModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2 id="announcementModalTitle"></h2>
+                    <button id="announcementModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div id="announcementModalBody" class="modal-body" style="line-height: 1.7; font-size: 16px;">
+                    <!-- Conteúdo será inserido aqui -->
+                </div>
+                <div class="modal-footer">
+                    <button id="announcementModalOkBtn" class="save">Entendido!</button>
                 </div>
             </div>
         </div>
