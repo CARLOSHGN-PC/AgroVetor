@@ -3025,11 +3025,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 resultadoEl.textContent = `Resultado: ${resultadoFinal.toFixed(2).replace('.', ',')}`;
             },
 
-            showConfirmationModal(message, onConfirm, inputsConfig = false) {
+            showConfirmationModal(message, onConfirm, inputsConfig = false, onCancel = null) {
                 const { overlay, title, message: msgEl, confirmBtn, cancelBtn, closeBtn, inputContainer } = App.elements.confirmationModal;
                 title.textContent = "Confirmar Ação";
                 msgEl.textContent = message;
-                
+
                 inputContainer.innerHTML = '';
                 inputContainer.style.display = 'none';
 
@@ -3096,21 +3096,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     let valueToConfirm = results;
-                    // For backward compatibility with calls that expect a single string instead of a results object.
-                    // This happens when `inputsConfig` is `true`, which creates a single input with a hardcoded ID.
                     if (!Array.isArray(inputsConfig) && inputsConfig === true) {
                         valueToConfirm = results['confirmationModalInput'];
                     }
                     
                     onConfirm(valueToConfirm);
-                    closeHandler();
+                    cleanup();
                 };
                 
-                const closeHandler = () => {
+                const cancelHandler = () => {
+                    if (onCancel) {
+                        onCancel();
+                    }
+                    cleanup();
+                };
+
+                const cleanup = () => {
                     overlay.classList.remove('show');
                     confirmBtn.removeEventListener('click', confirmHandler);
-                    cancelBtn.removeEventListener('click', closeHandler);
-                    closeBtn.removeEventListener('click', closeHandler);
+                    cancelBtn.removeEventListener('click', cancelHandler);
+                    closeBtn.removeEventListener('click', cancelHandler);
                     setTimeout(() => {
                         confirmBtn.textContent = "Confirmar";
                         cancelBtn.style.display = 'inline-flex';
@@ -3118,8 +3123,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 
                 confirmBtn.addEventListener('click', confirmHandler);
-                cancelBtn.addEventListener('click', closeHandler);
-                closeBtn.addEventListener('click', closeHandler);
+                cancelBtn.addEventListener('click', cancelHandler);
+                closeBtn.addEventListener('click', cancelHandler);
                 overlay.classList.add('show');
             },
             showAdminPasswordConfirmModal() {
@@ -7010,7 +7015,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.showConfirmationModal(
                     `Encontramos um rascunho não salvo para o lançamento de ${formType}. Deseja restaurá-lo?`,
-                    () => {
+                    () => { // onConfirm
                         const formData = JSON.parse(draftData);
                         Object.keys(formData).forEach(id => {
                             const el = document.getElementById(id);
@@ -7020,13 +7025,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 } else {
                                     el.value = formData[id];
                                 }
-                                // Dispara o evento de input para atualizar cálculos e outros listeners
                                 el.dispatchEvent(new Event('input'));
                             }
                         });
                         App.ui.showAlert("Rascunho restaurado.", "success");
+                        this.clearFormDraft(formType); // Limpa o rascunho após restaurar
                     },
-                    false // No input needed
+                    false, // No input needed
+                    () => { // onCancel
+                        this.clearFormDraft(formType);
+                        App.ui.showAlert("Rascunho descartado.", "info");
+                    }
                 );
             },
 
@@ -8543,8 +8552,6 @@ document.addEventListener('DOMContentLoaded', () => {
             findTalhaoFromLocation(position) { // position is a Mapbox LngLat object
                 const containingTalhoes = [];
                 const point = turf.point([position.lng, position.lat]);
-                // Cria um buffer de 15 metros ao redor do ponto do usuário para compensar a imprecisão do GPS.
-                const buffer = turf.buffer(point, 15, { units: 'meters' });
                 const allTalhoes = App.state.geoJsonData;
 
                 if (!allTalhoes || !allTalhoes.features) {
@@ -8554,12 +8561,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 allTalhoes.features.forEach(feature => {
                     try {
-                        // Verifica se o buffer do usuário (e não o ponto exato) cruza com o polígono do talhão.
-                        if (!turf.booleanDisjoint(buffer, feature.geometry)) {
+                        // Strict check: the user's exact point must be inside the polygon
+                        if (turf.booleanPointInPolygon(point, feature.geometry)) {
                             containingTalhoes.push(feature);
                         }
                     } catch (e) {
-                        // Adicionado para graciosamente ignorar geometrias inválidas que podem vir do shapefile
                         console.warn("Geometria inválida ou erro no processamento do Turf.js:", e, feature.geometry);
                     }
                 });
@@ -8567,6 +8573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (containingTalhoes.length === 1) {
                     this.showTrapPlacementModal('success', containingTalhoes);
                 } else if (containingTalhoes.length > 1) {
+                    // This case is less likely now but kept for robustness (e.g., overlapping polygons)
                     this.showTrapPlacementModal('conflict', containingTalhoes);
                 } else {
                     this.showTrapPlacementModal('failure');
