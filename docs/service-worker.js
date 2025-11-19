@@ -181,7 +181,7 @@ const TILE_STORE_NAME = 'offline-map-tiles';
 let dbPromise;
 function getDb() {
     if (!dbPromise) {
-        dbPromise = idb.openDB(DB_NAME, 6, {
+        dbPromise = idb.openDB(DB_NAME, DB_VERSION, {
             upgrade(db, oldVersion) {
                 if (oldVersion < 7) {
                     if (!db.objectStoreNames.contains(TILE_STORE_NAME)) {
@@ -234,7 +234,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
   // ADDED: Explicitly ignore shapefile downloads to let the app handle them
-  if (url.pathname.endsWith('.zip') || url.pathname.endsWith('favicon.ico')) {
+  if (url.pathname.endsWith('.zip')) {
     console.log('Service worker ignoring .zip file request, passing to network.');
     return; // Let the browser handle the request normally
   }
