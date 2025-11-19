@@ -3459,6 +3459,25 @@
                 </div>
             </div>
         </div>
+
+        <!-- NOVO: Modal de Novidades -->
+        <div id="whatsNewModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="whatsNewModalTitle"><i class="fas fa-star" style="color: var(--color-warning);"></i> O que há de novo?</h2>
+                    <button id="whatsNewModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div class="modal-body" id="whatsNewModalBody">
+                    <p style="font-size: 14px; color: var(--color-text-light); margin-bottom: 20px;"><strong>Lançado em:</strong> <span id="whatsNewModalDate"></span></p>
+                    <div id="whatsNewModalContent" style="line-height: 1.7;">
+                        <!-- Conteúdo das novidades será inserido aqui -->
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content: flex-end;">
+                    <button id="whatsNewModalOkBtn" class="save" style="max-width: 150px;">Entendi!</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Bibliotecas Externas -->
