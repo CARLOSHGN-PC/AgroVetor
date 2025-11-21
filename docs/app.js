@@ -1,6 +1,6 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
@@ -166,7 +166,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Super Admin', icon: 'fas fa-user-shield',
                     submenu: [
                         { label: 'Gerir Empresas', icon: 'fas fa-building', target: 'gerenciarEmpresas', permission: 'superAdmin' },
-                        { label: 'Gerenciar Atualizações', icon: 'fas fa-bullhorn', target: 'gerenciarAtualizacoes', permission: 'superAdmin' },
                     ]
                 }
             ],
@@ -410,34 +409,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 adminPassword: document.getElementById('newCompanyAdminPassword'),
                 btnCreate: document.getElementById('btnCreateCompany'),
                 list: document.getElementById('companiesList'),
-            },
-            updatesManagement: {
-                version: document.getElementById('updateVersion'),
-                title: document.getElementById('updateTitle'),
-                content: document.getElementById('updateContent'),
-                btnPublish: document.getElementById('btnPublishUpdate'),
-            },
-            updateModal: {
-                overlay: document.getElementById('updateModal'),
-                title: document.getElementById('updateModalTitle'),
-                version: document.getElementById('updateModalVersion'),
-                body: document.getElementById('updateModalBody'),
-                checkbox: document.getElementById('updateReadAgreement'),
-                btnConfirm: document.getElementById('btnConfirmUpdate'),
-            },
-            tour: {
-                overlay: document.getElementById('tourOverlay'),
-                backdrop: document.getElementById('tourBackdrop'),
-                highlight: document.getElementById('tourHighlight'),
-                tooltip: document.getElementById('tourTooltip'),
-                tooltipTitle: document.getElementById('tourTooltipTitle'),
-                tooltipText: document.getElementById('tourTooltipText'),
-                stepCounter: document.querySelector('.tour-step-counter'),
-                btnNext: document.getElementById('btnTourNext'),
-                btnSkip: document.getElementById('btnTourSkip'),
-                welcomeModal: document.getElementById('welcomeTourModal'),
-                btnStart: document.getElementById('btnStartTour'),
-                btnWelcomeSkip: document.getElementById('btnSkipTour'),
             },
             editCompanyModal: {
                 overlay: document.getElementById('editCompanyModal'),
@@ -985,10 +956,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                     App.actions.syncOfflineWrites();
                                 }
 
-                                // Check for updates and welcome tour
-                                await App.actions.checkAndShowUpdates();
-                                await App.actions.checkAndStartWelcomeTour();
-
                             } catch (error) {
                                 console.error("Falha crítica ao carregar dados iniciais:", error);
                                 App.auth.logout();
@@ -1430,9 +1397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             async addDocument(collectionName, data) {
-                const timestamp = serverTimestamp();
-                // Ensure consistent timestamp format for offline persistence if needed immediately
-                return await addDoc(collection(db, collectionName), { ...data, createdAt: timestamp });
+                return await addDoc(collection(db, collectionName), { ...data, createdAt: serverTimestamp() });
             },
             async setDocument(collectionName, docId, data) {
                 return await setDoc(doc(db, collectionName, docId), data, { merge: true });
@@ -1598,62 +1563,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            renderUpdatesList() {
-                const listEl = document.getElementById('updatesHistoryList');
-                if (!listEl) return;
-
-                // Busca as atualizações da coleção 'system_announcements'
-                // Como é uma coleção global e pequena, buscamos todas para o histórico
-                // (Idealmente, usar onSnapshot se quiser tempo real, mas getDocs é suficiente aqui)
-                getDocs(query(collection(db, 'system_announcements'), orderBy('createdAt', 'desc')))
-                    .then(snapshot => {
-                        listEl.innerHTML = '';
-                        if (snapshot.empty) {
-                            listEl.innerHTML = '<p style="padding: 10px;">Nenhuma atualização publicada ainda.</p>';
-                            return;
-                        }
-
-                        const table = document.createElement('table');
-                        table.className = 'harvestPlanTable';
-                        table.innerHTML = `
-                            <thead>
-                                <tr>
-                                    <th>Versão</th>
-                                    <th>Título</th>
-                                    <th>Data</th>
-                                    <th>Publicado Por</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        `;
-                        const tbody = table.querySelector('tbody');
-
-                        snapshot.forEach(doc => {
-                            const update = doc.data();
-                            const row = tbody.insertRow();
-                            const dateStr = update.createdAt?.toDate ? update.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
-
-                            row.innerHTML = `
-                                <td data-label="Versão"><span class="editable-atr" style="background-color: var(--color-primary-light); color: var(--color-primary-dark);">${update.version}</span></td>
-                                <td data-label="Título">${update.title}</td>
-                                <td data-label="Data">${dateStr}</td>
-                                <td data-label="Publicado Por">${update.publishedBy || 'Sistema'}</td>
-                                <td data-label="Status">
-                                    <span class="status-badge ${update.active ? 'status-active' : 'status-inactive'}">
-                                        ${update.active ? 'Ativo' : 'Inativo'}
-                                    </span>
-                                </td>
-                            `;
-                        });
-                        listEl.appendChild(table);
-                    })
-                    .catch(err => {
-                        console.error("Erro ao carregar histórico de atualizações:", err);
-                        listEl.innerHTML = '<p style="color: var(--color-danger);">Erro ao carregar histórico.</p>';
-                    });
-            },
-
             renderAllDynamicContent() {
                 const renderWithCatch = (name, fn) => {
                     try {
@@ -1681,25 +1590,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.showDashboardView('broca');
                     }
                 });
-            },
-            showUpdateModal(announcement) {
-                const { updateModal } = App.elements;
-                updateModal.title.textContent = announcement.title;
-                updateModal.version.textContent = `v${announcement.version}`;
-                updateModal.version.dataset.version = announcement.version;
-
-                let contentHTML = '<ul>';
-                if (Array.isArray(announcement.content)) {
-                    announcement.content.forEach(point => contentHTML += `<li>${point}</li>`);
-                } else {
-                    contentHTML += `<li>${announcement.content}</li>`;
-                }
-                contentHTML += '</ul>';
-
-                updateModal.body.innerHTML = contentHTML;
-                updateModal.checkbox.checked = false;
-                updateModal.btnConfirm.disabled = true;
-                updateModal.overlay.classList.add('show');
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
             showAlert(message, type = 'success', duration = 3000) {
@@ -2024,7 +1914,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
-                if (id === 'gerenciarAtualizacoes') this.renderUpdatesList();
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
                     if (App.state.currentUser.role === 'super-admin') {
@@ -4496,231 +4385,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-
-                // Updates Management
-                if (App.elements.updatesManagement.btnPublish) {
-                    App.elements.updatesManagement.btnPublish.addEventListener('click', () => App.actions.publishUpdate());
-                }
-                // Update Modal
-                if (App.elements.updateModal.checkbox) {
-                    App.elements.updateModal.checkbox.addEventListener('change', (e) => {
-                        App.elements.updateModal.btnConfirm.disabled = !e.target.checked;
-                    });
-                }
-                if (App.elements.updateModal.btnConfirm) {
-                    App.elements.updateModal.btnConfirm.addEventListener('click', () => App.actions.confirmUpdateRead());
-                }
-
-                // Welcome Tour
-                if (App.elements.tour.btnStart) App.elements.tour.btnStart.addEventListener('click', () => App.actions.startTourFlow());
-                if (App.elements.tour.btnWelcomeSkip) App.elements.tour.btnWelcomeSkip.addEventListener('click', () => App.actions.skipTour());
-                if (App.elements.tour.btnNext) App.elements.tour.btnNext.addEventListener('click', () => App.actions.nextTourStep());
-                if (App.elements.tour.btnSkip) App.elements.tour.btnSkip.addEventListener('click', () => App.actions.skipTour());
             }
         },
         
         actions: {
-            async publishUpdate() {
-                const { version, title, content } = App.elements.updatesManagement;
-                const versionVal = version.value.trim();
-                const titleVal = title.value.trim();
-                const contentVal = content.value.trim();
-
-                if (!versionVal || !titleVal || !contentVal) {
-                    App.ui.showAlert("Todos os campos são obrigatórios.", "error");
-                    return;
-                }
-
-                App.ui.showConfirmationModal("Deseja publicar esta atualização? Todos os usuários verão um aviso no próximo login.", async () => {
-                    App.ui.setLoading(true, "A publicar atualização...");
-                    try {
-                        // We use 'active' to denote the current version.
-                        // Optionally, we could mark older ones as inactive, but simple sorting by date works too.
-                        await App.data.addDocument('system_announcements', {
-                            version: versionVal,
-                            title: titleVal,
-                            content: contentVal.split('\n').filter(line => line.trim() !== ''), // Store as array
-                            active: true,
-                            publishedBy: App.state.currentUser.username || App.state.currentUser.email
-                        });
-
-                        App.ui.showAlert("Atualização publicada com sucesso!", "success");
-                        version.value = '';
-                        title.value = '';
-                        content.value = '';
-                    } catch (error) {
-                        console.error("Erro ao publicar atualização:", error);
-                        App.ui.showAlert("Erro ao publicar atualização.", "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                });
-            },
-
-            async checkAndShowUpdates() {
-                if (!navigator.onLine) return;
-
-                try {
-                    // Fetch the latest announcement
-                    const q = query(collection(db, 'system_announcements'), where('active', '==', true), orderBy('createdAt', 'desc'), limit(1));
-                    const snapshot = await getDocs(q);
-
-                    if (!snapshot.empty) {
-                        const latestUpdate = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-                        const userLastSeen = App.state.currentUser.lastSeenVersion;
-
-                        if (latestUpdate.version !== userLastSeen) {
-                            App.ui.showUpdateModal(latestUpdate);
-                        }
-                    }
-                } catch (error) {
-                    console.error("Erro ao verificar atualizações:", error);
-                }
-            },
-
-            async confirmUpdateRead() {
-                const modal = App.elements.updateModal.overlay;
-                const version = App.elements.updateModal.version.dataset.version;
-
-                if (!version) return;
-
-                try {
-                    await App.data.updateDocument('users', App.state.currentUser.uid, { lastSeenVersion: version });
-                    // Update local state immediately
-                    App.state.currentUser.lastSeenVersion = version;
-                    modal.classList.remove('show');
-                    // Check for tour after update modal is closed, in case it was blocked
-                    this.checkAndStartWelcomeTour();
-                } catch (error) {
-                    console.error("Erro ao confirmar leitura da atualização:", error);
-                    App.ui.showAlert("Erro ao salvar confirmação.", "error");
-                }
-            },
-
-            async checkAndStartWelcomeTour() {
-                 // Don't show tour if update modal is open
-                if (App.elements.updateModal.overlay.classList.contains('show')) return;
-
-                const user = App.state.currentUser;
-                if (!user.hasSeenWelcomeTour) {
-                    App.elements.tour.welcomeModal.classList.add('show');
-                }
-            },
-
-            startTourFlow() {
-                App.elements.tour.welcomeModal.classList.remove('show');
-                this.currentTourStep = 0;
-                this.tourSteps = [
-                    {
-                        elementId: 'btnToggleMenu',
-                        title: 'Menu Principal',
-                        text: 'Aqui você acessa todos os módulos do sistema, incluindo Dashboards, Lançamentos e Relatórios.',
-                        position: 'bottom-right'
-                    },
-                    {
-                        elementId: 'dashboard-selector',
-                        title: 'Dashboard',
-                        text: 'Esta é a sua área de trabalho principal. Aqui você vê um resumo dos indicadores e acessa os gráficos.',
-                        position: 'top' // Center relative to big element
-                    },
-                    {
-                        elementId: 'notification-bell-container',
-                        title: 'Notificações',
-                        text: 'Fique atento a este ícone. Aqui você recebe alertas sobre armadilhas e avisos importantes do sistema.',
-                        position: 'bottom-left'
-                    },
-                    {
-                        elementId: 'user-menu-container',
-                        title: 'Perfil e Sincronização',
-                        text: 'Gerencie sua conta, troque sua senha e faça a sincronização manual de dados aqui.',
-                        position: 'bottom-left'
-                    }
-                ];
-                App.elements.tour.overlay.classList.add('active');
-                this.showTourStep(0);
-            },
-
-            showTourStep(index) {
-                if (index >= this.tourSteps.length) {
-                    this.finishTour();
-                    return;
-                }
-
-                const step = this.tourSteps[index];
-                const targetEl = document.getElementById(step.elementId);
-
-                if (!targetEl) {
-                    // Skip if element not found (e.g. permission hidden)
-                    this.currentTourStep++;
-                    this.showTourStep(this.currentTourStep);
-                    return;
-                }
-
-                const rect = targetEl.getBoundingClientRect();
-                const highlight = App.elements.tour.highlight;
-                const tooltip = App.elements.tour.tooltip;
-
-                // Position Highlight
-                highlight.style.top = `${rect.top - 5}px`;
-                highlight.style.left = `${rect.left - 5}px`;
-                highlight.style.width = `${rect.width + 10}px`;
-                highlight.style.height = `${rect.height + 10}px`;
-
-                // Position Tooltip
-                App.elements.tour.tooltipTitle.textContent = step.title;
-                App.elements.tour.tooltipText.textContent = step.text;
-                App.elements.tour.stepCounter.textContent = `${index + 1} de ${this.tourSteps.length}`;
-
-                // Simple positioning logic
-                let tooltipTop, tooltipLeft;
-                const tooltipRect = { width: 300, height: 200 }; // Approx
-
-                if (step.position === 'bottom-right') {
-                    tooltipTop = rect.bottom + 15;
-                    tooltipLeft = rect.left;
-                } else if (step.position === 'bottom-left') {
-                    tooltipTop = rect.bottom + 15;
-                    tooltipLeft = rect.right - 300;
-                } else { // Center/Top fallback
-                     tooltipTop = rect.bottom + 20;
-                     tooltipLeft = window.innerWidth / 2 - 150;
-                }
-
-                // Boundary checks
-                if (tooltipLeft < 10) tooltipLeft = 10;
-                if (tooltipLeft + 300 > window.innerWidth) tooltipLeft = window.innerWidth - 310;
-
-                tooltip.style.top = `${tooltipTop}px`;
-                tooltip.style.left = `${tooltipLeft}px`;
-            },
-
-            nextTourStep() {
-                this.currentTourStep++;
-                this.showTourStep(this.currentTourStep);
-            },
-
-            async finishTour() {
-                App.elements.tour.overlay.classList.remove('active');
-                try {
-                    await App.data.updateDocument('users', App.state.currentUser.uid, { hasSeenWelcomeTour: true });
-                    App.state.currentUser.hasSeenWelcomeTour = true;
-                    App.ui.showAlert("Tour concluído! Bom trabalho.", "success");
-                } catch (error) {
-                    console.error("Erro ao finalizar tour:", error);
-                }
-            },
-
-            async skipTour() {
-                App.elements.tour.welcomeModal.classList.remove('show');
-                App.elements.tour.overlay.classList.remove('active');
-                try {
-                     // Mark as seen so it doesn't annoy the user again
-                    await App.data.updateDocument('users', App.state.currentUser.uid, { hasSeenWelcomeTour: true });
-                    App.state.currentUser.hasSeenWelcomeTour = true;
-                } catch (error) {
-                    console.error("Erro ao pular tour:", error);
-                }
-            },
             async viewConfigHistory() {
                 const modal = App.elements.configHistoryModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
