@@ -2808,39 +2808,6 @@
                     </div>
                     <button id="btnSaveGlobalFeatures" class="save" style="max-width: 300px; margin-top: 25px; background: var(--color-ai);"><i class="fas fa-save"></i> Guardar Alterações Globais</button>
                 </div>
-
-                <div class="card" style="margin-top: 30px; border-left-color: var(--color-info);">
-                    <h3><i class="fas fa-bullhorn"></i> Gerenciar Comunicados e Boas-Vindas</h3>
-
-                    <div style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--color-border);">
-                        <h4 style="color: var(--color-primary-dark); margin-bottom: 10px;"><i class="fas fa-handshake"></i> Mensagem de Boas-Vindas (Novos Usuários)</h4>
-                        <p style="font-size: 14px; color: var(--color-text-light);">Esta mensagem será exibida uma única vez para novos usuários ao entrarem no sistema.</p>
-                        <textarea id="welcomeMessageInput" placeholder="Digite a mensagem de boas-vindas..." style="min-height: 100px;"></textarea>
-                        <button id="btnSaveWelcomeMessage" class="save" style="max-width: 250px; margin-top: 10px; background: var(--color-info);"><i class="fas fa-save"></i> Guardar Mensagem</button>
-                    </div>
-
-                    <div>
-                        <h4 style="color: var(--color-primary-dark); margin-bottom: 10px;"><i class="fas fa-rocket"></i> Novo Comunicado de Atualização</h4>
-                        <p style="font-size: 14px; color: var(--color-text-light);">Publique notas de atualização. Todos os usuários verão este aviso na próxima vez que entrarem.</p>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label for="announcementTitle">Título da Atualização:</label>
-                                <input type="text" id="announcementTitle" placeholder="Ex: Versão 2.0 - Novos Gráficos">
-                            </div>
-                            <div class="form-col" style="max-width: 150px;">
-                                <label for="announcementVersion">Versão (Num):</label>
-                                <input type="number" id="announcementVersion" placeholder="Ex: 10" step="1">
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label for="announcementDescription">Detalhes da Atualização:</label>
-                                <textarea id="announcementDescription" placeholder="Liste as novidades, correções, etc..." style="min-height: 120px;"></textarea>
-                            </div>
-                        </div>
-                        <button id="btnPublishAnnouncement" class="save" style="max-width: 250px; background: var(--color-success);"><i class="fas fa-paper-plane"></i> Publicar para Todos</button>
-                    </div>
-                </div>
             </section>
 
             <section id="cadastrarPessoas" class="tab-content card" aria-label="Cadastrar Pessoas" tabindex="0" hidden>
@@ -3490,39 +3457,6 @@
                 <div class="modal-footer">
                     <button id="enableOfflineLoginModalCancelBtn" class="btn-secondary">Cancelar</button>
                     <button id="btnConfirmEnableOffline" class="save">Confirmar e Habilitar</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Modal de Boas-vindas -->
-        <div id="welcomeModal" class="modal-overlay">
-            <div class="modal-content" style="max-width: 600px; text-align: center;">
-                <div class="modal-header" style="justify-content: center; border-bottom: none;">
-                    <h2 style="color: var(--color-primary); font-size: 28px;"><i class="fas fa-leaf"></i> Bem-vindo!</h2>
-                </div>
-                <div class="modal-body">
-                    <img src="icons/icon-192x192.png" alt="AgroVetor" style="width: 80px; height: 80px; margin-bottom: 20px; border-radius: 15px; box-shadow: var(--shadow-md);">
-                    <p id="welcomeModalContent" style="font-size: 16px; line-height: 1.6; color: var(--color-text); white-space: pre-wrap;"></p>
-                </div>
-                <div class="modal-footer" style="justify-content: center; border-top: none;">
-                    <button id="btnCloseWelcomeModal" class="save" style="width: 100%; max-width: 200px;">Começar</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Modal de Atualização do Sistema -->
-        <div id="updateModal" class="modal-overlay">
-            <div class="modal-content" style="max-width: 600px;">
-                <div class="modal-header">
-                    <h2 style="color: var(--color-info);"><i class="fas fa-rocket"></i> Novidades da Atualização</h2>
-                    <button id="btnCloseUpdateModalX" class="modal-close-btn">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <h3 id="updateModalTitle" style="margin-top: 0; color: var(--color-text);"></h3>
-                    <p id="updateModalContent" style="font-size: 15px; line-height: 1.6; color: var(--color-text); white-space: pre-wrap; background: var(--color-bg); padding: 15px; border-radius: var(--border-radius); border: 1px solid var(--color-border);"></p>
-                </div>
-                <div class="modal-footer">
-                    <button id="btnCloseUpdateModal" class="save" style="background: var(--color-info);">Entendi</button>
                 </div>
             </div>
         </div>
