@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Super Admin', icon: 'fas fa-user-shield',
                     submenu: [
                         { label: 'Gerir Empresas', icon: 'fas fa-building', target: 'gerenciarEmpresas', permission: 'superAdmin' },
+                        { label: 'Comunicados', icon: 'fas fa-bullhorn', target: 'comunicados', permission: 'superAdmin' },
                     ]
                 }
             ],
@@ -945,6 +946,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 App.actions.saveUserProfileLocally(App.state.currentUser);
                                 App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
                                 App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
+
+                                // Adicionado: Verifica e exibe comunicados de boas-vindas ou atualizações
+                                if (userDoc.role !== 'super-admin') {
+                                    await App.actions.checkAndShowComunicado();
+                                }
+
 
                                 const draftRestored = await App.actions.checkForDraft();
                                 if (!draftRestored) {
@@ -1895,6 +1902,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderCompaniesList();
                     this.renderCompanyModules('newCompanyModules');
                     this.renderGlobalFeatures(); // NOVO
+                }
+                if (id === 'comunicados') {
+                    App.actions.setupComunicados();
                 }
                 if (id === 'cadastros') {
                     this.renderFarmSelect();
@@ -3475,6 +3485,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            showAnnouncementModal({ title, content, icon = 'fa-bullhorn', onConfirm, isUpdate = false }) {
+                const modal = document.getElementById('announcementModal');
+                if (!modal) return;
+
+                document.getElementById('announcementTitle').textContent = title;
+                document.getElementById('announcementBody').innerHTML = content;
+                document.getElementById('announcementIcon').className = `fas ${icon}`;
+
+                const closeBtn = document.getElementById('announcementCloseBtn');
+                const confirmBtn = document.getElementById('announcementConfirmBtn');
+
+                // Clone nodes to safely remove old event listeners
+                const newCloseBtn = closeBtn.cloneNode(true);
+                closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+                const newConfirmBtn = confirmBtn.cloneNode(true);
+                confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+                const closeHandler = () => {
+                    modal.style.display = 'none';
+                };
+
+                const confirmHandler = () => {
+                    modal.style.display = 'none';
+                    if (onConfirm && typeof onConfirm === 'function') {
+                        onConfirm();
+                    }
+                };
+
+                if (isUpdate) {
+                    newConfirmBtn.style.display = 'inline-flex';
+                    newCloseBtn.style.display = 'inline-flex';
+                    newConfirmBtn.addEventListener('click', confirmHandler);
+                    newCloseBtn.addEventListener('click', closeHandler); // Just closes
+                } else { // Welcome message
+                    newConfirmBtn.style.display = 'none';
+                    newCloseBtn.textContent = 'Entendido';
+                    newCloseBtn.style.display = 'inline-flex';
+                    newCloseBtn.addEventListener('click', confirmHandler); // The only button confirms
+                }
+
+                modal.style.display = 'flex';
+            },
+
             async renderSyncHistoryDetails(logId) {
                 const modal = App.elements.syncHistoryDetailModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
@@ -3769,6 +3822,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnSaveGlobalFeatures) {
                     btnSaveGlobalFeatures.addEventListener('click', () => App.actions.saveGlobalFeatures());
                 }
+
+                // Event Listeners for Comunicados (Super Admin)
+                const btnSaveWelcome = document.getElementById('btnSaveWelcomeMessage');
+                if (btnSaveWelcome) btnSaveWelcome.addEventListener('click', () => App.actions.saveWelcomeMessage());
+
+                const btnPublish = document.getElementById('btnPublishUpdate');
+                if (btnPublish) btnPublish.addEventListener('click', () => App.actions.publishUpdate());
+
+                // Adicionado: Event listener para o botão de fechar do modal de anúncio
+                const announcementModal = document.getElementById('announcementModal');
+                if (announcementModal) {
+                    announcementModal.addEventListener('click', (e) => {
+                        if (e.target === announcementModal) {
+                            // Apenas fecha o modal sem confirmar
+                            announcementModal.style.display = 'none';
+                        }
+                    });
+                }
+
 
                 if (companyEls.list) companyEls.list.addEventListener('click', e => {
                     const button = e.target.closest('button[data-action]');
@@ -7663,6 +7735,148 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Por favor, insira a sua senha atual para confirmar.", "error");
                     return;
                 }
+            },
+
+            async setupComunicados() {
+                // Carregar mensagem de boas-vindas
+                const welcomeDoc = await App.data.getDocument('system_settings', 'welcome_message');
+                if (welcomeDoc) {
+                    document.getElementById('welcomeMessageTitle').value = welcomeDoc.title || '';
+                    document.getElementById('welcomeMessageContent').value = welcomeDoc.content || '';
+                }
+
+                // Carregar histórico de atualizações
+                const historyList = document.getElementById('announcements-history-list');
+                historyList.innerHTML = '';
+                const q = query(collection(db, 'system_announcements'), orderBy('publishedAt', 'desc'));
+                const querySnapshot = await getDocs(q);
+                if (querySnapshot.empty) {
+                    historyList.innerHTML = '<p>Nenhuma atualização publicada ainda.</p>';
+                } else {
+                    querySnapshot.forEach(doc => {
+                        const announcement = doc.data();
+                        const date = announcement.publishedAt ? announcement.publishedAt.toDate().toLocaleDateString('pt-BR') : 'Data desconhecida';
+                        const item = document.createElement('div');
+                        item.className = 'plano-card';
+                        item.innerHTML = `
+                            <div class="plano-header">
+                                <span class="plano-title"><i class="fas fa-tag"></i> Versão ${announcement.version} - ${announcement.title}</span>
+                                <span class="plano-status" style="background-color: var(--color-text-light);">${date}</span>
+                            </div>
+                            <div style="white-space: pre-wrap; padding: 10px;">${announcement.content}</div>
+                        `;
+                        historyList.appendChild(item);
+                    });
+                }
+            },
+
+            async saveWelcomeMessage() {
+                const title = document.getElementById('welcomeMessageTitle').value;
+                const content = document.getElementById('welcomeMessageContent').value;
+
+                if (!title || !content) {
+                    App.ui.showAlert("Título e conteúdo são obrigatórios para a mensagem de boas-vindas.", "error");
+                    return;
+                }
+
+                App.ui.setLoading(true, "Salvando...");
+                try {
+                    await App.data.setDocument('system_settings', 'welcome_message', { title, content });
+                    App.ui.showAlert("Mensagem de boas-vindas salva com sucesso!", "success");
+                } catch (error) {
+                    App.ui.showAlert("Erro ao salvar a mensagem.", "error");
+                    console.error(error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async publishUpdate() {
+                const version = document.getElementById('updateVersion').value;
+                const title = document.getElementById('updateTitle').value;
+                const content = document.getElementById('updateContent').value;
+
+                if (!version || !title || !content) {
+                    App.ui.showAlert("Versão, título e conteúdo são obrigatórios para publicar uma atualização.", "error");
+                    return;
+                }
+
+                App.ui.setLoading(true, "Publicando...");
+                try {
+                    await App.data.addDocument('system_announcements', {
+                        version,
+                        title,
+                        content,
+                        publishedAt: serverTimestamp()
+                    });
+                    App.ui.showAlert("Nota de atualização publicada com sucesso!", "success");
+                    document.getElementById('updateVersion').value = '';
+                    document.getElementById('updateTitle').value = '';
+                    document.getElementById('updateContent').value = '';
+                    this.setupComunicados(); // Recarrega o histórico
+                } catch (error) {
+                    App.ui.showAlert("Erro ao publicar a atualização.", "error");
+                    console.error(error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async checkAndShowComunicado() {
+                const user = App.state.currentUser;
+                if (!user) return;
+
+                // Caso 1: Utilizador novo que nunca viu a mensagem de boas-vindas
+                if (!user.hasSeenWelcome) {
+                    const welcomeDoc = await App.data.getDocument('system_settings', 'welcome_message');
+                    if (welcomeDoc && welcomeDoc.title && welcomeDoc.content) {
+                        App.ui.showAnnouncementModal({
+                            title: welcomeDoc.title,
+                            content: welcomeDoc.content,
+                            icon: 'fa-door-open',
+                            isUpdate: false, // Mensagem de boas-vindas
+                            onConfirm: async () => {
+                                await App.data.updateDocument('users', user.uid, { hasSeenWelcome: true });
+                                App.state.currentUser.hasSeenWelcome = true;
+                            }
+                        });
+                    }
+                    return;
+                }
+
+                // Caso 2: Utilizador existente, verificar a última atualização
+                const q = query(collection(db, 'system_announcements'), orderBy('publishedAt', 'desc'), limit(1));
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    const latestAnnouncement = querySnapshot.docs[0].data();
+                    const latestVersion = latestAnnouncement.version;
+
+                    if (latestVersion && user.lastSeenVersion !== latestVersion) {
+                        const formattedContent = latestAnnouncement.content
+                            .split('\n')
+                            .map(line => {
+                                if (line.trim().startsWith('*')) {
+                                    return `<li><i class="fas fa-check-circle"></i>${line.trim().substring(1).trim()}</li>`;
+                                }
+                                return `<p>${line}</p>`;
+                            })
+                            .join('');
+
+                        App.ui.showAnnouncementModal({
+                            title: `Atualização: ${latestAnnouncement.title}`,
+                            content: `<h3>Versão ${latestVersion}</h3><ul>${formattedContent}</ul>`,
+                            icon: 'fa-star',
+                            isUpdate: true, // É uma atualização, mostra ambos os botões
+                            onConfirm: async () => {
+                                await App.data.updateDocument('users', user.uid, { lastSeenVersion: latestVersion });
+                                App.state.currentUser.lastSeenVersion = latestVersion;
+                            }
+                        });
+                    }
+                }
+            },
+
 
                 if (!navigator.onLine) {
                     App.ui.showAlert("É preciso estar online para habilitar o login offline pela primeira vez.", "warning");

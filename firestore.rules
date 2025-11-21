@@ -168,6 +168,22 @@ service cloud.firestore {
       allow write: if getUserRole() == 'super-admin';
     }
 
+    // --- REGRAS PARA MENSAGENS E ANÚNCIOS DO SISTEMA ---
+
+    // system_settings: Armazena a mensagem de boas-vindas.
+    // Qualquer utilizador autenticado pode ler. Apenas super-admins podem escrever.
+    match /system_settings/{docId} {
+      allow read: if request.auth.uid != null;
+      allow write: if getUserRole() == 'super-admin';
+    }
+
+    // system_announcements: Armazena os anúncios de atualização.
+    // Qualquer utilizador autenticado pode ler. Apenas super-admins podem escrever.
+    match /system_announcements/{docId} {
+      allow read: if request.auth.uid != null;
+      allow write: if getUserRole() == 'super-admin';
+    }
+
     // sync_history_store: Logs detalhados de sincronização
     match /sync_history_store/{docId} {
       // Criação: Qualquer utilizador autenticado pode criar um log para si mesmo.
