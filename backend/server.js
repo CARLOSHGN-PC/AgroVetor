@@ -429,6 +429,56 @@ try {
         }
     });
 
+    // --- SISTEMA DE ATUALIZAÇÕES GLOBAIS ---
+
+    // Middleware simplificado para verificar se é Super Admin
+    const verifySuperAdmin = async (req, res, next) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: 'Token de autenticação não fornecido.' });
+        }
+        const token = authHeader.split('Bearer ')[1];
+        try {
+            const decodedToken = await admin.auth().verifyIdToken(token);
+            const userId = decodedToken.uid;
+            const userDoc = await db.collection('users').doc(userId).get();
+
+            if (!userDoc.exists || userDoc.data().role !== 'super-admin') {
+                return res.status(403).json({ message: 'Acesso negado. Apenas Super Admins podem realizar esta ação.' });
+            }
+
+            req.user = userDoc.data();
+            next();
+        } catch (error) {
+            console.error("Erro na verificação de super-admin:", error);
+            res.status(401).json({ message: 'Token inválido ou expirado.' });
+        }
+    };
+
+    app.post('/api/notify-new-features', verifySuperAdmin, async (req, res) => {
+        const { version, title, content, active } = req.body;
+
+        if (!version || !title || !content) {
+            return res.status(400).json({ message: 'Versão, título e conteúdo são obrigatórios.' });
+        }
+
+        try {
+            await db.collection('system_announcements').add({
+                version,
+                title,
+                content, // Espera-se um array de strings ou string
+                active: active !== undefined ? active : true,
+                publishedBy: req.user.username || req.user.email,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            res.status(200).json({ message: 'Atualização publicada com sucesso!' });
+        } catch (error) {
+            console.error("Erro ao publicar atualização:", error);
+            res.status(500).json({ message: 'Erro interno ao salvar a atualização.' });
+        }
+    });
+
     // --- FUNÇÕES AUXILIARES ---
 
     const formatNumber = (num) => {
