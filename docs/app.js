@@ -1,6 +1,6 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
@@ -403,26 +403,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnResetPassword: document.getElementById('btnResetPassword'),
                 btnDeleteUser: document.getElementById('btnDeleteUser'),
             },
-            announcements: {
-                welcomeMessageInput: document.getElementById('welcomeMessageInput'),
-                btnSaveWelcomeMessage: document.getElementById('btnSaveWelcomeMessage'),
-                titleInput: document.getElementById('announcementTitle'),
-                versionInput: document.getElementById('announcementVersion'),
-                descriptionInput: document.getElementById('announcementDescription'),
-                btnPublish: document.getElementById('btnPublishAnnouncement'),
-                welcomeModal: {
-                    overlay: document.getElementById('welcomeModal'),
-                    content: document.getElementById('welcomeModalContent'),
-                    closeBtn: document.getElementById('btnCloseWelcomeModal')
-                },
-                updateModal: {
-                    overlay: document.getElementById('updateModal'),
-                    title: document.getElementById('updateModalTitle'),
-                    content: document.getElementById('updateModalContent'),
-                    closeBtn: document.getElementById('btnCloseUpdateModal'),
-                    closeBtnX: document.getElementById('btnCloseUpdateModalX')
-                }
-            },
             companyManagement: {
                 companyName: document.getElementById('newCompanyName'),
                 adminEmail: document.getElementById('newCompanyAdminEmail'),
@@ -726,103 +706,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return App.state.globalConfigs[featureKey] === true;
         },
 
-        announcements: {
-            async checkSequence() {
-                // 1. Verifica se deve mostrar o tour de boas-vindas
-                const welcomeShown = await this.checkAndShowWelcome();
-
-                // 2. Se mostrou o welcome, espera ele fechar para verificar atualizações?
-                // A lógica aqui é simples: se o welcome foi mostrado, ele retorna true.
-                // Podemos encadear ou mostrar apenas um por vez.
-                // O requisito é "apareça tudo ambas as telas". Vamos verificar updates de qualquer forma.
-
-                if (!welcomeShown) {
-                    this.checkAndShowUpdates();
-                }
-            },
-
-            async checkAndShowWelcome() {
-                const user = App.state.currentUser;
-                if (!user || user.hasSeenWelcomeTour) return false;
-
-                // Busca a mensagem de boas-vindas
-                const message = App.state.globalConfigs.welcomeMessage || "Bem-vindo ao AgroVetor! Explore o sistema e aproveite todas as funcionalidades para otimizar a sua gestão agrícola.";
-
-                const modal = App.elements.announcements.welcomeModal;
-                modal.content.textContent = message;
-                modal.overlay.classList.add('show');
-
-                return true;
-            },
-
-            async closeWelcomeModal() {
-                const user = App.state.currentUser;
-                if (!user) return;
-
-                App.elements.announcements.welcomeModal.overlay.classList.remove('show');
-
-                // Atualiza o flag no Firestore
-                try {
-                    await App.data.updateDocument('users', user.uid, { hasSeenWelcomeTour: true });
-                    // Atualiza estado local também
-                    App.state.currentUser.hasSeenWelcomeTour = true;
-
-                    // Após fechar o welcome, verifica updates
-                    this.checkAndShowUpdates();
-                } catch (error) {
-                    console.error("Erro ao atualizar flag de boas-vindas:", error);
-                }
-            },
-
-            async checkAndShowUpdates() {
-                const user = App.state.currentUser;
-                if (!user) return;
-
-                try {
-                    // Busca a última atualização
-                    const q = query(collection(db, 'system_announcements'), orderBy('version', 'desc'), limit(1)); // Assumindo version numérico para ordenação correta
-                    const querySnapshot = await getDocs(q);
-
-                    if (querySnapshot.empty) return;
-
-                    const latestAnnouncement = querySnapshot.docs[0].data();
-                    const latestVersion = Number(latestAnnouncement.version);
-                    const userLastSeenVersion = Number(user.lastSeenVersion || 0);
-
-                    if (latestVersion > userLastSeenVersion) {
-                        const modal = App.elements.announcements.updateModal;
-                        modal.title.textContent = latestAnnouncement.title;
-                        modal.content.textContent = latestAnnouncement.description;
-                        modal.overlay.dataset.version = latestVersion; // Guarda a versão para salvar depois
-                        modal.overlay.classList.add('show');
-                    }
-
-                } catch (error) {
-                    console.error("Erro ao verificar atualizações:", error);
-                }
-            },
-
-            async closeUpdateModal() {
-                const user = App.state.currentUser;
-                const modal = App.elements.announcements.updateModal;
-                const newVersion = Number(modal.overlay.dataset.version);
-
-                if (!user || !newVersion) {
-                    modal.overlay.classList.remove('show');
-                    return;
-                }
-
-                modal.overlay.classList.remove('show');
-
-                try {
-                    await App.data.updateDocument('users', user.uid, { lastSeenVersion: newVersion });
-                    App.state.currentUser.lastSeenVersion = newVersion;
-                } catch (error) {
-                    console.error("Erro ao atualizar versão vista:", error);
-                }
-            }
-        },
-
         debounce(func, delay = 1000) {
             let timeout;
             return (...args) => {
@@ -1062,9 +945,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 App.actions.saveUserProfileLocally(App.state.currentUser);
                                 App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
                                 App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
-
-                                // 4. Verificar Comunicados e Boas-Vindas
-                                App.announcements.checkSequence();
 
                                 const draftRestored = await App.actions.checkForDraft();
                                 if (!draftRestored) {
@@ -3888,24 +3768,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const btnSaveGlobalFeatures = document.getElementById('btnSaveGlobalFeatures');
                 if (btnSaveGlobalFeatures) {
                     btnSaveGlobalFeatures.addEventListener('click', () => App.actions.saveGlobalFeatures());
-                }
-
-                // Listeners for Announcements (Super Admin)
-                const announcementEls = App.elements.announcements;
-                if (announcementEls.btnSaveWelcomeMessage) {
-                    announcementEls.btnSaveWelcomeMessage.addEventListener('click', () => App.actions.saveWelcomeMessage());
-                }
-                if (announcementEls.btnPublish) {
-                    announcementEls.btnPublish.addEventListener('click', () => App.actions.publishAnnouncement());
-                }
-                if (announcementEls.welcomeModal.closeBtn) {
-                    announcementEls.welcomeModal.closeBtn.addEventListener('click', () => App.announcements.closeWelcomeModal());
-                }
-                if (announcementEls.updateModal.closeBtn) {
-                    announcementEls.updateModal.closeBtn.addEventListener('click', () => App.announcements.closeUpdateModal());
-                }
-                if (announcementEls.updateModal.closeBtnX) {
-                    announcementEls.updateModal.closeBtnX.addEventListener('click', () => App.announcements.closeUpdateModal());
                 }
 
                 if (companyEls.list) companyEls.list.addEventListener('click', e => {
@@ -7624,62 +7486,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Erro ao notificar administradores sobre novas features:", error);
                     App.ui.showAlert("Ocorreu um erro ao tentar notificar os administradores.", "error");
                 }
-            },
-
-            async saveWelcomeMessage() {
-                const message = App.elements.announcements.welcomeMessageInput.value.trim();
-                if (!message) {
-                    App.ui.showAlert("A mensagem não pode estar vazia.", "error");
-                    return;
-                }
-
-                App.ui.setLoading(true, "A guardar mensagem...");
-                try {
-                    await App.data.setDocument('global_configs', 'main', { welcomeMessage: message }, { merge: true });
-                    App.ui.showAlert("Mensagem de boas-vindas atualizada com sucesso!", "success");
-                } catch (error) {
-                    console.error("Erro ao guardar mensagem de boas-vindas:", error);
-                    App.ui.showAlert("Erro ao guardar mensagem.", "error");
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-
-            async publishAnnouncement() {
-                const title = App.elements.announcements.titleInput.value.trim();
-                const version = Number(App.elements.announcements.versionInput.value);
-                const description = App.elements.announcements.descriptionInput.value.trim();
-
-                if (!title || !version || !description) {
-                    App.ui.showAlert("Preencha todos os campos (Título, Versão Numérica, Descrição).", "error");
-                    return;
-                }
-
-                App.ui.showConfirmationModal(`Tem certeza que deseja publicar a versão ${version} para TODOS os usuários?`, async () => {
-                    App.ui.setLoading(true, "A publicar...");
-                    try {
-                        const announcement = {
-                            title,
-                            version,
-                            description,
-                            createdAt: serverTimestamp(),
-                            createdBy: App.state.currentUser.uid
-                        };
-                        await App.data.addDocument('system_announcements', announcement);
-                        App.ui.showAlert("Comunicado publicado com sucesso!", "success");
-
-                        // Limpar campos
-                        App.elements.announcements.titleInput.value = '';
-                        App.elements.announcements.versionInput.value = '';
-                        App.elements.announcements.descriptionInput.value = '';
-
-                    } catch (error) {
-                        console.error("Erro ao publicar comunicado:", error);
-                        App.ui.showAlert("Erro ao publicar.", "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                });
             },
 
             async deduplicateTraps() {
