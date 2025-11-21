@@ -1020,116 +1020,6 @@
       .info-box-content {
         padding: 0;
       }
-
-      /* Estilos para o Modal de Comunicado (Boas-vindas/Atualização) */
-      .announcement-modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 3000;
-        display: none; /* Começa escondido */
-        justify-content: center;
-        align-items: center;
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        animation: fadeIn 0.5s;
-      }
-
-      .announcement-modal-content {
-        background: var(--color-surface);
-        color: var(--color-text);
-        border-radius: var(--border-radius-xl);
-        box-shadow: var(--shadow-xl);
-        width: 90%;
-        max-width: 600px;
-        max-height: 90vh;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        animation: slideUpFadeIn 0.5s cubic-bezier(0.165, 0.84, 0.44, 1);
-        border-top: 5px solid var(--color-primary);
-      }
-
-      .announcement-modal-header {
-        padding: 20px 30px;
-        border-bottom: 1px solid var(--color-border);
-        display: flex;
-        align-items: center;
-        gap: 15px;
-      }
-
-      .announcement-modal-header i {
-        font-size: 28px;
-        color: var(--color-primary);
-      }
-
-      .announcement-modal-header h2 {
-        margin: 0;
-        font-size: 24px;
-        font-weight: 700;
-        color: var(--color-primary-dark);
-      }
-
-      .announcement-modal-body {
-        padding: 30px;
-        overflow-y: auto;
-        line-height: 1.7;
-        font-size: 16px;
-      }
-
-      .announcement-modal-body p {
-        margin-bottom: 15px;
-      }
-
-      .announcement-modal-body h3 {
-        color: var(--color-primary);
-        margin-top: 20px;
-        margin-bottom: 10px;
-      }
-
-      .announcement-modal-body ul {
-        list-style-type: none;
-        padding-left: 0;
-      }
-
-      .announcement-modal-body li {
-        margin-bottom: 10px;
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-      }
-
-      .announcement-modal-body li i {
-        color: var(--color-success);
-        margin-top: 5px;
-      }
-
-      .announcement-modal-footer {
-        padding: 20px 30px;
-        border-top: 1px solid var(--color-border);
-        display: flex;
-        justify-content: flex-end;
-        background-color: var(--color-bg);
-      }
-
-      .announcement-modal-footer button {
-        background: linear-gradient(to right, var(--color-primary), var(--color-accent));
-        color: white;
-        border: none;
-        padding: 12px 25px;
-        border-radius: var(--border-radius);
-        font-size: 16px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: var(--transition);
-      }
-      .announcement-modal-footer button:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
-      }
       .info-item {
         padding: 10px 20px;
         display: flex;
@@ -2873,45 +2763,6 @@
                 <div id="usersList"></div>
             </section>
 
-            <section id="comunicados" class="tab-content card" aria-label="Gerir Comunicados" tabindex="0" hidden>
-                <h2><i class="fas fa-bullhorn"></i> Gestão de Comunicados</h2>
-
-                <div class="card" style="border-left-color: var(--color-success);">
-                    <h3><i class="fas fa-door-open"></i> Mensagem de Boas-Vindas para Novos Usuários</h3>
-                    <p>Esta mensagem será exibida apenas uma vez, quando um usuário fizer login no sistema pela primeira vez.</p>
-                    <label for="welcomeMessageTitle">Título da Mensagem:</label>
-                    <input type="text" id="welcomeMessageTitle" placeholder="Ex: Bem-vindo ao AgroVetor!">
-                    <label for="welcomeMessageContent">Conteúdo da Mensagem:</label>
-                    <textarea id="welcomeMessageContent" rows="6" placeholder="Descreva o sistema e dê as boas-vindas ao novo usuário..."></textarea>
-                    <button id="btnSaveWelcomeMessage" class="save" style="max-width: 300px;"><i class="fas fa-save"></i> Salvar Mensagem de Boas-Vindas</button>
-                </div>
-
-                <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
-                    <h3><i class="fas fa-sync-alt"></i> Publicar Nota de Atualização</h3>
-                    <p>Esta mensagem será exibida automaticamente para cada usuário uma vez, após a publicação. Use um número de versão maior que o anterior (ex: 1.0.0, 1.1.0, 2.0.0).</p>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="updateVersion">Versão (ex: 1.2.0):</label>
-                            <input type="text" id="updateVersion" placeholder="Número da nova versão">
-                        </div>
-                        <div class="form-col">
-                            <label for="updateTitle">Título da Atualização:</label>
-                            <input type="text" id="updateTitle" placeholder="Ex: Novas Funcionalidades no Dashboard!">
-                        </div>
-                    </div>
-                    <label for="updateContent">Conteúdo da Nota de Atualização:</label>
-                    <textarea id="updateContent" rows="8" placeholder="Liste as novas funcionalidades, correções e melhorias..."></textarea>
-                    <button id="btnPublishUpdate" class="save" style="max-width: 300px; background: var(--color-info);"><i class="fas fa-paper-plane"></i> Publicar Atualização</button>
-                </div>
-
-                <div class="card" style="margin-top: 30px; border-left-color: var(--color-text-light);">
-                    <h3><i class="fas fa-history"></i> Histórico de Comunicados</h3>
-                    <div id="announcements-history-list">
-                        <!-- Histórico será preenchido pelo JavaScript -->
-                    </div>
-                </div>
-            </section>
-
             <section id="gerenciarEmpresas" class="tab-content card" aria-label="Gerir Empresas" tabindex="0" hidden>
                 <h2><i class="fas fa-building"></i> Gerir Empresas (Super Admin)</h2>
                 <div class="card" style="border-left-color: var(--color-danger);">
@@ -3611,23 +3462,6 @@
         </div>
     </div>
 
-    <!-- Modal de Comunicados (Boas-vindas/Atualizações) -->
-    <div id="announcementModal" class="announcement-modal-overlay">
-        <div class="announcement-modal-content">
-            <div class="announcement-modal-header">
-                <i id="announcementIcon" class="fas fa-bullhorn"></i>
-                <h2 id="announcementTitle">Título do Comunicado</h2>
-            </div>
-            <div id="announcementBody" class="announcement-modal-body">
-                <!-- Conteúdo dinâmico será inserido aqui -->
-            </div>
-            <div class="announcement-modal-footer">
-                <button id="announcementCloseBtn" class="btn-secondary" style="margin-top: 0; background: var(--color-text-light);">Fechar</button>
-                <button id="announcementConfirmBtn" style="margin-top: 0;">Li e estou de acordo</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Bibliotecas Externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
@@ -3643,7 +3477,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
 
     <!-- Proj4.js for coordinate reprojection -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.min.js" integrity="sha512-Xc9+1uP2n/3/O/45gK/yHqj/t/fG0e/j/gP/b/2i2c/m3/d/Jg/a/f/H/V" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <!-- Crypto-JS for hashing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
