@@ -1178,8 +1178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await signOut(secondaryAuth);
 
                     const userData = {
-                        username: email.split('@')[0], email, role, active: true, permissions, companyId: targetCompanyId,
-                        hasSeenWelcomeTour: false
+                        username: email.split('@')[0], email, role, active: true, permissions, companyId: targetCompanyId
                     };
                     await App.data.createUserData(newUser.uid, userData);
                     
@@ -5707,8 +5706,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             role: 'admin',
                             active: true,
                             permissions: adminPermissions,
-                            companyId: companyId,
-                            hasSeenWelcomeTour: false
+                            companyId: companyId
                         };
                         await App.data.createUserData(newUser.uid, userData);
 
