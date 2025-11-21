@@ -213,5 +213,14 @@ service cloud.firestore {
       // Acesso (Leitura, Atualização, Exclusão): Utilizadores só podem aceder às suas próprias notificações.
       allow read, update, delete: if request.auth.uid == resource.data.userId;
     }
+
+    // system_announcements: Comunicados de atualização do sistema
+    match /system_announcements/{docId} {
+      // Todos os utilizadores autenticados podem ler os comunicados.
+      allow read: if request.auth.uid != null;
+
+      // Apenas super-admins podem criar, atualizar ou apagar comunicados.
+      allow write: if getUserRole() == 'super-admin';
+    }
   }
 }
