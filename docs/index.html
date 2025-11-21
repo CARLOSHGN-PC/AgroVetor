@@ -1621,6 +1621,145 @@
               width: 100%;
           }
       }
+
+      /* Styles for Update Modal and Tour Overlay */
+      .update-modal-overlay {
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background: rgba(0, 0, 0, 0.8); z-index: 3000; /* Darker background */
+          display: none; justify-content: center; align-items: center;
+          backdrop-filter: blur(8px); /* More blur */
+      }
+      .update-modal-overlay.show { display: flex; animation: fadeIn 0.4s; }
+      .update-modal-content {
+          background: var(--color-surface); padding: 0; border-radius: var(--border-radius-xl);
+          box-shadow: var(--shadow-xl); width: 90%; max-width: 600px; max-height: 85vh;
+          overflow-y: auto; text-align: left; position: relative;
+          border: none; overflow: hidden; display: flex; flex-direction: column;
+      }
+      .update-modal-header-banner {
+          background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+          color: white; padding: 30px; text-align: center;
+          position: relative;
+      }
+      .update-modal-icon {
+          font-size: 48px; margin-bottom: 10px; animation: pulse 2s infinite;
+      }
+      .update-modal-title { font-size: 26px; font-weight: 700; margin: 0; letter-spacing: 0.5px; color: white;}
+      .update-modal-version {
+          position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%);
+          background: var(--color-surface); color: var(--color-primary);
+          padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 14px;
+          box-shadow: var(--shadow-md); border: 2px solid var(--color-primary);
+      }
+      .update-modal-body { padding: 40px 30px 20px 30px; }
+      .update-modal-body h4 { color: var(--color-primary); margin-bottom: 15px; font-size: 18px; }
+      .update-modal-body ul { list-style: none; padding: 0; margin: 0; }
+      .update-modal-body li {
+          margin-bottom: 12px; line-height: 1.6; display: flex; align-items: flex-start; gap: 10px;
+          font-size: 15px; color: var(--color-text);
+      }
+      .update-modal-body li::before {
+          content: '\f00c'; font-family: "Font Awesome 6 Free"; font-weight: 900;
+          color: var(--color-success); font-size: 14px; margin-top: 3px;
+      }
+      .update-modal-footer {
+          padding: 20px 30px 30px 30px; border-top: 1px solid var(--color-border);
+          display: flex; flex-direction: column; align-items: center; gap: 15px;
+          background-color: var(--color-bg);
+      }
+      .update-modal-checkbox-container {
+          display: flex; align-items: center; gap: 12px; cursor: pointer;
+          background: var(--color-surface); padding: 10px 15px; border-radius: 10px;
+          border: 1px solid var(--color-border); transition: var(--transition); width: 100%; justify-content: center;
+      }
+      .update-modal-checkbox-container:hover { border-color: var(--color-primary); background: var(--color-primary-light); }
+      .update-modal-checkbox-container input { width: 20px; height: 20px; accent-color: var(--color-primary); cursor: pointer; margin-top: 0; }
+      .update-modal-btn {
+          width: 100%; padding: 14px; font-size: 16px; letter-spacing: 1px; text-transform: uppercase;
+          background: var(--color-primary); border: none; font-weight: 600;
+      }
+      .update-modal-btn:hover { background: var(--color-primary-dark); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+      .update-modal-btn:disabled { background: var(--color-text-light); cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none; }
+
+      /* Tour Overlay Styles */
+      .tour-overlay {
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          z-index: 4000; display: none; pointer-events: auto;
+      }
+      .tour-overlay.active { display: block; }
+      /* Dark background with "hole" effect using box-shadow is tricky with fixed positioning.
+         Instead, we use 4 divs to create the dark overlay around the highlighted element,
+         or a simple SVG mask. For simplicity/robustness, we'll use a high z-index element with a shadow. */
+      .tour-backdrop {
+          position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+          background: rgba(0, 0, 0, 0.7); transition: all 0.3s;
+      }
+      .tour-highlight {
+          position: absolute;
+          box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
+          border-radius: 8px;
+          z-index: 4001;
+          transition: all 0.3s ease;
+          border: 2px solid var(--color-accent);
+          pointer-events: none; /* Allow clicks to pass through to the element if needed, usually we block */
+      }
+      .tour-tooltip {
+          position: absolute;
+          background: var(--color-surface);
+          padding: 20px;
+          border-radius: var(--border-radius-lg);
+          box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+          width: 300px;
+          z-index: 4002;
+          transition: all 0.3s ease;
+      }
+      .tour-tooltip::after {
+          content: ''; position: absolute; width: 0; height: 0;
+      }
+      /* Arrow logic will be handled by JS or simplified classes */
+      .tour-tooltip h3 { color: var(--color-primary); margin-bottom: 10px; font-size: 18px; }
+      .tour-tooltip p { color: var(--color-text); font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
+      .tour-footer { display: flex; justify-content: space-between; align-items: center; }
+      .tour-step-counter { font-size: 12px; color: var(--color-text-light); font-weight: 600; }
+      .tour-btn-next { background: var(--color-primary); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; cursor: pointer; font-size: 14px; }
+      .tour-btn-skip { background: transparent; border: none; color: var(--color-text-light); cursor: pointer; font-size: 14px; }
+
+      /* Welcome Modal specifically for the start of the tour */
+      .welcome-modal-content { text-align: center; padding: 0; overflow: hidden; border: none; }
+      .welcome-header {
+          background: linear-gradient(135deg, #4caf50, #2e7d32);
+          padding: 40px 20px; color: white; position: relative;
+      }
+      .welcome-icon-container {
+          width: 100px; height: 100px; background: white; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          margin: 0 auto 10px auto; box-shadow: var(--shadow-lg);
+          color: var(--color-primary); font-size: 40px; animation: bounceIn 1s;
+      }
+      .welcome-body { padding: 30px 25px; }
+      .welcome-body h2 { color: var(--color-primary-dark); font-weight: 700; margin-bottom: 10px; font-size: 24px; }
+      .welcome-body p { color: var(--color-text-light); font-size: 16px; line-height: 1.6; margin-bottom: 25px; }
+      .welcome-actions { display: flex; flex-direction: column; gap: 12px; }
+      .welcome-actions button { width: 100%; margin: 0; max-width: none; padding: 14px; font-size: 16px; border-radius: 12px; }
+      .welcome-actions #btnStartTour { background: var(--color-primary); box-shadow: var(--shadow-md); }
+      .welcome-actions #btnStartTour:hover { background: var(--color-primary-dark); transform: scale(1.02); }
+      .welcome-actions #btnSkipTour { border: 2px solid var(--color-border); color: var(--color-text-light); background: transparent; }
+      .welcome-actions #btnSkipTour:hover { border-color: var(--color-text-light); color: var(--color-text); background: var(--color-bg); }
+
+      @keyframes bounceIn {
+        0%, 20%, 40%, 60%, 80%, 100% {animation-timing-function: cubic-bezier(0.215, 0.610, 0.355, 1.000);}
+        0% {opacity: 0; transform: scale3d(.3, .3, .3);}
+        20% {transform: scale3d(1.1, 1.1, 1.1);}
+        40% {transform: scale3d(.9, .9, .9);}
+        60% {opacity: 1; transform: scale3d(1.03, 1.03, 1.03);}
+        80% {transform: scale3d(.97, .97, .97);}
+        100% {opacity: 1; transform: scale3d(1, 1, 1);}
+      }
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+      }
     </style>
 </head>
 <body>
@@ -2810,6 +2949,39 @@
                 </div>
             </section>
 
+            <section id="gerenciarAtualizacoes" class="tab-content card" aria-label="Gerenciar Atualizações" tabindex="0" hidden>
+                <h2><i class="fas fa-bullhorn"></i> Gerenciar Atualizações do Sistema</h2>
+
+                <div class="card" style="border-left-color: var(--color-primary);">
+                    <h3><i class="fas fa-plus-circle"></i> Publicar Nova Atualização</h3>
+                    <p>Envie uma notificação de atualização para todos os utilizadores. Eles verão um pop-up com as novidades no próximo login.</p>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="updateVersion" class="required">Versão:</label>
+                            <input type="text" id="updateVersion" placeholder="Ex: 1.2.0">
+                        </div>
+                        <div class="form-col">
+                            <label for="updateTitle" class="required">Título da Atualização:</label>
+                            <input type="text" id="updateTitle" placeholder="Ex: Novidades de Julho">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="updateContent" class="required">Conteúdo (Lista de Mudanças):</label>
+                            <textarea id="updateContent" placeholder="Digite cada item em uma nova linha...&#10;- Novo dashboard&#10;- Correção de bugs" style="min-height: 150px;"></textarea>
+                        </div>
+                    </div>
+                    <button id="btnPublishUpdate" class="save" style="max-width: 300px; margin-top: 15px;"><i class="fas fa-paper-plane"></i> Publicar Atualização</button>
+                </div>
+
+                <div class="card" style="margin-top: 30px; border-left-color: var(--color-info);">
+                    <h3><i class="fas fa-history"></i> Histórico de Atualizações Publicadas</h3>
+                    <div id="updatesHistoryList" class="table-responsive">
+                        <p style="color: var(--color-text-light); font-style: italic;">Carregando histórico...</p>
+                    </div>
+                </div>
+            </section>
+
             <section id="cadastrarPessoas" class="tab-content card" aria-label="Cadastrar Pessoas" tabindex="0" hidden>
                 <h2><i class="fas fa-id-card"></i> Cadastro de Pessoas</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
@@ -3457,6 +3629,65 @@
                 <div class="modal-footer">
                     <button id="enableOfflineLoginModalCancelBtn" class="btn-secondary">Cancelar</button>
                     <button id="btnConfirmEnableOffline" class="save">Confirmar e Habilitar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Update Modal -->
+        <div id="updateModal" class="update-modal-overlay">
+            <div class="update-modal-content">
+                <div class="update-modal-header-banner">
+                    <div class="update-modal-icon"><i class="fas fa-rocket"></i></div>
+                    <h2 class="update-modal-title" id="updateModalTitle">Novidades Chegaram!</h2>
+                    <div class="update-modal-version" id="updateModalVersion">v1.0.0</div>
+                </div>
+                <div class="update-modal-body" id="updateModalBody">
+                    <!-- Content injected via JS -->
+                </div>
+                <div class="update-modal-footer">
+                    <label class="update-modal-checkbox-container">
+                        <input type="checkbox" id="updateReadAgreement">
+                        <span>Li e entendi as novidades da versão.</span>
+                    </label>
+                    <button id="btnConfirmUpdate" class="save update-modal-btn" disabled>
+                        <i class="fas fa-check"></i> Confirmar e Acessar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tour Overlay Elements -->
+        <div id="tourOverlay" class="tour-overlay">
+            <div id="tourBackdrop" class="tour-backdrop"></div>
+            <div id="tourHighlight" class="tour-highlight"></div>
+            <div id="tourTooltip" class="tour-tooltip">
+                <h3 id="tourTooltipTitle">Título</h3>
+                <p id="tourTooltipText">Texto explicativo...</p>
+                <div class="tour-footer">
+                    <span class="tour-step-counter">1 de 4</span>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="btnTourSkip" class="tour-btn-skip">Pular</button>
+                        <button id="btnTourNext" class="tour-btn-next">Próximo</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Welcome Modal (Start of Tour) -->
+        <div id="welcomeTourModal" class="modal-overlay">
+            <div class="modal-content welcome-modal-content" style="max-width: 450px;">
+                <div class="welcome-header">
+                    <div class="welcome-icon-container">
+                        <i class="fas fa-leaf"></i>
+                    </div>
+                </div>
+                <div class="welcome-body">
+                    <h2>Bem-vindo ao AgroVetor!</h2>
+                    <p>Estamos felizes em tê-lo conosco. Gostaria de fazer um tour rápido para conhecer as principais funcionalidades do sistema e começar com o pé direito?</p>
+                    <div class="welcome-actions">
+                        <button id="btnStartTour" class="save"><i class="fas fa-play-circle"></i> Começar Apresentação</button>
+                        <button id="btnSkipTour" class="btn-secondary">Pular, já conheço o sistema</button>
+                    </div>
                 </div>
             </div>
         </div>
