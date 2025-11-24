@@ -9557,7 +9557,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             initMap() {
                 if (App.state.osMap) {
-                    App.state.osMap.resize();
+                    setTimeout(() => App.state.osMap.resize(), 200);
                     return;
                 }
 
@@ -9578,28 +9578,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 map.on('load', () => {
                     this.loadShapes();
+                    // Se já houver uma fazenda selecionada, aplica o filtro e zoom
+                    const farmId = App.elements.osManual.farmSelect.value;
+                    if (farmId) {
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
+                        if (farm) {
+                            this.filterMap(farm.code);
+                            this.zoomToFarm(farm.code);
+                        }
+                    }
                 });
 
                 // Map click listener for plot selection
                 map.on('click', 'os-talhoes-layer', (e) => {
                     if (e.features.length > 0) {
                         const feature = e.features[0];
-                        const plotId = feature.properties.AGV_TALHAO; // Or a unique ID if available
-                        const featureId = feature.id; // Use feature ID for state management
                         this.togglePlotSelection(feature, true);
                     }
                 });
 
+                let hoveredFeatureId = null;
                 map.on('mousemove', 'os-talhoes-layer', (e) => {
                     map.getCanvas().style.cursor = 'pointer';
                     if (e.features.length > 0) {
-                        map.setFeatureState({ source: 'os-talhoes-source', id: e.features[0].id }, { hover: true });
+                        if (hoveredFeatureId !== null) {
+                            map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        }
+                        hoveredFeatureId = e.features[0].id;
+                        map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: true });
                     }
                 });
 
                 map.on('mouseleave', 'os-talhoes-layer', () => {
                     map.getCanvas().style.cursor = '';
-                    // Reset hover state - requires tracking hovered feature or resetting all
+                    if (hoveredFeatureId !== null) {
+                        map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        hoveredFeatureId = null;
+                    }
                 });
             },
 
@@ -9612,7 +9627,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const borderLayerId = 'os-talhoes-border-layer';
                 const labelLayerId = 'os-talhoes-labels';
 
-                if (!map.getSource(sourceId)) {
+                if (map.getSource(sourceId)) {
+                    // Se a fonte já existe, apenas atualiza os dados
+                    map.getSource(sourceId).setData(App.state.geoJsonData);
+                } else {
                     map.addSource(sourceId, {
                         type: 'geojson',
                         data: App.state.geoJsonData,
@@ -9660,7 +9678,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             'text-size': 12,
                             'text-offset': [0, 0.6],
                             'text-anchor': 'top',
-                            'text-allow-overlap': false
+                            'text-allow-overlap': false,
+                            'text-ignore-placement': true
                         },
                         paint: {
                             'text-color': '#ffffff',

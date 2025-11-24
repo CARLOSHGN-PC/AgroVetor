@@ -3351,10 +3351,14 @@ try {
                     farmCode = farmDoc.data().code;
                 }
 
+                // Usando a mesma lógica de filtro do Relatório de Risco para garantir consistência
                 const farmFeatures = geojsonData.features.filter(f => {
-                    const fundoProp = findShapefileProp(f.properties, ['FUNDO_AGR', 'AGV_FUNDO']);
-                    // Robust comparison
-                    return fundoProp && parseInt(String(fundoProp).trim(), 10) === parseInt(String(farmCode).trim(), 10);
+                    if (!f.properties) return false;
+                    const propKeys = Object.keys(f.properties);
+                    const codeKey = propKeys.find(k => k.toLowerCase() === 'fundo_agr');
+                    if (!codeKey) return false;
+                    const featureFarmCode = f.properties[codeKey];
+                    return featureFarmCode && parseInt(featureFarmCode, 10) === parseInt(farmCode, 10);
                 });
 
                 if (farmFeatures.length > 0) {
@@ -3376,9 +3380,10 @@ try {
 
                     // Draw all farm plots first
                     farmFeatures.forEach(feature => {
-                        const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO', 'AGV_TALHAO']) || 'N/A';
+                        // Usando as mesmas propriedades do Relatório de Risco
+                        const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
+
                         // Check if this plot is selected
-                        // osData.selectedPlots should be an array of plot names (strings)
                         const isSelected = osData.selectedPlots.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
 
                         const fillColor = isSelected ? '#4caf50' : '#e0e0e0'; // Green if selected, grey if not
@@ -3396,25 +3401,7 @@ try {
                             doc.fillAndStroke();
                         });
 
-                        // Draw label
-                        // Calculate centroid for label
-                        // Simple average of points
-                        /*
-                        let centerX = 0, centerY = 0, points = 0;
-                        polygons.forEach(polygon => {
-                             polygon[0].forEach(pt => {
-                                 const tPt = transformCoord(pt);
-                                 centerX += tPt[0];
-                                 centerY += tPt[1];
-                                 points++;
-                             });
-                        });
-                        if(points > 0) {
-                            centerX /= points;
-                            centerY /= points;
-                            doc.fillColor('black').fontSize(6).text(talhaoNome, centerX - 10, centerY - 3, { width: 20, align: 'center' });
-                        }
-                        */
+                        // Opcional: Desenhar labels se necessário, similar ao risco
                     });
                     doc.restore();
                 } else {
