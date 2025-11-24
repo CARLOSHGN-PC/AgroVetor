@@ -172,6 +172,12 @@ service cloud.firestore {
       allow write: if getUserRole() == 'super-admin';
     }
 
+    // Coleção de Anúncios do Sistema
+    match /system_announcements/{docId} {
+      allow read: if request.auth.uid != null;
+      allow write: if getUserRole() == 'super-admin';
+    }
+
     // sync_history_store: Logs detalhados de sincronização
     match /sync_history_store/{docId} {
       // Criação: Qualquer utilizador autenticado pode criar um log para si mesmo.
