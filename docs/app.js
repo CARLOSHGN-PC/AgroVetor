@@ -9915,7 +9915,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // We can pass the `id` to the report endpoint.
 
                     const reportParams = new URLSearchParams({
-                        id: savedOS.id,
+                        osId: savedOS.id,
                         companyId: App.state.currentUser.companyId
                     });
 
