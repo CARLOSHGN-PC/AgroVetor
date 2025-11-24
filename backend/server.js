@@ -3238,6 +3238,259 @@ try {
         }
     });
 
+    // --- ROTAS DE ORDEM DE SERVIÇO (MANUAL) ---
+
+    app.post('/api/os', async (req, res) => {
+        const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy } = req.body;
+
+        if (!companyId || !farmId || !selectedPlots) {
+            return res.status(400).json({ message: 'Dados incompletos para criar a O.S.' });
+        }
+
+        try {
+            const osData = {
+                companyId,
+                farmId,
+                farmName,
+                selectedPlots, // Array of plot names or IDs
+                totalArea,
+                serviceType: serviceType || '',
+                responsible: responsible || '',
+                observations: observations || '',
+                createdBy: createdBy || 'Sistema',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                status: 'Created'
+            };
+
+            const docRef = await db.collection('serviceOrders').add(osData);
+            res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: docRef.id });
+
+        } catch (error) {
+            console.error("Erro ao criar Ordem de Serviço:", error);
+            res.status(500).json({ message: 'Erro no servidor ao criar O.S.' });
+        }
+    });
+
+    app.get('/reports/os/pdf', async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=ordem_servico.pdf`);
+        doc.pipe(res);
+
+        try {
+            // We can receive data directly via query params if it's not saved yet, or by ID if it is.
+            // Since the flow is Save -> Generate, we can expect the ID or full data in query.
+            // For simplicity and to avoid large URLs, we'll fetch the document if an ID is provided.
+            // However, standard report generation flow in frontend usually passes filters.
+            // Here we will support passing the OS ID.
+
+            const { osId, companyId, generatedBy } = req.query;
+
+            if (!osId) {
+                throw new Error('ID da Ordem de Serviço não fornecido.');
+            }
+            if (!companyId) {
+                throw new Error('ID da empresa não fornecido.');
+            }
+
+            const osDoc = await db.collection('serviceOrders').doc(osId).get();
+            if (!osDoc.exists) {
+                throw new Error('Ordem de Serviço não encontrada.');
+            }
+            const osData = osDoc.data();
+
+            // Load Shapefile
+            const geojsonData = await getShapefileData(companyId);
+
+            await generatePdfHeader(doc, 'Ordem de Serviço', companyId);
+
+            // --- Header Info Block ---
+            doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${osData.farmName}`, { align: 'left' });
+            doc.moveDown(0.5);
+
+            const infoY = doc.y;
+            doc.fontSize(10).font('Helvetica');
+            doc.text(`Tipo de Serviço: ${osData.serviceType || 'N/A'}`, 30, infoY);
+            doc.text(`Responsável: ${osData.responsible || 'N/A'}`, 300, infoY);
+            doc.moveDown(1.5);
+
+            if (osData.observations) {
+                doc.text(`Observações: ${osData.observations}`);
+                doc.moveDown(1.5);
+            }
+
+            const pageMargin = 30;
+            const contentStartY = doc.y;
+            const availableHeight = doc.page.height - contentStartY - pageMargin;
+
+            // --- Map (Left) ---
+            const mapWidth = doc.page.width * 0.60;
+            const mapHeight = availableHeight;
+            const mapX = pageMargin;
+            const mapY = contentStartY;
+
+            // --- List (Right) ---
+            const listX = mapX + mapWidth + 15;
+            const listWidth = doc.page.width - listX - pageMargin;
+
+            // Draw Map
+            if (geojsonData) {
+                // Filter features for this farm
+                // Assuming osData.farmId corresponds to the farm code in the shapefile (normalized)
+                // We need to find the farm code in the OS data.
+                // Ideally frontend sends farm code. Let's assume farmId is the document ID,
+                // but we need the code to match the shapefile.
+                // We can fetch the farm doc to get the code if needed, or assume frontend passed it.
+                // Let's fetch the farm doc to be safe if farmId is not the code.
+                // Actually, let's assume we filter by farm name or code derived from osData.
+
+                // Fetch farm code if we only have ID
+                let farmCode = null;
+                const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
+                if (farmDoc.exists) {
+                    farmCode = farmDoc.data().code;
+                }
+
+                const farmFeatures = geojsonData.features.filter(f => {
+                    const fundoProp = findShapefileProp(f.properties, ['FUNDO_AGR', 'AGV_FUNDO']);
+                    // Robust comparison
+                    return fundoProp && parseInt(String(fundoProp).trim(), 10) === parseInt(String(farmCode).trim(), 10);
+                });
+
+                if (farmFeatures.length > 0) {
+                    const allCoords = farmFeatures.flatMap(f => f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates.flatMap(p => p[0]));
+                    const bbox = {
+                        minX: Math.min(...allCoords.map(c => c[0])), maxX: Math.max(...allCoords.map(c => c[0])),
+                        minY: Math.min(...allCoords.map(c => c[1])), maxY: Math.max(...allCoords.map(c => c[1])),
+                    };
+                    const scaleX = mapWidth / (bbox.maxX - bbox.minX);
+                    const scaleY = mapHeight / (bbox.maxY - bbox.minY);
+                    const scale = Math.min(scaleX, scaleY) * 0.95;
+                    const offsetX = mapX + (mapWidth - (bbox.maxX - bbox.minX) * scale) / 2;
+                    const offsetY = mapY + (mapHeight - (bbox.maxY - bbox.minY) * scale) / 2;
+
+                    const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
+
+                    doc.save();
+                    doc.lineWidth(0.5).strokeColor('#555');
+
+                    // Draw all farm plots first
+                    farmFeatures.forEach(feature => {
+                        const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO', 'AGV_TALHAO']) || 'N/A';
+                        // Check if this plot is selected
+                        // osData.selectedPlots should be an array of plot names (strings)
+                        const isSelected = osData.selectedPlots.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
+
+                        const fillColor = isSelected ? '#4caf50' : '#e0e0e0'; // Green if selected, grey if not
+                        const strokeColor = isSelected ? '#2e7d32' : '#9e9e9e';
+
+                        doc.fillColor(fillColor);
+                        doc.strokeColor(strokeColor);
+
+                        const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+                        polygons.forEach(polygon => {
+                            const path = polygon[0];
+                            const firstPoint = transformCoord(path[0]);
+                            doc.moveTo(firstPoint[0], firstPoint[1]);
+                            for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
+                            doc.fillAndStroke();
+                        });
+
+                        // Draw label
+                        // Calculate centroid for label
+                        // Simple average of points
+                        /*
+                        let centerX = 0, centerY = 0, points = 0;
+                        polygons.forEach(polygon => {
+                             polygon[0].forEach(pt => {
+                                 const tPt = transformCoord(pt);
+                                 centerX += tPt[0];
+                                 centerY += tPt[1];
+                                 points++;
+                             });
+                        });
+                        if(points > 0) {
+                            centerX /= points;
+                            centerY /= points;
+                            doc.fillColor('black').fontSize(6).text(talhaoNome, centerX - 10, centerY - 3, { width: 20, align: 'center' });
+                        }
+                        */
+                    });
+                    doc.restore();
+                } else {
+                    doc.text('Geometria da fazenda não encontrada no shapefile.', mapX, mapY);
+                }
+            } else {
+                doc.text('Shapefile não disponível.', mapX, mapY);
+            }
+
+            // Draw List
+            let currentListY = contentStartY;
+            doc.fontSize(10).font('Helvetica-Bold').text('Talhões Selecionados', listX, currentListY);
+            currentListY += 15;
+
+            const headers = ['Talhão', 'Área (ha)'];
+            const colWidths = [listWidth * 0.6, listWidth * 0.4];
+
+            doc.fontSize(9);
+            doc.rect(listX, currentListY, listWidth, 15).fillAndStroke('#eee', '#ccc');
+            doc.fillColor('black');
+            doc.text(headers[0], listX + 5, currentListY + 3);
+            doc.text(headers[1], listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
+            currentListY += 15;
+
+            // We need to get the area for each selected plot from the shapefile data or farm data
+            // Let's use the farm document data since we already fetched it or can fetch it
+            const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
+            const farmData = farmDoc.exists ? farmDoc.data() : null;
+
+            let totalSelectedArea = 0;
+
+            if (farmData && farmData.talhoes) {
+                const selectedTalhoes = farmData.talhoes.filter(t => osData.selectedPlots.includes(t.name)); // Assuming names match
+
+                // Filter out talhoes that might have been passed but not found (or match logic)
+                // And map to what we need
+
+                for (const plotName of osData.selectedPlots) {
+                    const talhao = farmData.talhoes.find(t => String(t.name).toUpperCase() === String(plotName).toUpperCase());
+                    const area = talhao ? talhao.area : 0;
+                    totalSelectedArea += area;
+
+                    if (currentListY > doc.page.height - 50) {
+                        // Simple pagination for list if needed, though layout implies single page mostly
+                        // For now, just stop or overlay (robustness improvement possible)
+                    }
+
+                    doc.font('Helvetica').text(plotName, listX + 5, currentListY + 3);
+                    doc.text(formatNumber(area), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
+
+                    // Draw line
+                    doc.moveTo(listX, currentListY + 15).lineTo(listX + listWidth, currentListY + 15).strokeColor('#eee').stroke();
+
+                    currentListY += 15;
+                }
+            }
+
+            // Total Row
+            currentListY += 5;
+            doc.font('Helvetica-Bold').text('TOTAL', listX + 5, currentListY + 3);
+            doc.text(formatNumber(totalSelectedArea), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
+
+
+            generatePdfFooter(doc, generatedBy || osData.createdBy);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF da O.S.:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));

@@ -1621,6 +1621,45 @@
               width: 100%;
           }
       }
+
+      /* Estilos para o módulo O.S. Manual */
+      .os-plot-item {
+          display: flex;
+          align-items: center;
+          padding: 10px;
+          background: var(--color-surface);
+          border-bottom: 1px solid var(--color-border);
+          transition: background-color 0.2s;
+      }
+      .os-plot-item:last-child {
+          border-bottom: none;
+      }
+      .os-plot-item:hover {
+          background-color: var(--color-primary-light);
+      }
+      .os-plot-item input[type="checkbox"] {
+          width: auto;
+          margin: 0 10px 0 0;
+          transform: scale(1.2);
+      }
+      .os-plot-item label {
+          margin: 0;
+          cursor: pointer;
+          flex-grow: 1;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+      }
+      .os-plot-item label strong {
+          color: var(--color-text);
+      }
+      .os-plot-item label span {
+          font-size: 0.9em;
+          color: var(--color-text-light);
+          background: var(--color-bg);
+          padding: 2px 6px;
+          border-radius: 4px;
+      }
     </style>
 </head>
 <body>
@@ -2154,6 +2193,62 @@
 
             </section>
             
+            <section id="ordemServicoManual" class="tab-content" aria-label="Ordem de Serviço Manual" tabindex="0" hidden>
+                <div style="display: flex; height: 100%; gap: 20px; padding: 0;">
+
+                    <!-- Sidebar (Formulário e Lista) -->
+                    <div class="card" style="width: 350px; min-width: 350px; margin: 0; display: flex; flex-direction: column; height: 100%; overflow-y: auto; border-left-color: var(--color-info);">
+                        <h2 style="font-size: 20px; margin-bottom: 15px; color: var(--color-info);"><i class="fas fa-file-contract"></i> Ordem de Serviço</h2>
+
+                        <div class="form-col" style="margin-bottom: 15px;">
+                            <label for="osFarmSelect" class="required">Fazenda:</label>
+                            <select id="osFarmSelect" style="width: 100%;"></select>
+                        </div>
+
+                        <div class="form-col" style="margin-bottom: 10px;">
+                            <label for="osServiceType">Tipo de Serviço:</label>
+                            <input type="text" id="osServiceType" placeholder="Ex: Colheita, Plantio">
+                        </div>
+
+                        <div class="form-col" style="margin-bottom: 10px;">
+                            <label for="osResponsible">Responsável:</label>
+                            <input type="text" id="osResponsible" placeholder="Nome do responsável">
+                        </div>
+
+                        <div class="form-col" style="margin-bottom: 15px;">
+                            <label for="osObservations">Observações:</label>
+                            <textarea id="osObservations" placeholder="Instruções..." style="min-height: 60px;"></textarea>
+                        </div>
+
+                        <hr style="margin: 10px 0; border-color: var(--color-border);">
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h4 style="margin: 0;">Talhões Selecionados</h4>
+                            <span id="osTotalArea" style="font-weight: bold; color: var(--color-primary);">0.00 ha</span>
+                        </div>
+
+                        <div id="osPlotsList" class="talhao-selection-list" style="flex-grow: 1; max-height: none; background: var(--color-bg);">
+                            <p style="text-align: center; color: var(--color-text-light); padding: 20px;">Selecione uma fazenda para carregar os talhões.</p>
+                        </div>
+
+                        <button id="btnGenerateOS" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
+                            <i class="fas fa-file-pdf"></i> Gerar O.S.
+                        </button>
+                    </div>
+
+                    <!-- Mapa -->
+                    <div style="flex-grow: 1; position: relative; border-radius: var(--border-radius-lg); overflow: hidden; box-shadow: var(--shadow-md);">
+                        <div id="os-map" style="width: 100%; height: 100%;"></div>
+                        <div class="map-controls" style="position: absolute; bottom: 20px; right: 20px; left: auto;">
+                            <button id="btnCenterOSMap" class="map-control-btn" title="Centralizar Mapa">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
             <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
                 <div class="card-header-actions">
                     <h2 style="color: var(--color-success); margin: 0;"><i class="fas fa-stream"></i> Planejamento de Colheita</h2>
