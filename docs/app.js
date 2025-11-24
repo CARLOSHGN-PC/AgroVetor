@@ -1,6 +1,6 @@
 // FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
@@ -698,12 +698,123 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
             },
             installAppBtn: document.getElementById('installAppBtn'),
+            announcements: {
+                welcomeModal: {
+                    overlay: document.getElementById('welcomeModal'),
+                    content: document.getElementById('welcomeModalContent'),
+                    closeBtn: document.getElementById('btnCloseWelcomeModal')
+                },
+                updateModal: {
+                    overlay: document.getElementById('updateModal'),
+                    title: document.getElementById('updateModalTitle'),
+                    body: document.getElementById('updateModalContent'),
+                    versionDisplay: document.getElementById('updateModalTitle'), // Reusing title for version if needed, or add separate element
+                    closeBtn: document.getElementById('btnCloseUpdateModal'),
+                    closeBtnX: document.getElementById('btnCloseUpdateModalX')
+                }
+            }
         },
 
         isFeatureGloballyActive(featureKey) {
             // A funcionalidade está ativa se a flag correspondente for explicitamente `true`.
             // Se a flag não existir ou for `false`, a funcionalidade está desativada.
             return App.state.globalConfigs[featureKey] === true;
+        },
+
+        announcements: {
+            async checkSequence() {
+                // Ensure user is loaded before checking sequence to avoid crashes
+                if (!App.state.currentUser) return;
+
+                const welcomeShown = await this.checkAndShowWelcome();
+                if (!welcomeShown) {
+                    await this.checkAndShowUpdates();
+                }
+            },
+
+            async checkAndShowWelcome() {
+                const user = App.state.currentUser;
+                // If user has already seen the welcome tour, skip.
+                if (!user || user.hasSeenWelcomeTour) return false;
+
+                const welcomeModal = App.elements.announcements.welcomeModal;
+                if (!welcomeModal.overlay) return false;
+
+                // Populate content from global config or default
+                const message = App.state.globalConfigs.welcomeMessage || "Bem-vindo ao AgroVetor! Estamos felizes por tê-lo conosco.";
+                if (welcomeModal.content) {
+                    welcomeModal.content.innerHTML = message.replace(/\n/g, '<br>');
+                }
+
+                welcomeModal.overlay.classList.add('show');
+
+                // Update the flag in Firestore immediately so it doesn't show again
+                try {
+                    await App.data.updateDocument('users', user.uid, { hasSeenWelcomeTour: true });
+                    // Update local state
+                    App.state.currentUser.hasSeenWelcomeTour = true;
+                } catch (error) {
+                    console.error("Failed to update welcome tour flag:", error);
+                }
+                return true; // Indicates the modal was shown
+            },
+
+            closeWelcomeModal() {
+                const welcomeModal = App.elements.announcements.welcomeModal;
+                welcomeModal.overlay.classList.remove('show');
+                // After closing welcome, check for updates
+                this.checkAndShowUpdates();
+            },
+
+            async checkAndShowUpdates() {
+                const user = App.state.currentUser;
+                const lastSeenVersion = user.lastSeenVersion || '0.0.0';
+
+                try {
+                    // Fetch the latest active announcement
+                    const q = query(
+                        collection(db, 'system_announcements'),
+                        where('active', '==', true),
+                        orderBy('publishedAt', 'desc'),
+                        limit(1)
+                    );
+
+                    const snapshot = await getDocs(q);
+                    if (snapshot.empty) return false;
+
+                    const announcement = snapshot.docs[0].data();
+
+                    // Simple version comparison: if announcement version is different from last seen
+                    if (announcement.version !== lastSeenVersion) {
+                        const updateModal = App.elements.announcements.updateModal;
+                        // Combine title and version to avoid overwrite if elements share the same ID
+                        updateModal.title.textContent = `${announcement.title} (v${announcement.version})`;
+                        updateModal.body.innerHTML = announcement.body; // Use innerHTML for rich text
+                        updateModal.overlay.classList.add('show');
+
+                        // Store the new version to update user profile on close
+                        updateModal.currentVersion = announcement.version;
+                        return true;
+                    }
+                } catch (error) {
+                    console.error("Error checking for updates:", error);
+                }
+                return false;
+            },
+
+            async closeUpdateModal() {
+                const updateModal = App.elements.announcements.updateModal;
+                updateModal.overlay.classList.remove('show');
+
+                if (updateModal.currentVersion) {
+                    try {
+                        await App.data.updateDocument('users', App.state.currentUser.uid, { lastSeenVersion: updateModal.currentVersion });
+                        App.state.currentUser.lastSeenVersion = updateModal.currentVersion;
+                    } catch (error) {
+                        console.error("Failed to update last seen version:", error);
+                    }
+                }
+            }
         },
 
         debounce(func, delay = 1000) {
@@ -1491,6 +1602,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
                 App.actions.startGpsTracking(); // O rastreamento agora é manual
                 App.actions.startAutoSync(); // Inicia a sincronização automática
+
+                // Check for system announcements (Welcome Tour / Updates)
+                App.announcements.checkSequence();
             },
             renderSpecificContent(collectionName) {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
@@ -3770,6 +3884,61 @@ document.addEventListener('DOMContentLoaded', () => {
                     btnSaveGlobalFeatures.addEventListener('click', () => App.actions.saveGlobalFeatures());
                 }
 
+                const btnSaveWelcomeMessage = document.getElementById('btnSaveWelcomeMessage');
+                if (btnSaveWelcomeMessage) {
+                    btnSaveWelcomeMessage.addEventListener('click', async () => {
+                        const welcomeMessageInput = document.getElementById('welcomeMessageInput');
+                        if (welcomeMessageInput) {
+                            App.ui.setLoading(true, "A guardar mensagem...");
+                            try {
+                                await App.data.setDocument('global_configs', 'main', { welcomeMessage: welcomeMessageInput.value }, { merge: true });
+                                App.ui.showAlert("Mensagem de boas-vindas guardada com sucesso!");
+                            } catch (error) {
+                                console.error(error);
+                                App.ui.showAlert("Erro ao guardar mensagem.", "error");
+                            } finally {
+                                App.ui.setLoading(false);
+                            }
+                        }
+                    });
+                }
+
+                const btnPublishAnnouncement = document.getElementById('btnPublishAnnouncement');
+                if (btnPublishAnnouncement) {
+                    btnPublishAnnouncement.addEventListener('click', async () => {
+                        const title = document.getElementById('announcementTitle').value;
+                        const version = document.getElementById('announcementVersion').value;
+                        const body = document.getElementById('announcementDescription').value;
+
+                        if (!title || !version || !body) {
+                            App.ui.showAlert("Preencha todos os campos do comunicado.", "error");
+                            return;
+                        }
+
+                        App.ui.setLoading(true, "A publicar comunicado...");
+                        try {
+                            await App.data.addDocument('system_announcements', {
+                                title,
+                                version,
+                                body,
+                                active: true,
+                                publishedAt: serverTimestamp(),
+                                createdBy: App.state.currentUser.uid
+                            });
+                            App.ui.showAlert("Comunicado publicado com sucesso!");
+                            // Clear fields
+                            document.getElementById('announcementTitle').value = '';
+                            document.getElementById('announcementVersion').value = '';
+                            document.getElementById('announcementDescription').value = '';
+                        } catch (error) {
+                            console.error(error);
+                            App.ui.showAlert("Erro ao publicar comunicado.", "error");
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    });
+                }
+
                 if (companyEls.list) companyEls.list.addEventListener('click', e => {
                     const button = e.target.closest('button[data-action]');
                     if (!button) return;
@@ -4362,6 +4531,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.mapModule.closeSearch();
                         }
                     });
+                }
+
+                const announcementEls = App.elements.announcements;
+                if (announcementEls) {
+                    if (announcementEls.welcomeModal.closeBtn) announcementEls.welcomeModal.closeBtn.addEventListener('click', () => App.announcements.closeWelcomeModal());
+                    if (announcementEls.updateModal.closeBtn) announcementEls.updateModal.closeBtn.addEventListener('click', () => App.announcements.closeUpdateModal());
+                    if (announcementEls.updateModal.closeBtnX) announcementEls.updateModal.closeBtnX.addEventListener('click', () => App.announcements.closeUpdateModal());
                 }
 
                 // Dirty flag for Apontamento de Plantio form
