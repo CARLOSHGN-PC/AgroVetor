@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Super Admin', icon: 'fas fa-user-shield',
                     submenu: [
                         { label: 'Gerir Empresas', icon: 'fas fa-building', target: 'gerenciarEmpresas', permission: 'superAdmin' },
+                        { label: 'Gerenciar Atualizações', icon: 'fas fa-bullhorn', target: 'gerenciarAtualizacoes', permission: 'superAdmin' },
                     ]
                 }
             ],
@@ -229,9 +230,30 @@ document.addEventListener('DOMContentLoaded', () => {
             clima: [],
             apontamentoPlantioFormIsDirty: false,
             syncInterval: null,
+            announcements: [],
         },
         
         elements: {
+            welcomeModal: {
+                overlay: document.getElementById('welcomeModal'),
+                content: document.getElementById('welcomeModalContent'),
+                closeBtn: document.getElementById('btnCloseWelcome'),
+            },
+            updateModal: {
+                overlay: document.getElementById('updateModal'),
+                title: document.getElementById('updateModalTitle'),
+                body: document.getElementById('updateModalBody'),
+                versionBadge: document.getElementById('updateVersionBadge'),
+                closeBtn: document.getElementById('updateModalCloseBtn'),
+                ackBtn: document.getElementById('btnAckUpdate'),
+            },
+            announcements: {
+                version: document.getElementById('announcementVersion'),
+                title: document.getElementById('announcementTitle'),
+                desc: document.getElementById('announcementDesc'),
+                btnPublish: document.getElementById('btnPublishAnnouncement'),
+                list: document.getElementById('announcementsList'),
+            },
             loadingOverlay: document.getElementById('loading-overlay'),
             loadingProgressText: document.getElementById('loading-progress-text'),
             loginScreen: document.getElementById('loginScreen'),
@@ -956,6 +978,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     App.actions.syncOfflineWrites();
                                 }
 
+                                App.actions.checkSequence();
+
                             } catch (error) {
                                 console.error("Falha crítica ao carregar dados iniciais:", error);
                                 App.auth.logout();
@@ -1145,7 +1169,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     await signOut(secondaryAuth);
 
                     const userData = {
-                        username: email.split('@')[0], email, role, active: true, permissions, companyId: targetCompanyId
+                        username: email.split('@')[0], email, role, active: true, permissions, companyId: targetCompanyId,
+                        hasSeenWelcomeTour: false, lastSeenVersion: '0.0.0'
                     };
                     await App.data.createUserData(newUser.uid, userData);
                     
@@ -1895,6 +1920,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.renderCompaniesList();
                     this.renderCompanyModules('newCompanyModules');
                     this.renderGlobalFeatures(); // NOVO
+                }
+                if (id === 'gerenciarAtualizacoes') {
+                    this.renderAnnouncementsManager();
                 }
                 if (id === 'cadastros') {
                     this.renderFarmSelect();
@@ -3475,6 +3503,70 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            showWelcomeModal() {
+                // Return a promise that resolves when the modal is closed
+                return new Promise((resolve) => {
+                    const { overlay, closeBtn } = App.elements.welcomeModal;
+                    overlay.classList.add('show');
+
+                    const closeHandler = () => {
+                        overlay.classList.remove('show');
+                        closeBtn.removeEventListener('click', closeHandler);
+                        resolve();
+                    };
+                    closeBtn.addEventListener('click', closeHandler);
+                });
+            },
+            showUpdateModal(announcement) {
+                return new Promise((resolve) => {
+                    const { overlay, title, body, versionBadge, closeBtn, ackBtn } = App.elements.updateModal;
+
+                    title.innerHTML = `<i class="fas fa-rocket"></i> ${announcement.title}`;
+                    // Converte quebras de linha em <br> se for texto simples
+                    body.innerHTML = announcement.description.replace(/\n/g, '<br>');
+                    versionBadge.textContent = announcement.version;
+
+                    overlay.classList.add('show');
+
+                    const closeHandler = () => {
+                        overlay.classList.remove('show');
+                        closeBtn.removeEventListener('click', closeHandler);
+                        ackBtn.removeEventListener('click', closeHandler);
+                        resolve();
+                    };
+
+                    closeBtn.addEventListener('click', closeHandler);
+                    ackBtn.addEventListener('click', closeHandler);
+                });
+            },
+            renderAnnouncementsManager() {
+                const { list } = App.elements.announcements;
+                if (!list) return;
+                list.innerHTML = '';
+
+                if (!App.state.announcements || App.state.announcements.length === 0) {
+                    list.innerHTML = '<p>Nenhuma atualização publicada.</p>';
+                    return;
+                }
+
+                const table = document.createElement('table');
+                table.className = 'harvestPlanTable';
+                table.innerHTML = `<thead><tr><th>Versão</th><th>Título</th><th>Data</th><th>Status</th></tr></thead><tbody></tbody>`;
+                const tbody = table.querySelector('tbody');
+
+                App.state.announcements.forEach(a => {
+                    const row = tbody.insertRow();
+                    const date = a.createdAt?.toDate ? a.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A';
+                    row.innerHTML = `
+                        <td data-label="Versão">${a.version}</td>
+                        <td data-label="Título">${a.title}</td>
+                        <td data-label="Data">${date}</td>
+                        <td data-label="Status"><span class="status-badge ${a.active ? 'status-active' : 'status-inactive'}">${a.active ? 'Ativo' : 'Inativo'}</span></td>
+                    `;
+                });
+                list.appendChild(table);
+            },
+
             async renderSyncHistoryDetails(logId) {
                 const modal = App.elements.syncHistoryDetailModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
@@ -4035,6 +4127,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 if (App.elements.gerenciamento.applyBtn) App.elements.gerenciamento.applyBtn.addEventListener('click', () => this.renderGerenciamento());
                 
+                if (App.elements.announcements.btnPublish) {
+                    App.elements.announcements.btnPublish.addEventListener('click', () => App.actions.publishAnnouncement());
+                }
+
                 const customReportEls = App.elements.relatorioColheita;
                 if (customReportEls.btnPDF) customReportEls.btnPDF.addEventListener('click', () => App.reports.generateCustomHarvestReport('pdf'));
                 if (customReportEls.btnExcel) customReportEls.btnExcel.addEventListener('click', () => App.reports.generateCustomHarvestReport('csv'));
@@ -7716,6 +7812,91 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     App.ui.setLoading(false);
                     passwordInput.value = '';
+                }
+            },
+
+            async checkSequence() {
+                if (!App.state.currentUser) return;
+
+                // Apenas executa online para garantir que tem os anúncios mais recentes
+                if (!navigator.onLine) return;
+
+                try {
+                    const user = App.state.currentUser;
+                    const userId = user.uid;
+
+                    // 1. Buscar o anúncio ativo mais recente
+                    const q = query(collection(db, 'system_announcements'), where('active', '==', true), orderBy('createdAt', 'desc'));
+                    // Limit 1 não funciona bem com query cursor client-side às vezes, então pegamos e filtramos
+                    const snapshot = await getDocs(q);
+                    const latestAnnouncement = snapshot.empty ? null : snapshot.docs[0].data();
+                    const latestVersion = latestAnnouncement ? latestAnnouncement.version : null;
+
+                    // 2. Lógica de Boas-vindas (Prioritária)
+                    if (user.hasSeenWelcomeTour === false) { // Explicitamente false, legacy pode ser undefined
+                        await App.ui.showWelcomeModal();
+
+                        // Atualiza o utilizador para não ver mais o welcome e define a versão atual como vista
+                        await App.data.updateDocument('users', userId, {
+                            hasSeenWelcomeTour: true,
+                            lastSeenVersion: latestVersion || '0.0.0'
+                        });
+
+                        App.state.currentUser.hasSeenWelcomeTour = true;
+                        App.state.currentUser.lastSeenVersion = latestVersion || '0.0.0';
+                        return; // Não mostra a atualização logo após o welcome
+                    }
+
+                    // 3. Lógica de Atualização
+                    if (latestAnnouncement && user.lastSeenVersion !== latestVersion) {
+                        await App.ui.showUpdateModal(latestAnnouncement);
+
+                        await App.data.updateDocument('users', userId, {
+                            lastSeenVersion: latestVersion
+                        });
+                        App.state.currentUser.lastSeenVersion = latestVersion;
+                    }
+
+                } catch (error) {
+                    console.error("Erro na verificação de sequência (Welcome/Update):", error);
+                }
+            },
+
+            async publishAnnouncement() {
+                const { version, title, desc } = App.elements.announcements;
+                const versionVal = version.value.trim();
+                const titleVal = title.value.trim();
+                const descVal = desc.value.trim();
+
+                if (!versionVal || !titleVal || !descVal) {
+                    App.ui.showAlert("Todos os campos são obrigatórios.", "error");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A publicar atualização...");
+                try {
+                    // Desativa todos os anúncios anteriores (opcional, mas boa prática para manter apenas um 'ativo' se a lógica for de versão única)
+                    // Neste caso, a lógica pega o mais recente, então não é estritamente necessário desativar os outros,
+                    // mas vamos marcar como ativo o novo.
+
+                    await App.data.addDocument('system_announcements', {
+                        version: versionVal,
+                        title: titleVal,
+                        description: descVal,
+                        active: true,
+                        createdAt: serverTimestamp(),
+                        publishedBy: App.state.currentUser.email
+                    });
+
+                    App.ui.showAlert("Atualização publicada com sucesso!", "success");
+                    version.value = '';
+                    title.value = '';
+                    desc.value = '';
+                } catch (error) {
+                    console.error("Erro ao publicar anúncio:", error);
+                    App.ui.showAlert("Erro ao publicar atualização.", "error");
+                } finally {
+                    App.ui.setLoading(false);
                 }
             },
         },
