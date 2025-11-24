@@ -120,6 +120,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
+                    label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
+                    submenu: [
+                        { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
+                    ]
+                },
+                {
                     label: 'Colheita', icon: 'fas fa-tractor',
                     submenu: [
                         { label: 'Planejamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
@@ -171,9 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
             }
@@ -231,9 +237,22 @@ document.addEventListener('DOMContentLoaded', () => {
             apontamentoPlantioFormIsDirty: false,
             syncInterval: null,
             announcements: [],
+            osMap: null,
+            osSelectedPlots: new Set(),
         },
         
         elements: {
+            osManual: {
+                farmSelect: document.getElementById('osFarmSelect'),
+                serviceType: document.getElementById('osServiceType'),
+                responsible: document.getElementById('osResponsible'),
+                observations: document.getElementById('osObservations'),
+                totalArea: document.getElementById('osTotalArea'),
+                plotsList: document.getElementById('osPlotsList'),
+                btnGenerate: document.getElementById('btnGenerateOS'),
+                mapContainer: document.getElementById('os-map'),
+                btnCenterMap: document.getElementById('btnCenterOSMap'),
+            },
             welcomeModal: {
                 overlay: document.getElementById('welcomeModal'),
                 content: document.getElementById('welcomeModalContent'),
@@ -1942,6 +1961,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
+                if (id === 'ordemServicoManual') {
+                    App.osManual.init();
+                }
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
                     if (App.state.currentUser.role === 'super-admin') {
@@ -9505,6 +9527,430 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }, 8000);
             },
+        },
+
+        osManual: {
+            init() {
+                this.populateFarmSelect();
+                this.setupEventListeners();
+                // Initialize map only when needed, deferred to when the tab is active
+            },
+
+            setupEventListeners() {
+                const els = App.elements.osManual;
+                if (!els.farmSelect) return;
+
+                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+                els.btnGenerate.addEventListener('click', () => this.generateOS());
+
+                if (els.btnCenterMap) {
+                    els.btnCenterMap.addEventListener('click', () => {
+                        // Center map on selected farm bounds if available
+                        const farmId = els.farmSelect.value;
+                        if (farmId && App.state.osMap) {
+                            const farm = App.state.fazendas.find(f => f.id === farmId);
+                            if (farm) this.zoomToFarm(farm.code);
+                        }
+                    });
+                }
+            },
+
+            initMap() {
+                if (App.state.osMap) {
+                    App.state.osMap.resize();
+                    return;
+                }
+
+                const mapContainer = App.elements.osManual.mapContainer;
+                if (!mapContainer) return;
+
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+
+                App.state.osMap = new mapboxgl.Map({
+                    container: mapContainer,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-48.45, -21.17],
+                    zoom: 10,
+                    attributionControl: false
+                });
+
+                const map = App.state.osMap;
+
+                map.on('load', () => {
+                    this.loadShapes();
+                });
+
+                // Map click listener for plot selection
+                map.on('click', 'os-talhoes-layer', (e) => {
+                    if (e.features.length > 0) {
+                        const feature = e.features[0];
+                        const plotId = feature.properties.AGV_TALHAO; // Or a unique ID if available
+                        const featureId = feature.id; // Use feature ID for state management
+                        this.togglePlotSelection(feature, true);
+                    }
+                });
+
+                map.on('mousemove', 'os-talhoes-layer', (e) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    if (e.features.length > 0) {
+                        map.setFeatureState({ source: 'os-talhoes-source', id: e.features[0].id }, { hover: true });
+                    }
+                });
+
+                map.on('mouseleave', 'os-talhoes-layer', () => {
+                    map.getCanvas().style.cursor = '';
+                    // Reset hover state - requires tracking hovered feature or resetting all
+                });
+            },
+
+            loadShapes() {
+                const map = App.state.osMap;
+                if (!map || !App.state.geoJsonData) return;
+
+                const sourceId = 'os-talhoes-source';
+                const layerId = 'os-talhoes-layer';
+                const borderLayerId = 'os-talhoes-border-layer';
+                const labelLayerId = 'os-talhoes-labels';
+
+                if (!map.getSource(sourceId)) {
+                    map.addSource(sourceId, {
+                        type: 'geojson',
+                        data: App.state.geoJsonData,
+                        generateId: true
+                    });
+
+                    map.addLayer({
+                        id: layerId,
+                        type: 'fill',
+                        source: sourceId,
+                        paint: {
+                            'fill-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#007bff', // Blue for selected
+                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
+                                '#1C1C1C' // Default dark grey
+                            ],
+                            'fill-opacity': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 0.7,
+                                0.5
+                            ]
+                        }
+                    });
+
+                    map.addLayer({
+                        id: borderLayerId,
+                        type: 'line',
+                        source: sourceId,
+                        paint: {
+                            'line-color': '#FFFFFF',
+                            'line-width': 1.5,
+                            'line-opacity': 0.8
+                        }
+                    });
+
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 12,
+                        layout: {
+                            'text-field': ['get', 'AGV_TALHAO'],
+                            'text-font': ['Open Sans Bold'],
+                            'text-size': 12,
+                            'text-offset': [0, 0.6],
+                            'text-anchor': 'top',
+                            'text-allow-overlap': false
+                        },
+                        paint: {
+                            'text-color': '#ffffff',
+                            'text-halo-color': '#000000',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+            },
+
+            populateFarmSelect() {
+                const select = App.elements.osManual.farmSelect;
+                if (!select) return;
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Selecione uma fazenda...</option>';
+                App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
+                    select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
+                });
+                select.value = currentValue;
+            },
+
+            handleFarmChange() {
+                const farmId = App.elements.osManual.farmSelect.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                App.state.osSelectedPlots.clear(); // Clear selections on farm change
+                this.updateTotalArea();
+
+                if (farm) {
+                    this.renderPlotsList(farm.talhoes);
+                    this.zoomToFarm(farm.code);
+                    this.filterMap(farm.code);
+                } else {
+                    App.elements.osManual.plotsList.innerHTML = '<p style="color: #888; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
+                    if (App.state.osMap) {
+                        const map = App.state.osMap;
+                        if (map.getLayer('os-talhoes-layer')) {
+                            map.setFilter('os-talhoes-layer', null); // Reset filter or hide all
+                            map.setFilter('os-talhoes-border-layer', null);
+                            map.setFilter('os-talhoes-labels', null);
+                        }
+                    }
+                }
+            },
+
+            renderPlotsList(talhoes) {
+                const listContainer = App.elements.osManual.plotsList;
+                listContainer.innerHTML = '';
+
+                if (!talhoes || talhoes.length === 0) {
+                    listContainer.innerHTML = '<p>Nenhum talhão encontrado.</p>';
+                    return;
+                }
+
+                talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
+                    const item = document.createElement('div');
+                    item.className = 'os-plot-item';
+                    item.innerHTML = `
+                        <input type="checkbox" id="os-plot-${talhao.id}" data-id="${talhao.id}" data-name="${talhao.name}" data-area="${talhao.area}">
+                        <label for="os-plot-${talhao.id}">
+                            <strong>${talhao.name}</strong>
+                            <span>${talhao.area.toFixed(2)} ha</span>
+                        </label>
+                    `;
+
+                    const checkbox = item.querySelector('input');
+                    checkbox.addEventListener('change', (e) => {
+                        // Find corresponding map feature if possible, or pass data needed
+                        // Since we don't have the map feature ID easily here without a lookup,
+                        // we might need to find it via the map source.
+                        this.togglePlotSelectionFromList(talhao, e.target.checked);
+                    });
+
+                    listContainer.appendChild(item);
+                });
+            },
+
+            filterMap(farmCode) {
+                const map = App.state.osMap;
+                if (!map || !map.getLayer('os-talhoes-layer')) return;
+
+                // Filter by 'AGV_FUNDO' property which stores the farm code
+                const filter = ['==', ['get', 'AGV_FUNDO'], String(farmCode)];
+
+                map.setFilter('os-talhoes-layer', filter);
+                map.setFilter('os-talhoes-border-layer', filter);
+                map.setFilter('os-talhoes-labels', filter);
+            },
+
+            zoomToFarm(farmCode) {
+                const map = App.state.osMap;
+                if (!map || !App.state.geoJsonData) return;
+
+                const features = App.state.geoJsonData.features.filter(f => f.properties.AGV_FUNDO == farmCode);
+                if (features.length > 0) {
+                    const collection = turf.featureCollection(features);
+                    const bbox = turf.bbox(collection);
+                    map.fitBounds(bbox, { padding: 20 });
+                }
+            },
+
+            togglePlotSelection(feature, fromMap) {
+                const map = App.state.osMap;
+                const talhaoName = feature.properties.AGV_TALHAO;
+                const farmCode = feature.properties.AGV_FUNDO;
+
+                // Find the plot in the current farm's list to get its internal ID and area
+                const farm = App.state.fazendas.find(f => f.code == farmCode);
+                if (!farm) return;
+
+                const talhao = farm.talhoes.find(t => t.name === talhaoName);
+                if (!talhao) return;
+
+                const isSelected = App.state.osSelectedPlots.has(talhao.id);
+
+                if (!isSelected) {
+                    App.state.osSelectedPlots.add(talhao.id);
+                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: true });
+
+                    // Update list checkbox
+                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
+                    if (checkbox) checkbox.checked = true;
+                } else {
+                    App.state.osSelectedPlots.delete(talhao.id);
+                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+
+                    // Update list checkbox
+                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
+                    if (checkbox) checkbox.checked = false;
+                }
+
+                this.updateTotalArea();
+            },
+
+            togglePlotSelectionFromList(talhao, isChecked) {
+                const map = App.state.osMap;
+
+                if (isChecked) {
+                    App.state.osSelectedPlots.add(talhao.id);
+                } else {
+                    App.state.osSelectedPlots.delete(talhao.id);
+                }
+
+                // Sync with map if initialized
+                if (map && map.getLayer('os-talhoes-layer')) {
+                    // We need to find the feature ID for this talhao name to update state
+                    // This is a bit expensive, could be optimized with a lookup map
+                    const features = map.querySourceFeatures('os-talhoes-source', {
+                        sourceLayer: 'os-talhoes-layer',
+                        filter: ['==', 'AGV_TALHAO', talhao.name]
+                    });
+
+                    // Note: querySourceFeatures only returns features in viewport.
+                    // For full sync, we might need to iterate geoJsonData or maintain a map of name -> featureId
+                    // A workaround for now is to iterate the global GeoJSON if available or accept viewport limitation.
+                    // Better: Find in App.state.geoJsonData
+                    const feature = App.state.geoJsonData.features.find(f =>
+                        f.properties.AGV_TALHAO === talhao.name &&
+                        f.properties.AGV_FUNDO == App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value).code
+                    );
+
+                    if (feature) {
+                        map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
+                    }
+                }
+
+                this.updateTotalArea();
+            },
+
+            updateTotalArea() {
+                const farmId = App.elements.osManual.farmSelect.value;
+                if (!farmId) {
+                    App.elements.osManual.totalArea.textContent = '0.00 ha';
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm) return;
+
+                let total = 0;
+                App.state.osSelectedPlots.forEach(id => {
+                    const t = farm.talhoes.find(plot => plot.id === id);
+                    if (t) total += t.area;
+                });
+
+                App.elements.osManual.totalArea.textContent = `${total.toFixed(2)} ha`;
+            },
+
+            async generateOS() {
+                const { farmSelect, serviceType, responsible, observations } = App.elements.osManual;
+
+                if (!farmSelect.value) {
+                    App.ui.showAlert("Selecione uma fazenda.", "error");
+                    return;
+                }
+                if (App.state.osSelectedPlots.size === 0) {
+                    App.ui.showAlert("Selecione pelo menos um talhão.", "error");
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
+                const selectedPlotsData = [];
+                let totalArea = 0;
+
+                App.state.osSelectedPlots.forEach(id => {
+                    const t = farm.talhoes.find(plot => plot.id === id);
+                    if (t) {
+                        // Backend expects simple strings for map highlighting logic
+                        selectedPlotsData.push(t.name);
+                        totalArea += t.area;
+                    }
+                });
+
+                const osData = {
+                    companyId: App.state.currentUser.companyId,
+                    generatedBy: App.state.currentUser.username,
+                    farmId: farm.id, // Required by backend
+                    farmName: farm.name,
+                    farmCode: farm.code,
+                    serviceType: serviceType.value,
+                    responsible: responsible.value,
+                    observations: observations.value,
+                    selectedPlots: selectedPlotsData, // Backend expects 'selectedPlots' as array of strings
+                    totalArea: totalArea,
+                    createdAt: new Date().toISOString() // Send as ISO string for backend consistency
+                };
+
+                App.ui.setLoading(true, "A gerar Ordem de Serviço...");
+
+                try {
+                    // 1. Save to Firestore
+                    const saveResponse = await fetch(`${App.config.backendUrl}/api/os`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${await auth.currentUser.getIdToken()}`
+                        },
+                        body: JSON.stringify(osData)
+                    });
+
+                    if (!saveResponse.ok) throw new Error("Falha ao salvar a O.S.");
+                    const savedOS = await saveResponse.json();
+
+                    // 2. Generate PDF
+                    // We pass the data directly or the ID if the backend supports fetching by ID.
+                    // Based on the plan, we'll pass data as filters/body to the report endpoint.
+                    // However, GET requests have URL length limits.
+                    // Ideally, the /reports/os/pdf endpoint should fetch the data from Firestore using the ID we just created.
+                    // Or we POST the data to generate the PDF.
+                    // Let's use the filters approach for now as per existing patterns, but passing the ID is safer.
+                    // Update: The backend plan said "POST /api/os" and "GET /reports/os/pdf".
+                    // We can pass the `id` to the report endpoint.
+
+                    const reportParams = new URLSearchParams({
+                        id: savedOS.id,
+                        companyId: App.state.currentUser.companyId
+                    });
+
+                    const pdfUrl = `${App.config.backendUrl}/reports/os/pdf?${reportParams.toString()}`;
+
+                    // Trigger download
+                    const pdfResponse = await fetch(pdfUrl);
+                    if (!pdfResponse.ok) throw new Error("Falha ao gerar o PDF.");
+
+                    const blob = await pdfResponse.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `OS_${farm.code}_${new Date().getTime()}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+
+                    App.ui.showAlert("Ordem de Serviço gerada com sucesso!", "success");
+
+                    // Clear form
+                    serviceType.value = '';
+                    responsible.value = '';
+                    observations.value = '';
+                    App.state.osSelectedPlots.clear();
+                    this.handleFarmChange(); // Refresh view
+
+                } catch (error) {
+                    console.error("Erro ao gerar OS:", error);
+                    App.ui.showAlert(`Erro ao gerar O.S.: ${error.message}`, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            }
         },
 
         charts: {
