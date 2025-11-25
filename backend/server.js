@@ -3305,6 +3305,9 @@ try {
             await generatePdfHeader(doc, 'Ordem de Serviço', companyId);
 
             // --- Header Info Block ---
+            // Display OS ID at the top right
+            doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osId}`, { align: 'right' });
+
             doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${osData.farmName}`, { align: 'left' });
             doc.moveDown(0.5);
 
@@ -3324,7 +3327,7 @@ try {
             const availableHeight = doc.page.height - contentStartY - pageMargin;
 
             // --- Map (Left) ---
-            const mapWidth = doc.page.width * 0.60;
+            const mapWidth = doc.page.width * 0.65; // Aumentado para 65%
             const mapHeight = availableHeight;
             const mapX = pageMargin;
             const mapY = contentStartY;

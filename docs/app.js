@@ -9811,7 +9811,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farm = App.state.fazendas.find(f => f.code == farmCode);
                 if (!farm) return;
 
-                const talhao = farm.talhoes.find(t => t.name === talhaoName);
+                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName.toUpperCase());
                 if (!talhao) return;
 
                 const isSelected = App.state.osSelectedPlots.has(talhao.id);
@@ -9846,24 +9846,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Sync with map if initialized
                 if (map && map.getLayer('os-talhoes-layer')) {
-                    // We need to find the feature ID for this talhao name to update state
-                    // This is a bit expensive, could be optimized with a lookup map
-                    const features = map.querySourceFeatures('os-talhoes-source', {
-                        sourceLayer: 'os-talhoes-layer',
-                        filter: ['==', 'AGV_TALHAO', talhao.name]
-                    });
-
-                    // Note: querySourceFeatures only returns features in viewport.
-                    // For full sync, we might need to iterate geoJsonData or maintain a map of name -> featureId
-                    // A workaround for now is to iterate the global GeoJSON if available or accept viewport limitation.
-                    // Better: Find in App.state.geoJsonData
-                    const feature = App.state.geoJsonData.features.find(f =>
-                        f.properties.AGV_TALHAO === talhao.name &&
-                        f.properties.AGV_FUNDO == App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value).code
-                    );
-
-                    if (feature) {
-                        map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value)?.code;
+                    if (farmCode && App.state.geoJsonData && App.state.geoJsonData.features) {
+                        const feature = App.state.geoJsonData.features.find(f =>
+                            f.properties.AGV_TALHAO === talhao.name &&
+                            String(f.properties.AGV_FUNDO) === String(farmCode)
+                        );
+                        if (feature) {
+                            map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
+                        }
                     }
                 }
 
@@ -9956,7 +9947,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const reportParams = new URLSearchParams({
                         osId: savedOS.id,
-                        companyId: App.state.currentUser.companyId
+                        companyId: App.state.currentUser.companyId,
                     });
 
                     const pdfUrl = `${App.config.backendUrl}/reports/os/pdf?${reportParams.toString()}`;
@@ -9981,8 +9972,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     serviceType.value = '';
                     responsible.value = '';
                     observations.value = '';
+
+                    // Limpa todas as seleções no mapa
+                    if (App.state.osMap && App.state.geoJsonData) {
+                        App.state.geoJsonData.features.forEach(feature => {
+                            if(feature.id !== undefined) {
+                                App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                            }
+                        });
+                    }
+
                     App.state.osSelectedPlots.clear();
-                    this.handleFarmChange(); // Refresh view
+                    this.handleFarmChange(); // Refresh view for the same farm
 
                 } catch (error) {
                     console.error("Erro ao gerar OS:", error);
