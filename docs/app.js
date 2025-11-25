@@ -9545,11 +9545,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (els.btnCenterMap) {
                     els.btnCenterMap.addEventListener('click', () => {
-                        // Center map on selected farm bounds if available
                         const farmId = els.farmSelect.value;
                         if (farmId && App.state.osMap) {
                             const farm = App.state.fazendas.find(f => f.id === farmId);
                             if (farm) this.zoomToFarm(farm.code);
+                        }
+                    });
+                }
+
+                const btnToggle = document.getElementById('btnToggleOSMap');
+                if(btnToggle) {
+                    btnToggle.addEventListener('click', () => {
+                        const mapContainer = document.querySelector('#ordemServicoManual .os-map-container');
+                        const sidebar = document.querySelector('#ordemServicoManual .os-sidebar');
+                        const icon = btnToggle.querySelector('i');
+
+                        if (mapContainer.classList.contains('visible')) {
+                            // Hide map, show form
+                            mapContainer.classList.remove('visible');
+                            sidebar.style.display = 'flex';
+                            icon.className = 'fas fa-map';
+                            btnToggle.title = 'Mostrar Mapa';
+                        } else {
+                            // Show map, hide form
+                            sidebar.style.display = 'none';
+                            mapContainer.classList.add('visible');
+                            icon.className = 'fas fa-list-alt';
+                            btnToggle.title = 'Mostrar Formulário';
+                            if (App.state.osMap) {
+                                setTimeout(() => App.state.osMap.resize(), 200);
+                            }
                         }
                     });
                 }
@@ -9807,29 +9832,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 const talhaoName = feature.properties.AGV_TALHAO;
                 const farmCode = feature.properties.AGV_FUNDO;
 
-                // Find the plot in the current farm's list to get its internal ID and area
-                const farm = App.state.fazendas.find(f => f.code == farmCode);
+                const farm = App.state.fazendas.find(f => String(f.code).trim() === String(farmCode).trim());
                 if (!farm) return;
 
-                const talhao = farm.talhoes.find(t => t.name === talhaoName);
+                const talhao = farm.talhoes.find(t => t.name.trim().toUpperCase() === talhaoName.trim().toUpperCase());
                 if (!talhao) return;
 
-                const isSelected = App.state.osSelectedPlots.has(talhao.id);
+                const checkbox = document.getElementById(`os-plot-${talhao.id}`);
+                const isSelectedOnMap = map.getFeatureState({ source: 'os-talhoes-source', id: feature.id }).selected;
 
-                if (!isSelected) {
+                // The new state is the opposite of the current map state
+                const shouldBeSelected = !isSelectedOnMap;
+
+                // Update internal state
+                if (shouldBeSelected) {
                     App.state.osSelectedPlots.add(talhao.id);
-                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: true });
-
-                    // Update list checkbox
-                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
-                    if (checkbox) checkbox.checked = true;
                 } else {
                     App.state.osSelectedPlots.delete(talhao.id);
-                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                }
 
-                    // Update list checkbox
-                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
-                    if (checkbox) checkbox.checked = false;
+                // Update map state
+                map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: shouldBeSelected });
+
+                // Update list checkbox state
+                if (checkbox) {
+                    checkbox.checked = shouldBeSelected;
                 }
 
                 this.updateTotalArea();
@@ -9838,32 +9865,25 @@ document.addEventListener('DOMContentLoaded', () => {
             togglePlotSelectionFromList(talhao, isChecked) {
                 const map = App.state.osMap;
 
+                // Update internal state
                 if (isChecked) {
                     App.state.osSelectedPlots.add(talhao.id);
                 } else {
                     App.state.osSelectedPlots.delete(talhao.id);
                 }
 
-                // Sync with map if initialized
+                // Sync with map
                 if (map && map.getLayer('os-talhoes-layer')) {
-                    // We need to find the feature ID for this talhao name to update state
-                    // This is a bit expensive, could be optimized with a lookup map
-                    const features = map.querySourceFeatures('os-talhoes-source', {
-                        sourceLayer: 'os-talhoes-layer',
-                        filter: ['==', 'AGV_TALHAO', talhao.name]
-                    });
-
-                    // Note: querySourceFeatures only returns features in viewport.
-                    // For full sync, we might need to iterate geoJsonData or maintain a map of name -> featureId
-                    // A workaround for now is to iterate the global GeoJSON if available or accept viewport limitation.
-                    // Better: Find in App.state.geoJsonData
-                    const feature = App.state.geoJsonData.features.find(f =>
-                        f.properties.AGV_TALHAO === talhao.name &&
-                        f.properties.AGV_FUNDO == App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value).code
-                    );
-
-                    if (feature) {
-                        map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value)?.code;
+                    if (farmCode && App.state.geoJsonData && App.state.geoJsonData.features) {
+                        // Find feature matching both farm code and plot name (case-insensitive)
+                        const feature = App.state.geoJsonData.features.find(f =>
+                            f.properties.AGV_TALHAO.trim().toUpperCase() === talhao.name.trim().toUpperCase() &&
+                            String(f.properties.AGV_FUNDO).trim() === String(farmCode).trim()
+                        );
+                        if (feature && feature.id !== undefined) {
+                            map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
+                        }
                     }
                 }
 
@@ -9956,7 +9976,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const reportParams = new URLSearchParams({
                         osId: savedOS.id,
-                        companyId: App.state.currentUser.companyId
+                        companyId: App.state.currentUser.companyId,
                     });
 
                     const pdfUrl = `${App.config.backendUrl}/reports/os/pdf?${reportParams.toString()}`;
@@ -9977,12 +9997,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.ui.showAlert("Ordem de Serviço gerada com sucesso!", "success");
 
-                    // Clear form
-                    serviceType.value = '';
-                    responsible.value = '';
-                    observations.value = '';
-                    App.state.osSelectedPlots.clear();
-                    this.handleFarmChange(); // Refresh view
+                    this.resetForm();
 
                 } catch (error) {
                     console.error("Erro ao gerar OS:", error);

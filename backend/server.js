@@ -3248,22 +3248,37 @@ try {
         }
 
         try {
-            const osData = {
-                companyId,
-                farmId,
-                farmName,
-                selectedPlots, // Array of plot names or IDs
-                totalArea,
-                serviceType: serviceType || '',
-                responsible: responsible || '',
-                observations: observations || '',
-                createdBy: createdBy || 'Sistema',
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                status: 'Created'
-            };
+            const counterRef = db.collection('osCounters').doc(companyId);
+            const newOsRef = db.collection('serviceOrders').doc(); // Create a reference with a new ID
 
-            const docRef = await db.collection('serviceOrders').add(osData);
-            res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: docRef.id });
+            await db.runTransaction(async (transaction) => {
+                const counterDoc = await transaction.get(counterRef);
+                const currentId = counterDoc.exists ? counterDoc.data().currentId : 0;
+                const newOsId = currentId + 1;
+
+                // Update the counter
+                transaction.set(counterRef, { currentId: newOsId }, { merge: true });
+
+                const osData = {
+                    sequentialId: String(newOsId).padStart(2, '0'),
+                    companyId,
+                    farmId,
+                    farmName,
+                    selectedPlots,
+                    totalArea,
+                    serviceType: serviceType || '',
+                    responsible: responsible || '',
+                    observations: observations || '',
+                    createdBy: createdBy || 'Sistema',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    status: 'Created'
+                };
+
+                // Create the new OS document within the transaction
+                transaction.set(newOsRef, osData);
+            });
+
+            res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: newOsRef.id });
 
         } catch (error) {
             console.error("Erro ao criar Ordem de Serviço:", error);
@@ -3305,6 +3320,9 @@ try {
             await generatePdfHeader(doc, 'Ordem de Serviço', companyId);
 
             // --- Header Info Block ---
+            // Display OS ID at the top right
+            doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osData.sequentialId || osId}`, { align: 'right' });
+
             doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${osData.farmName}`, { align: 'left' });
             doc.moveDown(0.5);
 
@@ -3324,7 +3342,7 @@ try {
             const availableHeight = doc.page.height - contentStartY - pageMargin;
 
             // --- Map (Left) ---
-            const mapWidth = doc.page.width * 0.60;
+            const mapWidth = doc.page.width * 0.65; // Aumentado para 65%
             const mapHeight = availableHeight;
             const mapX = pageMargin;
             const mapY = contentStartY;
