@@ -1623,11 +1623,6 @@
       }
 
       /* Estilos para o módulo O.S. Manual */
-      #ordemServicoManual .card {
-        width: 450px;
-        min-width: 450px;
-      }
-
       .os-plot-item {
           display: flex;
           align-items: center;
@@ -1664,6 +1659,97 @@
           background: var(--color-bg);
           padding: 2px 6px;
           border-radius: 4px;
+      }
+
+      /* Fullscreen OS Manual Styles */
+      .os-manual-container {
+          display: flex;
+          height: 100%;
+          gap: 20px;
+          padding: 15px;
+          transition: all 0.5s ease-in-out;
+      }
+      #os-manual-sidebar {
+          width: 400px;
+          min-width: 400px;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          overflow-y: auto;
+          border-left-color: var(--color-info);
+          transition: all 0.5s ease-in-out;
+      }
+      #os-manual-map-wrapper {
+          flex-grow: 1;
+          position: relative;
+          border-radius: var(--border-radius-lg);
+          overflow: hidden;
+          box-shadow: var(--shadow-md);
+          transition: all 0.5s ease-in-out;
+      }
+      /* Expanded State */
+      .os-manual-container.map-expanded #os-manual-sidebar {
+          width: 0;
+          min-width: 0;
+          padding: 0;
+          margin: 0;
+          opacity: 0;
+          transform: translateX(-100px);
+      }
+       .os-manual-container.map-expanded {
+          gap: 0;
+      }
+
+      @media (max-width: 768px) {
+        .os-manual-container {
+            flex-direction: column;
+            padding: 0;
+            gap: 0;
+        }
+        #os-manual-sidebar {
+            width: 100%;
+            min-width: 100%;
+            height: 100%;
+            border-radius: 0;
+            border: none;
+        }
+        #os-manual-map-wrapper {
+            position: fixed;
+            top: 70px; /* Abaixo do header */
+            left: 0;
+            width: 100%;
+            height: calc(100% - 70px);
+            z-index: 100;
+            transform: translateX(100%);
+            display: block; /* Manter no layout para animação */
+            visibility: hidden; /* Esconder inicialmente */
+            border-radius: 0;
+        }
+
+        /* Mobile Expanded State */
+        .os-manual-container.map-expanded #os-manual-sidebar {
+            display: none; /* Esconde completamente o formulário */
+        }
+        .os-manual-container.map-expanded #os-manual-map-wrapper {
+            transform: translateX(0);
+            visibility: visible;
+        }
+        .os-manual-container.map-expanded {
+            padding: 0;
+        }
+        #os-manual-map-wrapper .map-controls {
+            bottom: 15px;
+            right: 15px;
+        }
+        .mobile-only {
+            display: none; /* Esconde o botão por padrão */
+        }
+        @media (max-width: 768px) {
+            .mobile-only {
+                display: block; /* Mostra o botão em telas menores */
+            }
+        }
       }
     </style>
 </head>
@@ -2199,12 +2285,16 @@
             </section>
             
             <section id="ordemServicoManual" class="tab-content" aria-label="Ordem de Serviço Manual" tabindex="0" hidden style="padding: 0; height: 100%; overflow: hidden;">
-                <div style="display: flex; height: 100%;">
+                <div id="os-manual-container" class="os-manual-container">
 
                     <!-- Sidebar (Formulário e Lista) -->
-                    <div class="card" style="margin: 0; display: flex; flex-direction: column; height: 100%; overflow-y: auto; border-left-color: var(--color-info); border-radius: 0;">
-                        <div style="padding: 15px;">
-                            <h2 style="font-size: 20px; margin-bottom: 15px; color: var(--color-info);"><i class="fas fa-file-contract"></i> Ordem de Serviço Manual</h2>
+                    <div id="os-manual-sidebar" class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                             <h2 style="font-size: 20px; margin: 0; color: var(--color-info);"><i class="fas fa-file-contract"></i> Ordem de Serviço Manual</h2>
+                             <button id="btnToggleOsMap" class="map-control-btn mobile-only" title="Ver Mapa">
+                                <i class="fas fa-map-marked-alt"></i>
+                            </button>
+                        </div>
 
                         <div class="form-col" style="margin-bottom: 15px;">
                             <label for="osFarmSelect" class="required">Fazenda:</label>
@@ -2240,16 +2330,13 @@
                         <button id="btnGenerateOS" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
                             <i class="fas fa-file-pdf"></i> Gerar O.S.
                         </button>
-                        </div>
                     </div>
 
                     <!-- Mapa -->
-                    <div style="flex-grow: 1; position: relative; overflow: hidden;">
+                    <div id="os-manual-map-wrapper" class="os-manual-map-wrapper">
                         <div id="os-map" style="width: 100%; height: 100%;"></div>
-                        <div class="map-controls" style="position: absolute; bottom: 20px; right: 20px; left: auto;">
-                            <button id="btnCenterOSMap" class="map-control-btn" title="Centralizar Mapa">
-                                <i class="fas fa-expand"></i>
-                            </button>
+                        <div class="map-controls" style="position: absolute; bottom: 20px; right: 20px; left: auto; display: flex; gap: 10px;">
+                            <!-- O botão foi movido para o sidebar -->
                         </div>
                     </div>
 
