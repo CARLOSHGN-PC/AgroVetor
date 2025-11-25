@@ -3241,128 +3241,77 @@ try {
     // --- ROTAS DE ORDEM DE SERVIÇO (MANUAL) ---
 
     app.post('/api/os', async (req, res) => {
-        const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy } = req.body;
+        const { companyId, farmId, farmCode, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy, generatedBy } = req.body;
 
-        if (!companyId || !farmId || !selectedPlots) {
+        if (!companyId || !farmId || !selectedPlots || !farmCode) {
             return res.status(400).json({ message: 'Dados incompletos para criar a O.S.' });
         }
 
         try {
+            // 1. Salvar os dados da Ordem de Serviço no Firestore
             const osData = {
                 companyId,
                 farmId,
+                farmCode,
                 farmName,
-                selectedPlots, // Array of plot names or IDs
+                selectedPlots, // Array of plot names
                 totalArea,
                 serviceType: serviceType || '',
                 responsible: responsible || '',
                 observations: observations || '',
                 createdBy: createdBy || 'Sistema',
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                status: 'Created'
+                status: 'Criada'
             };
+            await db.collection('serviceOrders').add(osData);
 
-            const docRef = await db.collection('serviceOrders').add(osData);
-            res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: docRef.id });
+            // 2. Iniciar a geração do PDF
+            const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+            const filename = `ordem_servico_${farmCode}_${new Date().toISOString().slice(0,10)}.pdf`;
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+            doc.pipe(res);
 
-        } catch (error) {
-            console.error("Erro ao criar Ordem de Serviço:", error);
-            res.status(500).json({ message: 'Erro no servidor ao criar O.S.' });
-        }
-    });
-
-    app.get('/reports/os/pdf', async (req, res) => {
-        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=ordem_servico.pdf`);
-        doc.pipe(res);
-
-        try {
-            // We can receive data directly via query params if it's not saved yet, or by ID if it is.
-            // Since the flow is Save -> Generate, we can expect the ID or full data in query.
-            // For simplicity and to avoid large URLs, we'll fetch the document if an ID is provided.
-            // However, standard report generation flow in frontend usually passes filters.
-            // Here we will support passing the OS ID.
-
-            const { osId, companyId, generatedBy } = req.query;
-
-            if (!osId) {
-                throw new Error('ID da Ordem de Serviço não fornecido.');
-            }
-            if (!companyId) {
-                throw new Error('ID da empresa não fornecido.');
-            }
-
-            const osDoc = await db.collection('serviceOrders').doc(osId).get();
-            if (!osDoc.exists) {
-                throw new Error('Ordem de Serviço não encontrada.');
-            }
-            const osData = osDoc.data();
-
-            // Load Shapefile
+            // 3. Gerar o conteúdo do PDF
             const geojsonData = await getShapefileData(companyId);
+            await generatePdfHeader(doc, 'Ordem de Serviço Manual', companyId);
 
-            await generatePdfHeader(doc, 'Ordem de Serviço', companyId);
-
-            // --- Header Info Block ---
-            doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${osData.farmName}`, { align: 'left' });
+            doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${farmCode} - ${farmName}`, { align: 'left' });
             doc.moveDown(0.5);
-
             const infoY = doc.y;
             doc.fontSize(10).font('Helvetica');
-            doc.text(`Tipo de Serviço: ${osData.serviceType || 'N/A'}`, 30, infoY);
-            doc.text(`Responsável: ${osData.responsible || 'N/A'}`, 300, infoY);
+            doc.text(`Tipo de Serviço: ${serviceType || 'N/A'}`, 30, infoY);
+            doc.text(`Responsável: ${responsible || 'N/A'}`, 300, infoY);
             doc.moveDown(1.5);
-
-            if (osData.observations) {
-                doc.text(`Observações: ${osData.observations}`);
+            if (observations) {
+                doc.text(`Observações: ${observations}`);
                 doc.moveDown(1.5);
             }
 
             const pageMargin = 30;
             const contentStartY = doc.y;
             const availableHeight = doc.page.height - contentStartY - pageMargin;
-
-            // --- Map (Left) ---
             const mapWidth = doc.page.width * 0.60;
             const mapHeight = availableHeight;
             const mapX = pageMargin;
             const mapY = contentStartY;
-
-            // --- List (Right) ---
             const listX = mapX + mapWidth + 15;
             const listWidth = doc.page.width - listX - pageMargin;
 
-            // Draw Map
+            // Lógica do Mapa
             if (geojsonData) {
-                // Filter features for this farm
-                // Assuming osData.farmId corresponds to the farm code in the shapefile (normalized)
-                // We need to find the farm code in the OS data.
-                // Ideally frontend sends farm code. Let's assume farmId is the document ID,
-                // but we need the code to match the shapefile.
-                // We can fetch the farm doc to get the code if needed, or assume frontend passed it.
-                // Let's fetch the farm doc to be safe if farmId is not the code.
-                // Actually, let's assume we filter by farm name or code derived from osData.
-
-                // Fetch farm code if we only have ID
-                let farmCode = null;
-                const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
-                if (farmDoc.exists) {
-                    farmCode = farmDoc.data().code;
-                }
-
-                // Usando a mesma lógica de filtro do Relatório de Risco para garantir consistência
                 const farmFeatures = geojsonData.features.filter(f => {
-                    if (!f.properties) return false;
-                    const propKeys = Object.keys(f.properties);
-                    const codeKey = propKeys.find(k => k.toLowerCase() === 'fundo_agr');
-                    if (!codeKey) return false;
-                    const featureFarmCode = f.properties[codeKey];
+                    // Normaliza a busca por chaves comuns para código da fazenda
+                    const featureFarmCode = findShapefileProp(f.properties, ['AGV_FUNDO', 'FUNDO_AGR', 'CD_FAZENDA']);
                     return featureFarmCode && parseInt(featureFarmCode, 10) === parseInt(farmCode, 10);
                 });
 
                 if (farmFeatures.length > 0) {
-                    const allCoords = farmFeatures.flatMap(f => f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates.flatMap(p => p[0]));
+                    const allCoords = farmFeatures.flatMap(f => {
+                       if (!f.geometry) return [];
+                       return f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates.flatMap(p => p[0])
+                    }).filter(c => c && c.length === 2); // Garante que temos apenas coordenadas 2D válidas.
+
                     const bbox = {
                         minX: Math.min(...allCoords.map(c => c[0])), maxX: Math.max(...allCoords.map(c => c[0])),
                         minY: Math.min(...allCoords.map(c => c[1])), maxY: Math.max(...allCoords.map(c => c[1])),
@@ -3376,32 +3325,46 @@ try {
                     const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
 
                     doc.save();
-                    doc.lineWidth(0.5).strokeColor('#555');
-
-                    // Draw all farm plots first
                     farmFeatures.forEach(feature => {
-                        // Usando as mesmas propriedades do Relatório de Risco
-                        const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
+                        const talhaoNome = findShapefileProp(feature.properties, ['AGV_TALHAO', 'CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
+                        const isSelected = selectedPlots.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
 
-                        // Check if this plot is selected
-                        const isSelected = osData.selectedPlots.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
+                        const fillColor = isSelected ? '#3388ff' : '#d3d3d3'; // Azul se selecionado, cinza se não
+                        const strokeColor = isSelected ? '#0055cc' : '#aaaaaa';
 
-                        const fillColor = isSelected ? '#4caf50' : '#e0e0e0'; // Green if selected, grey if not
-                        const strokeColor = isSelected ? '#2e7d32' : '#9e9e9e';
-
-                        doc.fillColor(fillColor);
-                        doc.strokeColor(strokeColor);
+                        doc.fillColor(fillColor).strokeColor(strokeColor).lineWidth(0.5);
 
                         const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
                         polygons.forEach(polygon => {
-                            const path = polygon[0];
+                            // Garante que estamos lidando com coordenadas 2D e que o polígono tem pontos.
+                            const path = polygon[0].map(c => [c[0], c[1]]).filter(p => p.length === 2);
+                            if(path.length === 0) return;
+
                             const firstPoint = transformCoord(path[0]);
                             doc.moveTo(firstPoint[0], firstPoint[1]);
                             for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
                             doc.fillAndStroke();
                         });
 
-                        // Opcional: Desenhar labels se necessário, similar ao risco
+                        // Adicionar o rótulo (número do talhão)
+                        if (isSelected) {
+                             const polygonsForCentroid = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates[0]] : feature.geometry.coordinates.map(p => p[0]);
+                             const centroid = { x: 0, y: 0 };
+                             let pointCount = 0;
+                             polygonsForCentroid.forEach(poly => {
+                                 poly.forEach(p => {
+                                     centroid.x += p[0];
+                                     centroid.y += p[1];
+                                     pointCount++;
+                                 });
+                             });
+                             if (pointCount > 0) {
+                                 centroid.x /= pointCount;
+                                 centroid.y /= pointCount;
+                                 const [labelX, labelY] = transformCoord([centroid.x, centroid.y]);
+                                 doc.fillColor('white').fontSize(8).text(talhaoNome, labelX - 10, labelY - 4, { width: 20, align: 'center' });
+                             }
+                        }
                     });
                     doc.restore();
                 } else {
@@ -3411,69 +3374,65 @@ try {
                 doc.text('Shapefile não disponível.', mapX, mapY);
             }
 
-            // Draw List
+            // Lógica da Lista de Talhões com Áreas
             let currentListY = contentStartY;
             doc.fontSize(10).font('Helvetica-Bold').text('Talhões Selecionados', listX, currentListY);
             currentListY += 15;
 
-            const headers = ['Talhão', 'Área (ha)'];
-            const colWidths = [listWidth * 0.6, listWidth * 0.4];
+            const farmDoc = await db.collection('fazendas').doc(farmId).get();
+            const farmData = farmDoc.exists ? farmDoc.data() : { talhoes: [] };
 
-            doc.fontSize(9);
-            doc.rect(listX, currentListY, listWidth, 15).fillAndStroke('#eee', '#ccc');
-            doc.fillColor('black');
-            doc.text(headers[0], listX + 5, currentListY + 3);
-            doc.text(headers[1], listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
-            currentListY += 15;
+            const plotData = selectedPlots.map(plotName => {
+                const talhao = farmData.talhoes.find(t => String(t.name).toUpperCase() === String(plotName).toUpperCase());
+                return { name: plotName, area: talhao ? talhao.area : 0 };
+            });
+            const totalSelectedArea = plotData.reduce((sum, plot) => sum + plot.area, 0);
 
-            // We need to get the area for each selected plot from the shapefile data or farm data
-            // Let's use the farm document data since we already fetched it or can fetch it
-            const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
-            const farmData = farmDoc.exists ? farmDoc.data() : null;
+            const maxItemsPerColumn = 20;
+            const numColumns = Math.ceil(plotData.length / maxItemsPerColumn);
+            const columnWidth = listWidth / numColumns;
+            const rowHeight = 12;
 
-            let totalSelectedArea = 0;
+            for (let i = 0; i < numColumns; i++) {
+                const startIdx = i * maxItemsPerColumn;
+                const endIdx = startIdx + maxItemsPerColumn;
+                const columnPlots = plotData.slice(startIdx, endIdx);
 
-            if (farmData && farmData.talhoes) {
-                const selectedTalhoes = farmData.talhoes.filter(t => osData.selectedPlots.includes(t.name)); // Assuming names match
+                let colX = listX + (i * columnWidth);
+                let colY = currentListY;
 
-                // Filter out talhoes that might have been passed but not found (or match logic)
-                // And map to what we need
+                // Header da coluna
+                doc.font('Helvetica-Bold').fontSize(8);
+                doc.text('Talhão', colX, colY, { width: columnWidth * 0.6 });
+                doc.text('Área (ha)', colX + columnWidth * 0.6, colY, { width: columnWidth * 0.4, align: 'right' });
+                colY += rowHeight;
+                doc.moveTo(colX, colY - 2).lineTo(colX + columnWidth - 5, colY - 2).strokeColor('#aaaaaa').stroke();
 
-                for (const plotName of osData.selectedPlots) {
-                    const talhao = farmData.talhoes.find(t => String(t.name).toUpperCase() === String(plotName).toUpperCase());
-                    const area = talhao ? talhao.area : 0;
-                    totalSelectedArea += area;
 
-                    if (currentListY > doc.page.height - 50) {
-                        // Simple pagination for list if needed, though layout implies single page mostly
-                        // For now, just stop or overlay (robustness improvement possible)
-                    }
-
-                    doc.font('Helvetica').text(plotName, listX + 5, currentListY + 3);
-                    doc.text(formatNumber(area), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
-
-                    // Draw line
-                    doc.moveTo(listX, currentListY + 15).lineTo(listX + listWidth, currentListY + 15).strokeColor('#eee').stroke();
-
-                    currentListY += 15;
-                }
+                doc.font('Helvetica').fontSize(8);
+                columnPlots.forEach((plot) => {
+                    doc.text(plot.name, colX, colY, { width: columnWidth * 0.6 });
+                    doc.text(formatNumber(plot.area), colX + columnWidth * 0.6, colY, { width: columnWidth * 0.4, align: 'right' });
+                    colY += rowHeight;
+                });
             }
 
-            // Total Row
-            currentListY += 5;
-            doc.font('Helvetica-Bold').text('TOTAL', listX + 5, currentListY + 3);
-            doc.text(formatNumber(totalSelectedArea), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
+            // Linha do Total Geral
+            const totalY = contentStartY + (maxItemsPerColumn + 2) * rowHeight;
+            doc.moveTo(listX, totalY).lineTo(listX + listWidth, totalY).strokeColor('#000000').stroke();
+            doc.font('Helvetica-Bold').fontSize(9);
+            doc.text('TOTAL ÁREA:', listX, totalY + 5);
+            doc.text(formatNumber(totalSelectedArea), listX, totalY + 5, { width: listWidth, align: 'right' });
 
 
-            generatePdfFooter(doc, generatedBy || osData.createdBy);
+            generatePdfFooter(doc, generatedBy || createdBy);
             doc.end();
 
         } catch (error) {
-            console.error("Erro ao gerar PDF da O.S.:", error);
+            console.error("Erro ao criar Ordem de Serviço e PDF:", error);
+            // Se um erro ocorrer, envie uma resposta de erro JSON
             if (!res.headersSent) {
-                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
-            } else {
-                doc.end();
+                res.status(500).json({ message: `Erro no servidor ao criar O.S. e PDF: ${error.message}` });
             }
         }
     });

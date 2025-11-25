@@ -252,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnGenerate: document.getElementById('btnGenerateOS'),
                 mapContainer: document.getElementById('os-map'),
                 btnCenterMap: document.getElementById('btnCenterOSMap'),
+                btnToggleMap: document.getElementById('btnToggleOsMap'),
             },
             welcomeModal: {
                 overlay: document.getElementById('welcomeModal'),
@@ -1962,7 +1963,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'cadastrarPessoas') this.renderPersonnelList();
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'ordemServicoManual') {
+                    // Inicializa a lógica do formulário e, em seguida, o mapa.
                     App.osManual.init();
+                    // O mapa só é inicializado na primeira vez que a aba é aberta.
+                    // A chamada de resize garante que ele renderize corretamente se a janela mudou.
+                    setTimeout(() => App.osManual.initMap(), 100);
                 }
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
@@ -9471,6 +9476,348 @@ document.addEventListener('DOMContentLoaded', () => {
 
             searchFarmOnMap() {
                 const searchInput = App.elements.monitoramentoAereo.mapFarmSearchInput;
+        },
+
+        osManual: {
+            init() {
+                this.populateFarmSelect();
+                this.setupEventListeners();
+                // Initialize map only when needed, deferred to when the tab is active
+            },
+
+            setupEventListeners() {
+                const els = App.elements.osManual;
+                if (!els.farmSelect) return;
+
+                // Use a guard to prevent multiple listeners
+                if (this.listenersAttached) return;
+
+                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+                els.btnGenerate.addEventListener('click', () => this.generateOS());
+
+                if (els.btnCenterMap) {
+                    els.btnCenterMap.addEventListener('click', () => {
+                        const farmId = els.farmSelect.value;
+                        if (farmId && App.state.osMap) {
+                            const farm = App.state.fazendas.find(f => f.id === farmId);
+                            if (farm) this.zoomToFarm(farm.code);
+                        }
+                    });
+                }
+
+                if (els.btnToggleMap) {
+                    els.btnToggleMap.addEventListener('click', () => {
+                        const osManualContainer = document.getElementById('osManual');
+                        osManualContainer.classList.toggle('map-visible');
+
+                        // Mudar o texto do botão
+                        const isMapVisible = osManualContainer.classList.contains('map-visible');
+                        els.btnToggleMap.textContent = isMapVisible ? 'Ocultar Mapa' : 'Exibir Mapa';
+
+                        // Resize map after animation
+                        setTimeout(() => {
+                            if (App.state.osMap) App.state.osMap.resize();
+                        }, 300);
+                    });
+                }
+
+                this.listenersAttached = true;
+            },
+
+            initMap() {
+                if (App.state.osMap) {
+                    setTimeout(() => {
+                        App.state.osMap.resize();
+                        this.handleFarmChange(); // Re-apply filter and zoom when returning to tab
+                    }, 200);
+                    return;
+                }
+
+                const mapContainer = App.elements.osManual.mapContainer;
+                if (!mapContainer) return;
+
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+
+                App.state.osMap = new mapboxgl.Map({
+                    container: mapContainer,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-48.45, -21.17],
+                    zoom: 10,
+                    attributionControl: false
+                });
+
+                const map = App.state.osMap;
+
+                map.on('load', () => {
+                    this.loadShapes();
+                    const farmId = App.elements.osManual.farmSelect.value;
+                    if (farmId) {
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
+                        if (farm) {
+                            this.filterMap(farm.code);
+                            this.zoomToFarm(farm.code);
+                        }
+                    }
+                });
+
+                map.on('click', 'os-talhoes-layer', (e) => {
+                    if (e.features.length > 0) {
+                        const feature = e.features[0];
+                        this.togglePlotSelection(feature, true);
+                    }
+                });
+
+                let hoveredFeatureId = null;
+                map.on('mousemove', 'os-talhoes-layer', (e) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    if (e.features.length > 0) {
+                        if (hoveredFeatureId !== null && hoveredFeatureId !== e.features[0].id) {
+                            map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        }
+                        hoveredFeatureId = e.features[0].id;
+                        map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: true });
+                    }
+                });
+
+                map.on('mouseleave', 'os-talhoes-layer', () => {
+                    map.getCanvas().style.cursor = '';
+                    if (hoveredFeatureId !== null) {
+                        map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        hoveredFeatureId = null;
+                    }
+                });
+            },
+
+            loadShapes() {
+                const map = App.state.osMap;
+                if (!map || !App.state.geoJsonData) return;
+
+                const sourceId = 'os-talhoes-source';
+
+                if (map.getSource(sourceId)) {
+                    map.getSource(sourceId).setData(App.state.geoJsonData);
+                } else {
+                    map.addSource(sourceId, { type: 'geojson', data: App.state.geoJsonData, generateId: true });
+                    map.addLayer({
+                        id: 'os-talhoes-layer', type: 'fill', source: sourceId,
+                        paint: {
+                            'fill-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#007bff',
+                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
+                                '#1C1C1C'
+                            ],
+                            'fill-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 0.7, 0.5]
+                        }
+                    });
+                    map.addLayer({
+                        id: 'os-talhoes-border-layer', type: 'line', source: sourceId,
+                        paint: { 'line-color': '#FFFFFF', 'line-width': 1.5, 'line-opacity': 0.8 }
+                    });
+                    map.addLayer({
+                        id: 'os-talhoes-labels', type: 'symbol', source: sourceId, minzoom: 13,
+                        layout: {
+                            'text-field': ['get', 'AGV_TALHAO'],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 14,
+                            'text-allow-overlap': true,
+                            'text-ignore-placement': true
+                        },
+                        paint: { 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 2 }
+                    });
+                }
+            },
+
+            populateFarmSelect() {
+                const select = App.elements.osManual.farmSelect;
+                if (!select) return;
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Selecione uma fazenda...</option>';
+                App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
+                    select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
+                });
+                select.value = currentValue;
+            },
+
+            handleFarmChange() {
+                const farmId = App.elements.osManual.farmSelect.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                App.state.osSelectedPlots.clear();
+                this.updateTotalArea();
+
+                if (farm) {
+                    this.renderPlotsList(farm.talhoes);
+                    if (App.state.osMap && App.state.osMap.isStyleLoaded()) {
+                        this.filterMap(farm.code);
+                        this.zoomToFarm(farm.code);
+                    }
+                } else {
+                    App.elements.osManual.plotsList.innerHTML = '<p class="empty-list-message">Selecione uma fazenda para ver os talhões.</p>';
+                    if (App.state.osMap && App.state.osMap.getLayer('os-talhoes-layer')) {
+                        const nullFilter = ['==', ['get', 'AGV_FUNDO'], ''];
+                        App.state.osMap.setFilter('os-talhoes-layer', nullFilter);
+                        App.state.osMap.setFilter('os-talhoes-border-layer', nullFilter);
+                        App.state.osMap.setFilter('os-talhoes-labels', nullFilter);
+                    }
+                }
+            },
+
+            renderPlotsList(talhoes) {
+                const listContainer = App.elements.osManual.plotsList;
+                listContainer.innerHTML = '';
+
+                if (!talhoes || talhoes.length === 0) {
+                    listContainer.innerHTML = '<p class="empty-list-message">Nenhum talhão encontrado.</p>';
+                    return;
+                }
+
+                talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
+                    const item = document.createElement('div');
+                    item.className = 'os-plot-item';
+                    item.innerHTML = `
+                        <input type="checkbox" id="os-plot-${talhao.id}" data-id="${talhao.id}" data-name="${talhao.name}" data-area="${talhao.area}">
+                        <label for="os-plot-${talhao.id}">
+                            <strong>${talhao.name}</strong>
+                            <span>${talhao.area.toFixed(2).replace('.',',')} ha</span>
+                        </label>
+                    `;
+                    const checkbox = item.querySelector('input');
+                    checkbox.addEventListener('change', (e) => this.togglePlotSelectionFromList(talhao, e.target.checked));
+                    listContainer.appendChild(item);
+                });
+            },
+
+            filterMap(farmCode) {
+                const map = App.state.osMap;
+                if (!map || !map.getLayer('os-talhoes-layer')) return;
+                const filter = ['==', ['get', 'AGV_FUNDO'], String(farmCode)];
+                map.setFilter('os-talhoes-layer', filter);
+                map.setFilter('os-talhoes-border-layer', filter);
+                map.setFilter('os-talhoes-labels', filter);
+            },
+
+            zoomToFarm(farmCode) {
+                const map = App.state.osMap;
+                if (!map || !App.state.geoJsonData) return;
+                const features = App.state.geoJsonData.features.filter(f => String(f.properties.AGV_FUNDO) === String(farmCode));
+                if (features.length > 0) {
+                    const collection = turf.featureCollection(features);
+                    const bbox = turf.bbox(collection);
+                    map.fitBounds(bbox, { padding: 40, duration: 1000 });
+                }
+            },
+
+            togglePlotSelection(feature, fromMap) {
+                const talhaoName = feature.properties.AGV_TALHAO;
+                const farmCode = feature.properties.AGV_FUNDO;
+                const farm = App.state.fazendas.find(f => String(f.code) === String(farmCode));
+                if (!farm) return;
+                const talhao = farm.talhoes.find(t => t.name === talhaoName);
+                if (!talhao) return;
+
+                const checkbox = document.getElementById(`os-plot-${talhao.id}`);
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    this.togglePlotSelectionFromList(talhao, checkbox.checked);
+                }
+            },
+
+            togglePlotSelectionFromList(talhao, isChecked) {
+                if (isChecked) App.state.osSelectedPlots.add(talhao.id);
+                else App.state.osSelectedPlots.delete(talhao.id);
+
+                if (App.state.osMap && App.state.osMap.isStyleLoaded() && App.state.geoJsonData) {
+                    const feature = App.state.geoJsonData.features.find(f =>
+                        f.properties.AGV_TALHAO === talhao.name &&
+                        String(f.properties.AGV_FUNDO) === String(App.state.fazendas.find(farm => farm.id === App.elements.osManual.farmSelect.value).code)
+                    );
+                    if (feature) {
+                        App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
+                    }
+                }
+                this.updateTotalArea();
+            },
+
+            updateTotalArea() {
+                const farmId = App.elements.osManual.farmSelect.value;
+                if (!farmId) { App.elements.osManual.totalArea.textContent = '0,00 ha'; return; }
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm) return;
+                let total = 0;
+                App.state.osSelectedPlots.forEach(id => {
+                    const t = farm.talhoes.find(plot => plot.id === id);
+                    if (t) total += t.area;
+                });
+                App.elements.osManual.totalArea.textContent = `${total.toFixed(2).replace('.',',')} ha`;
+            },
+
+            async generateOS() {
+                const { farmSelect, serviceType, responsible, observations } = App.elements.osManual;
+
+                if (!farmSelect.value || !serviceType.value) {
+                    App.ui.showAlert("Selecione uma fazenda e o tipo de serviço.", "error"); return;
+                }
+                if (App.state.osSelectedPlots.size === 0) {
+                    App.ui.showAlert("Selecione pelo menos um talhão.", "error"); return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
+                const selectedPlotsData = [];
+                let totalArea = 0;
+
+                App.state.osSelectedPlots.forEach(id => {
+                    const t = farm.talhoes.find(plot => plot.id === id);
+                    if (t) { selectedPlotsData.push(t.name); totalArea += t.area; }
+                });
+
+                const osData = {
+                    companyId: App.state.currentUser.companyId,
+                    generatedBy: App.state.currentUser.username,
+                    farmId: farm.id, farmName: farm.name, farmCode: farm.code,
+                    serviceType: serviceType.value, responsible: responsible.value,
+                    observations: observations.value, selectedPlots: selectedPlotsData,
+                    totalArea: totalArea, createdAt: new Date().toISOString()
+                };
+
+                App.ui.setLoading(true, "A gerar Ordem de Serviço...");
+                const btn = App.elements.osManual.btnGenerate;
+                btn.disabled = true;
+
+                try {
+                    const token = await auth.currentUser.getIdToken();
+                    const response = await fetch(`${App.config.backendUrl}/api/os`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify(osData)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || "Falha ao gerar o PDF da O.S.");
+                    }
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none'; a.href = url;
+                    a.download = `OS_${farm.code}_${new Date().getTime()}.pdf`;
+                    document.body.appendChild(a); a.click();
+                    window.URL.revokeObjectURL(url); a.remove();
+
+                    App.ui.showAlert("Ordem de Serviço gerada com sucesso!", "success");
+
+                    serviceType.value = ''; responsible.value = ''; observations.value = '';
+                    App.state.osSelectedPlots.clear();
+                    this.handleFarmChange(); // Refresh view
+                } catch (error) {
+                    console.error("Erro ao gerar OS:", error);
+                    App.ui.showAlert(`Erro ao gerar O.S.: ${error.message}`, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                    btn.disabled = false;
+                }
+            }
                 const searchTerm = searchInput.value.trim().toUpperCase();
                 if (!searchTerm) {
                     this.closeSearch();
@@ -9533,7 +9880,7 @@ document.addEventListener('DOMContentLoaded', () => {
             init() {
                 this.populateFarmSelect();
                 this.setupEventListeners();
-                this.initMap();
+                // Initialize map only when needed, deferred to when the tab is active
             },
 
             setupEventListeners() {
@@ -9628,6 +9975,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const labelLayerId = 'os-talhoes-labels';
 
                 if (map.getSource(sourceId)) {
+                    // Se a fonte já existe, apenas atualiza os dados
                     map.getSource(sourceId).setData(App.state.geoJsonData);
                 } else {
                     map.addSource(sourceId, {
@@ -9635,11 +9983,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         data: App.state.geoJsonData,
                         generateId: true
                     });
-                }
 
-                const themeColors = App.ui._getThemeColors();
-
-                if (!map.getLayer(layerId)) {
                     map.addLayer({
                         id: layerId,
                         type: 'fill',
@@ -9647,65 +9991,47 @@ document.addEventListener('DOMContentLoaded', () => {
                         paint: {
                             'fill-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
+                                ['boolean', ['feature-state', 'selected'], false], '#007bff', // Blue for selected
                                 ['boolean', ['feature-state', 'hover'], false], '#607D8B',
-                                '#1C1C1C'
+                                '#1C1C1C' // Default dark grey
                             ],
                             'fill-opacity': [
                                 'case',
-                                ['boolean', ['feature-state', 'selected'], false], 0.9,
-                                ['boolean', ['feature-state', 'hover'], false], 0.8,
-                                0.7
+                                ['boolean', ['feature-state', 'selected'], false], 0.7,
+                                0.5
                             ]
                         }
                     });
-                }
 
-                if (!map.getLayer(labelLayerId)) {
                     map.addLayer({
-                        id: labelLayerId,
-                        type: 'symbol',
-                        source: sourceId,
-                        minzoom: 10,
-                        layout: {
-                            'symbol-placement': 'point',
-                            'text-field': [
-                                'format',
-                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 },
-                                '\n', {},
-                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
-                            ],
-                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                            'text-size': 14,
-                            'text-ignore-placement': true,
-                            'text-allow-overlap': true,
-                            'text-pitch-alignment': 'viewport',
-                        },
-                        paint: {
-                            'text-color': '#FFFFFF',
-                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
-                            'text-halo-width': 2
-                        }
-                    });
-                }
-
-                if (!map.getLayer(borderLayerId)) {
-                     map.addLayer({
                         id: borderLayerId,
                         type: 'line',
                         source: sourceId,
                         paint: {
-                            'line-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF',
-                                '#FFFFFF'
-                            ],
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 3,
-                                1.5
-                            ],
-                            'line-opacity': 0.9
+                            'line-color': '#FFFFFF',
+                            'line-width': 1.5,
+                            'line-opacity': 0.8
+                        }
+                    });
+
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 12,
+                        layout: {
+                            'text-field': ['get', 'AGV_TALHAO'],
+                            'text-font': ['Open Sans Bold'],
+                            'text-size': 12,
+                            'text-offset': [0, 0.6],
+                            'text-anchor': 'top',
+                            'text-allow-overlap': false,
+                            'text-ignore-placement': true
+                        },
+                        paint: {
+                            'text-color': '#ffffff',
+                            'text-halo-color': '#000000',
+                            'text-halo-width': 2
                         }
                     });
                 }
@@ -9974,6 +10300,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
+                    a.remove();
 
                     App.ui.showAlert("Ordem de Serviço gerada com sucesso!", "success");
 
