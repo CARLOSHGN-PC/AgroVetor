@@ -3248,26 +3248,50 @@ try {
         }
 
         try {
-            const osData = {
-                companyId,
-                farmId,
-                farmName,
-                selectedPlots, // Array of plot names or IDs
-                totalArea,
-                serviceType: serviceType || '',
-                responsible: responsible || '',
-                observations: observations || '',
-                createdBy: createdBy || 'Sistema',
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                status: 'Created'
-            };
+            const osRef = db.collection('serviceOrders').doc();
+            const counterRef = db.collection('osCounters').doc(companyId);
 
-            const docRef = await db.collection('serviceOrders').add(osData);
-            res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: docRef.id });
+            const newId = await db.runTransaction(async (transaction) => {
+                const counterDoc = await transaction.get(counterRef);
+
+                const year = new Date().getFullYear();
+                let newCount;
+
+                if (!counterDoc.exists || counterDoc.data().year !== year) {
+                    // Se o contador não existe ou o ano mudou, reinicia a contagem para o novo ano
+                    newCount = 1;
+                    transaction.set(counterRef, { count: newCount, year: year });
+                } else {
+                    newCount = counterDoc.data().count + 1;
+                    transaction.update(counterRef, { count: newCount });
+                }
+
+                const sequentialId = `OS-${year}-${String(newCount).padStart(3, '0')}`;
+
+                const osData = {
+                    companyId,
+                    farmId,
+                    farmName,
+                    selectedPlots,
+                    totalArea,
+                    serviceType: serviceType || '',
+                    responsible: responsible || '',
+                    observations: observations || '',
+                    createdBy: createdBy || 'Sistema',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    status: 'Created',
+                    sequentialId: sequentialId // Adiciona o ID sequencial
+                };
+
+                transaction.set(osRef, osData);
+                return osRef.id;
+            });
+
+            res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: newId });
 
         } catch (error) {
-            console.error("Erro ao criar Ordem de Serviço:", error);
-            res.status(500).json({ message: 'Erro no servidor ao criar O.S.' });
+            console.error("Erro ao criar Ordem de Serviço com ID sequencial:", error);
+            res.status(500).json({ message: 'Erro no servidor ao criar O.S. sequencial.' });
         }
     });
 
@@ -3306,7 +3330,7 @@ try {
 
             // --- Header Info Block ---
             // Display OS ID at the top right
-            doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osId}`, { align: 'right' });
+            doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osData.sequentialId || osId}`, { align: 'right' });
 
             doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${osData.farmName}`, { align: 'left' });
             doc.moveDown(0.5);

@@ -9726,7 +9726,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farmId = App.elements.osManual.farmSelect.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
 
-                App.state.osSelectedPlots.clear(); // Clear selections on farm change
+                // Limpa o estado visual do mapa antes de qualquer outra coisa
+                if (App.state.osMap && App.state.osMap.isStyleLoaded() && App.state.geoJsonData) {
+                    App.state.geoJsonData.features.forEach(feature => {
+                        if (feature.id !== undefined) {
+                            App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                        }
+                    });
+                }
+
+                App.state.osSelectedPlots.clear(); // Limpa o estado dos dados
                 this.updateTotalArea();
 
                 if (farm) {
@@ -9968,22 +9977,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.ui.showAlert("Ordem de Serviço gerada com sucesso!", "success");
 
-                    // Clear form
+                    // Reset do formulário completo
+                    farmSelect.value = '';
                     serviceType.value = '';
                     responsible.value = '';
                     observations.value = '';
-
-                    // Limpa todas as seleções no mapa
-                    if (App.state.osMap && App.state.geoJsonData) {
-                        App.state.geoJsonData.features.forEach(feature => {
-                            if(feature.id !== undefined) {
-                                App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
-                            }
-                        });
-                    }
-
-                    App.state.osSelectedPlots.clear();
-                    this.handleFarmChange(); // Refresh view for the same farm
+                    this.handleFarmChange(); // Isso vai limpar a lista e o mapa
 
                 } catch (error) {
                     console.error("Erro ao gerar OS:", error);
