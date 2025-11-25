@@ -3335,17 +3335,30 @@ try {
 
             // Draw Map
             if (geojsonData) {
+                // Filter features for this farm
+                // Assuming osData.farmId corresponds to the farm code in the shapefile (normalized)
+                // We need to find the farm code in the OS data.
+                // Ideally frontend sends farm code. Let's assume farmId is the document ID,
+                // but we need the code to match the shapefile.
+                // We can fetch the farm doc to get the code if needed, or assume frontend passed it.
+                // Let's fetch the farm doc to be safe if farmId is not the code.
+                // Actually, let's assume we filter by farm name or code derived from osData.
+
+                // Fetch farm code if we only have ID
                 let farmCode = null;
                 const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
                 if (farmDoc.exists) {
                     farmCode = farmDoc.data().code;
                 }
 
+                // Usando a mesma lógica de filtro do Relatório de Risco para garantir consistência
                 const farmFeatures = geojsonData.features.filter(f => {
                     if (!f.properties) return false;
-                    // Use the helper function to check for multiple possible keys, including AGV_FUNDO
-                    const featureFarmCode = findShapefileProp(f.properties, ['FUNDO_AGR', 'AGV_FUNDO', 'COD_FAZENDA', 'CD_FAZENDA']);
-                    return featureFarmCode && parseInt(String(featureFarmCode).trim(), 10) === parseInt(String(farmCode).trim(), 10);
+                    const propKeys = Object.keys(f.properties);
+                    const codeKey = propKeys.find(k => k.toLowerCase() === 'fundo_agr');
+                    if (!codeKey) return false;
+                    const featureFarmCode = f.properties[codeKey];
+                    return featureFarmCode && parseInt(featureFarmCode, 10) === parseInt(farmCode, 10);
                 });
 
                 if (farmFeatures.length > 0) {
@@ -3354,132 +3367,43 @@ try {
                         minX: Math.min(...allCoords.map(c => c[0])), maxX: Math.max(...allCoords.map(c => c[0])),
                         minY: Math.min(...allCoords.map(c => c[1])), maxY: Math.max(...allCoords.map(c => c[1])),
                     };
+                    const scaleX = mapWidth / (bbox.maxX - bbox.minX);
+                    const scaleY = mapHeight / (bbox.maxY - bbox.minY);
+                    const scale = Math.min(scaleX, scaleY) * 0.95;
+                    const offsetX = mapX + (mapWidth - (bbox.maxX - bbox.minX) * scale) / 2;
+                    const offsetY = mapY + (mapHeight - (bbox.maxY - bbox.minY) * scale) / 2;
 
-                    // Fetch and draw Mapbox Static Satellite Image
-                    try {
-                        // Mapbox access token (Reused from frontend context)
-                        const mapboxToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+                    const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
 
-                        // 1. Convert bbox to Web Mercator for precise image request if needed,
-                        // but Mapbox Static API supports [minx,miny,maxx,maxy] in WGS84 directly.
-                        // We request an image that fits the bbox.
-                        // To ensure high resolution, we request a larger image and scale it down.
-                        // We must maintain aspect ratio to avoid distortion.
+                    doc.save();
+                    doc.lineWidth(0.5).strokeColor('#555');
 
-                        const bboxWidth = bbox.maxX - bbox.minX;
-                        const bboxHeight = bbox.maxY - bbox.minY;
-                        const aspectRatio = bboxWidth / bboxHeight;
+                    // Draw all farm plots first
+                    farmFeatures.forEach(feature => {
+                        // Usando as mesmas propriedades do Relatório de Risco
+                        const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
 
-                        let imgWidth, imgHeight;
-                        const MAX_DIM = 1280;
+                        // Check if this plot is selected
+                        const isSelected = osData.selectedPlots.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
 
-                        if (aspectRatio > 1) {
-                            imgWidth = MAX_DIM;
-                            imgHeight = Math.round(MAX_DIM / aspectRatio);
-                        } else {
-                            imgHeight = MAX_DIM;
-                            imgWidth = Math.round(MAX_DIM * aspectRatio);
-                        }
+                        const fillColor = isSelected ? '#4caf50' : '#e0e0e0'; // Green if selected, grey if not
+                        const strokeColor = isSelected ? '#2e7d32' : '#9e9e9e';
 
-                        // Mapbox Static Image URL with padding=0 to fit exactly (logic implied by auto fitting)
-                        // Actually, Mapbox adds padding by default with 'auto'.
-                        // To get exact bounds, we can't easily use 'auto' without knowing the exact padding logic.
-                        // However, for visual context, 'auto' on the bbox is usually good enough if we draw vectors relative to the PDF box.
-                        // PROBLEM: If we draw vectors using our own scaling logic on top of a Mapbox image that used *its* scaling logic, they might misalign.
-                        // SOLUTION: We will use a transparent vector layer if possible? No, pdfkit draws paths.
-                        // BEST EFFORT: We will define the map area in PDF based on the fetched image's aspect ratio.
+                        doc.fillColor(fillColor);
+                        doc.strokeColor(strokeColor);
 
-                        const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/[${bbox.minX},${bbox.minY},${bbox.maxX},${bbox.maxY}]/${imgWidth}x${imgHeight}?access_token=${mapboxToken}&padding=0`;
-
-                        const imageResponse = await axios.get(mapUrl, { responseType: 'arraybuffer' });
-                        const mapImage = Buffer.from(imageResponse.data, 'binary');
-
-                        // Adjust mapHeight in PDF to match image aspect ratio to prevent distortion
-                        // mapWidth is fixed (60% of page).
-                        const displayHeight = mapWidth / (imgWidth / imgHeight);
-                        // Ensure it fits in available height
-                        const finalMapHeight = Math.min(displayHeight, availableHeight);
-                        const finalMapWidth = finalMapHeight * (imgWidth / imgHeight);
-
-                        doc.image(mapImage, mapX, mapY, { width: finalMapWidth, height: finalMapHeight });
-
-                        // Now draw vectors on top.
-                        // Coordinate transform must map bbox [minX..maxX] to [mapX..mapX+finalMapWidth]
-                        // And [minY..maxY] to [mapY+finalMapHeight..mapY] (Y is flipped in PDF usually, but latitude grows up)
-
-                        const scaleX = finalMapWidth / (bbox.maxX - bbox.minX);
-                        const scaleY = finalMapHeight / (bbox.maxY - bbox.minY);
-
-                        // We use the PDF's coordinate system.
-                        // PDF: (0,0) is top-left.
-                        // Mapbox Image: Top-left corresponds to (minX, maxY).
-                        // So x = (lon - minX) * scaleX + mapX
-                        //    y = (maxY - lat) * scaleY + mapY
-
-                        const transformCoord = (coord) => [
-                            (coord[0] - bbox.minX) * scaleX + mapX,
-                            (bbox.maxY - coord[1]) * scaleY + mapY
-                        ];
-
-                        doc.save();
-
-                        // Draw features
-                        farmFeatures.forEach(feature => {
-                            const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO', 'AGV_TALHAO']) || 'N/A';
-                            const isSelected = osData.selectedPlots.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
-
-                            // Use transparency for fill so satellite shows through
-                            const fillColor = isSelected ? '#4caf50' : '#ffffff';
-                            const fillOpacity = isSelected ? 0.5 : 0.1;
-                            const strokeColor = isSelected ? '#2e7d32' : '#ffffff';
-                            const strokeWidth = isSelected ? 2 : 1;
-
-                            doc.fillColor(fillColor, fillOpacity);
-                            doc.strokeColor(strokeColor);
-                            doc.lineWidth(strokeWidth);
-
-                            const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
-                            let centerPoint = [0, 0];
-                            let pointCount = 0;
-
-                            polygons.forEach(polygon => {
-                                const path = polygon[0];
-                                if (path.length === 0) return;
-
-                                const firstPoint = transformCoord(path[0]);
-                                doc.moveTo(firstPoint[0], firstPoint[1]);
-
-                                path.forEach(pt => {
-                                    const tPt = transformCoord(pt);
-                                    doc.lineTo(tPt[0], tPt[1]);
-                                    centerPoint[0] += tPt[0];
-                                    centerPoint[1] += tPt[1];
-                                    pointCount++;
-                                });
-                                doc.fillAndStroke();
-                            });
-
-                            // Draw Label
-                            if (pointCount > 0) {
-                                const centerX = centerPoint[0] / pointCount;
-                                const centerY = centerPoint[1] / pointCount;
-
-                                doc.fontSize(8).font('Helvetica-Bold');
-                                const textWidth = doc.widthOfString(talhaoNome);
-                                const textHeight = doc.currentLineHeight();
-
-                                // Optional: Draw a small box behind text for readability
-                                doc.fillColor('black', 0.6).rect(centerX - textWidth/2 - 1, centerY - textHeight/2 - 1, textWidth + 2, textHeight + 2).fill();
-                                doc.fillColor('white', 1).text(talhaoNome, centerX - textWidth/2, centerY - textHeight/2);
-                            }
+                        const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+                        polygons.forEach(polygon => {
+                            const path = polygon[0];
+                            const firstPoint = transformCoord(path[0]);
+                            doc.moveTo(firstPoint[0], firstPoint[1]);
+                            for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
+                            doc.fillAndStroke();
                         });
-                        doc.restore();
 
-                    } catch (mapError) {
-                        console.error("Erro ao buscar imagem de satélite:", mapError);
-                        doc.text('Imagem de satélite indisponível.', mapX, mapY);
-                    }
-
+                        // Opcional: Desenhar labels se necessário, similar ao risco
+                    });
+                    doc.restore();
                 } else {
                     doc.text('Geometria da fazenda não encontrada no shapefile.', mapX, mapY);
                 }
@@ -3487,76 +3411,58 @@ try {
                 doc.text('Shapefile não disponível.', mapX, mapY);
             }
 
-            // Draw List - Multi-column layout to fit single page
+            // Draw List
             let currentListY = contentStartY;
-            const listAreaWidth = listWidth;
-
             doc.fontSize(10).font('Helvetica-Bold').text('Talhões Selecionados', listX, currentListY);
             currentListY += 15;
 
+            const headers = ['Talhão', 'Área (ha)'];
+            const colWidths = [listWidth * 0.6, listWidth * 0.4];
+
+            doc.fontSize(9);
+            doc.rect(listX, currentListY, listWidth, 15).fillAndStroke('#eee', '#ccc');
+            doc.fillColor('black');
+            doc.text(headers[0], listX + 5, currentListY + 3);
+            doc.text(headers[1], listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
+            currentListY += 15;
+
+            // We need to get the area for each selected plot from the shapefile data or farm data
+            // Let's use the farm document data since we already fetched it or can fetch it
             const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
             const farmData = farmDoc.exists ? farmDoc.data() : null;
 
             let totalSelectedArea = 0;
-            const selectedPlotsDetails = [];
 
             if (farmData && farmData.talhoes) {
+                const selectedTalhoes = farmData.talhoes.filter(t => osData.selectedPlots.includes(t.name)); // Assuming names match
+
+                // Filter out talhoes that might have been passed but not found (or match logic)
+                // And map to what we need
+
                 for (const plotName of osData.selectedPlots) {
                     const talhao = farmData.talhoes.find(t => String(t.name).toUpperCase() === String(plotName).toUpperCase());
                     const area = talhao ? talhao.area : 0;
                     totalSelectedArea += area;
-                    selectedPlotsDetails.push({ name: plotName, area: area });
+
+                    if (currentListY > doc.page.height - 50) {
+                        // Simple pagination for list if needed, though layout implies single page mostly
+                        // For now, just stop or overlay (robustness improvement possible)
+                    }
+
+                    doc.font('Helvetica').text(plotName, listX + 5, currentListY + 3);
+                    doc.text(formatNumber(area), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
+
+                    // Draw line
+                    doc.moveTo(listX, currentListY + 15).lineTo(listX + listWidth, currentListY + 15).strokeColor('#eee').stroke();
+
+                    currentListY += 15;
                 }
             }
 
-            // Sort for display
-            selectedPlotsDetails.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-
-            // Calculate layout
-            const rowHeightList = 14;
-            const availableListHeight = availableHeight - 40; // Reserve space for header/total
-            const maxItemsPerColumn = Math.floor(availableListHeight / rowHeightList);
-            const requiredColumns = Math.ceil(selectedPlotsDetails.length / maxItemsPerColumn);
-
-            // Adjust column width based on required columns
-            // Max 3 columns to remain readable
-            const numCols = Math.min(requiredColumns, 3);
-            const colWidth = listAreaWidth / numCols;
-            const colGutter = 5;
-
-            doc.fontSize(8).font('Helvetica');
-
-            let colIndex = 0;
-            let rowIndex = 0;
-
-            for (const plot of selectedPlotsDetails) {
-                if (rowIndex >= maxItemsPerColumn) {
-                    colIndex++;
-                    rowIndex = 0;
-                }
-
-                if (colIndex >= numCols) break; // Stop if we run out of space (should handle gracefully ideally)
-
-                const xPos = listX + (colIndex * colWidth);
-                const yPos = currentListY + (rowIndex * rowHeightList);
-
-                // Draw row background for readability
-                if (rowIndex % 2 === 0) {
-                    doc.rect(xPos, yPos, colWidth - colGutter, rowHeightList).fillColor('#f9f9f9').fill();
-                }
-
-                doc.fillColor('black');
-                doc.text(plot.name, xPos + 2, yPos + 2, { width: colWidth * 0.6 });
-                doc.text(`${formatNumber(plot.area)} ha`, xPos + (colWidth * 0.6), yPos + 2, { width: (colWidth * 0.4) - 5, align: 'right' });
-
-                rowIndex++;
-            }
-
-            // Total Row (Absolute position at bottom of list area or after list)
-            const totalY = currentListY + Math.min(selectedPlotsDetails.length, maxItemsPerColumn) * rowHeightList + 10;
-            doc.fontSize(10).font('Helvetica-Bold');
-            doc.text('TOTAL:', listX, totalY);
-            doc.text(`${formatNumber(totalSelectedArea)} ha`, listX + listAreaWidth - 60, totalY, { width: 60, align: 'right' });
+            // Total Row
+            currentListY += 5;
+            doc.font('Helvetica-Bold').text('TOTAL', listX + 5, currentListY + 3);
+            doc.text(formatNumber(totalSelectedArea), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
 
 
             generatePdfFooter(doc, generatedBy || osData.createdBy);
