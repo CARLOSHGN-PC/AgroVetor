@@ -3241,10 +3241,10 @@ try {
     // --- ROTAS DE ORDEM DE SERVIÇO (MANUAL) ---
 
     app.post('/api/os', async (req, res) => {
-        const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy } = req.body;
+        const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy, osNumber } = req.body;
 
-        if (!companyId || !farmId || !selectedPlots) {
-            return res.status(400).json({ message: 'Dados incompletos para criar a O.S.' });
+        if (!companyId || !farmId || !selectedPlots || !osNumber) {
+            return res.status(400).json({ message: 'Dados incompletos para criar a O.S., incluindo o número da O.S.' });
         }
 
         try {
@@ -3259,7 +3259,8 @@ try {
                 observations: observations || '',
                 createdBy: createdBy || 'Sistema',
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                status: 'Created'
+                status: 'Created',
+                osNumber: osNumber // Salva o número sequencial
             };
 
             const docRef = await db.collection('serviceOrders').add(osData);
@@ -3268,6 +3269,31 @@ try {
         } catch (error) {
             console.error("Erro ao criar Ordem de Serviço:", error);
             res.status(500).json({ message: 'Erro no servidor ao criar O.S.' });
+        }
+    });
+
+    app.post('/api/os/generate', async (req, res) => {
+        const { companyId } = req.body;
+        if (!companyId) {
+            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
+        }
+
+        const counterRef = db.collection('osCounters').doc(companyId);
+
+        try {
+            const osNumber = await db.runTransaction(async (transaction) => {
+                const counterDoc = await transaction.get(counterRef);
+                let nextOsNumber = 1;
+                if (counterDoc.exists) {
+                    nextOsNumber = counterDoc.data().nextOsNumber;
+                }
+                transaction.set(counterRef, { nextOsNumber: nextOsNumber + 1 });
+                return nextOsNumber;
+            });
+            res.status(200).json({ osNumber });
+        } catch (error) {
+            console.error("Erro ao gerar número da O.S.:", error);
+            res.status(500).json({ message: 'Erro no servidor ao gerar número da O.S.' });
         }
     });
 
@@ -3306,7 +3332,8 @@ try {
 
             // --- Header Info Block ---
             // Display OS ID at the top right
-            doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osId}`, { align: 'right' });
+            const formattedOsNumber = String(osData.osNumber).padStart(2, '0');
+            doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${formattedOsNumber}`, { align: 'right' });
 
             doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${osData.farmName}`, { align: 'left' });
             doc.moveDown(0.5);
