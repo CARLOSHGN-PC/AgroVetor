@@ -9533,7 +9533,7 @@ document.addEventListener('DOMContentLoaded', () => {
             init() {
                 this.populateFarmSelect();
                 this.setupEventListeners();
-                // Initialize map only when needed, deferred to when the tab is active
+                this.initMap();
             },
 
             setupEventListeners() {
@@ -9628,7 +9628,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const labelLayerId = 'os-talhoes-labels';
 
                 if (map.getSource(sourceId)) {
-                    // Se a fonte já existe, apenas atualiza os dados
                     map.getSource(sourceId).setData(App.state.geoJsonData);
                 } else {
                     map.addSource(sourceId, {
@@ -9636,7 +9635,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         data: App.state.geoJsonData,
                         generateId: true
                     });
+                }
 
+                const themeColors = App.ui._getThemeColors();
+
+                if (!map.getLayer(layerId)) {
                     map.addLayer({
                         id: layerId,
                         type: 'fill',
@@ -9644,47 +9647,65 @@ document.addEventListener('DOMContentLoaded', () => {
                         paint: {
                             'fill-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'selected'], false], '#007bff', // Blue for selected
+                                ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
                                 ['boolean', ['feature-state', 'hover'], false], '#607D8B',
-                                '#1C1C1C' // Default dark grey
+                                '#1C1C1C'
                             ],
                             'fill-opacity': [
                                 'case',
-                                ['boolean', ['feature-state', 'selected'], false], 0.7,
-                                0.5
+                                ['boolean', ['feature-state', 'selected'], false], 0.9,
+                                ['boolean', ['feature-state', 'hover'], false], 0.8,
+                                0.7
                             ]
                         }
                     });
+                }
 
-                    map.addLayer({
-                        id: borderLayerId,
-                        type: 'line',
-                        source: sourceId,
-                        paint: {
-                            'line-color': '#FFFFFF',
-                            'line-width': 1.5,
-                            'line-opacity': 0.8
-                        }
-                    });
-
+                if (!map.getLayer(labelLayerId)) {
                     map.addLayer({
                         id: labelLayerId,
                         type: 'symbol',
                         source: sourceId,
-                        minzoom: 12,
+                        minzoom: 10,
                         layout: {
-                            'text-field': ['get', 'AGV_TALHAO'],
-                            'text-font': ['Open Sans Bold'],
-                            'text-size': 12,
-                            'text-offset': [0, 0.6],
-                            'text-anchor': 'top',
-                            'text-allow-overlap': false,
-                            'text-ignore-placement': true
+                            'symbol-placement': 'point',
+                            'text-field': [
+                                'format',
+                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 },
+                                '\n', {},
+                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
+                            ],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 14,
+                            'text-ignore-placement': true,
+                            'text-allow-overlap': true,
+                            'text-pitch-alignment': 'viewport',
                         },
                         paint: {
-                            'text-color': '#ffffff',
-                            'text-halo-color': '#000000',
+                            'text-color': '#FFFFFF',
+                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
                             'text-halo-width': 2
+                        }
+                    });
+                }
+
+                if (!map.getLayer(borderLayerId)) {
+                     map.addLayer({
+                        id: borderLayerId,
+                        type: 'line',
+                        source: sourceId,
+                        paint: {
+                            'line-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF',
+                                '#FFFFFF'
+                            ],
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 3,
+                                1.5
+                            ],
+                            'line-opacity': 0.9
                         }
                     });
                 }
