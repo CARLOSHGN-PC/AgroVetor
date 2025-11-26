@@ -9561,6 +9561,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (els.btnCenterMap) {
                     els.btnCenterMap.addEventListener('click', () => this.toggleMapSize());
                 }
+
+                const mobileToggleButton = document.getElementById('osMobileToggleBtn');
+                if (mobileToggleButton) {
+                    mobileToggleButton.addEventListener('click', (e) => {
+                        const container = document.getElementById('ordemServicoManual');
+                        const isMapView = container.classList.toggle('mobile-map-view');
+                        const button = e.currentTarget;
+
+                        if (isMapView) {
+                            button.innerHTML = '<i class="fas fa-list-alt"></i> Ver Formulário';
+                            if (App.state.osMap) {
+                                setTimeout(() => App.state.osMap.resize(), 10);
+                            }
+                        } else {
+                            button.innerHTML = '<i class="fas fa-map-marked-alt"></i> Ver Mapa';
+                        }
+                    });
+                }
             },
 
             initMap() {

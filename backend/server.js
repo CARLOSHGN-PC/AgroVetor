@@ -3332,8 +3332,10 @@ try {
             // Display OS ID at the top right
             doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osData.sequentialId || osId}`, { align: 'right' });
 
+            // Fetch farm document once to get all necessary data (farmData and farmCode)
             const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
-            const farmCode = farmDoc.exists ? farmDoc.data().code : '';
+            const farmData = farmDoc.exists ? farmDoc.data() : null;
+            const farmCode = farmData ? farmData.code : '';
 
             doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${farmCode} - ${osData.farmName}`, { align: 'left' });
             doc.moveDown(0.5);
@@ -3365,22 +3367,7 @@ try {
 
             // Draw Map
             if (geojsonData) {
-                // Filter features for this farm
-                // Assuming osData.farmId corresponds to the farm code in the shapefile (normalized)
-                // We need to find the farm code in the OS data.
-                // Ideally frontend sends farm code. Let's assume farmId is the document ID,
-                // but we need the code to match the shapefile.
-                // We can fetch the farm doc to get the code if needed, or assume frontend passed it.
-                // Let's fetch the farm doc to be safe if farmId is not the code.
-                // Actually, let's assume we filter by farm name or code derived from osData.
-
-                // Fetch farm code if we only have ID
-                let farmCode = null;
-                const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
-                if (farmDoc.exists) {
-                    farmCode = farmDoc.data().code;
-                }
-
+                // farmCode is now available from the single fetch at the start of the function.
                 // Usando a mesma lógica de filtro do Relatório de Risco para garantir consistência
                 const farmFeatures = geojsonData.features.filter(f => {
                     if (!f.properties) return false;
@@ -3456,11 +3443,7 @@ try {
             doc.text(headers[1], listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
             currentListY += 15;
 
-            // We need to get the area for each selected plot from the shapefile data or farm data
-            // Let's use the farm document data since we already fetched it or can fetch it
-            const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
-            const farmData = farmDoc.exists ? farmDoc.data() : null;
-
+            // The farmData variable is now available from the single fetch at the start of the function.
             let totalSelectedArea = 0;
 
             if (farmData && farmData.talhoes) {
