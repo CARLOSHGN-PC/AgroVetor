@@ -1636,10 +1636,8 @@
 
       /* Estilos para o módulo O.S. Manual */
       #ordemServicoManual .card {
-        width: 40%;
-        min-width: 380px;
-        max-width: 500px;
-        flex-shrink: 0;
+        width: 450px;
+        min-width: 450px;
       }
 
       .os-plot-item {
@@ -1679,48 +1677,6 @@
           padding: 2px 6px;
           border-radius: 4px;
       }
-
-        .mobile-view-toggle {
-            display: none;
-        }
-
-        @media (max-width: 768px) {
-            #ordemServicoManual .mobile-view-toggle {
-                display: block;
-                padding: 10px;
-                background: var(--color-surface);
-                border-bottom: 1px solid var(--color-border);
-            }
-
-            #ordemServicoManual > div:not(.mobile-view-toggle) {
-                flex-direction: column;
-            }
-
-            #ordemServicoManual .card {
-                width: 100%;
-                height: 100%;
-                max-width: none;
-                border-bottom: 1px solid var(--color-border);
-            }
-
-            #os-map-wrapper {
-                width: 100%;
-                height: 100%;
-                flex-grow: 1;
-            }
-
-            #ordemServicoManual.mobile-map-view .card {
-                display: none;
-            }
-
-            #ordemServicoManual > div:not(.mobile-view-toggle) > #os-map-wrapper {
-                display: none;
-            }
-
-            #ordemServicoManual.mobile-map-view #os-map-wrapper {
-                display: block;
-            }
-        }
     </style>
 </head>
 <body>
@@ -2255,60 +2211,56 @@
             </section>
             
             <section id="ordemServicoManual" class="tab-content" aria-label="Ordem de Serviço Manual" tabindex="0" hidden style="padding: 0; height: 100%; overflow: hidden;">
-                <div class="mobile-view-toggle">
-                    <button id="osMobileToggleBtn" class="save" style="width: 100%; margin: 0;"><i class="fas fa-map-marked-alt"></i> Ver Mapa</button>
-                </div>
                 <div style="display: flex; height: 100%;">
+
                     <!-- Sidebar (Formulário e Lista) -->
                     <div class="card" style="margin: 0; display: flex; flex-direction: column; height: 100%; overflow-y: auto; border-left-color: var(--color-info); border-radius: 0;">
-                        <div style="padding: 15px; display: flex; flex-direction: column; height: 100%;">
-                            <h2 style="font-size: 20px; margin-bottom: 15px; color: var(--color-info); flex-shrink: 0;"><i class="fas fa-file-contract"></i> Ordem de Serviço Manual</h2>
+                        <div style="padding: 15px;">
+                            <h2 style="font-size: 20px; margin-bottom: 15px; color: var(--color-info);"><i class="fas fa-file-contract"></i> Ordem de Serviço Manual</h2>
 
-                        <div style="overflow-y: auto; flex-grow: 1; padding-right: 5px;">
-                            <div class="form-col" style="margin-bottom: 15px;">
-                                <label for="osFarmSelect" class="required">Fazenda:</label>
-                                <select id="osFarmSelect" style="width: 100%;"></select>
-                            </div>
-
-                            <div class="form-col" style="margin-bottom: 10px;">
-                                <label for="osServiceType">Tipo de Serviço:</label>
-                                <input type="text" id="osServiceType" placeholder="Ex: Colheita, Plantio">
-                            </div>
-
-                            <div class="form-col" style="margin-bottom: 10px;">
-                                <label for="osResponsible">Responsável:</label>
-                                <input type="text" id="osResponsible" placeholder="Nome do responsável">
-                            </div>
-
-                            <div class="form-col" style="margin-bottom: 15px;">
-                                <label for="osObservations">Observações:</label>
-                                <textarea id="osObservations" placeholder="Instruções..." style="min-height: 60px;"></textarea>
-                            </div>
-
-                            <hr style="margin: 10px 0; border-color: var(--color-border);">
-
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                <h4 style="margin: 0;">Talhões Selecionados</h4>
-                                <span id="osTotalArea" style="font-weight: bold; color: var(--color-primary);">0.00 ha</span>
-                            </div>
-                            <div style="padding-left: 10px; margin-bottom: 10px;">
-                                <input type="checkbox" id="osSelectAllPlots" style="margin-right: 8px; vertical-align: middle; transform: scale(1.2);">
-                                <label for="osSelectAllPlots" style="font-weight: 500; vertical-align: middle; cursor: pointer;">Selecionar Todos os Talhões</label>
-                            </div>
-
-                            <div id="osPlotsList" class="talhao-selection-list" style="flex-grow: 1; min-height: 150px; max-height: none; background: var(--color-bg);">
-                                <p style="text-align: center; color: var(--color-text-light); padding: 20px;">Selecione uma fazenda para carregar os talhões.</p>
-                            </div>
+                        <div class="form-col" style="margin-bottom: 15px;">
+                            <label for="osFarmSelect" class="required">Fazenda:</label>
+                            <select id="osFarmSelect" style="width: 100%;"></select>
                         </div>
 
-                        <button id="btnGenerateOS" class="save" style="margin-top: 15px; width: 100%; max-width: none; flex-shrink: 0;">
+                        <div class="form-col" style="margin-bottom: 10px;">
+                            <label for="osServiceType">Tipo de Serviço:</label>
+                            <input type="text" id="osServiceType" placeholder="Ex: Colheita, Plantio">
+                        </div>
+
+                        <div class="form-col" style="margin-bottom: 10px;">
+                            <label for="osResponsible">Responsável:</label>
+                            <input type="text" id="osResponsible" placeholder="Nome do responsável">
+                        </div>
+
+                        <div class="form-col" style="margin-bottom: 15px;">
+                            <label for="osObservations">Observações:</label>
+                            <textarea id="osObservations" placeholder="Instruções..." style="min-height: 60px;"></textarea>
+                        </div>
+
+                        <hr style="margin: 10px 0; border-color: var(--color-border);">
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                             <h4 style="margin: 0;">Talhões Selecionados</h4>
+                             <span id="osTotalArea" style="font-weight: bold; color: var(--color-primary);">0.00 ha</span>
+                        </div>
+                        <div style="padding-left: 10px; margin-bottom: 10px;">
+                            <input type="checkbox" id="osSelectAllPlots" style="margin-right: 8px; vertical-align: middle; transform: scale(1.2);">
+                            <label for="osSelectAllPlots" style="font-weight: 500; vertical-align: middle; cursor: pointer;">Selecionar Todos os Talhões</label>
+                        </div>
+
+                        <div id="osPlotsList" class="talhao-selection-list" style="flex-grow: 1; max-height: none; overflow-y: auto; background: var(--color-bg);">
+                            <p style="text-align: center; color: var(--color-text-light); padding: 20px;">Selecione uma fazenda para carregar os talhões.</p>
+                        </div>
+
+                        <button id="btnGenerateOS" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
                             <i class="fas fa-file-pdf"></i> Gerar O.S.
                         </button>
                         </div>
                     </div>
 
                     <!-- Mapa -->
-                    <div id="os-map-wrapper" style="flex-grow: 1; position: relative; overflow: hidden;">
+                    <div style="flex-grow: 1; position: relative; overflow: hidden;">
                         <div id="os-map" style="width: 100%; height: 100%;"></div>
                         <div class="map-controls" style="position: absolute; bottom: 20px; right: 20px; left: auto;">
                             <button id="btnCenterOSMap" class="map-control-btn" title="Centralizar Mapa">
