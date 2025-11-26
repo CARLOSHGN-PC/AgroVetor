@@ -9559,7 +9559,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (els.btnCenterMap) {
-                    els.btnCenterMap.addEventListener('click', () => this.toggleMapSize());
+                    els.btnCenterMap.addEventListener('click', () => this.zoomToFarm(App.elements.osManual.farmSelect.options[App.elements.osManual.farmSelect.selectedIndex].text.split(' - ')[0]));
+                }
+                const btnToggleOSPanel = document.getElementById('btnToggleOSPanel');
+                if (btnToggleOSPanel) {
+                    btnToggleOSPanel.addEventListener('click', () => this.toggleMapSize());
                 }
             },
 
