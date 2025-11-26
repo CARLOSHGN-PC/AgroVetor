@@ -3241,59 +3241,57 @@ try {
     // --- ROTAS DE ORDEM DE SERVIÇO (MANUAL) ---
 
     app.post('/api/os', async (req, res) => {
-        const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy, osNumber } = req.body;
+        const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy } = req.body;
 
-        if (!companyId || !farmId || !selectedPlots || !osNumber) {
-            return res.status(400).json({ message: 'Dados incompletos para criar a O.S., incluindo o número da O.S.' });
+        if (!companyId || !farmId || !selectedPlots) {
+            return res.status(400).json({ message: 'Dados incompletos para criar a O.S.' });
         }
 
         try {
-            const osData = {
-                companyId,
-                farmId,
-                farmName,
-                selectedPlots, // Array of plot names or IDs
-                totalArea,
-                serviceType: serviceType || '',
-                responsible: responsible || '',
-                observations: observations || '',
-                createdBy: createdBy || 'Sistema',
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                status: 'Created',
-                osNumber: osNumber // Salva o número sequencial
-            };
+            const osRef = db.collection('serviceOrders').doc();
+            const counterRef = db.collection('osCounters').doc(companyId);
 
-            const docRef = await db.collection('serviceOrders').add(osData);
-            res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: docRef.id });
-
-        } catch (error) {
-            console.error("Erro ao criar Ordem de Serviço:", error);
-            res.status(500).json({ message: 'Erro no servidor ao criar O.S.' });
-        }
-    });
-
-    app.post('/api/os/generate', async (req, res) => {
-        const { companyId } = req.body;
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
-        }
-
-        const counterRef = db.collection('osCounters').doc(companyId);
-
-        try {
-            const osNumber = await db.runTransaction(async (transaction) => {
+            const newId = await db.runTransaction(async (transaction) => {
                 const counterDoc = await transaction.get(counterRef);
-                let nextOsNumber = 1;
-                if (counterDoc.exists) {
-                    nextOsNumber = counterDoc.data().nextOsNumber;
+
+                const year = new Date().getFullYear();
+                let newCount;
+
+                if (!counterDoc.exists || counterDoc.data().year !== year) {
+                    // Se o contador não existe ou o ano mudou, reinicia a contagem para o novo ano
+                    newCount = 1;
+                    transaction.set(counterRef, { count: newCount, year: year });
+                } else {
+                    newCount = counterDoc.data().count + 1;
+                    transaction.update(counterRef, { count: newCount });
                 }
-                transaction.set(counterRef, { nextOsNumber: nextOsNumber + 1 });
-                return nextOsNumber;
+
+                const sequentialId = `OS-${year}-${String(newCount).padStart(3, '0')}`;
+
+                const osData = {
+                    companyId,
+                    farmId,
+                    farmName,
+                    selectedPlots,
+                    totalArea,
+                    serviceType: serviceType || '',
+                    responsible: responsible || '',
+                    observations: observations || '',
+                    createdBy: createdBy || 'Sistema',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    status: 'Created',
+                    sequentialId: sequentialId // Adiciona o ID sequencial
+                };
+
+                transaction.set(osRef, osData);
+                return osRef.id;
             });
-            res.status(200).json({ osNumber });
+
+            res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: newId });
+
         } catch (error) {
-            console.error("Erro ao gerar número da O.S.:", error);
-            res.status(500).json({ message: 'Erro no servidor ao gerar número da O.S.' });
+            console.error("Erro ao criar Ordem de Serviço com ID sequencial:", error);
+            res.status(500).json({ message: 'Erro no servidor ao criar O.S. sequencial.' });
         }
     });
 
@@ -3332,10 +3330,12 @@ try {
 
             // --- Header Info Block ---
             // Display OS ID at the top right
-            const formattedOsNumber = String(osData.osNumber).padStart(2, '0');
-            doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${formattedOsNumber}`, { align: 'right' });
+            doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osData.sequentialId || osId}`, { align: 'right' });
 
-            doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${osData.farmName}`, { align: 'left' });
+            const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
+            const farmCode = farmDoc.exists ? farmDoc.data().code : '';
+
+            doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${farmCode} - ${osData.farmName}`, { align: 'left' });
             doc.moveDown(0.5);
 
             const infoY = doc.y;

@@ -251,8 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 plotsList: document.getElementById('osPlotsList'),
                 btnGenerate: document.getElementById('btnGenerateOS'),
                 mapContainer: document.getElementById('os-map'),
-                container: document.getElementById('os-manual-container'),
-                btnToggleMap: document.getElementById('btnToggleOsMap'),
+                btnCenterMap: document.getElementById('btnCenterOSMap'),
             },
             welcomeModal: {
                 overlay: document.getElementById('welcomeModal'),
@@ -9544,25 +9543,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.farmSelect.addEventListener('change', () => this.handleFarmChange());
                 els.btnGenerate.addEventListener('click', () => this.generateOS());
 
-                if (els.btnToggleMap) {
-                    els.btnToggleMap.addEventListener('click', () => {
-                        const container = els.container;
-                        const icon = els.btnToggleMap.querySelector('i');
-                        container.classList.toggle('map-expanded');
-                        if (container.classList.contains('map-expanded')) {
-                            icon.className = 'fas fa-times'; // Ícone de fechar
-                            els.btnToggleMap.title = 'Fechar Mapa';
-                        } else {
-                            icon.className = 'fas fa-map-marked-alt'; // Ícone de mapa
-                            els.btnToggleMap.title = 'Ver Mapa';
-                        }
-                        // Redimensiona o mapa após a transição da animação
-                        setTimeout(() => {
-                            if (App.state.osMap) {
-                                App.state.osMap.resize();
+                const selectAllCheckbox = document.getElementById('osSelectAllPlots');
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.addEventListener('change', (e) => {
+                        const isChecked = e.target.checked;
+                        const plotCheckboxes = App.elements.osManual.plotsList.querySelectorAll('input[type="checkbox"]');
+                        plotCheckboxes.forEach(checkbox => {
+                            if (checkbox.checked !== isChecked) {
+                                checkbox.checked = isChecked;
+                                // Dispara o evento 'change' para acionar a lógica de seleção/desseleção individual
+                                checkbox.dispatchEvent(new Event('change'));
                             }
-                        }, 500); // Deve corresponder à duração da transição CSS
+                        });
                     });
+                }
+
+                if (els.btnCenterMap) {
+                    els.btnCenterMap.addEventListener('click', () => this.toggleMapSize());
                 }
             },
 
@@ -9604,7 +9601,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 map.on('click', 'os-talhoes-layer', (e) => {
                     if (e.features.length > 0) {
                         const feature = e.features[0];
-                        this.togglePlotSelection(feature);
+                        this.togglePlotSelection(feature, true);
                     }
                 });
 
@@ -9737,7 +9734,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farmId = App.elements.osManual.farmSelect.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
 
-                App.state.osSelectedPlots.clear(); // Clear selections on farm change
+                // Limpa o estado visual do mapa antes de qualquer outra coisa
+                if (App.state.osMap && App.state.osMap.isStyleLoaded() && App.state.geoJsonData) {
+                    App.state.geoJsonData.features.forEach(feature => {
+                        if (feature.id !== undefined) {
+                            App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                        }
+                    });
+                }
+
+                App.state.osSelectedPlots.clear(); // Limpa o estado dos dados
                 this.updateTotalArea();
 
                 if (farm) {
@@ -9813,66 +9819,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            togglePlotSelection(feature) {
+            togglePlotSelection(feature, fromMap) {
+                const map = App.state.osMap;
                 const talhaoName = feature.properties.AGV_TALHAO;
                 const farmCode = feature.properties.AGV_FUNDO;
+
+                // Find the plot in the current farm's list to get its internal ID and area
                 const farm = App.state.fazendas.find(f => f.code == farmCode);
                 if (!farm) return;
+
                 const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName.toUpperCase());
                 if (!talhao) return;
 
-                if (App.state.osSelectedPlots.has(talhao.id)) {
-                    App.state.osSelectedPlots.delete(talhao.id);
-                } else {
+                const isSelected = App.state.osSelectedPlots.has(talhao.id);
+
+                if (!isSelected) {
                     App.state.osSelectedPlots.add(talhao.id);
+                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: true });
+
+                    // Update list checkbox
+                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
+                    if (checkbox) checkbox.checked = true;
+                } else {
+                    App.state.osSelectedPlots.delete(talhao.id);
+                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+
+                    // Update list checkbox
+                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
+                    if (checkbox) checkbox.checked = false;
                 }
-                this.syncOsManualUI();
+
+                this.updateTotalArea();
             },
 
             togglePlotSelectionFromList(talhao, isChecked) {
+                const map = App.state.osMap;
+
                 if (isChecked) {
                     App.state.osSelectedPlots.add(talhao.id);
                 } else {
                     App.state.osSelectedPlots.delete(talhao.id);
                 }
-                this.syncOsManualUI();
-            },
 
-            syncOsManualUI() {
-                const map = App.state.osMap;
-                const farmId = App.elements.osManual.farmSelect.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-
-                // Update checkboxes
-                const checkboxes = document.querySelectorAll('#osPlotsList input[type="checkbox"]');
-                checkboxes.forEach(cb => {
-                    const plotId = parseInt(cb.dataset.id);
-                    cb.checked = App.state.osSelectedPlots.has(plotId);
-                });
-
-                // Update map features state
-                if (map && map.getLayer('os-talhoes-layer') && App.state.geoJsonData) {
-                    // First, clear all existing 'selected' states
-                     App.state.geoJsonData.features.forEach(feature => {
-                        if (feature.id !== undefined) {
-                           map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                // Sync with map if initialized
+                if (map && map.getLayer('os-talhoes-layer')) {
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value)?.code;
+                    if (farmCode && App.state.geoJsonData && App.state.geoJsonData.features) {
+                        const feature = App.state.geoJsonData.features.find(f =>
+                            f.properties.AGV_TALHAO === talhao.name &&
+                            String(f.properties.AGV_FUNDO) === String(farmCode)
+                        );
+                        if (feature) {
+                            map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
                         }
-                    });
-
-                    // Then, apply 'selected' state to the ones in the set
-                    App.state.osSelectedPlots.forEach(plotId => {
-                        const talhao = farm?.talhoes.find(t => t.id === plotId);
-                        if(talhao) {
-                            const feature = App.state.geoJsonData.features.find(f =>
-                                f.properties.AGV_TALHAO === talhao.name &&
-                                String(f.properties.AGV_FUNDO) === String(farm.code)
-                            );
-                            if (feature && feature.id !== undefined) {
-                                map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: true });
-                            }
-                        }
-                    });
+                    }
                 }
+
                 this.updateTotalArea();
             },
 
@@ -9907,55 +9909,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
+                const selectedPlotsData = [];
+                let totalArea = 0;
+
+                App.state.osSelectedPlots.forEach(id => {
+                    const t = farm.talhoes.find(plot => plot.id === id);
+                    if (t) {
+                        // Backend expects simple strings for map highlighting logic
+                        selectedPlotsData.push(t.name);
+                        totalArea += t.area;
+                    }
+                });
+
+                const osData = {
+                    companyId: App.state.currentUser.companyId,
+                    generatedBy: App.state.currentUser.username,
+                    farmId: farm.id, // Required by backend
+                    farmName: farm.name,
+                    farmCode: farm.code,
+                    serviceType: serviceType.value,
+                    responsible: responsible.value,
+                    observations: observations.value,
+                    selectedPlots: selectedPlotsData, // Backend expects 'selectedPlots' as array of strings
+                    totalArea: totalArea,
+                    createdAt: new Date().toISOString() // Send as ISO string for backend consistency
+                };
+
                 App.ui.setLoading(true, "A gerar Ordem de Serviço...");
 
                 try {
-                    // ETAPA 1: Obter o número sequencial do backend
-                    const generateResponse = await fetch(`${App.config.backendUrl}/api/os/generate`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${await auth.currentUser.getIdToken()}`
-                        },
-                        body: JSON.stringify({ companyId: App.state.currentUser.companyId })
-                    });
-
-                    if (!generateResponse.ok) {
-                        const errorData = await generateResponse.json();
-                        throw new Error(errorData.message || "Falha ao gerar o número da O.S.");
-                    }
-                    const { osNumber } = await generateResponse.json();
-
-
-                    // ETAPA 2: Montar os dados da O.S. com o número obtido
-                    const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
-                    const selectedPlotsData = [];
-                    let totalArea = 0;
-
-                    App.state.osSelectedPlots.forEach(id => {
-                        const t = farm.talhoes.find(plot => plot.id === id);
-                        if (t) {
-                            selectedPlotsData.push(t.name);
-                            totalArea += t.area;
-                        }
-                    });
-
-                    const osData = {
-                        osNumber: osNumber, // Adiciona o número sequencial
-                        companyId: App.state.currentUser.companyId,
-                        generatedBy: App.state.currentUser.username,
-                        farmId: farm.id,
-                        farmName: farm.name,
-                        farmCode: farm.code,
-                        serviceType: serviceType.value,
-                        responsible: responsible.value,
-                        observations: observations.value,
-                        selectedPlots: selectedPlotsData,
-                        totalArea: totalArea,
-                        createdAt: new Date().toISOString()
-                    };
-
-                    // ETAPA 3: Salvar a O.S. completa no Firestore
+                    // 1. Save to Firestore
                     const saveResponse = await fetch(`${App.config.backendUrl}/api/os`, {
                         method: 'POST',
                         headers: {
@@ -9968,13 +9952,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!saveResponse.ok) throw new Error("Falha ao salvar a O.S.");
                     const savedOS = await saveResponse.json();
 
-                    // ETAPA 4: Gerar e baixar o PDF
+                    // 2. Generate PDF
+                    // We pass the data directly or the ID if the backend supports fetching by ID.
+                    // Based on the plan, we'll pass data as filters/body to the report endpoint.
+                    // However, GET requests have URL length limits.
+                    // Ideally, the /reports/os/pdf endpoint should fetch the data from Firestore using the ID we just created.
+                    // Or we POST the data to generate the PDF.
+                    // Let's use the filters approach for now as per existing patterns, but passing the ID is safer.
+                    // Update: The backend plan said "POST /api/os" and "GET /reports/os/pdf".
+                    // We can pass the `id` to the report endpoint.
+
                     const reportParams = new URLSearchParams({
                         osId: savedOS.id,
                         companyId: App.state.currentUser.companyId,
                     });
+
                     const pdfUrl = `${App.config.backendUrl}/reports/os/pdf?${reportParams.toString()}`;
 
+                    // Trigger download
                     const pdfResponse = await fetch(pdfUrl);
                     if (!pdfResponse.ok) throw new Error("Falha ao gerar o PDF.");
 
@@ -9983,26 +9978,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     const a = document.createElement('a');
                     a.style.display = 'none';
                     a.href = url;
-                    a.download = `OS_${farm.code}_${String(osNumber).padStart(3, '0')}.pdf`;
+                    a.download = `OS_${farm.code}_${new Date().getTime()}.pdf`;
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
 
                     App.ui.showAlert("Ordem de Serviço gerada com sucesso!", "success");
 
-                    // ETAPA 5: Limpar o formulário
+                    // Reset do formulário completo
+                    farmSelect.value = '';
                     serviceType.value = '';
                     responsible.value = '';
                     observations.value = '';
-                    App.state.osSelectedPlots.clear();
-                    this.syncOsManualUI();
-
+                    this.handleFarmChange(); // Isso vai limpar a lista e o mapa
 
                 } catch (error) {
                     console.error("Erro ao gerar OS:", error);
                     App.ui.showAlert(`Erro ao gerar O.S.: ${error.message}`, "error");
                 } finally {
                     App.ui.setLoading(false);
+                }
+            },
+
+            toggleMapSize() {
+                const container = document.getElementById('ordemServicoManual');
+                const btn = App.elements.osManual.btnCenterMap;
+                container.classList.toggle('map-expanded');
+
+                if (container.classList.contains('map-expanded')) {
+                    btn.innerHTML = '<i class="fas fa-compress"></i> Recolher Mapa';
+                } else {
+                    btn.innerHTML = '<i class="fas fa-expand"></i> Expandir Mapa';
+                }
+
+                if (App.state.osMap) {
+                    setTimeout(() => App.state.osMap.resize(), 400); // Wait for CSS transition
                 }
             }
         },
