@@ -3332,8 +3332,8 @@ try {
             // Display OS ID at the top right
             doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osData.sequentialId || osId}`, { align: 'right' });
 
-            const farmDoc = await db.collection('fazendas').doc(osData.farmId).get();
-            const farmData = farmDoc.exists ? farmDoc.data() : null;
+            const farmDocument = await db.collection('fazendas').doc(osData.farmId).get();
+            const farmData = farmDocument.exists ? farmDocument.data() : null;
             const farmCode = farmData ? farmData.code : null;
 
             doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${farmCode || ''} - ${osData.farmName}`, { align: 'left' });
