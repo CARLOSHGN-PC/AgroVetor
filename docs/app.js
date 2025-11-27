@@ -9565,6 +9565,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnToggleOSPanel) {
                     btnToggleOSPanel.addEventListener('click', () => this.toggleMapSize());
                 }
+                const btnRecolherMapa = document.getElementById('btn-recolher-mapa-os');
+                if (btnRecolherMapa) {
+                    btnRecolherMapa.addEventListener('click', () => this.toggleMapSize());
+                }
             },
 
             initMap() {
@@ -10006,13 +10010,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             toggleMapSize() {
                 const container = document.getElementById('ordemServicoManual');
-                const btn = App.elements.osManual.btnCenterMap;
-                container.classList.toggle('map-expanded');
+                const btnToggle = document.getElementById('btnToggleOSPanel');
+                const btnRecolher = document.getElementById('btn-recolher-mapa-os');
 
-                if (container.classList.contains('map-expanded')) {
-                    btn.innerHTML = '<i class="fas fa-compress"></i> Recolher Mapa';
-                } else {
-                    btn.innerHTML = '<i class="fas fa-expand"></i> Expandir Mapa';
+                container.classList.toggle('map-expanded');
+                const isExpanded = container.classList.contains('map-expanded');
+
+                if (btnToggle) {
+                    btnToggle.innerHTML = isExpanded ? '<i class="fas fa-compress-arrows-alt"></i>' : '<i class="fas fa-expand-arrows-alt"></i>';
+                    btnToggle.title = isExpanded ? 'Recolher Mapa' : 'Expandir Mapa';
+                }
+
+                if (btnRecolher) {
+                    // Mostra o botão de recolher apenas em telas pequenas E quando o mapa ESTÁ expandido
+                    if (window.innerWidth <= 768 && isExpanded) {
+                        btnRecolher.style.display = 'flex';
+                    } else {
+                        btnRecolher.style.display = 'none';
+                    }
                 }
 
                 if (App.state.osMap) {

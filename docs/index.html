@@ -1636,9 +1636,17 @@
 
       /* Estilos para o módulo O.S. Manual */
       #ordemServicoManual .card {
-        width: 35%;
-        min-width: 400px;
-        max-width: 500px;
+        flex: 0 0 450px; /* Base de 450px, sem crescer, pode encolher */
+        min-width: 320px; /* Largura mínima para telas menores */
+        max-width: 100%; /* Garante que não ultrapasse a tela */
+        transition: min-width 0.4s ease, flex-basis 0.4s ease; /* Transição suave */
+      }
+
+      /* Quando o mapa está expandido, o painel encolhe */
+      #ordemServicoManual.map-expanded .card {
+          flex: 0 0 0;
+          min-width: 0;
+          overflow: hidden;
       }
 
       .os-plot-item {
@@ -2271,6 +2279,9 @@
                                 <i class="fas fa-expand"></i>
                             </button>
                         </div>
+                         <button id="btn-recolher-mapa-os" class="map-control-btn" style="position: absolute; top: 15px; left: 15px; z-index: 2; display: none;">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
                     </div>
 
                 </div>
