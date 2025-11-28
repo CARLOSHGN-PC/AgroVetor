@@ -3355,14 +3355,14 @@ try {
             const availableHeight = doc.page.height - contentStartY - pageMargin;
 
             // --- Map (Left) ---
-            const mapWidth = doc.page.width * 0.65; // Aumentado para 65%
+            const mapWidth = doc.page.width * 0.55; // Reduzido para 55% para dar espaço à lista
             const mapHeight = availableHeight;
             const mapX = pageMargin;
             const mapY = contentStartY;
 
             // --- List (Right) ---
-            const listX = mapX + mapWidth + 15;
-            const listWidth = doc.page.width - listX - pageMargin;
+            const listAreaX = mapX + mapWidth + 15;
+            const listAreaWidth = doc.page.width - listAreaX - pageMargin;
 
             // Draw Map
             if (geojsonData) {
@@ -3391,6 +3391,17 @@ try {
 
                     const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
 
+                    const getPolygonCenter = (coords) => {
+                         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                         coords.forEach(c => {
+                             if (c[0] < minX) minX = c[0];
+                             if (c[0] > maxX) maxX = c[0];
+                             if (c[1] < minY) minY = c[1];
+                             if (c[1] > maxY) maxY = c[1];
+                         });
+                         return [(minX + maxX) / 2, (minY + maxY) / 2];
+                    };
+
                     doc.save();
                     doc.lineWidth(0.5).strokeColor('#555');
 
@@ -3415,9 +3426,21 @@ try {
                             doc.moveTo(firstPoint[0], firstPoint[1]);
                             for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
                             doc.fillAndStroke();
-                        });
 
-                        // Opcional: Desenhar labels se necessário, similar ao risco
+                            // Draw label
+                            // Only draw if we have a valid polygon path
+                            if (path.length > 0) {
+                                const transformedPath = path.map(transformCoord);
+                                const center = getPolygonCenter(transformedPath);
+                                // Draw red label
+                                doc.fillColor('#FF0000');
+                                doc.fontSize(12).font('Helvetica-Bold');
+                                // Center text
+                                const textWidth = doc.widthOfString(String(talhaoNome));
+                                const textHeight = doc.currentLineHeight();
+                                doc.text(String(talhaoNome), center[0] - (textWidth / 2), center[1] - (textHeight / 2), { lineBreak: false });
+                            }
+                        });
                     });
                     doc.restore();
                 } else {
@@ -3429,42 +3452,59 @@ try {
 
             // Draw List
             let currentListY = contentStartY;
-            doc.fontSize(10).font('Helvetica-Bold').text('Talhões Selecionados', listX, currentListY);
-            currentListY += 15;
+            let currentListX = listAreaX;
+            const numCols = 2; // Tentar 2 colunas
+            const colGap = 10;
+            const colWidth = (listAreaWidth - (colGap * (numCols - 1))) / numCols;
 
-            const headers = ['Talhão', 'Área (ha)'];
-            const colWidths = [listWidth * 0.6, listWidth * 0.4];
+            const drawListHeader = (x, y, w) => {
+                 doc.fontSize(10).font('Helvetica-Bold').text('Talhões Selecionados', x, y);
+                 y += 15;
+                 const headers = ['Talhão', 'Área (ha)'];
+                 const cw = [w * 0.6, w * 0.4];
 
-            doc.fontSize(9);
-            doc.rect(listX, currentListY, listWidth, 15).fillAndStroke('#eee', '#ccc');
-            doc.fillColor('black');
-            doc.text(headers[0], listX + 5, currentListY + 3);
-            doc.text(headers[1], listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
-            currentListY += 15;
+                 doc.fontSize(9);
+                 doc.rect(x, y, w, 15).fillAndStroke('#eee', '#ccc');
+                 doc.fillColor('black');
+                 doc.text(headers[0], x + 5, y + 3);
+                 doc.text(headers[1], x + cw[0], y + 3, { align: 'right', width: cw[1] - 5 });
+                 return y + 15;
+            };
 
+            currentListY = drawListHeader(currentListX, currentListY, colWidth);
+
+            const colWidths = [colWidth * 0.6, colWidth * 0.4];
             let totalSelectedArea = 0;
 
             if (farmData && farmData.talhoes) {
-                const selectedTalhoes = farmData.talhoes.filter(t => osData.selectedPlots.includes(t.name)); // Assuming names match
-
-                // Filter out talhoes that might have been passed but not found (or match logic)
-                // And map to what we need
-
                 for (const plotName of osData.selectedPlots) {
                     const talhao = farmData.talhoes.find(t => String(t.name).toUpperCase() === String(plotName).toUpperCase());
                     const area = talhao ? talhao.area : 0;
                     totalSelectedArea += area;
 
                     if (currentListY > doc.page.height - 50) {
-                        // Simple pagination for list if needed, though layout implies single page mostly
-                        // For now, just stop or overlay (robustness improvement possible)
+                        // Move to next column
+                        currentListY = contentStartY;
+                        currentListX += colWidth + colGap;
+
+                        // If we run out of horizontal space (more than 2 columns), we might just overlay or stop
+                        // But with 55% map, we have 45% for list (~370pts). 2 cols of 180pts is fine.
+                        // If we exceed even that, we just continue on top of whatever (or new page which we avoid here for now)
+
+                        if (currentListX + colWidth > doc.page.width - pageMargin) {
+                            // If strictly necessary, one could do doc.addPage() but that breaks the layout concept "stay on the side"
+                            // For now, let's assume 2 columns cover "muito talhao" (approx 100 items)
+                        } else {
+                            currentListY = drawListHeader(currentListX, currentListY, colWidth);
+                        }
                     }
 
-                    doc.font('Helvetica').text(plotName, listX + 5, currentListY + 3);
-                    doc.text(formatNumber(area), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
+                    doc.font('Helvetica').fillColor('black');
+                    doc.text(plotName, currentListX + 5, currentListY + 3);
+                    doc.text(formatNumber(area), currentListX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
 
                     // Draw line
-                    doc.moveTo(listX, currentListY + 15).lineTo(listX + listWidth, currentListY + 15).strokeColor('#eee').stroke();
+                    doc.lineWidth(1).moveTo(currentListX, currentListY + 15).lineTo(currentListX + colWidth, currentListY + 15).strokeColor('#eee').stroke();
 
                     currentListY += 15;
                 }
@@ -3472,8 +3512,15 @@ try {
 
             // Total Row
             currentListY += 5;
-            doc.font('Helvetica-Bold').text('TOTAL', listX + 5, currentListY + 3);
-            doc.text(formatNumber(totalSelectedArea), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
+            // Check if total row fits, if not, move to next column or stay
+             if (currentListY > doc.page.height - 50 && currentListX + colWidth + colGap < doc.page.width - pageMargin) {
+                  currentListY = contentStartY;
+                  currentListX += colWidth + colGap;
+             }
+
+            doc.font('Helvetica-Bold').fillColor('black');
+            doc.text('TOTAL', currentListX + 5, currentListY + 3);
+            doc.text(formatNumber(totalSelectedArea), currentListX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
 
 
             generatePdfFooter(doc, generatedBy || osData.createdBy);
