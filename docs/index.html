@@ -1653,42 +1653,86 @@
           overflow: hidden;
       }
 
-      .os-plot-item {
-          display: flex;
-          align-items: center;
-          padding: 10px;
-          background: var(--color-surface);
-          border-bottom: 1px solid var(--color-border);
-          transition: background-color 0.2s;
-      }
-      .os-plot-item:last-child {
-          border-bottom: none;
-      }
-      .os-plot-item:hover {
-          background-color: var(--color-primary-light);
-      }
-      .os-plot-item input[type="checkbox"] {
-          width: auto;
-          margin: 0 10px 0 0;
-          transform: scale(1.2);
-      }
-      .os-plot-item label {
-          margin: 0;
+      /* Old .os-plot-item styles removed or deprecated */
+
+      /* New Talhao Selection Item Styles (reused from Harvest module but ensured here) */
+      .talhao-selection-item {
+          position: relative;
+          display: grid;
+          grid-template-columns: auto 1fr;
+          grid-template-rows: auto 1fr;
+          grid-template-areas: "check name" "check details";
+          gap: 4px 12px;
+          padding: 12px;
+          border-radius: var(--border-radius);
+          background-color: var(--color-surface);
+          border: 1px solid var(--color-border);
+          box-shadow: var(--shadow-sm);
+          transition: var(--transition);
           cursor: pointer;
-          flex-grow: 1;
+          margin-bottom: 8px; /* Added spacing between items */
+      }
+      .talhao-selection-item:hover {
+          border-color: var(--color-primary);
+          box-shadow: var(--shadow-md);
+          transform: translateY(-2px);
+      }
+      .talhao-selection-item.talhao-closed {
+          cursor: not-allowed;
+          background-color: var(--color-bg);
+          opacity: 0.6;
+      }
+      .talhao-selection-item.talhao-closed:hover {
+          transform: none;
+          box-shadow: var(--shadow-sm);
+          border-color: var(--color-border);
+      }
+      .talhao-closed-overlay {
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.1);
+          border-radius: var(--border-radius);
           display: flex;
-          justify-content: space-between;
           align-items: center;
+          justify-content: center;
+          font-weight: 600;
+          color: var(--color-danger);
+          font-size: 14px;
+          text-transform: uppercase;
       }
-      .os-plot-item label strong {
-          color: var(--color-text);
+      .talhao-selection-item input[type="checkbox"] {
+          grid-area: check;
+          align-self: start;
+          margin-top: 4px;
+          transform: scale(1.2);
+          pointer-events: none; /* Let the label handle the click */
+          width: auto; /* Reset width override from other styles */
       }
-      .os-plot-item label span {
-          font-size: 0.9em;
+      .talhao-name {
+          grid-area: name;
+          font-weight: 600;
+          color: var(--color-primary-dark);
+          line-height: 1.3;
+          word-break: break-word;
+      }
+      .talhao-details {
+          grid-area: details;
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          font-size: 13px;
           color: var(--color-text-light);
-          background: var(--color-bg);
-          padding: 2px 6px;
-          border-radius: 4px;
+      }
+      .talhao-details span {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+      }
+      .talhao-details i {
+          width: 14px;
+          text-align: center;
+          color: var(--color-accent);
+          flex-shrink: 0;
       }
     </style>
 </head>
