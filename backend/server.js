@@ -3420,25 +3420,20 @@ try {
                             doc.fillAndStroke();
                         });
 
-                        // Calculate centroid for label using Bounding Box of ALL polygons
-                        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-                        let hasPoints = false;
+                        // Calculate centroid for label
+                        let sumX = 0, sumY = 0, pointsCount = 0;
+                        const mainPolygon = polygons[0][0];
 
-                        polygons.forEach(polygon => {
-                            const outerRing = polygon[0];
-                            outerRing.forEach(coord => {
-                                const transformed = transformCoord(coord);
-                                if (transformed[0] < minX) minX = transformed[0];
-                                if (transformed[0] > maxX) maxX = transformed[0];
-                                if (transformed[1] < minY) minY = transformed[1];
-                                if (transformed[1] > maxY) maxY = transformed[1];
-                                hasPoints = true;
-                            });
+                        mainPolygon.forEach(coord => {
+                            const transformed = transformCoord(coord);
+                            sumX += transformed[0];
+                            sumY += transformed[1];
+                            pointsCount++;
                         });
 
-                        if (hasPoints) {
-                            const centerX = (minX + maxX) / 2;
-                            const centerY = (minY + maxY) / 2;
+                        if (pointsCount > 0) {
+                            const centerX = sumX / pointsCount;
+                            const centerY = sumY / pointsCount;
                             labelsToDraw.push({
                                 text: String(talhaoNome),
                                 x: centerX,
