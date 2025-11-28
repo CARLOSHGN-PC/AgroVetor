@@ -3394,7 +3394,9 @@ try {
                     doc.save();
                     doc.lineWidth(0.5).strokeColor('#555');
 
-                    // Draw all farm plots first
+                    const labelsToDraw = [];
+
+                    // 1. Pass: Draw all polygons
                     farmFeatures.forEach(feature => {
                         // Usando as mesmas propriedades do Relatório de Risco
                         const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
@@ -3407,6 +3409,7 @@ try {
 
                         doc.fillColor(fillColor);
                         doc.strokeColor(strokeColor);
+                        doc.fillOpacity(1); // Reset opacity for polygons
 
                         const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
                         polygons.forEach(polygon => {
@@ -3417,11 +3420,8 @@ try {
                             doc.fillAndStroke();
                         });
 
-                        // Draw Label (Talhão)
-                        // Simple centroid calculation: average of all points in the first ring
+                        // Calculate centroid for label
                         let sumX = 0, sumY = 0, pointsCount = 0;
-
-                        // We use the first polygon of the feature to place the label (usually sufficient)
                         const mainPolygon = polygons[0][0];
 
                         mainPolygon.forEach(coord => {
@@ -3434,26 +3434,35 @@ try {
                         if (pointsCount > 0) {
                             const centerX = sumX / pointsCount;
                             const centerY = sumY / pointsCount;
-
-                            doc.fontSize(8);
-                            const textWidth = doc.widthOfString(talhaoNome);
-                            const textHeight = doc.currentLineHeight();
-                            const padding = 2;
-                            const rectWidth = textWidth + (padding * 2);
-                            const rectHeight = textHeight + (padding * 2);
-
-                            // Draw white background rectangle centered
-                            doc.rect(centerX - (rectWidth / 2), centerY - (rectHeight / 2), rectWidth, rectHeight)
-                               .fill('white');
-
-                            doc.fillColor('black');
-                            // Draw text centered at calculated position
-                            doc.text(talhaoNome, centerX - (rectWidth / 2), centerY - (textHeight / 2), {
-                                width: rectWidth,
-                                align: 'center',
-                                lineBreak: false
+                            labelsToDraw.push({
+                                text: String(talhaoNome),
+                                x: centerX,
+                                y: centerY
                             });
                         }
+                    });
+
+                    // 2. Pass: Draw all labels on top
+                    labelsToDraw.forEach(label => {
+                        doc.fontSize(8).font('Helvetica');
+                        const textWidth = doc.widthOfString(label.text);
+                        const textHeight = doc.currentLineHeight();
+                        const padding = 2;
+                        const rectWidth = textWidth + (padding * 2);
+                        const rectHeight = textHeight + (padding * 2);
+
+                        // Force opacity and color for background
+                        doc.fillOpacity(1);
+                        doc.fillColor('white');
+                        doc.rect(label.x - (rectWidth / 2), label.y - (rectHeight / 2), rectWidth, rectHeight).fill();
+
+                        // Draw text
+                        doc.fillColor('black');
+                        doc.text(label.text, label.x - (rectWidth / 2), label.y - (textHeight / 2), {
+                            width: rectWidth,
+                            align: 'center',
+                            lineBreak: false
+                        });
                     });
                     doc.restore();
                 } else {

@@ -7,6 +7,17 @@
     "@capacitor/network": "^7.0.2",
     "@capacitor/push-notifications": "^7.0.3",
     "@capacitor/status-bar": "^7.0.3",
-    "@playwright/test": "^1.56.1"
+    "@google/generative-ai": "^0.24.1",
+    "@playwright/test": "^1.56.1",
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
+    "csv-writer": "^1.6.0",
+    "express": "^5.1.0",
+    "firebase-admin": "^13.6.0",
+    "pdfkit": "^0.17.2",
+    "point-in-polygon": "^1.1.0",
+    "shpjs": "^4.0.2",
+    "xlsx": "^0.18.5"
   }
 }
