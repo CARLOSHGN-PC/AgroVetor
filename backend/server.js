@@ -3417,7 +3417,32 @@ try {
                             doc.fillAndStroke();
                         });
 
-                        // Opcional: Desenhar labels se necessário, similar ao risco
+                        // Draw Label (Talhão)
+                        // Simple centroid calculation: average of all points in the first ring
+                        let sumX = 0, sumY = 0, pointsCount = 0;
+
+                        // We use the first polygon of the feature to place the label (usually sufficient)
+                        const mainPolygon = polygons[0][0];
+
+                        mainPolygon.forEach(coord => {
+                            const transformed = transformCoord(coord);
+                            sumX += transformed[0];
+                            sumY += transformed[1];
+                            pointsCount++;
+                        });
+
+                        if (pointsCount > 0) {
+                            const centerX = sumX / pointsCount;
+                            const centerY = sumY / pointsCount;
+
+                            doc.fontSize(8).fillColor('black');
+                            // Draw text centered at calculated position
+                            doc.text(talhaoNome, centerX - 20, centerY - 4, {
+                                width: 40,
+                                align: 'center',
+                                lineBreak: false
+                            });
+                        }
                     });
                     doc.restore();
                 } else {

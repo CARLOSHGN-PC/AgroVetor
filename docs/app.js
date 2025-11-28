@@ -9785,25 +9785,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
-                    const item = document.createElement('div');
-                    item.className = 'os-plot-item';
-                    item.innerHTML = `
+                    const label = document.createElement('label');
+                    label.className = 'talhao-selection-item';
+                    label.htmlFor = `os-plot-${talhao.id}`;
+
+                    label.innerHTML = `
                         <input type="checkbox" id="os-plot-${talhao.id}" data-id="${talhao.id}" data-name="${talhao.name}" data-area="${talhao.area}">
-                        <label for="os-plot-${talhao.id}">
-                            <strong>${talhao.name}</strong>
-                            <span>${talhao.area.toFixed(2)} ha</span>
-                        </label>
+                        <div class="talhao-name">${talhao.name}</div>
+                        <div class="talhao-details">
+                            <span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area ? talhao.area.toFixed(2) : 0} ha</span>
+                            <span><i class="fas fa-seedling"></i>Variedade: ${talhao.variedade || 'N/A'}</span>
+                        </div>
                     `;
 
-                    const checkbox = item.querySelector('input');
+                    const checkbox = label.querySelector('input');
                     checkbox.addEventListener('change', (e) => {
-                        // Find corresponding map feature if possible, or pass data needed
-                        // Since we don't have the map feature ID easily here without a lookup,
-                        // we might need to find it via the map source.
                         this.togglePlotSelectionFromList(talhao, e.target.checked);
                     });
 
-                    listContainer.appendChild(item);
+                    listContainer.appendChild(label);
                 });
             },
 
