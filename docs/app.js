@@ -9569,6 +9569,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnRecolherMapa) {
                     btnRecolherMapa.addEventListener('click', () => this.toggleMapSize());
                 }
+                const btnMobileToggleMap = document.getElementById('btnMobileToggleMap');
+                if (btnMobileToggleMap) {
+                    btnMobileToggleMap.addEventListener('click', () => this.toggleMapSize());
+                }
             },
 
             initMap() {
