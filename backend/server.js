@@ -3383,13 +3383,24 @@ try {
                         minX: Math.min(...allCoords.map(c => c[0])), maxX: Math.max(...allCoords.map(c => c[0])),
                         minY: Math.min(...allCoords.map(c => c[1])), maxY: Math.max(...allCoords.map(c => c[1])),
                     };
-                    const scaleX = mapWidth / (bbox.maxX - bbox.minX);
-                    const scaleY = mapHeight / (bbox.maxY - bbox.minY);
-                    const scale = Math.min(scaleX, scaleY) * 0.95;
-                    const offsetX = mapX + (mapWidth - (bbox.maxX - bbox.minX) * scale) / 2;
-                    const offsetY = mapY + (mapHeight - (bbox.maxY - bbox.minY) * scale) / 2;
 
-                    const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
+                    const bboxWidth = bbox.maxX - bbox.minX;
+                    const bboxHeight = bbox.maxY - bbox.minY;
+
+                    const scaleX = bboxWidth > 0 ? mapWidth / bboxWidth : 1;
+                    const scaleY = bboxHeight > 0 ? mapHeight / bboxHeight : 1;
+                    let scale = Math.min(scaleX, scaleY) * 0.95;
+
+                    if (!Number.isFinite(scale) || scale === 0) scale = 1;
+
+                    const offsetX = mapX + (mapWidth - bboxWidth * scale) / 2;
+                    const offsetY = mapY + (mapHeight - bboxHeight * scale) / 2;
+
+                    const transformCoord = (coord) => {
+                        const x = (coord[0] - bbox.minX) * scale + offsetX;
+                        const y = (bbox.maxY - coord[1]) * scale + offsetY;
+                        return [x, y];
+                    };
 
                     doc.save();
                     doc.lineWidth(0.5).strokeColor('#555');
@@ -3435,23 +3446,25 @@ try {
                             const centerX = sumX / pointsCount;
                             const centerY = sumY / pointsCount;
 
-                            doc.fontSize(8);
-                            const textWidth = doc.widthOfString(talhaoNome);
-                            const textHeight = doc.currentLineHeight();
-                            const boxPadding = 2;
-                            const boxWidth = textWidth + (boxPadding * 2);
-                            const boxHeight = textHeight + (boxPadding * 2);
+                            if (Number.isFinite(centerX) && Number.isFinite(centerY)) {
+                                doc.fontSize(8);
+                                const textWidth = doc.widthOfString(talhaoNome);
+                                const textHeight = doc.currentLineHeight();
+                                const boxPadding = 2;
+                                const boxWidth = textWidth + (boxPadding * 2);
+                                const boxHeight = textHeight + (boxPadding * 2);
 
-                            // Draw white background rectangle centered
-                            doc.rect(centerX - (boxWidth / 2), centerY - (boxHeight / 2), boxWidth, boxHeight).fill('white');
+                                // Draw white background rectangle centered
+                                doc.rect(centerX - (boxWidth / 2), centerY - (boxHeight / 2), boxWidth, boxHeight).fill('white');
 
-                            // Draw text centered
-                            doc.fillColor('black');
-                            doc.text(talhaoNome, centerX - (boxWidth / 2), centerY - (textHeight / 2), {
-                                width: boxWidth,
-                                align: 'center',
-                                lineBreak: false
-                            });
+                                // Draw text centered
+                                doc.fillColor('black');
+                                doc.text(talhaoNome, centerX - (boxWidth / 2), centerY - (textHeight / 2), {
+                                    width: boxWidth,
+                                    align: 'center',
+                                    lineBreak: false
+                                });
+                            }
                         }
                     });
                     doc.restore();
