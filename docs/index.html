@@ -2305,9 +2305,10 @@
                              <h4 style="margin: 0;">Talhões Selecionados</h4>
                              <span id="osTotalArea" style="font-weight: bold; color: var(--color-primary);">0.00 ha</span>
                         </div>
-                        <div style="padding-left: 10px; margin-bottom: 10px;">
-                            <input type="checkbox" id="osSelectAllPlots" style="margin-right: 8px; vertical-align: middle; transform: scale(1.2);">
-                            <label for="osSelectAllPlots" style="font-weight: 500; vertical-align: middle; cursor: pointer;">Selecionar Todos os Talhões</label>
+                        <div style="padding-left: 5px; margin-bottom: 10px;">
+                            <button id="btnToggleSelectAll" class="btn-secondary" style="width: 100%; justify-content: center; background: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border);">
+                                <i class="fas fa-check-double"></i> Selecionar Todos
+                            </button>
                         </div>
 
                         <div id="osPlotsList" class="talhao-selection-list" style="flex-grow: 1; max-height: none; overflow-y: auto; background: var(--color-bg);">
