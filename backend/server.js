@@ -708,32 +708,6 @@ try {
         return null;
     };
 
-    const calculatePolygonArea = (vertices) => {
-        let area = 0;
-        for (let i = 0; i < vertices.length; i++) {
-            let j = (i + 1) % vertices.length;
-            area += vertices[i][0] * vertices[j][1];
-            area -= vertices[j][0] * vertices[i][1];
-        }
-        return Math.abs(area / 2);
-    };
-
-    const calculatePolygonCentroid = (vertices) => {
-        let cx = 0, cy = 0, area = 0;
-        for (let i = 0; i < vertices.length; i++) {
-            let j = (i + 1) % vertices.length;
-            let commonFactor = (vertices[i][0] * vertices[j][1] - vertices[j][0] * vertices[i][1]);
-            cx += (vertices[i][0] + vertices[j][0]) * commonFactor;
-            cy += (vertices[i][1] + vertices[j][1]) * commonFactor;
-            area += commonFactor;
-        }
-        area /= 2;
-        if (area === 0) return null; // Avoid division by zero for zero-area polygons
-        cx /= (6 * area);
-        cy /= (6 * area);
-        return { x: cx, y: cy };
-    };
-
     // --- ROTAS DE RELATÓRIOS ---
 
     const getPlantioData = async (filters) => {
@@ -3438,8 +3412,6 @@ try {
                         doc.fillOpacity(1); // Reset opacity for polygons
 
                         const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
-
-                        // Draw all polygons
                         polygons.forEach(polygon => {
                             const path = polygon[0];
                             const firstPoint = transformCoord(path[0]);
@@ -3448,29 +3420,24 @@ try {
                             doc.fillAndStroke();
                         });
 
-                        // Identify the largest polygon for label placement (Geometric Centroid)
-                        let maxArea = -1;
-                        let bestCentroid = null;
+                        // Calculate centroid for label
+                        let sumX = 0, sumY = 0, pointsCount = 0;
+                        const mainPolygon = polygons[0][0];
 
-                        polygons.forEach(polygon => {
-                            const ring = polygon[0];
-                            const transformedRing = ring.map(coord => transformCoord(coord));
-
-                            // Calculate area of this polygon ring
-                            const area = calculatePolygonArea(transformedRing);
-
-                            if (area > maxArea) {
-                                maxArea = area;
-                                // Calculate geometric centroid
-                                bestCentroid = calculatePolygonCentroid(transformedRing);
-                            }
+                        mainPolygon.forEach(coord => {
+                            const transformed = transformCoord(coord);
+                            sumX += transformed[0];
+                            sumY += transformed[1];
+                            pointsCount++;
                         });
 
-                        if (bestCentroid) {
+                        if (pointsCount > 0) {
+                            const centerX = sumX / pointsCount;
+                            const centerY = sumY / pointsCount;
                             labelsToDraw.push({
                                 text: String(talhaoNome),
-                                x: bestCentroid.x,
-                                y: bestCentroid.y
+                                x: centerX,
+                                y: centerY
                             });
                         }
                     });
