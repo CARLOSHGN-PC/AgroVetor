@@ -3417,44 +3417,7 @@ try {
                             doc.fillAndStroke();
                         });
 
-                        // Desenhar labels (Nome do Talhão e Área)
-                        let minXLabel = Infinity, maxXLabel = -Infinity, minYLabel = Infinity, maxYLabel = -Infinity;
-
-                        polygons.forEach(polygon => {
-                            // polygon[0] é o anel externo
-                            if (polygon && polygon.length > 0) {
-                                polygon[0].forEach(p => {
-                                    if (p[0] < minXLabel) minXLabel = p[0];
-                                    if (p[0] > maxXLabel) maxXLabel = p[0];
-                                    if (p[1] < minYLabel) minYLabel = p[1];
-                                    if (p[1] > maxYLabel) maxYLabel = p[1];
-                                });
-                            }
-                        });
-
-                        // Centroide aproximado (centro do Bounding Box)
-                        const centerCoord = [ (minXLabel + maxXLabel) / 2, (minYLabel + maxYLabel) / 2 ];
-                        const [labelX, labelY] = transformCoord(centerCoord);
-
-                        // Tenta encontrar a área nas propriedades do shapefile
-                        let areaLabel = '';
-                        const areaProp = findShapefileProp(feature.properties, ['AREA', 'AREA_HA', 'HECTARES', 'HA']);
-                        if (areaProp) {
-                            areaLabel = `${parseFloat(areaProp).toFixed(2)} ha`;
-                        }
-
-                        doc.fillColor('black');
-                        doc.fontSize(6).font('Helvetica-Bold');
-
-                        // Desenha o nome do talhão
-                        doc.text(talhaoNome, labelX - 20, labelY - 4, { width: 40, align: 'center' });
-
-                        // Desenha a área logo abaixo, se existir
-                        if (areaLabel) {
-                            doc.fontSize(5).font('Helvetica');
-                            doc.text(areaLabel, labelX - 20, labelY + 3, { width: 40, align: 'center' });
-                        }
-
+                        // Opcional: Desenhar labels se necessário, similar ao risco
                     });
                     doc.restore();
                 } else {
