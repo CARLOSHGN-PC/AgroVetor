@@ -3415,21 +3415,9 @@ try {
                             doc.moveTo(firstPoint[0], firstPoint[1]);
                             for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
                             doc.fillAndStroke();
-
-                            // Draw Label
-                            let sumX = 0, sumY = 0;
-                            path.forEach(p => { sumX += p[0]; sumY += p[1]; });
-                            const centerX = sumX / path.length;
-                            const centerY = sumY / path.length;
-                            const [labelX, labelY] = transformCoord([centerX, centerY]);
-
-                            doc.fillColor('red');
-                            doc.fontSize(14).font('Helvetica-Bold');
-                            const label = String(talhaoNome);
-                            const textWidth = doc.widthOfString(label);
-                            const textHeight = doc.currentLineHeight();
-                            doc.text(label, labelX - textWidth / 2, labelY - textHeight / 2);
                         });
+
+                        // Opcional: Desenhar labels se necessário, similar ao risco
                     });
                     doc.restore();
                 } else {
@@ -3440,87 +3428,52 @@ try {
             }
 
             // Draw List
-            const tableWidth = 140;
-            const colGap = 15;
-            const headerHeight = 15;
-            const rowHeight = 15;
-
-            let currentListX = listX;
             let currentListY = contentStartY;
-            const startYPage1 = contentStartY + 20; // Offset for title
+            doc.fontSize(10).font('Helvetica-Bold').text('Talhões Selecionados', listX, currentListY);
+            currentListY += 15;
 
-            doc.fontSize(12).font('Helvetica-Bold').text('Talhões Selecionados', listX, contentStartY);
-            currentListY = startYPage1;
+            const headers = ['Talhão', 'Área (ha)'];
+            const colWidths = [listWidth * 0.6, listWidth * 0.4];
 
-            const drawHeaderRow = (x, y) => {
-                 const headers = ['Talhão', 'Área (ha)'];
-                 const col1Width = tableWidth * 0.6;
-                 const col2Width = tableWidth * 0.4;
-                 doc.fontSize(9).font('Helvetica-Bold');
-                 doc.rect(x, y, tableWidth, headerHeight).fillAndStroke('#eee', '#ccc');
-                 doc.fillColor('black');
-                 doc.text(headers[0], x + 5, y + 3);
-                 doc.text(headers[1], x + col1Width, y + 3, { align: 'right', width: col2Width - 5 });
-            };
-
-            drawHeaderRow(currentListX, currentListY);
-            currentListY += headerHeight;
+            doc.fontSize(9);
+            doc.rect(listX, currentListY, listWidth, 15).fillAndStroke('#eee', '#ccc');
+            doc.fillColor('black');
+            doc.text(headers[0], listX + 5, currentListY + 3);
+            doc.text(headers[1], listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
+            currentListY += 15;
 
             let totalSelectedArea = 0;
 
             if (farmData && farmData.talhoes) {
+                const selectedTalhoes = farmData.talhoes.filter(t => osData.selectedPlots.includes(t.name)); // Assuming names match
+
+                // Filter out talhoes that might have been passed but not found (or match logic)
+                // And map to what we need
+
                 for (const plotName of osData.selectedPlots) {
                     const talhao = farmData.talhoes.find(t => String(t.name).toUpperCase() === String(plotName).toUpperCase());
                     const area = talhao ? talhao.area : 0;
                     totalSelectedArea += area;
 
-                    if (currentListY + rowHeight > doc.page.height - 30) {
-                        currentListX += tableWidth + colGap;
-
-                        if (currentListX + tableWidth > doc.page.width - 30) {
-                            doc.addPage();
-                            currentListX = 30;
-                            currentListY = 30;
-                        } else {
-                             const isPage1 = doc.bufferedPageRange().count === 1;
-                             currentListY = isPage1 ? startYPage1 : 30;
-                        }
-
-                        drawHeaderRow(currentListX, currentListY);
-                        currentListY += headerHeight;
+                    if (currentListY > doc.page.height - 50) {
+                        // Simple pagination for list if needed, though layout implies single page mostly
+                        // For now, just stop or overlay (robustness improvement possible)
                     }
 
-                    const col1Width = tableWidth * 0.6;
-                    const col2Width = tableWidth * 0.4;
+                    doc.font('Helvetica').text(plotName, listX + 5, currentListY + 3);
+                    doc.text(formatNumber(area), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
 
-                    doc.font('Helvetica').fontSize(9);
-                    doc.text(plotName, currentListX + 5, currentListY + 3);
-                    doc.text(formatNumber(area), currentListX + col1Width, currentListY + 3, { align: 'right', width: col2Width - 5 });
+                    // Draw line
+                    doc.moveTo(listX, currentListY + 15).lineTo(listX + listWidth, currentListY + 15).strokeColor('#eee').stroke();
 
-                    doc.lineWidth(0.5).strokeColor('#eee');
-                    doc.moveTo(currentListX, currentListY + 15).lineTo(currentListX + tableWidth, currentListY + 15).stroke();
-
-                    currentListY += rowHeight;
+                    currentListY += 15;
                 }
             }
 
-            if (currentListY + rowHeight > doc.page.height - 30) {
-                 currentListX += tableWidth + colGap;
-                 if (currentListX + tableWidth > doc.page.width - 30) {
-                     doc.addPage();
-                     currentListX = 30;
-                     currentListY = 30;
-                 } else {
-                     const isPage1 = doc.bufferedPageRange().count === 1;
-                     currentListY = isPage1 ? startYPage1 : 30;
-                 }
-            }
-
-            const col1Width = tableWidth * 0.6;
-            const col2Width = tableWidth * 0.4;
+            // Total Row
             currentListY += 5;
-            doc.font('Helvetica-Bold').text('TOTAL', currentListX + 5, currentListY + 3);
-            doc.text(formatNumber(totalSelectedArea), currentListX + col1Width, currentListY + 3, { align: 'right', width: col2Width - 5 });
+            doc.font('Helvetica-Bold').text('TOTAL', listX + 5, currentListY + 3);
+            doc.text(formatNumber(totalSelectedArea), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
 
 
             generatePdfFooter(doc, generatedBy || osData.createdBy);
