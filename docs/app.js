@@ -9543,15 +9543,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.farmSelect.addEventListener('change', () => this.handleFarmChange());
                 els.btnGenerate.addEventListener('click', () => this.generateOS());
 
-                const selectAllCheckbox = document.getElementById('osSelectAllPlots');
-                if (selectAllCheckbox) {
-                    selectAllCheckbox.addEventListener('change', (e) => {
-                        const isChecked = e.target.checked;
-                        const plotCheckboxes = App.elements.osManual.plotsList.querySelectorAll('input[type="checkbox"]');
+                const selectAllBtn = document.getElementById('osSelectAllPlotsBtn');
+                if (selectAllBtn) {
+                    selectAllBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const plotCheckboxes = Array.from(App.elements.osManual.plotsList.querySelectorAll('input[type="checkbox"]'));
+                        if (plotCheckboxes.length === 0) return;
+
+                        const allChecked = plotCheckboxes.every(cb => cb.checked);
+                        const targetState = !allChecked;
+
                         plotCheckboxes.forEach(checkbox => {
-                            if (checkbox.checked !== isChecked) {
-                                checkbox.checked = isChecked;
-                                // Dispara o evento 'change' para acionar a lógica de seleção/desseleção individual
+                            if (checkbox.checked !== targetState) {
+                                checkbox.checked = targetState;
                                 checkbox.dispatchEvent(new Event('change'));
                             }
                         });
