@@ -9543,28 +9543,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.farmSelect.addEventListener('change', () => this.handleFarmChange());
                 els.btnGenerate.addEventListener('click', () => this.generateOS());
 
-                const btnToggleSelectAll = document.getElementById('btnToggleSelectAll');
-                if (btnToggleSelectAll) {
-                    btnToggleSelectAll.addEventListener('click', () => {
-                        const plotCheckboxes = Array.from(App.elements.osManual.plotsList.querySelectorAll('input[type="checkbox"]'));
-                        // Check if all are currently checked
-                        const allChecked = plotCheckboxes.every(cb => cb.checked);
-                        const newState = !allChecked;
-
+                const selectAllCheckbox = document.getElementById('osSelectAllPlots');
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.addEventListener('change', (e) => {
+                        const isChecked = e.target.checked;
+                        const plotCheckboxes = App.elements.osManual.plotsList.querySelectorAll('input[type="checkbox"]');
                         plotCheckboxes.forEach(checkbox => {
-                            if (checkbox.checked !== newState) {
-                                checkbox.checked = newState;
+                            if (checkbox.checked !== isChecked) {
+                                checkbox.checked = isChecked;
                                 // Dispara o evento 'change' para acionar a lógica de seleção/desseleção individual
                                 checkbox.dispatchEvent(new Event('change'));
                             }
                         });
-
-                        // Update button text/icon
-                        if (newState) {
-                            btnToggleSelectAll.innerHTML = '<i class="fas fa-times"></i> Desmarcar Todos';
-                        } else {
-                            btnToggleSelectAll.innerHTML = '<i class="fas fa-check-double"></i> Selecionar Todos';
-                        }
                     });
                 }
 
