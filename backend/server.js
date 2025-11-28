@@ -3435,10 +3435,20 @@ try {
                             const centerX = sumX / pointsCount;
                             const centerY = sumY / pointsCount;
 
-                            doc.fontSize(8).fillColor('black');
-                            // Draw text centered at calculated position
-                            doc.text(talhaoNome, centerX - 20, centerY - 4, {
-                                width: 40,
+                            doc.fontSize(8);
+                            const textWidth = doc.widthOfString(talhaoNome);
+                            const textHeight = doc.currentLineHeight();
+                            const boxPadding = 2;
+                            const boxWidth = textWidth + (boxPadding * 2);
+                            const boxHeight = textHeight + (boxPadding * 2);
+
+                            // Draw white background rectangle centered
+                            doc.rect(centerX - (boxWidth / 2), centerY - (boxHeight / 2), boxWidth, boxHeight).fill('white');
+
+                            // Draw text centered
+                            doc.fillColor('black');
+                            doc.text(talhaoNome, centerX - (boxWidth / 2), centerY - (textHeight / 2), {
+                                width: boxWidth,
                                 align: 'center',
                                 lineBreak: false
                             });
