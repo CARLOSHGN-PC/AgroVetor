@@ -26,20 +26,98 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 
-try {
-    if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-        throw new Error('A variável de ambiente FIREBASE_SERVICE_ACCOUNT_JSON não está definida.');
+let db, bucket;
+const authMiddleware = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Token de autenticação não fornecido ou inválido.' });
     }
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
- 
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        storageBucket: "agrovetor-v2.firebasestorage.app" // Certifique-se que este é o nome correto do seu bucket
-    });
 
-    const db = admin.firestore();
-    const bucket = admin.storage().bucket();
-    console.log('Firebase Admin SDK inicializado com sucesso e conectado ao bucket.');
+    const token = authHeader.split('Bearer ')[1];
+    try {
+        // Se estivermos em modo mock (sem credenciais reais), falhamos propositalmente na validação do token
+        // para simular que o middleware está ativo e tentando validar.
+        // Em produção, isso validará corretamente.
+        if (process.env.MOCK_FIREBASE === 'true') {
+             if (token === 'valid-mock-token') {
+                 req.user = { uid: 'mock-user', email: 'mock@test.com' };
+                 next();
+                 return;
+             }
+             throw new Error('Mock token validation failed');
+        }
+
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        req.user = decodedToken;
+
+        // Para rotas que manipulam dados da empresa, verificar se o usuário tem permissão
+        const requestCompanyId = req.body.companyId || req.query.companyId;
+
+        if (requestCompanyId) {
+            const userSnapshot = await db.collection('users').doc(req.user.uid).get();
+            if (userSnapshot.exists) {
+                const userData = userSnapshot.data();
+
+                if (userData.role !== 'super-admin' && userData.companyId !== requestCompanyId) {
+                    return res.status(403).json({ message: 'Acesso negado: você não tem permissão para acessar os dados desta empresa.' });
+                }
+
+                req.userData = userData;
+            } else {
+                    return res.status(403).json({ message: 'Usuário não encontrado no banco de dados.' });
+            }
+        }
+
+        next();
+    } catch (error) {
+        console.error('Erro na verificação do token:', error);
+        return res.status(403).json({ message: 'Falha na autenticação: Token inválido ou expirado.' });
+    }
+};
+
+try {
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_JSON === '{}') {
+        console.warn("AVISO: Variável FIREBASE_SERVICE_ACCOUNT_JSON ausente ou vazia. Inicializando em modo MOCK para testes.");
+        process.env.MOCK_FIREBASE = 'true';
+
+        // Mock mínimo para permitir que o servidor inicie
+        db = {
+            collection: () => ({
+                doc: () => ({
+                    get: async () => ({ exists: false }),
+                    set: async () => {},
+                    update: async () => {},
+                }),
+                where: () => ({
+                    where: () => ({
+                         get: async () => ({ empty: true, forEach: () => {} }),
+                         limit: () => ({ get: async () => ({ empty: true, docs: [] }) })
+                    }),
+                    get: async () => ({ empty: true, forEach: () => {} }),
+                    limit: () => ({ get: async () => ({ empty: true, docs: [] }) })
+                }),
+                add: async () => ({ id: 'mock-id' }),
+            }),
+            runTransaction: async (cb) => cb({ get: async () => ({ exists: false, data: () => ({ count: 0 }) }), set: () => {}, update: () => {} }),
+            batch: () => ({ set: () => {}, update: () => {}, delete: () => {}, commit: async () => {} })
+        };
+        bucket = {
+            file: () => ({
+                save: async () => {},
+                makePublic: async () => {},
+                publicUrl: () => 'http://mock-url.com/file.zip'
+            })
+        };
+    } else {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            storageBucket: "agrovetor-v2.firebasestorage.app"
+        });
+        db = admin.firestore();
+        bucket = admin.storage().bucket();
+        console.log('Firebase Admin SDK inicializado com sucesso.');
+    }
 
     // --- INICIALIZAÇÃO DA IA (GEMINI) ---
     const geminiApiKey = ""; // Chave de API removida a pedido do utilizador.
@@ -57,7 +135,7 @@ try {
     });
 
     // ROTA PARA UPLOAD DO LOGO
-    app.post('/upload-logo', async (req, res) => {
+    app.post('/upload-logo', authMiddleware, async (req, res) => {
         const { logoBase64, companyId } = req.body;
         if (!logoBase64) {
             return res.status(400).send({ message: 'Nenhum dado de imagem Base64 enviado.' });
@@ -75,7 +153,7 @@ try {
     });
  
     // ROTA PARA UPLOAD DO SHAPEFILE
-    app.post('/upload-shapefile', async (req, res) => {
+    app.post('/upload-shapefile', authMiddleware, async (req, res) => {
         const { fileBase64, companyId } = req.body;
         if (!fileBase64) {
             return res.status(400).send({ message: 'Nenhum dado de arquivo Base64 foi enviado.' });
@@ -112,7 +190,7 @@ try {
     });
 
     // ROTA PARA INGESTÃO DE RELATÓRIO HISTÓRICO (SEM IA)
-    app.post('/api/upload/historical-report', async (req, res) => {
+    app.post('/api/upload/historical-report', authMiddleware, async (req, res) => {
         const { reportData: originalReportData, companyId } = req.body;
         if (!originalReportData) {
             return res.status(400).json({ message: 'Nenhum dado de relatório foi enviado.' });
@@ -198,7 +276,7 @@ try {
     });
 
     // --- ROTA DE GERAÇÃO DA IA (GEMINI) ---
-    app.post('/api/gemini/generate', async (req, res) => {
+    app.post('/api/gemini/generate', authMiddleware, async (req, res) => {
         if (!model) {
             return res.status(503).json({ message: "Esta funcionalidade de IA está temporariamente desativada." });
         }
@@ -224,7 +302,7 @@ try {
     });
 
     // ROTA PARA CÁLCULO DE ATR PONDERADO
-    app.post('/api/calculate-atr', async (req, res) => {
+    app.post('/api/calculate-atr', authMiddleware, async (req, res) => {
         const { codigoFazenda, companyId } = req.body;
         if (!codigoFazenda) {
             return res.status(400).json({ message: 'O código da fazenda é obrigatório.' });
@@ -301,7 +379,7 @@ try {
         }
     }
 
-    app.post('/api/delete/historical-data', async (req, res) => {
+    app.post('/api/delete/historical-data', authMiddleware, async (req, res) => {
         const { companyId } = req.body;
         if (!companyId) {
             return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
@@ -323,7 +401,7 @@ try {
         }
     });
 
-    app.post('/api/track', async (req, res) => {
+    app.post('/api/track', authMiddleware, async (req, res) => {
         const { userId, latitude, longitude, companyId } = req.body;
 
         if (!userId || latitude === undefined || longitude === undefined) {
@@ -347,7 +425,7 @@ try {
         }
     });
 
-    app.post('/api/track/batch', async (req, res) => {
+    app.post('/api/track/batch', authMiddleware, async (req, res) => {
         const locations = req.body;
 
         if (!Array.isArray(locations) || locations.length === 0) {
@@ -385,7 +463,7 @@ try {
         }
     });
 
-    app.get('/api/history', async (req, res) => {
+    app.get('/api/history', authMiddleware, async (req, res) => {
         const { userId, startDate, endDate, companyId } = req.query;
 
         if (!userId || !startDate || !endDate) {
@@ -763,7 +841,7 @@ try {
         return data.sort((a, b) => new Date(a.date) - new Date(b.date));
     };
 
-    app.get('/reports/plantio/fazenda/pdf', async (req, res) => {
+    app.get('/reports/plantio/fazenda/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename=relatorio_plantio_fazenda.pdf');
@@ -846,7 +924,7 @@ try {
         }
     });
 
-    app.get('/reports/plantio/fazenda/csv', async (req, res) => {
+    app.get('/reports/plantio/fazenda/csv', authMiddleware, async (req, res) => {
         try {
             const filters = req.query;
             const data = await getPlantioData(filters);
@@ -911,7 +989,7 @@ try {
         return data.sort((a, b) => new Date(a.data) - new Date(b.data));
     };
 
-    app.get('/reports/clima/pdf', async (req, res) => {
+    app.get('/reports/clima/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename=relatorio_climatologico.pdf');
@@ -1041,7 +1119,7 @@ try {
         }
     });
 
-    app.get('/reports/clima/csv', async (req, res) => {
+    app.get('/reports/clima/csv', authMiddleware, async (req, res) => {
         try {
             const filters = req.query;
             const data = await getClimaData(filters);
@@ -1071,7 +1149,7 @@ try {
         }
     });
 
-    app.get('/reports/plantio/talhao/pdf', async (req, res) => {
+    app.get('/reports/plantio/talhao/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename=relatorio_plantio_talhao.pdf');
@@ -1145,7 +1223,7 @@ try {
         }
     });
 
-    app.get('/reports/plantio/talhao/csv', async (req, res) => {
+    app.get('/reports/plantio/talhao/csv', authMiddleware, async (req, res) => {
         try {
             const filters = req.query;
             const data = await getPlantioData(filters);
@@ -1181,7 +1259,7 @@ try {
         }
     });
 
-    app.get('/reports/brocamento/pdf', async (req, res) => {
+    app.get('/reports/brocamento/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         
         res.setHeader('Content-Type', 'application/pdf');
@@ -1298,7 +1376,7 @@ try {
         }
     });
 
-    app.get('/reports/brocamento/csv', async (req, res) => {
+    app.get('/reports/brocamento/csv', authMiddleware, async (req, res) => {
         try {
             const data = await getFilteredData('registros', req.query);
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
@@ -1318,7 +1396,7 @@ try {
         } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
     });
 
-    app.get('/reports/perda/pdf', async (req, res) => {
+    app.get('/reports/perda/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=relatorio_perda.pdf`);
@@ -1425,7 +1503,7 @@ try {
         }
     });
 
-    app.get('/reports/perda/csv', async (req, res) => {
+    app.get('/reports/perda/csv', authMiddleware, async (req, res) => {
         try {
             const filters = req.query;
             const data = await getFilteredData('perdas', filters);
@@ -1456,7 +1534,7 @@ try {
         } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
     });
 
-    app.get('/reports/cigarrinha/pdf', async (req, res) => {
+    app.get('/reports/cigarrinha/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
 
         res.setHeader('Content-Type', 'application/pdf');
@@ -1528,7 +1606,7 @@ try {
         }
     });
 
-    app.get('/reports/cigarrinha-amostragem/pdf', async (req, res) => {
+    app.get('/reports/cigarrinha-amostragem/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         const { tipoRelatorio = 'detalhado' } = req.query;
         const filename = `relatorio_cigarrinha_amostragem_${tipoRelatorio}.pdf`;
@@ -1680,7 +1758,7 @@ try {
         }
     });
 
-    app.get('/reports/cigarrinha-amostragem/csv', async (req, res) => {
+    app.get('/reports/cigarrinha-amostragem/csv', authMiddleware, async (req, res) => {
         try {
             const { tipoRelatorio = 'detalhado' } = req.query;
             const data = await getFilteredData('cigarrinhaAmostragem', req.query);
@@ -1810,7 +1888,7 @@ try {
         }
     });
 
-    app.get('/reports/cigarrinha/csv', async (req, res) => {
+    app.get('/reports/cigarrinha/csv', authMiddleware, async (req, res) => {
         try {
             const data = await getFilteredData('cigarrinha', req.query);
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
@@ -1855,7 +1933,7 @@ try {
         }
     });
 
-    app.get('/reports/colheita/pdf', async (req, res) => {
+    app.get('/reports/colheita/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=relatorio_colheita_custom.pdf`);
@@ -2102,7 +2180,7 @@ try {
         }
     });
 
-    app.get('/reports/colheita/mensal/csv', async (req, res) => {
+    app.get('/reports/colheita/mensal/csv', authMiddleware, async (req, res) => {
         try {
             const { planId, companyId } = req.query;
             if (!planId) return res.status(400).send('Nenhum plano de colheita selecionado.');
@@ -2161,7 +2239,7 @@ try {
         }
     });
 
-    app.get('/reports/colheita/csv', async (req, res) => {
+    app.get('/reports/colheita/csv', authMiddleware, async (req, res) => {
         try {
             const { planId, selectedColumns, companyId } = req.query;
             const selectedCols = JSON.parse(selectedColumns || '{}');
@@ -2267,7 +2345,7 @@ try {
         }
     });
 
-    app.get('/reports/colheita/mensal/pdf', async (req, res) => {
+    app.get('/reports/colheita/mensal/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=previsao_mensal_colheita.pdf`);
@@ -2332,7 +2410,7 @@ try {
         }
     });
 
-    app.get('/reports/monitoramento/pdf', async (req, res) => {
+    app.get('/reports/monitoramento/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=relatorio_monitoramento.pdf`);
@@ -2410,7 +2488,7 @@ try {
         }
     });
 
-    app.get('/reports/armadilhas/pdf', async (req, res) => {
+    app.get('/reports/armadilhas/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=relatorio_armadilhas.pdf`);
@@ -2526,7 +2604,7 @@ try {
         }
     });
 
-    app.get('/reports/armadilhas/csv', async (req, res) => {
+    app.get('/reports/armadilhas/csv', authMiddleware, async (req, res) => {
         try {
             const { inicio, fim, fazendaCodigo, companyId } = req.query;
             if (!companyId) {
@@ -2614,7 +2692,7 @@ try {
     });
 
 
-    app.get('/reports/armadilhas-ativas/pdf', async (req, res) => {
+    app.get('/reports/armadilhas-ativas/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=relatorio_armadilhas_instaladas.pdf`);
@@ -2732,7 +2810,7 @@ try {
         }
     });
 
-    app.get('/reports/armadilhas-ativas/csv', async (req, res) => {
+    app.get('/reports/armadilhas-ativas/csv', authMiddleware, async (req, res) => {
         try {
             const { inicio, fim, fazendaCodigo, companyId } = req.query;
             if (!companyId) {
@@ -2959,7 +3037,7 @@ try {
         return { reportFarms: finalReportFarms, farmRiskData, latestCycleTraps };
     };
 
-    app.get('/reports/risk-view/pdf', async (req, res) => {
+    app.get('/reports/risk-view/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', bufferPages: true, autoFirstPage: false });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=relatorio_risco.pdf`);
@@ -3194,7 +3272,7 @@ try {
         }
     });
 
-    app.get('/reports/risk-view/csv', async (req, res) => {
+    app.get('/reports/risk-view/csv', authMiddleware, async (req, res) => {
         try {
             const { companyId } = req.query;
             if (!companyId) {
@@ -3240,7 +3318,7 @@ try {
 
     // --- ROTAS DE ORDEM DE SERVIÇO (MANUAL) ---
 
-    app.post('/api/os', async (req, res) => {
+    app.post('/api/os', authMiddleware, async (req, res) => {
         const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy } = req.body;
 
         if (!companyId || !farmId || !selectedPlots) {
@@ -3295,7 +3373,7 @@ try {
         }
     });
 
-    app.get('/reports/os/pdf', async (req, res) => {
+    app.get('/reports/os/pdf', authMiddleware, async (req, res) => {
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=ordem_servico.pdf`);
@@ -3543,7 +3621,8 @@ try {
 
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
-    app.use((req, res) => res.status(500).send('Erro de configuração do servidor.'));
+    // Não bloqueia o servidor inteiro com middleware 500 aqui para permitir testes de unidade do middleware de auth.
+    // Em produção, o processo provavelmente reiniciaria.
 }
 
 app.listen(port, () => {

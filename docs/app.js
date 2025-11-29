@@ -4668,12 +4668,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             saveUserProfileLocally(userProfile) {
+                // Segurança: Não salvar permissões ou dados sensíveis da empresa no localStorage.
+                // Salvar apenas o necessário para identificação básica na UI de login offline.
+                const safeProfile = {
+                    uid: userProfile.uid,
+                    email: userProfile.email,
+                    username: userProfile.username,
+                    // Não incluir permissions, companyId, ou outros dados sensíveis aqui.
+                    // Esses dados devem ser obtidos do IndexedDB criptografado ('offline-credentials') ou via rede.
+                    lastLogin: new Date().toISOString()
+                };
+
                 let profiles = this.getLocalUserProfiles();
-                const index = profiles.findIndex(p => p.uid === userProfile.uid);
+                const index = profiles.findIndex(p => p.uid === safeProfile.uid);
                 if (index > -1) {
-                    profiles[index] = userProfile;
+                    profiles[index] = safeProfile;
                 } else {
-                    profiles.push(userProfile);
+                    profiles.push(safeProfile);
                 }
                 localStorage.setItem('localUserProfiles', JSON.stringify(profiles));
             },
