@@ -4,7 +4,7 @@ import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, upda
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
-import { openDB } from 'https://unpkg.com/idb@7.1.1/build/index.js';
+import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -9752,11 +9752,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Limpa o estado visual do mapa antes de qualquer outra coisa
                 if (App.state.osMap && App.state.osMap.isStyleLoaded() && App.state.geoJsonData) {
-                    App.state.geoJsonData.features.forEach(feature => {
-                        if (feature.id !== undefined) {
-                            App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
-                        }
-                    });
+                    // Verifica se a fonte existe antes de tentar definir o estado
+                    if (App.state.osMap.getSource('os-talhoes-source')) {
+                        App.state.geoJsonData.features.forEach(feature => {
+                            if (feature.id !== undefined) {
+                                App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                            }
+                        });
+                    }
                 }
 
                 App.state.osSelectedPlots.clear(); // Limpa o estado dos dados

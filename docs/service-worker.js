@@ -33,8 +33,8 @@ const urlsToCache = [
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
-  'https://unpkg.com/shpjs@latest/dist/shp.js',
-  'https://unpkg.com/idb@7.1.1/build/index.js',
+  'https://cdn.jsdelivr.net/npm/shpjs@latest/dist/shp.js',
+  'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
@@ -85,7 +85,7 @@ self.addEventListener('activate', event => {
 });
 
 // Importar a biblioteca IDB para uso no Service Worker
-importScripts('https://unpkg.com/idb@7.1.1/build/iife/index-min.js');
+importScripts('https://cdn.jsdelivr.net/npm/idb@7.1.1/build/iife/index-min.js');
 
 const DB_NAME = 'agrovetor-offline-storage';
 const DB_VERSION = 6;
