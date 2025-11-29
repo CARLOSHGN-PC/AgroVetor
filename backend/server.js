@@ -19,7 +19,7 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 const corsOptions = {
-    origin: 'https://agrovetor.store',
+    origin: ['https://agrovetor.store', 'https://app.agrovetor.com', 'http://localhost', 'https://localhost'],
     optionsSuccessStatus: 200
 };
 
