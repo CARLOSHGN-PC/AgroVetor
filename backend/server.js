@@ -3386,13 +3386,12 @@ try {
             // However, standard report generation flow in frontend usually passes filters.
             // Here we will support passing the OS ID.
 
-            const { osId, companyId, generatedBy } = req.query;
+            const { osId, generatedBy } = req.query;
+            // Note: we ignore the companyId from query params for security/consistency,
+            // and instead use the one stored in the OS document itself.
 
             if (!osId) {
                 throw new Error('ID da Ordem de Serviço não fornecido.');
-            }
-            if (!companyId) {
-                throw new Error('ID da empresa não fornecido.');
             }
 
             const osDoc = await db.collection('serviceOrders').doc(osId).get();
@@ -3400,6 +3399,9 @@ try {
                 throw new Error('Ordem de Serviço não encontrada.');
             }
             const osData = osDoc.data();
+
+            // FIX: Use companyId from the OS document to ensure data consistency
+            const companyId = osData.companyId;
 
             // Load Shapefile
             const geojsonData = await getShapefileData(companyId);
