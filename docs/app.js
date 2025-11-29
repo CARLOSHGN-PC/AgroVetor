@@ -6550,9 +6550,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const reportData = event.target.result;
                     App.ui.setLoading(true, "A enviar relatório para análise da IA...");
                     try {
+                        const token = await auth.currentUser.getIdToken();
                         const response = await fetch(`${App.config.backendUrl}/api/upload/historical-report`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
                             body: JSON.stringify({
                                 reportData,
                                 companyId: App.state.currentUser.companyId
@@ -6585,9 +6589,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         App.ui.setLoading(true, "A apagar histórico...");
                         try {
+                            const token = await auth.currentUser.getIdToken();
                             const response = await fetch(`${App.config.backendUrl}/api/delete/historical-data`, {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                },
                                 body: JSON.stringify({ companyId: App.state.currentUser.companyId })
                             });
                             const result = await response.json();
@@ -7294,7 +7302,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const companyId = App.state.currentUser.companyId;
-                    const response = await fetch(`${App.config.backendUrl}/api/history?userId=${userId}&startDate=${start}&endDate=${end}&companyId=${companyId}`);
+                    const token = await auth.currentUser.getIdToken();
+                    const response = await fetch(`${App.config.backendUrl}/api/history?userId=${userId}&startDate=${start}&endDate=${end}&companyId=${companyId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
@@ -7410,9 +7423,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(atrSpinner) atrSpinner.style.display = 'inline-block';
 
                 try {
+                    const token = await auth.currentUser.getIdToken();
                     const response = await fetch(`${App.config.backendUrl}/api/calculate-atr`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
                         body: JSON.stringify({
                             codigoFazenda: farm.code,
                             companyId: App.state.currentUser.companyId
@@ -7941,9 +7958,13 @@ document.addEventListener('DOMContentLoaded', () => {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
                 App.ui.setLoading(true, loadingMessage);
                 try {
+                    const token = await auth.currentUser.getIdToken();
                     const response = await fetch(`${App.config.backendUrl}/api/gemini/generate`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
                         body: JSON.stringify({
                             prompt,
                             contextData,
@@ -9973,12 +9994,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A gerar Ordem de Serviço...");
 
                 try {
+                    const token = await auth.currentUser.getIdToken();
                     // 1. Save to Firestore
                     const saveResponse = await fetch(`${App.config.backendUrl}/api/os`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${await auth.currentUser.getIdToken()}`
+                            'Authorization': `Bearer ${token}`
                         },
                         body: JSON.stringify(osData)
                     });
@@ -9987,15 +10009,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const savedOS = await saveResponse.json();
 
                     // 2. Generate PDF
-                    // We pass the data directly or the ID if the backend supports fetching by ID.
-                    // Based on the plan, we'll pass data as filters/body to the report endpoint.
-                    // However, GET requests have URL length limits.
-                    // Ideally, the /reports/os/pdf endpoint should fetch the data from Firestore using the ID we just created.
-                    // Or we POST the data to generate the PDF.
-                    // Let's use the filters approach for now as per existing patterns, but passing the ID is safer.
-                    // Update: The backend plan said "POST /api/os" and "GET /reports/os/pdf".
-                    // We can pass the `id` to the report endpoint.
-
                     const reportParams = new URLSearchParams({
                         osId: savedOS.id,
                         companyId: App.state.currentUser.companyId,
@@ -10003,8 +10016,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const pdfUrl = `${App.config.backendUrl}/reports/os/pdf?${reportParams.toString()}`;
 
-                    // Trigger download
-                    const pdfResponse = await fetch(pdfUrl);
+                    // Trigger download with Authentication header
+                    const pdfResponse = await fetch(pdfUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
                     if (!pdfResponse.ok) throw new Error("Falha ao gerar o PDF.");
 
                     const blob = await pdfResponse.blob();
@@ -11620,7 +11638,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         reports: {
-                _fetchAndDownloadReport(endpoint, filters, filename) {
+                async _fetchAndDownloadReport(endpoint, filters, filename) {
                     const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
                     cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
                     if (App.state.currentUser && App.state.currentUser.companyId) {
@@ -11639,32 +11657,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.ui.setLoading(true, "A gerar relatório no servidor...");
 
-                    fetch(apiUrl)
-                        .then(response => {
-                            if (!response.ok) {
-                                return response.text().then(text => { throw new Error(text || `Erro do servidor: ${response.statusText}`) });
+                    try {
+                        const token = await auth.currentUser.getIdToken();
+
+                        const response = await fetch(apiUrl, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
                             }
-                            return response.blob();
-                        })
-                        .then(blob => {
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.style.display = 'none';
-                            a.href = url;
-                            a.download = filename;
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                            a.remove();
-                            App.ui.showAlert('Relatório gerado com sucesso!');
-                        })
-                        .catch(error => {
-                            console.error('Erro ao gerar relatório via API:', error);
-                            App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
-                        })
-                        .finally(() => {
-                            App.ui.setLoading(false);
                         });
+
+                        if (!response.ok) {
+                            const text = await response.text();
+                            throw new Error(text || `Erro do servidor: ${response.statusText}`);
+                        }
+
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        a.remove();
+                        App.ui.showAlert('Relatório gerado com sucesso!');
+
+                    } catch (error) {
+                        console.error('Erro ao gerar relatório via API:', error);
+                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
                 },
 
                 generateBrocamentoPDF() {
