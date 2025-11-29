@@ -7070,9 +7070,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 // The backend endpoint expects a direct array, not an object with a 'locations' property.
+                const token = await auth.currentUser.getIdToken();
                 const response = await fetch(`${App.config.backendUrl}/api/track/batch`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify(locationsToSync),
                 });
 
