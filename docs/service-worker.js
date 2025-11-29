@@ -85,7 +85,7 @@ self.addEventListener('activate', event => {
 });
 
 // Importar a biblioteca IDB para uso no Service Worker
-importScripts('./idb.js');
+importScripts('https://cdn.jsdelivr.net/npm/idb@7.1.1/build/iife/index-min.js');
 
 const DB_NAME = 'agrovetor-offline-storage';
 const DB_VERSION = 6;

@@ -15,7 +15,6 @@
     "csv-writer": "^1.6.0",
     "express": "^5.1.0",
     "firebase-admin": "^13.6.0",
-    "idb": "^7.1.1",
     "pdfkit": "^0.17.2",
     "point-in-polygon": "^1.1.0",
     "shpjs": "^4.0.2",
