@@ -7014,6 +7014,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                                 unrecoverableKeys.push(key); // Adiciona à lista de descarte
                                 discardedWrites++;
+                            } else if (error.code === 'permission-denied' || error.code === 'invalid-argument' || error.code === 'not-found') {
+                                // FIX: Detect permanent Firestore errors and discard the item to prevent infinite loops
+                                console.error(`Erro permanente do Firestore (${error.code}). Descartando item:`, { write, error });
+                                logEntry.items.push({
+                                    status: 'discarded', // Status distinct for discarded items
+                                    collection: write?.collection || 'unknown',
+                                    data: write?.data || write,
+                                    error: `Erro Permanente: ${error.message}`
+                                });
+                                unrecoverableKeys.push(key);
+                                discardedWrites++;
                             } else {
                                 console.error(`Falha ao sincronizar o item (será tentado novamente):`, { write, error });
                                 logEntry.items.push({
@@ -8379,6 +8390,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const map = App.state.mapboxMap;
+
+                // FIX: Race condition check. Ensure style is fully loaded before adding layers.
+                if (!map.isStyleLoaded()) {
+                    console.log("Map style not ready yet. Waiting for 'load' or 'styledata'...");
+                    // Mapbox's 'load' event only fires once. If we missed it, we rely on 'styledata'.
+                    // However, safer to just retry once style is loaded if called prematurely.
+                    map.once('styledata', () => this.loadShapesOnMap());
+                    return;
+                }
+
                 const sourceId = 'talhoes-source';
                 const layerId = 'talhoes-layer';
                 const borderLayerId = 'talhoes-border-layer';
