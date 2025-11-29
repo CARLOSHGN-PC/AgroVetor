@@ -11688,44 +11688,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
 
                         if (!response.ok) {
-                            let errorMessage = `Erro do servidor: ${response.status} ${response.statusText}`;
-                            try {
-                                const text = await response.text();
-                                if (text) errorMessage = text;
-                            } catch (e) {
-                                // Ignora erro ao ler texto
-                            }
-                            throw new Error(errorMessage);
+                            const text = await response.text();
+                            throw new Error(text || `Erro do servidor: ${response.statusText}`);
                         }
 
                         const blob = await response.blob();
                         const url = window.URL.createObjectURL(blob);
-
-                        // No Android Nativo, o download direto via blob: pode falhar dependendo da WebView.
-                        // Uma abordagem mais robusta seria usar o Filesystem plugin, mas para manter a simplicidade
-                        // e focar na correção de rede, mantemos o link, mas garantimos que ele seja clicado corretamente.
                         const a = document.createElement('a');
                         a.style.display = 'none';
                         a.href = url;
                         a.download = filename;
                         document.body.appendChild(a);
                         a.click();
-
-                        // Pequeno atraso para garantir que o download inicie antes de revogar a URL
-                        setTimeout(() => {
-                            window.URL.revokeObjectURL(url);
-                            a.remove();
-                        }, 100);
-
+                        window.URL.revokeObjectURL(url);
+                        a.remove();
                         App.ui.showAlert('Relatório gerado com sucesso!');
 
                     } catch (error) {
                         console.error('Erro ao gerar relatório via API:', error);
-                        let userMessage = error.message;
-                        if (error.message === 'Failed to fetch') {
-                            userMessage = 'Erro de conexão com o servidor. Verifique sua internet ou tente novamente em instantes.';
-                        }
-                        App.ui.showAlert(`Não foi possível gerar o relatório: ${userMessage}`, "error");
+                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
                     } finally {
                         App.ui.setLoading(false);
                     }

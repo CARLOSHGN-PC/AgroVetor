@@ -18,23 +18,8 @@ const xlsx = require('xlsx');
 const app = express();
 const port = process.env.PORT || 3001;
 
-const allowedOrigins = [
-    'https://agrovetor.store',
-    'https://app.agrovetor.com',
-    'http://localhost',
-    'https://localhost',
-    'capacitor://localhost'
-];
-
 const corsOptions = {
-    origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:')) {
-            callback(null, true);
-        } else {
-            console.warn(`Origem bloqueada pelo CORS: ${origin}`);
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: 'https://agrovetor.store',
     optionsSuccessStatus: 200
 };
 
