@@ -36,8 +36,10 @@ service cloud.firestore {
                   || getUserRole() == 'super-admin'
                   || (getUserRole() == 'admin' && getUserCompanyId() == get(/databases/$(database)/documents/users/$(userId)).data.companyId);
 
-      // LISTAGEM: Apenas admins e super-admins podem listar utilizadores (a filtragem por empresa é feita no lado do cliente).
-      allow list: if getUserRole() == 'admin' || getUserRole() == 'super-admin';
+      // LISTAGEM: Restringida para evitar varredura global.
+      // Super Admin lista tudo. Admin lista apenas usuários da sua empresa.
+      allow list: if getUserRole() == 'super-admin'
+                  || (getUserRole() == 'admin' && resource.data.companyId == getUserCompanyId());
 
       // CRIAÇÃO: Um super-admin pode criar qualquer utilizador. Um admin só pode criar utilizadores para a sua própria empresa.
       allow create: if getUserRole() == 'super-admin'
@@ -186,8 +188,9 @@ service cloud.firestore {
       // Leitura: Admins e super-admins podem ler logs da sua empresa. Utilizadores normais podem ler os seus próprios logs.
       allow read: if canAccessCompanyData(resource.data.companyId) || request.auth.uid == resource.data.userId;
 
-      // Atualização: O dono do log pode atualizar (para a lógica de retentativa), e o super-admin também.
-      allow update: if request.auth.uid == resource.data.userId || getUserRole() == 'super-admin';
+      // Atualização: Bloqueada para usuários comuns para garantir a integridade do log. Apenas super-admin pode corrigir.
+      // A lógica de retentativa deve criar novos logs ou ser gerida pelo backend se precisar modificar histórico.
+      allow update: if getUserRole() == 'super-admin';
 
       // Exclusão: Apenas super-admins podem apagar para manter a trilha de auditoria.
       allow delete: if getUserRole() == 'super-admin';
@@ -217,8 +220,11 @@ service cloud.firestore {
 
     // notifications: Notificações para utilizadores (ex: novas features)
     match /notifications/{docId} {
-      // Qualquer utilizador autenticado pode criar uma notificação (necessário para logs de sistema, etc.).
-      allow create: if request.auth.uid != null;
+      // Criação Restrita:
+      // 1. O sistema/admin pode criar para qualquer um (validado por role).
+      // 2. O próprio usuário pode criar apenas para si mesmo (ex: alertas locais que precisam persistir).
+      allow create: if (getUserRole() == 'super-admin' || getUserRole() == 'admin')
+                    || (request.auth.uid != null && request.resource.data.userId == request.auth.uid);
 
       // Acesso (Leitura, Atualização, Exclusão): Utilizadores só podem aceder às suas próprias notificações.
       allow read, update, delete: if request.auth.uid == resource.data.userId;
