@@ -8789,33 +8789,43 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             findTalhaoFromLocation(position) { // position is a Mapbox LngLat object
-                const containingTalhoes = [];
-                const point = turf.point([position.lng, position.lat]);
-                const allTalhoes = App.state.geoJsonData;
-
-                if (!allTalhoes || !allTalhoes.features) {
-                    this.showTrapPlacementModal('failure');
-                    return;
-                }
-
-                allTalhoes.features.forEach(feature => {
-                    try {
-                        // Strict check: the user's exact point must be inside the polygon
-                        if (turf.booleanPointInPolygon(point, feature.geometry)) {
-                            containingTalhoes.push(feature);
-                        }
-                    } catch (e) {
-                        console.warn("Geometria inválida ou erro no processamento do Turf.js:", e, feature.geometry);
+                try {
+                    if (typeof turf === 'undefined') {
+                        throw new Error("A biblioteca Turf.js não foi carregada.");
                     }
-                });
 
-                if (containingTalhoes.length === 1) {
-                    this.showTrapPlacementModal('success', containingTalhoes);
-                } else if (containingTalhoes.length > 1) {
-                    // This case is less likely now but kept for robustness (e.g., overlapping polygons)
-                    this.showTrapPlacementModal('conflict', containingTalhoes);
-                } else {
-                    this.showTrapPlacementModal('failure');
+                    const containingTalhoes = [];
+                    const point = turf.point([position.lng, position.lat]);
+                    const allTalhoes = App.state.geoJsonData;
+
+                    if (!allTalhoes || !allTalhoes.features) {
+                        this.showTrapPlacementModal('failure');
+                        return;
+                    }
+
+                    allTalhoes.features.forEach(feature => {
+                        try {
+                            // Strict check: the user's exact point must be inside the polygon
+                            if (turf.booleanPointInPolygon(point, feature.geometry)) {
+                                containingTalhoes.push(feature);
+                            }
+                        } catch (e) {
+                            console.warn("Geometria inválida ou erro no processamento do Turf.js:", e, feature.geometry);
+                        }
+                    });
+
+                    if (containingTalhoes.length === 1) {
+                        this.showTrapPlacementModal('success', containingTalhoes);
+                    } else if (containingTalhoes.length > 1) {
+                        // This case is less likely now but kept for robustness (e.g., overlapping polygons)
+                        this.showTrapPlacementModal('conflict', containingTalhoes);
+                    } else {
+                        this.showTrapPlacementModal('failure');
+                    }
+                } catch (error) {
+                    console.error("Erro crítico na deteção de talhão:", error);
+                    App.ui.showAlert("Ocorreu um erro ao tentar localizar o talhão. Tente novamente.", "error");
+                    this.hideTrapPlacementModal();
                 }
             },
 
