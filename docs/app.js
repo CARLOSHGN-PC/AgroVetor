@@ -8278,7 +8278,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (feature.geometry && feature.geometry.coordinates) {
                                 try {
                                     feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                        polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                        polygon.map(coord => {
+                                            // Garante que apenas as coordenadas X e Y (2D) sejam passadas para o proj4
+                                            // e que sejam números finitos, evitando erros com coordenadas 3D ou inválidas.
+                                            if (Array.isArray(coord) && coord.length >= 2 && Number.isFinite(coord[0]) && Number.isFinite(coord[1])) {
+                                                return proj4(sourceProjection, destProjection, [coord[0], coord[1]]);
+                                            }
+                                            return coord; // Retorna original se inválido (será filtrado ou ignorado)
+                                        })
                                     );
                                 } catch (e) {
                                     console.error("Erro ao reprojetar feature:", feature, e);
@@ -8337,7 +8344,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (feature.geometry && feature.geometry.coordinates) {
                                     try {
                                         feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                            polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                            polygon.map(coord => {
+                                                // Garante que apenas as coordenadas X e Y (2D) sejam passadas para o proj4
+                                                if (Array.isArray(coord) && coord.length >= 2 && Number.isFinite(coord[0]) && Number.isFinite(coord[1])) {
+                                                    return proj4(sourceProjection, destProjection, [coord[0], coord[1]]);
+                                                }
+                                                return coord;
+                                            })
                                         );
                                     } catch (e) {
                                         console.error("Erro ao reprojetar feature do cache:", feature, e);
