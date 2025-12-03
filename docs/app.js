@@ -140,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
                         { label: 'Apontamento de Plantio', icon: 'fas fa-seedling', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
                         { label: 'Apontamento Climatológico', icon: 'fas fa-cloud', target: 'lancamentoClima', permission: 'lancamentoClima' },
+                        { label: 'Registro de Aplicação', icon: 'fas fa-spray-can', target: 'registroAplicacao', permission: 'registroAplicacao' },
                     ]
                 },
                 {
@@ -177,9 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
                 user: { dashboard: true }
             }
@@ -239,9 +240,24 @@ document.addEventListener('DOMContentLoaded', () => {
             announcements: [],
             osMap: null,
             osSelectedPlots: new Set(),
+            appMap: null,
+            appSelectedPlots: new Map(),
         },
         
         elements: {
+            applicationEntry: {
+                farmSelect: document.getElementById('appFarmSelect'),
+                date: document.getElementById('appDate'),
+                shift: document.getElementById('appShift'),
+                product: document.getElementById('appProduct'),
+                dosage: document.getElementById('appDosage'),
+                operator: document.getElementById('appOperator'),
+                totalProduct: document.getElementById('appTotalProduct'),
+                plotsList: document.getElementById('appPlotsList'),
+                btnSave: document.getElementById('btnSaveApplication'),
+                mapContainer: document.getElementById('app-map'),
+                btnCenterMap: document.getElementById('btnCenterAppMap'),
+            },
             osManual: {
                 farmSelect: document.getElementById('osFarmSelect'),
                 serviceType: document.getElementById('osServiceType'),
@@ -1963,6 +1979,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'ordemServicoManual') {
                     App.osManual.init();
+                }
+                if (id === 'registroAplicacao') {
+                    App.applicationEntry.init();
                 }
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
@@ -4489,6 +4508,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.apontamentoPlantioFormIsDirty = true;
                     });
                 }
+
+                if (App.elements.applicationEntry.btnSave) {
+                    App.elements.applicationEntry.btnSave.addEventListener('click', () => App.actions.saveApplicationEntry());
+                }
                 const btnAddPlantioRecord = App.elements.apontamentoPlantio.addRecordBtn;
                 if (btnAddPlantioRecord) {
                     btnAddPlantioRecord.addEventListener('click', () => {
@@ -4505,6 +4528,580 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         },
+
+        applicationEntry: {
+            // Colors for shifts
+            shiftColors: {
+                'A': '#1976D2', // Blue
+                'B': '#388E3C', // Green
+                'C': '#F57C00'  // Orange
+            },
+
+            init() {
+                this.populateFarmSelect();
+                this.setupEventListeners();
+                this.initMap();
+                App.ui.setDefaultDatesForEntryForms(); // Reuse existing function for today's date
+            },
+
+            setupEventListeners() {
+                const els = App.elements.applicationEntry;
+                if (!els.farmSelect) return;
+
+                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+                els.shift.addEventListener('change', () => this.updateMapColors()); // Update colors on shift change
+                els.dosage.addEventListener('input', () => this.calculateTotalProduct()); // Recalculate total on dosage change
+
+                // Map panel toggle listeners (reusing classes/ids pattern)
+                const btnToggleAppPanel = document.getElementById('btnToggleAppPanel');
+                if (btnToggleAppPanel) {
+                    btnToggleAppPanel.addEventListener('click', () => this.toggleMapSize());
+                }
+                const btnRecolherMapa = document.getElementById('btn-recolher-mapa-app');
+                if (btnRecolherMapa) {
+                    btnRecolherMapa.addEventListener('click', () => this.toggleMapSize());
+                }
+                const btnMobileToggleMap = document.getElementById('btnMobileToggleAppMap');
+                if (btnMobileToggleMap) {
+                    btnMobileToggleMap.addEventListener('click', () => this.toggleMapSize());
+                }
+
+                if (els.btnCenterMap) {
+                    els.btnCenterMap.addEventListener('click', () => {
+                        const farmName = els.farmSelect.options[els.farmSelect.selectedIndex]?.text.split(' - ')[0];
+                        if (farmName) this.zoomToFarm(farmName);
+                    });
+                }
+            },
+
+            initMap() {
+                if (App.state.appMap) {
+                    setTimeout(() => App.state.appMap.resize(), 200);
+                    return;
+                }
+
+                const mapContainer = App.elements.applicationEntry.mapContainer;
+                if (!mapContainer) return;
+
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+
+                App.state.appMap = new mapboxgl.Map({
+                    container: mapContainer,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-48.45, -21.17],
+                    zoom: 10,
+                    attributionControl: false
+                });
+
+                const map = App.state.appMap;
+
+                map.on('load', () => {
+                    this.loadShapes();
+                    const farmId = App.elements.applicationEntry.farmSelect.value;
+                    if (farmId) {
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
+                        if (farm) {
+                            this.filterMap(farm.code);
+                            this.zoomToFarm(farm.code);
+                        }
+                    }
+                });
+
+                map.on('click', 'app-talhoes-layer', (e) => {
+                    if (e.features.length > 0) {
+                        const feature = e.features[0];
+                        this.togglePlotSelection(feature, true);
+                    }
+                });
+
+                // Hover effects
+                let hoveredFeatureId = null;
+                map.on('mousemove', 'app-talhoes-layer', (e) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    if (e.features.length > 0) {
+                        if (hoveredFeatureId !== null) {
+                            map.setFeatureState({ source: 'app-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        }
+                        hoveredFeatureId = e.features[0].id;
+                        map.setFeatureState({ source: 'app-talhoes-source', id: hoveredFeatureId }, { hover: true });
+                    }
+                });
+
+                map.on('mouseleave', 'app-talhoes-layer', () => {
+                    map.getCanvas().style.cursor = '';
+                    if (hoveredFeatureId !== null) {
+                        map.setFeatureState({ source: 'app-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        hoveredFeatureId = null;
+                    }
+                });
+            },
+
+            loadShapes() {
+                const map = App.state.appMap;
+                if (!map || !App.state.geoJsonData) return;
+
+                const sourceId = 'app-talhoes-source';
+                const layerId = 'app-talhoes-layer';
+                const borderLayerId = 'app-talhoes-border-layer';
+                const labelLayerId = 'app-talhoes-labels';
+
+                if (map.getSource(sourceId)) {
+                    map.getSource(sourceId).setData(App.state.geoJsonData);
+                } else {
+                    map.addSource(sourceId, {
+                        type: 'geojson',
+                        data: App.state.geoJsonData,
+                        generateId: true
+                    });
+                }
+
+                if (!map.getLayer(layerId)) {
+                    map.addLayer({
+                        id: layerId,
+                        type: 'fill',
+                        source: sourceId,
+                        paint: {
+                            'fill-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#FFFFFF', // Placeholder, updated dynamically
+                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
+                                '#1C1C1C'
+                            ],
+                            'fill-opacity': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 0.8,
+                                ['boolean', ['feature-state', 'hover'], false], 0.7,
+                                0.6
+                            ]
+                        }
+                    });
+                }
+
+                // Reuse logic for borders and labels as in OS Manual
+                if (!map.getLayer(borderLayerId)) {
+                     map.addLayer({
+                        id: borderLayerId,
+                        type: 'line',
+                        source: sourceId,
+                        paint: {
+                            'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#00FFFF', '#FFFFFF'],
+                            'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1.5],
+                            'line-opacity': 0.9
+                        }
+                    });
+                }
+
+                if (!map.getLayer(labelLayerId)) {
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 10,
+                        layout: {
+                            'symbol-placement': 'point',
+                            'text-field': ['format', ['upcase', ['get', 'AGV_FUNDO']], {'font-scale': 0.9}, '\n', {}, ['upcase', ['get', 'AGV_TALHAO']], {'font-scale': 1.2}],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 14,
+                            'text-ignore-placement': true,
+                            'text-allow-overlap': true
+                        },
+                        paint: {
+                            'text-color': '#FFFFFF',
+                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+
+                this.updateMapColors(); // Apply initial colors
+            },
+
+            populateFarmSelect() {
+                const select = App.elements.applicationEntry.farmSelect;
+                if (!select) return;
+                select.innerHTML = '<option value="">Selecione uma fazenda...</option>';
+                App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
+                    select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
+                });
+            },
+
+            handleFarmChange() {
+                const farmId = App.elements.applicationEntry.farmSelect.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                // Clear map selection state
+                if (App.state.appMap && App.state.appMap.isStyleLoaded() && App.state.geoJsonData) {
+                    if (App.state.appMap.getSource('app-talhoes-source')) {
+                        App.state.geoJsonData.features.forEach(feature => {
+                            if (feature.id !== undefined) {
+                                App.state.appMap.setFeatureState({ source: 'app-talhoes-source', id: feature.id }, { selected: false });
+                            }
+                        });
+                    }
+                }
+
+                // Clear partial visualizations (custom layers)
+                this.clearPartialLayers();
+
+                App.state.appSelectedPlots.clear();
+                this.calculateTotalProduct();
+
+                if (farm) {
+                    this.renderPlotsList(farm.talhoes);
+                    this.zoomToFarm(farm.code);
+                    this.filterMap(farm.code);
+                } else {
+                    App.elements.applicationEntry.plotsList.innerHTML = '<p style="text-align: center; color: var(--color-text-light); padding: 20px;">Selecione uma fazenda para carregar os talhões.</p>';
+                    this.resetMapFilter();
+                }
+            },
+
+            renderPlotsList(talhoes) {
+                const listContainer = App.elements.applicationEntry.plotsList;
+                listContainer.innerHTML = '';
+
+                if (!talhoes || talhoes.length === 0) {
+                    listContainer.innerHTML = '<p>Nenhum talhão encontrado.</p>';
+                    return;
+                }
+
+                talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
+                    // Default values
+                    const isSelected = false;
+
+                    const item = document.createElement('div');
+                    item.className = 'talhao-selection-item-extended';
+                    item.style.border = '1px solid var(--color-border)';
+                    item.style.borderRadius = '8px';
+                    item.style.marginBottom = '10px';
+                    item.style.padding = '10px';
+                    item.style.background = 'var(--color-surface)';
+
+                    item.innerHTML = `
+                        <div class="main-row" style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; flex-grow: 1; margin: 0;">
+                                <input type="checkbox" id="app-plot-${talhao.id}" data-id="${talhao.id}" style="width: auto; transform: scale(1.2);">
+                                <div>
+                                    <div style="font-weight: 600; color: var(--color-primary-dark);">${talhao.name}</div>
+                                    <div style="font-size: 12px; color: var(--color-text-light);">Área Total: ${talhao.area.toFixed(2)} ha</div>
+                                </div>
+                            </label>
+                            <label class="switch" title="Área Parcial">
+                                <input type="checkbox" class="partial-toggle" data-id="${talhao.id}">
+                                <span class="slider round"></span>
+                                <span style="font-size: 10px; margin-left: 5px;">Parcial</span>
+                            </label>
+                        </div>
+                        <div class="partial-inputs" id="partial-inputs-${talhao.id}" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--color-border);">
+                            <div class="form-row" style="margin-bottom: 0; gap: 10px;">
+                                <div class="form-col">
+                                    <label style="font-size: 11px; margin-top: 0;">Área Aplicada (ha):</label>
+                                    <input type="number" class="partial-area-input" data-id="${talhao.id}" max="${talhao.area}" placeholder="0.00">
+                                </div>
+                                <div class="form-col">
+                                    <label style="font-size: 11px; margin-top: 0;">Sentido:</label>
+                                    <select class="partial-direction-select" data-id="${talhao.id}">
+                                        <option value="N">Norte</option>
+                                        <option value="S">Sul</option>
+                                        <option value="L">Leste</option>
+                                        <option value="O">Oeste</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // Event Listeners
+                    const mainCheckbox = item.querySelector(`#app-plot-${talhao.id}`);
+                    const partialToggle = item.querySelector('.partial-toggle');
+                    const partialInputsDiv = item.querySelector(`#partial-inputs-${talhao.id}`);
+                    const partialAreaInput = item.querySelector('.partial-area-input');
+                    const partialDirectionSelect = item.querySelector('.partial-direction-select');
+
+                    mainCheckbox.addEventListener('change', (e) => {
+                        this.updatePlotState(talhao, e.target.checked, partialToggle.checked, partialAreaInput.value, partialDirectionSelect.value);
+                    });
+
+                    partialToggle.addEventListener('change', (e) => {
+                        const isPartial = e.target.checked;
+                        partialInputsDiv.style.display = isPartial ? 'block' : 'none';
+                        // Auto-check the main checkbox if partial is toggled ON
+                        if (isPartial && !mainCheckbox.checked) {
+                            mainCheckbox.checked = true;
+                        }
+                        this.updatePlotState(talhao, mainCheckbox.checked, isPartial, partialAreaInput.value, partialDirectionSelect.value);
+                    });
+
+                    partialAreaInput.addEventListener('input', () => {
+                        if (mainCheckbox.checked) {
+                            this.updatePlotState(talhao, true, true, partialAreaInput.value, partialDirectionSelect.value);
+                        }
+                    });
+
+                    partialDirectionSelect.addEventListener('change', () => {
+                        if (mainCheckbox.checked) {
+                            this.updatePlotState(talhao, true, true, partialAreaInput.value, partialDirectionSelect.value);
+                        }
+                    });
+
+                    listContainer.appendChild(item);
+                });
+            },
+
+            updatePlotState(talhao, isSelected, isPartial, partialAreaVal, direction) {
+                const map = App.state.appMap;
+
+                if (isSelected) {
+                    let area = talhao.area;
+                    if (isPartial) {
+                        const partial = parseFloat(partialAreaVal);
+                        if (!isNaN(partial) && partial > 0 && partial <= talhao.area) {
+                            area = partial;
+                        }
+                    }
+
+                    App.state.appSelectedPlots.set(talhao.id, {
+                        id: talhao.id,
+                        name: talhao.name,
+                        totalArea: talhao.area,
+                        area: area,
+                        isPartial: isPartial,
+                        direction: direction
+                    });
+
+                    // Map Visualization Logic
+                    // 1. Highlight standard feature
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.applicationEntry.farmSelect.value)?.code;
+                    const feature = App.state.geoJsonData.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
+
+                    if (feature) {
+                        if (!isPartial) {
+                            // Full selection
+                            map.setFeatureState({ source: 'app-talhoes-source', id: feature.id }, { selected: true });
+                            this.removePartialLayer(talhao.id); // Remove any partial visualization
+                        } else {
+                            // Partial selection
+                            map.setFeatureState({ source: 'app-talhoes-source', id: feature.id }, { selected: false }); // Unselect full
+                            this.renderPartialVisualization(feature, area, talhao.area, direction);
+                        }
+                    }
+
+                } else {
+                    App.state.appSelectedPlots.delete(talhao.id);
+                    // Unselect on map
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.applicationEntry.farmSelect.value)?.code;
+                    const feature = App.state.geoJsonData.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
+                    if (feature) {
+                        map.setFeatureState({ source: 'app-talhoes-source', id: feature.id }, { selected: false });
+                    }
+                    this.removePartialLayer(talhao.id);
+                }
+
+                this.calculateTotalProduct();
+            },
+
+            togglePlotSelection(feature, fromMap) {
+                const talhaoName = feature.properties.AGV_TALHAO;
+                const farmCode = feature.properties.AGV_FUNDO;
+                const farm = App.state.fazendas.find(f => f.code == farmCode);
+                if (!farm) return;
+                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName.toUpperCase());
+                if (!talhao) return;
+
+                const checkbox = document.getElementById(`app-plot-${talhao.id}`);
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            },
+
+            calculateTotalProduct() {
+                const dosage = parseFloat(App.elements.applicationEntry.dosage.value) || 0;
+                let totalArea = 0;
+
+                App.state.appSelectedPlots.forEach(data => {
+                    totalArea += data.area;
+                });
+
+                const total = totalArea * dosage;
+                App.elements.applicationEntry.totalProduct.textContent = totalArea > 0 ? `${total.toFixed(2)}` : '0.00';
+            },
+
+            // MAP VISUALIZATION - THE "INTELLIGENCE"
+            renderPartialVisualization(talhaoId, feature, partialArea, totalArea, direction) {
+                const map = App.state.appMap;
+                const layerId = `partial-layer-${talhaoId}`;
+
+                this.removePartialLayer(talhaoId);
+
+                const percentage = partialArea / totalArea;
+                if (percentage <= 0 || percentage >= 1) return;
+
+                const bbox = turf.bbox(feature);
+                const [minX, minY, maxX, maxY] = bbox;
+                const width = maxX - minX;
+                const height = maxY - minY;
+                let clipBox;
+
+                switch(direction) {
+                    case 'N': clipBox = turf.bboxPolygon([minX, maxY - (height * percentage), maxX, maxY]); break;
+                    case 'S': clipBox = turf.bboxPolygon([minX, minY, maxX, minY + (height * percentage)]); break;
+                    case 'L': clipBox = turf.bboxPolygon([maxX - (width * percentage), minY, maxX, maxY]); break;
+                    case 'O': clipBox = turf.bboxPolygon([minX, minY, minX + (width * percentage), maxY]); break;
+                    default: clipBox = turf.bboxPolygon(bbox);
+                }
+
+                try {
+                    const clipped = turf.intersect(feature, clipBox);
+                    if (clipped) {
+                        map.addSource(layerId, { type: 'geojson', data: clipped });
+                        const shift = App.elements.applicationEntry.shift.value || 'A';
+                        const color = this.shiftColors[shift] || this.shiftColors['A'];
+                        map.addLayer({
+                            id: layerId, type: 'fill', source: layerId,
+                            paint: { 'fill-color': color, 'fill-opacity': 0.9, 'fill-outline-color': '#FFF' }
+                        });
+                    }
+                } catch(e) { console.error("Turf intersect error", e); }
+            },
+
+            removePartialLayer(talhaoId) {
+                const map = App.state.appMap;
+                if (!map) return;
+                const layerId = `partial-layer-${talhaoId}`;
+                if (map.getLayer(layerId)) map.removeLayer(layerId);
+                if (map.getSource(layerId)) map.removeSource(layerId);
+            },
+
+            updatePlotState(talhao, isSelected, isPartial, partialAreaVal, direction) {
+                const map = App.state.appMap;
+
+                if (isSelected) {
+                    let area = talhao.area;
+                    if (isPartial) {
+                        const partial = parseFloat(partialAreaVal);
+                        if (!isNaN(partial) && partial > 0 && partial <= talhao.area) {
+                            area = partial;
+                        }
+                    }
+
+                    App.state.appSelectedPlots.set(talhao.id, {
+                        id: talhao.id, name: talhao.name, totalArea: talhao.area,
+                        area: area, isPartial: isPartial, direction: direction
+                    });
+
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.applicationEntry.farmSelect.value)?.code;
+                    const feature = App.state.geoJsonData.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
+
+                    if (feature) {
+                        if (!isPartial) {
+                            map.setFeatureState({ source: 'app-talhoes-source', id: feature.id }, { selected: true });
+                            this.removePartialLayer(talhao.id);
+                        } else {
+                            map.setFeatureState({ source: 'app-talhoes-source', id: feature.id }, { selected: false });
+                            this.renderPartialVisualization(talhao.id, feature, area, talhao.area, direction);
+                        }
+                    }
+                } else {
+                    App.state.appSelectedPlots.delete(talhao.id);
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.applicationEntry.farmSelect.value)?.code;
+                    const feature = App.state.geoJsonData.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
+                    if (feature) map.setFeatureState({ source: 'app-talhoes-source', id: feature.id }, { selected: false });
+                    this.removePartialLayer(talhao.id);
+                }
+                this.calculateTotalProduct();
+            },
+
+            updateMapColors() {
+                const map = App.state.appMap;
+                if (!map || !map.getLayer('app-talhoes-layer')) return;
+
+                const shift = App.elements.applicationEntry.shift.value || 'A';
+                const color = this.shiftColors[shift] || this.shiftColors['A'];
+
+                // Update standard layer color
+                map.setPaintProperty('app-talhoes-layer', 'fill-color', [
+                    'case',
+                    ['boolean', ['feature-state', 'selected'], false], color,
+                    ['boolean', ['feature-state', 'hover'], false], '#607D8B',
+                    '#1C1C1C'
+                ]);
+
+                // Update any partial layers
+                App.state.appSelectedPlots.forEach((data, id) => {
+                    if (data.isPartial) {
+                        const layerId = `partial-layer-${id}`;
+                        if (map.getLayer(layerId)) {
+                            map.setPaintProperty(layerId, 'fill-color', color);
+                        }
+                    }
+                });
+            },
+
+            clearPartialLayers() {
+                const map = App.state.appMap;
+                if (!map) return;
+                // Since we don't track all layer IDs easily, we rely on removePartialLayer called during deselection.
+                // But for full farm change, we can iterate:
+                // Actually, mapbox doesn't expose all layers easily without tracking.
+                // Hack: we assume we only have partial layers for currently selected plots.
+                // Since appSelectedPlots is cleared in handleFarmChange, we should loop BEFORE clearing.
+                App.state.appSelectedPlots.forEach((_, id) => this.removePartialLayer(id));
+            },
+
+            filterMap(farmCode) {
+                const map = App.state.appMap;
+                if (!map || !map.getLayer('app-talhoes-layer')) return;
+                const filter = ['==', ['get', 'AGV_FUNDO'], String(farmCode)];
+                map.setFilter('app-talhoes-layer', filter);
+                map.setFilter('app-talhoes-border-layer', filter);
+                map.setFilter('app-talhoes-labels', filter);
+            },
+
+            resetMapFilter() {
+                const map = App.state.appMap;
+                if (!map || !map.getLayer('app-talhoes-layer')) return;
+                map.setFilter('app-talhoes-layer', null);
+                map.setFilter('app-talhoes-border-layer', null);
+                map.setFilter('app-talhoes-labels', null);
+            },
+
+            zoomToFarm(farmCode) {
+                const map = App.state.appMap;
+                if (!map || !App.state.geoJsonData) return;
+                const features = App.state.geoJsonData.features.filter(f => f.properties.AGV_FUNDO == farmCode);
+                if (features.length > 0) {
+                    const collection = turf.featureCollection(features);
+                    const bbox = turf.bbox(collection);
+                    map.fitBounds(bbox, { padding: 20 });
+                }
+            },
+
+            toggleMapSize() {
+                const container = document.getElementById('registroAplicacao');
+                const btnToggle = document.getElementById('btnToggleAppPanel');
+                const btnRecolher = document.getElementById('btn-recolher-mapa-app');
+
+                container.classList.toggle('map-expanded');
+                const isExpanded = container.classList.contains('map-expanded');
+
+                if (btnToggle) {
+                    btnToggle.innerHTML = isExpanded ? '<i class="fas fa-compress-arrows-alt"></i>' : '<i class="fas fa-expand-arrows-alt"></i>';
+                    btnToggle.title = isExpanded ? 'Recolher Mapa' : 'Expandir Mapa';
+                }
+
+                if (btnRecolher) {
+                    if (window.innerWidth <= 768 && isExpanded) {
+                        btnRecolher.style.display = 'flex';
+                    } else {
+                        btnRecolher.style.display = 'none';
+                    }
+                }
+
+                if (App.state.appMap) {
+                    setTimeout(() => App.state.appMap.resize(), 400);
+                }
+            }
         
         actions: {
             async viewConfigHistory() {
@@ -4851,6 +5448,90 @@ document.addEventListener('DOMContentLoaded', () => {
                     } catch (error) {
                         App.ui.showAlert('Erro ao excluir todas as fazendas.', 'error');
                         console.error(error);
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
+            },
+
+            async saveApplicationEntry() {
+                const els = App.elements.applicationEntry;
+                if (!App.ui.validateFields([els.farmSelect.id, els.date.id, els.shift.id, els.product.id, els.dosage.id, els.operator.id])) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
+                    return;
+                }
+
+                if (App.state.appSelectedPlots.size === 0) {
+                    App.ui.showAlert("Selecione pelo menos um talhão.", "error");
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === els.farmSelect.value);
+                const selectedPlotsData = [];
+                let totalArea = 0;
+
+                App.state.appSelectedPlots.forEach(data => {
+                    selectedPlotsData.push(data);
+                    totalArea += data.area;
+                });
+
+                const entryData = {
+                    companyId: App.state.currentUser.companyId,
+                    generatedBy: App.state.currentUser.username,
+                    farmId: farm.id,
+                    farmName: farm.name,
+                    farmCode: farm.code,
+                    date: els.date.value,
+                    shift: els.shift.value,
+                    product: els.product.value,
+                    dosage: parseFloat(els.dosage.value),
+                    operator: els.operator.value,
+                    totalProduct: parseFloat(els.totalProduct.textContent) || 0,
+                    selectedPlots: selectedPlotsData,
+                    totalArea: totalArea,
+                    createdAt: new Date().toISOString()
+                };
+
+                const confirmationMessage = "Tem a certeza que deseja guardar este registro de aplicação?";
+
+                App.ui.showConfirmationModal(confirmationMessage, async () => {
+                    App.ui.setLoading(true, "A guardar registro...");
+                    try {
+                        if (navigator.onLine) {
+                            await App.data.addDocument('registrosAplicacao', entryData);
+                            App.ui.showAlert("Registro de aplicação guardado com sucesso!", "success");
+                        } else {
+                            const entryId = `offline_app_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                            await OfflineDB.add('offline-writes', { id: entryId, collection: 'registrosAplicacao', data: entryData });
+                            App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                        }
+
+                        // Reset form
+                        els.farmSelect.value = '';
+                        els.product.value = '';
+                        els.dosage.value = '';
+                        els.operator.value = '';
+                        els.totalProduct.textContent = '0.00';
+                        App.state.appSelectedPlots.clear();
+                        if (App.state.appMap) {
+                            App.applicationEntry.handleFarmChange(); // Clears everything
+                        }
+                        App.ui.setDefaultDatesForEntryForms();
+
+                    } catch (error) {
+                        console.error("Erro ao guardar registro de aplicação:", error);
+                        App.ui.showAlert(`Erro ao guardar: ${error.message}.`, "error");
+
+                        // Tentativa de salvamento offline em caso de erro de rede
+                        if (!navigator.onLine) {
+                             try {
+                                const entryId = `offline_app_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                await OfflineDB.add('offline-writes', { id: entryId, collection: 'registrosAplicacao', data: entryData });
+                                App.ui.showAlert('Guardado offline devido a erro de conexão.', 'info');
+                             } catch(offlineError) {
+                                 console.error("Erro crítico ao salvar offline:", offlineError);
+                             }
+                        }
                     } finally {
                         App.ui.setLoading(false);
                     }
@@ -9635,7 +10316,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.osManual.mapContainer;
                 if (!mapContainer) return;
 
-                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+                // mapboxgl.accessToken is already set globally in App.mapModule.initMap or App.osManual.initMap
 
                 App.state.osMap = new mapboxgl.Map({
                     container: mapContainer,
