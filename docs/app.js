@@ -8281,7 +8281,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         polygon.map(coord => proj4(sourceProjection, destProjection, coord))
                                     );
                                 } catch (e) {
-                                    console.error("Erro ao reprojetar feature:", feature, e);
+                                    console.error("Erro ao reprojetar coordenada:", coord, e);
                                 }
                             }
                         });
@@ -8340,7 +8340,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                             polygon.map(coord => proj4(sourceProjection, destProjection, coord))
                                         );
                                     } catch (e) {
-                                        console.error("Erro ao reprojetar feature do cache:", feature, e);
+                                        console.error("Erro ao reprojetar coordenada do cache:", coord, e);
                                     }
                                 }
                             });
