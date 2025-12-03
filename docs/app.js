@@ -8789,33 +8789,44 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             findTalhaoFromLocation(position) { // position is a Mapbox LngLat object
-                const containingTalhoes = [];
-                const point = turf.point([position.lng, position.lat]);
-                const allTalhoes = App.state.geoJsonData;
-
-                if (!allTalhoes || !allTalhoes.features) {
-                    this.showTrapPlacementModal('failure');
-                    return;
-                }
-
-                allTalhoes.features.forEach(feature => {
-                    try {
-                        // Strict check: the user's exact point must be inside the polygon
-                        if (turf.booleanPointInPolygon(point, feature.geometry)) {
-                            containingTalhoes.push(feature);
-                        }
-                    } catch (e) {
-                        console.warn("Geometria inválida ou erro no processamento do Turf.js:", e, feature.geometry);
+                try {
+                    if (typeof turf === 'undefined') {
+                        throw new Error("Biblioteca Turf.js não carregada. Verifique sua conexão ou recarregue.");
                     }
-                });
 
-                if (containingTalhoes.length === 1) {
-                    this.showTrapPlacementModal('success', containingTalhoes);
-                } else if (containingTalhoes.length > 1) {
-                    // This case is less likely now but kept for robustness (e.g., overlapping polygons)
-                    this.showTrapPlacementModal('conflict', containingTalhoes);
-                } else {
-                    this.showTrapPlacementModal('failure');
+                    const containingTalhoes = [];
+                    const point = turf.point([position.lng, position.lat]);
+                    const allTalhoes = App.state.geoJsonData;
+
+                    if (!allTalhoes || !allTalhoes.features) {
+                        this.showTrapPlacementModal('failure');
+                        return;
+                    }
+
+                    allTalhoes.features.forEach(feature => {
+                        try {
+                            // Strict check: the user's exact point must be inside the polygon
+                            if (turf.booleanPointInPolygon(point, feature.geometry)) {
+                                containingTalhoes.push(feature);
+                            }
+                        } catch (e) {
+                            console.warn("Geometria inválida ou erro no processamento do Turf.js:", e, feature.geometry);
+                        }
+                    });
+
+                    if (containingTalhoes.length === 1) {
+                        this.showTrapPlacementModal('success', containingTalhoes);
+                    } else if (containingTalhoes.length > 1) {
+                        // This case is less likely now but kept for robustness (e.g., overlapping polygons)
+                        this.showTrapPlacementModal('conflict', containingTalhoes);
+                    } else {
+                        this.showTrapPlacementModal('failure');
+                    }
+                } catch (e) {
+                    console.error("Error finding talhao:", e);
+                    // Ensure we don't get stuck in a loading state
+                    this.hideTrapPlacementModal();
+                    App.ui.showAlert("Erro ao detectar talhão: " + e.message, "error");
                 }
             },
 
@@ -12088,6 +12099,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             const registration = await navigator.serviceWorker.register('./service-worker.js');
                             console.log('ServiceWorker registration successful with scope: ', registration.scope);
+
+                            // Listen for controller change to reload page on update
+                            let refreshing;
+                            navigator.serviceWorker.addEventListener('controllerchange', function() {
+                                if (refreshing) return;
+                                window.location.reload();
+                                refreshing = true;
+                            });
 
                             // ** NOVO: Lógica de Sincronização Periódica **
                             if (registration && 'periodicSync' in registration) {
