@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v14'; // Incremented version for update
+const CACHE_NAME = 'agrovetor-cache-v13'; // Incremented version for update
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the IndexedDB tile cache
@@ -39,10 +39,6 @@ const urlsToCache = [
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js',
-  // Critical libraries for offline functionality
-  'https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js',
   // ADDED: Capacitor plugin files are crucial for offline native functionality
   './@capacitor/network/dist/plugin.js',
   './@capacitor/geolocation/dist/plugin.js',
@@ -237,10 +233,10 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(event.request.url);
 
-  // Explicitly ignore shapefile downloads to let the app handle them
+  // ADDED: Explicitly ignore shapefile downloads to let the app handle them
   if (url.pathname.endsWith('.zip')) {
     console.log('Service worker ignoring .zip file request, passing to network.');
-    return;
+    return; // Let the browser handle the request normally
   }
 
   // Strategy for Mapbox tiles: IndexedDB first, then Network, while saving to IndexedDB in background
@@ -255,12 +251,15 @@ self.addEventListener('fetch', event => {
             try {
                 const networkResponse = await fetch(event.request);
                 if (networkResponse && networkResponse.ok) {
+                    // Clone the response to save it to IndexedDB while also returning it
                     const responseToCache = networkResponse.clone();
+                    // Don't wait for this to finish, do it in the background
                     event.waitUntil(saveTileToIndexedDB(event.request, responseToCache));
                 }
                 return networkResponse;
             } catch (error) {
                 console.error(`Fetch failed for tile ${event.request.url}:`, error);
+                // Optionally return a placeholder image or an error response
                 return new Response('', { status: 408, statusText: 'Request timed out.' });
             }
         })()
@@ -268,40 +267,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // STRATEGY CHANGE: Network-First for App Core Files (HTML, JS, Manifest)
-  // This ensures users always get the latest version if online.
-  if (
-      url.pathname.endsWith('/') ||
-      url.pathname.endsWith('index.html') ||
-      url.pathname.endsWith('app.js') ||
-      url.pathname.endsWith('manifest.json')
-  ) {
-      event.respondWith(
-          fetch(event.request)
-              .then(networkResponse => {
-                  if (networkResponse && networkResponse.status === 200) {
-                      const responseToCache = networkResponse.clone();
-                      caches.open(CACHE_NAME).then(cache => {
-                          cache.put(event.request, responseToCache);
-                      });
-                  }
-                  return networkResponse;
-              })
-              .catch(async () => {
-                  console.log('Network failed for core file, trying cache:', event.request.url);
-                  const cache = await caches.open(CACHE_NAME);
-                  const cachedResponse = await cache.match(event.request);
-                  if (cachedResponse) {
-                      return cachedResponse;
-                  }
-                  // Optional: return a custom offline page for index.html if not in cache
-                  throw new Error('No cache available for core file.');
-              })
-      );
-      return;
-  }
-
-  // Stale-While-Revalidate strategy for all other requests (Images, CSS, Fonts, Libraries)
+  // Stale-While-Revalidate strategy for all other requests
   event.respondWith(
     caches.open(CACHE_NAME).then(cache => {
       return cache.match(event.request).then(response => {
@@ -312,7 +278,11 @@ self.addEventListener('fetch', event => {
           return networkResponse;
         }).catch(err => {
           console.warn('Fetch failed; using cache if available.', event.request.url, err);
+          // If fetch fails, and we have a cached response, this catch is just for logging.
+          // If we don't have a cached response, fetchPromise will reject, and we need to handle it.
+          // The 'response || fetchPromise' logic handles this.
         });
+        // Return cached response immediately if available, otherwise wait for the network.
         return response || fetchPromise.catch(err => {
             console.error("Both cache and network failed for:", event.request.url);
             return new Response('', { status: 503, statusText: 'Service Unavailable' });
