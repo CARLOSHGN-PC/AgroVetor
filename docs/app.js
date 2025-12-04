@@ -4606,6 +4606,35 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
+
+                // Map Click Listener
+                map.on('click', 'regapp-talhoes-layer', (e) => {
+                    if (e.features.length > 0) {
+                        const feature = e.features[0];
+                        this.togglePlotSelection(feature, true);
+                    }
+                });
+
+                // Hover Effects
+                let hoveredFeatureId = null;
+                map.on('mousemove', 'regapp-talhoes-layer', (e) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    if (e.features.length > 0) {
+                        if (hoveredFeatureId !== null) {
+                            map.setFeatureState({ source: 'regapp-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        }
+                        hoveredFeatureId = e.features[0].id;
+                        map.setFeatureState({ source: 'regapp-talhoes-source', id: hoveredFeatureId }, { hover: true });
+                    }
+                });
+
+                map.on('mouseleave', 'regapp-talhoes-layer', () => {
+                    map.getCanvas().style.cursor = '';
+                    if (hoveredFeatureId !== null) {
+                        map.setFeatureState({ source: 'regapp-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        hoveredFeatureId = null;
+                    }
+                });
             },
 
             loadShapes() {
@@ -4628,21 +4657,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                // Base Layer (Ghost/Context)
+                const themeColors = App.ui._getThemeColors();
+
+                // Base Layer (Similar to OS Manual style)
                 if (!map.getLayer(layerId)) {
                     map.addLayer({
                         id: layerId,
                         type: 'fill',
                         source: sourceId,
                         paint: {
-                            'fill-color': '#1C1C1C',
-                            'fill-opacity': 0.3
+                            'fill-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
+                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
+                                '#1C1C1C'
+                            ],
+                            'fill-opacity': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 0.9,
+                                ['boolean', ['feature-state', 'hover'], false], 0.8,
+                                0.7
+                            ]
                         }
                     });
                 }
 
                 // Applied Areas Layer (colored by Shift)
-                // We'll use a separate source for the "applied" areas to handle partial geometries
                 if (!map.getSource('regapp-applied-source')) {
                     map.addSource('regapp-applied-source', {
                         type: 'geojson',
@@ -4656,43 +4696,59 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'fill',
                         source: 'regapp-applied-source',
                         paint: {
-                            'fill-color': ['get', 'color'], // Color determined by property
+                            'fill-color': ['get', 'color'],
                             'fill-opacity': 0.7
                         }
                     });
                 }
 
-                // Borders
+                // Labels (Same style as OS Manual)
+                if (!map.getLayer(labelLayerId)) {
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 10,
+                        layout: {
+                            'symbol-placement': 'point',
+                            'text-field': [
+                                'format',
+                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 },
+                                '\n', {},
+                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
+                            ],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 14,
+                            'text-ignore-placement': true,
+                            'text-allow-overlap': true,
+                            'text-pitch-alignment': 'viewport',
+                        },
+                        paint: {
+                            'text-color': '#FFFFFF',
+                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+
+                // Borders (Same style as OS Manual)
                 if (!map.getLayer(borderLayerId)) {
                      map.addLayer({
                         id: borderLayerId,
                         type: 'line',
                         source: sourceId,
                         paint: {
-                            'line-color': '#FFFFFF',
-                            'line-width': 1,
-                            'line-opacity': 0.5
-                        }
-                    });
-                }
-
-                // Labels
-                if (!map.getLayer(labelLayerId)) {
-                    map.addLayer({
-                        id: labelLayerId,
-                        type: 'symbol',
-                        source: sourceId,
-                        minzoom: 11,
-                        layout: {
-                            'symbol-placement': 'point',
-                            'text-field': ['upcase', ['get', 'AGV_TALHAO']],
-                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                            'text-size': 12,
-                        },
-                        paint: {
-                            'text-color': '#FFFFFF',
-                            'text-halo-color': 'rgba(0, 0, 0, 0.8)',
-                            'text-halo-width': 1.5
+                            'line-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF',
+                                '#FFFFFF'
+                            ],
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 3,
+                                1.5
+                            ],
+                            'line-opacity': 0.9
                         }
                     });
                 }
@@ -4779,12 +4835,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div style="flex: 1; min-width: 120px;">
                                 <label style="font-size: 12px; display: block; margin-bottom: 2px;">Sentido (Início)</label>
-                                <select class="partial-direction-select" style="padding: 8px;">
-                                    <option value="N">Norte</option>
-                                    <option value="S">Sul</option>
-                                    <option value="E">Leste</option>
-                                    <option value="W">Oeste</option>
-                                </select>
+                                <div class="direction-visual-selector" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;">
+                                    <button type="button" class="btn-direction" data-dir="N" title="De Cima"><i class="fas fa-arrow-down"></i></button>
+                                    <button type="button" class="btn-direction" data-dir="S" title="De Baixo"><i class="fas fa-arrow-up"></i></button>
+                                    <button type="button" class="btn-direction" data-dir="E" title="Da Direita"><i class="fas fa-arrow-left"></i></button>
+                                    <button type="button" class="btn-direction" data-dir="W" title="Da Esquerda"><i class="fas fa-arrow-right"></i></button>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -4793,7 +4849,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     const partialCheck = details.querySelector('.partial-check');
                     const partialInputs = details.querySelector('.partial-inputs');
                     const areaInput = details.querySelector('.partial-area-input');
-                    const dirSelect = details.querySelector('.partial-direction-select');
+                    const directionButtons = details.querySelectorAll('.btn-direction');
+
+                    // Set default direction state
+                    let currentDirection = 'N';
+                    const updateDirectionButtons = (dir) => {
+                        currentDirection = dir;
+                        directionButtons.forEach(btn => {
+                            btn.style.backgroundColor = btn.dataset.dir === dir ? 'var(--color-primary)' : '#e0e0e0';
+                            btn.style.color = btn.dataset.dir === dir ? 'white' : '#555';
+                            btn.style.border = 'none';
+                            btn.style.padding = '5px';
+                            btn.style.borderRadius = '4px';
+                            btn.style.cursor = 'pointer';
+                        });
+                    };
+                    updateDirectionButtons('N'); // Default
 
                     // Event Listeners
                     header.addEventListener('click', (e) => {
@@ -4801,23 +4872,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     mainCheckbox.addEventListener('change', (e) => {
+                        this.togglePlotSelection(talhao, !e.target.checked); // Logic inside handles state, we pass if it WAS checked or not, wait.
+                        // Logic refactor: call togglePlotSelection which updates UI.
+                        // Here we are IN the UI rendering. This is circular if we just call toggle.
+                        // We should call the STATE update function directly if triggered from UI.
+
                         if (e.target.checked) {
                             details.style.display = 'block';
                             this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 'N');
+                            if(App.state.regAppMap) {
+                                // Find feature and set selected state
+                                const farmCode = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value)?.code;
+                                const feature = App.state.geoJsonData.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
+                                if(feature) App.state.regAppMap.setFeatureState({ source: 'regapp-talhoes-source', id: feature.id }, { selected: true });
+                            }
                         } else {
                             details.style.display = 'none';
                             partialCheck.checked = false;
                             partialInputs.style.display = 'none';
                             areaInput.value = '';
                             this.removeSelection(talhao.id);
+                            if(App.state.regAppMap) {
+                                const farmCode = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value)?.code;
+                                const feature = App.state.geoJsonData.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
+                                if(feature) App.state.regAppMap.setFeatureState({ source: 'regapp-talhoes-source', id: feature.id }, { selected: false });
+                            }
                         }
                     });
 
                     partialCheck.addEventListener('change', (e) => {
                         if (e.target.checked) {
                             partialInputs.style.display = 'flex';
-                            areaInput.value = (talhao.area / 2).toFixed(2); // Default to half? Or empty.
-                            this.updateSelectedState(talhao.id, talhao.area, true, parseFloat(areaInput.value), dirSelect.value);
+                            areaInput.value = (talhao.area / 2).toFixed(2);
+                            this.updateSelectedState(talhao.id, talhao.area, true, parseFloat(areaInput.value), currentDirection);
                         } else {
                             partialInputs.style.display = 'none';
                             this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 'N');
@@ -4828,17 +4915,72 @@ document.addEventListener('DOMContentLoaded', () => {
                         let val = parseFloat(areaInput.value);
                         if (isNaN(val) || val <= 0) val = 0;
                         if (val > talhao.area) { val = talhao.area; areaInput.value = val; }
-                        this.updateSelectedState(talhao.id, talhao.area, true, val, dirSelect.value);
+                        this.updateSelectedState(talhao.id, talhao.area, true, val, currentDirection);
                     });
 
-                    dirSelect.addEventListener('change', () => {
-                        this.updateSelectedState(talhao.id, talhao.area, true, parseFloat(areaInput.value), dirSelect.value);
+                    directionButtons.forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.stopPropagation(); // Prevent bubbling
+                            updateDirectionButtons(btn.dataset.dir);
+                            this.updateSelectedState(talhao.id, talhao.area, true, parseFloat(areaInput.value), btn.dataset.dir);
+                        });
                     });
 
                     container.appendChild(header);
                     container.appendChild(details);
                     listContainer.appendChild(container);
                 });
+            },
+
+            togglePlotSelection(featureOrTalhao, fromMap = false) {
+                // If from map, featureOrTalhao is GeoJSON feature. If from list logic (not used here but good for robust), it's talhao object.
+                // We need the talhao ID and Name.
+                let talhaoId, talhaoName, totalArea, farmCode;
+
+                if (fromMap) {
+                    talhaoName = featureOrTalhao.properties.AGV_TALHAO;
+                    farmCode = featureOrTalhao.properties.AGV_FUNDO;
+                    const farm = App.state.fazendas.find(f => f.code == farmCode);
+                    if (!farm) return;
+                    const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName.toUpperCase());
+                    if (!talhao) return;
+                    talhaoId = talhao.id;
+                    totalArea = talhao.area;
+                } else {
+                    talhaoId = featureOrTalhao.id;
+                    totalArea = featureOrTalhao.area;
+                    // assuming we are in context of current farm
+                }
+
+                const checkbox = document.getElementById(`regapp-plot-${talhaoId}`);
+                if (!checkbox) return; // Should not happen if list rendered
+
+                // Interaction Logic:
+                // 1. If not selected -> Select it (Check box).
+                // 2. If selected AND Partial is ON -> Cycle direction (Top -> Right -> Bottom -> Left -> Top...).
+                // 3. If selected AND Partial is OFF -> Deselect it.
+
+                const currentState = App.state.regAppSelectedPlots.get(talhaoId);
+
+                if (!currentState) {
+                    // 1. Select
+                    checkbox.checked = true;
+                    checkbox.dispatchEvent(new Event('change')); // Triggers the list listener to update state
+                } else if (currentState.isPartial) {
+                    // 2. Cycle Direction
+                    const dirs = ['N', 'E', 'S', 'W'];
+                    const currentIdx = dirs.indexOf(currentState.direction);
+                    const nextDir = dirs[(currentIdx + 1) % 4];
+
+                    // Find the buttons in the DOM to update UI
+                    const details = document.getElementById(`regapp-details-${talhaoId}`);
+                    const btn = details.querySelector(`.btn-direction[data-dir="${nextDir}"]`);
+                    if(btn) btn.click(); // Simulate click to reuse logic
+                } else {
+                    // 3. Deselect
+                    checkbox.checked = false;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
             },
 
             updateSelectedState(talhaoId, totalArea, isPartial, appliedArea, direction) {
