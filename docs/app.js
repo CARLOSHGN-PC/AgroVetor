@@ -119,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
+                { label: 'Registro de Aplicação', icon: 'fas fa-plane', target: 'registroAplicacao', permission: 'monitoramentoAereo' },
                 {
                     label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
                     submenu: [
@@ -239,6 +240,8 @@ document.addEventListener('DOMContentLoaded', () => {
             announcements: [],
             osMap: null,
             osSelectedPlots: new Set(),
+            regAppMap: null,
+            regAppSelectedPlots: new Map(), // Map<talhaoId, { isPartial: bool, area: number, direction: string }>
         },
         
         elements: {
@@ -252,6 +255,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnGenerate: document.getElementById('btnGenerateOS'),
                 mapContainer: document.getElementById('os-map'),
                 btnCenterMap: document.getElementById('btnCenterOSMap'),
+            },
+            registroAplicacao: {
+                farmSelect: document.getElementById('regAppFarmSelect'),
+                date: document.getElementById('regAppDate'),
+                turno: document.getElementById('regAppTurno'),
+                product: document.getElementById('regAppProduct'),
+                dosage: document.getElementById('regAppDosage'),
+                operatorId: document.getElementById('regAppOperatorId'),
+                operatorName: document.getElementById('regAppOperatorName'),
+                totalArea: document.getElementById('regAppTotalArea'),
+                totalProduct: document.getElementById('regAppTotalProduct'),
+                plotsList: document.getElementById('regAppPlotsList'),
+                btnSave: document.getElementById('btnSaveRegApp'),
+                mapContainer: document.getElementById('registro-aplicacao-map'),
+                btnCenterMap: document.getElementById('btnCenterRegAppMap'),
             },
             welcomeModal: {
                 overlay: document.getElementById('welcomeModal'),
@@ -1963,6 +1981,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'ordemServicoManual') {
                     App.osManual.init();
+                }
+                if (id === 'registroAplicacao') {
+                    App.registroAplicacao.init();
                 }
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
@@ -8311,6 +8332,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (App.state.mapboxMap) {
                         this.loadShapesOnMap();
                     }
+                    if (App.state.regAppMap) {
+                        App.registroAplicacao.loadShapes();
+                    }
                     console.log("Contornos do mapa carregados com sucesso.");
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
@@ -8361,6 +8385,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.geoJsonData = geojson;
                         if (App.state.mapboxMap) {
                             this.loadShapesOnMap();
+                        }
+                        if (App.state.regAppMap) {
+                            App.registroAplicacao.loadShapes();
                         }
                     }
                 } catch (error) {
@@ -9574,6 +9601,648 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }, 8000);
             },
+        },
+
+        registroAplicacao: {
+            init() {
+                this.populateFarmSelect();
+                this.setupEventListeners();
+                this.initMap();
+                App.ui.setDefaultDatesForEntryForms();
+            },
+
+            setupEventListeners() {
+                const els = App.elements.registroAplicacao;
+                if (!els.farmSelect) return;
+
+                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+                els.btnSave.addEventListener('click', () => this.saveRegistro());
+
+                if (els.operatorId) {
+                    els.operatorId.addEventListener('input', () => this.findOperatorName());
+                }
+
+                if (els.dosage) {
+                    els.dosage.addEventListener('input', () => this.calculateTotalProduct());
+                }
+
+                if (els.btnCenterMap) {
+                    els.btnCenterMap.addEventListener('click', () => {
+                        const farmId = els.farmSelect.value;
+                        if (farmId) {
+                            const farm = App.state.fazendas.find(f => f.id === farmId);
+                            if (farm) this.zoomToFarm(farm.code);
+                        }
+                    });
+                }
+
+                const btnTogglePanel = document.getElementById('btnToggleRegAppPanel');
+                if (btnTogglePanel) {
+                    btnTogglePanel.addEventListener('click', () => this.toggleMapSize());
+                }
+
+                const btnMobileToggle = document.getElementById('btnMobileToggleRegAppMap');
+                if (btnMobileToggle) {
+                    btnMobileToggle.addEventListener('click', () => this.toggleMapSize());
+                }
+            },
+
+            initMap() {
+                if (App.state.regAppMap) {
+                    setTimeout(() => App.state.regAppMap.resize(), 200);
+                    return;
+                }
+
+                const mapContainer = App.elements.registroAplicacao.mapContainer;
+                if (!mapContainer) return;
+
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+
+                App.state.regAppMap = new mapboxgl.Map({
+                    container: mapContainer,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-48.45, -21.17],
+                    zoom: 10,
+                    attributionControl: false
+                });
+
+                const map = App.state.regAppMap;
+
+                map.on('load', () => {
+                    this.loadShapes();
+                    const farmId = App.elements.registroAplicacao.farmSelect.value;
+                    if (farmId) {
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
+                        if (farm) {
+                            this.filterMap(farm.code);
+                            this.zoomToFarm(farm.code);
+                        }
+                    }
+                });
+            },
+
+            loadShapes() {
+                const map = App.state.regAppMap;
+                if (!map || !App.state.geoJsonData) return;
+
+                const sourceId = 'regapp-talhoes-source';
+                const layerId = 'regapp-talhoes-layer';
+                const borderLayerId = 'regapp-talhoes-border-layer';
+                const labelLayerId = 'regapp-talhoes-labels';
+
+                // Add sources and layers similar to osManual but with 'regapp-' prefix
+                if (map.getSource(sourceId)) {
+                    map.getSource(sourceId).setData(App.state.geoJsonData);
+                } else {
+                    map.addSource(sourceId, {
+                        type: 'geojson',
+                        data: App.state.geoJsonData,
+                        generateId: true
+                    });
+                }
+
+                if (!map.getLayer(layerId)) {
+                    map.addLayer({
+                        id: layerId,
+                        type: 'fill',
+                        source: sourceId,
+                        paint: {
+                            'fill-color': '#1C1C1C',
+                            'fill-opacity': 0.5
+                        }
+                    });
+                }
+
+                // Layer for the "Applied" areas (dynamic geometry)
+                const appliedSourceId = 'regapp-applied-source';
+                const appliedLayerId = 'regapp-applied-layer';
+
+                if (!map.getSource(appliedSourceId)) {
+                    map.addSource(appliedSourceId, {
+                        type: 'geojson',
+                        data: { type: 'FeatureCollection', features: [] }
+                    });
+                }
+
+                if (!map.getLayer(appliedLayerId)) {
+                    map.addLayer({
+                        id: appliedLayerId,
+                        type: 'fill',
+                        source: appliedSourceId,
+                        paint: {
+                            'fill-color': [
+                                'match',
+                                ['get', 'turno'],
+                                'A', '#1976D2', // Blue
+                                'B', '#388E3C', // Green
+                                'C', '#F57C00', // Orange
+                                '#1976D2' // Default
+                            ],
+                            'fill-opacity': 0.8
+                        }
+                    });
+                }
+
+                if (!map.getLayer(borderLayerId)) {
+                    map.addLayer({
+                        id: borderLayerId,
+                        type: 'line',
+                        source: sourceId,
+                        paint: {
+                            'line-color': '#FFFFFF',
+                            'line-width': 1,
+                            'line-opacity': 0.5
+                        }
+                    });
+                }
+
+                if (!map.getLayer(labelLayerId)) {
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 11,
+                        layout: {
+                            'symbol-placement': 'point',
+                            'text-field': ['format', ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.0 }],
+                            'text-font': ['Open Sans Bold'],
+                            'text-size': 12,
+                            'text-allow-overlap': false
+                        },
+                        paint: {
+                            'text-color': '#FFFFFF',
+                            'text-halo-color': 'rgba(0,0,0,0.8)',
+                            'text-halo-width': 1.5
+                        }
+                    });
+                }
+            },
+
+            populateFarmSelect() {
+                const select = App.elements.registroAplicacao.farmSelect;
+                if (!select) return;
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Selecione uma fazenda...</option>';
+                App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
+                    select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
+                });
+                select.value = currentValue;
+            },
+
+            handleFarmChange() {
+                const farmId = App.elements.registroAplicacao.farmSelect.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                App.state.regAppSelectedPlots.clear();
+                this.updateTotalArea();
+                this.updateMapVisualization();
+
+                if (farm) {
+                    this.renderPlotsList(farm.talhoes);
+                    this.zoomToFarm(farm.code);
+                    this.filterMap(farm.code);
+                } else {
+                    App.elements.registroAplicacao.plotsList.innerHTML = '<p style="color: #888; text-align: center;">Selecione uma fazenda.</p>';
+                }
+            },
+
+            renderPlotsList(talhoes) {
+                const listContainer = App.elements.registroAplicacao.plotsList;
+                listContainer.innerHTML = '';
+
+                if (!talhoes || talhoes.length === 0) {
+                    listContainer.innerHTML = '<p>Nenhum talhão encontrado.</p>';
+                    return;
+                }
+
+                talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'talhao-selection-item-wrapper';
+                    itemDiv.style.marginBottom = '8px';
+                    itemDiv.style.border = '1px solid var(--color-border)';
+                    itemDiv.style.borderRadius = '8px';
+                    itemDiv.style.backgroundColor = 'var(--color-surface)';
+
+                    // Main selection row
+                    const mainRow = document.createElement('div');
+                    mainRow.className = 'talhao-selection-item';
+                    mainRow.style.marginBottom = '0';
+                    mainRow.style.border = 'none';
+                    mainRow.style.boxShadow = 'none';
+                    mainRow.innerHTML = `
+                        <input type="checkbox" id="reg-plot-${talhao.id}" data-id="${talhao.id}">
+                        <div class="talhao-name">${talhao.name}</div>
+                        <div class="talhao-details">
+                            <span>Area: ${talhao.area.toFixed(2)} ha</span>
+                        </div>
+                    `;
+
+                    // Configuration panel (hidden by default)
+                    const configPanel = document.createElement('div');
+                    configPanel.id = `reg-plot-config-${talhao.id}`;
+                    configPanel.style.display = 'none';
+                    configPanel.style.padding = '10px';
+                    configPanel.style.borderTop = '1px solid var(--color-border)';
+                    configPanel.style.backgroundColor = 'var(--color-bg)';
+                    configPanel.innerHTML = `
+                        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
+                            <label style="margin:0; font-size: 13px; display: flex; align-items: center; gap: 5px;">
+                                <input type="checkbox" class="toggle-partial" style="width:auto;"> Parcial?
+                            </label>
+                        </div>
+                        <div class="partial-controls" style="display: none; gap: 10px; flex-wrap: wrap;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 11px; margin:0;">Área (ha)</label>
+                                <input type="number" class="area-input" value="${talhao.area.toFixed(2)}" max="${talhao.area}" step="0.01" style="font-size: 13px; padding: 6px;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 11px; margin:0;">Direção Início</label>
+                                <select class="direction-input" style="font-size: 13px; padding: 6px;">
+                                    <option value="N">Norte</option>
+                                    <option value="S">Sul</option>
+                                    <option value="E">Leste</option>
+                                    <option value="W">Oeste</option>
+                                </select>
+                            </div>
+                        </div>
+                    `;
+
+                    // Event Listeners
+                    const mainCheckbox = mainRow.querySelector('input[type="checkbox"]');
+                    const partialToggle = configPanel.querySelector('.toggle-partial');
+                    const areaInput = configPanel.querySelector('.area-input');
+                    const directionInput = configPanel.querySelector('.direction-input');
+                    const partialControls = configPanel.querySelector('.partial-controls');
+
+                    mainRow.addEventListener('click', (e) => {
+                        if (e.target !== mainCheckbox) {
+                            mainCheckbox.checked = !mainCheckbox.checked;
+                            mainCheckbox.dispatchEvent(new Event('change'));
+                        }
+                    });
+
+                    mainCheckbox.addEventListener('change', () => {
+                        const isChecked = mainCheckbox.checked;
+                        configPanel.style.display = isChecked ? 'block' : 'none';
+
+                        if (isChecked) {
+                            // Add to selected state with defaults
+                            App.state.regAppSelectedPlots.set(talhao.id, {
+                                id: talhao.id,
+                                name: talhao.name,
+                                totalArea: talhao.area,
+                                appliedArea: talhao.area, // Default to full
+                                isPartial: false,
+                                direction: 'N'
+                            });
+                        } else {
+                            App.state.regAppSelectedPlots.delete(talhao.id);
+                        }
+                        this.updateTotalArea();
+                        this.updateMapVisualization();
+                    });
+
+                    partialToggle.addEventListener('change', () => {
+                        const isPartial = partialToggle.checked;
+                        partialControls.style.display = isPartial ? 'flex' : 'none';
+
+                        const entry = App.state.regAppSelectedPlots.get(talhao.id);
+                        if (entry) {
+                            entry.isPartial = isPartial;
+                            entry.appliedArea = isPartial ? parseFloat(areaInput.value) : entry.totalArea;
+                            App.state.regAppSelectedPlots.set(talhao.id, entry);
+                            this.updateTotalArea();
+                            this.updateMapVisualization();
+                        }
+                    });
+
+                    areaInput.addEventListener('input', () => {
+                        let val = parseFloat(areaInput.value);
+                        if (val > talhao.area) { val = talhao.area; areaInput.value = val; }
+                        if (val < 0) { val = 0; areaInput.value = 0; }
+
+                        const entry = App.state.regAppSelectedPlots.get(talhao.id);
+                        if (entry) {
+                            entry.appliedArea = val;
+                            App.state.regAppSelectedPlots.set(talhao.id, entry);
+                            this.updateTotalArea();
+                            this.updateMapVisualization();
+                        }
+                    });
+
+                    directionInput.addEventListener('change', () => {
+                        const entry = App.state.regAppSelectedPlots.get(talhao.id);
+                        if (entry) {
+                            entry.direction = directionInput.value;
+                            App.state.regAppSelectedPlots.set(talhao.id, entry);
+                            this.updateMapVisualization();
+                        }
+                    });
+
+                    itemDiv.appendChild(mainRow);
+                    itemDiv.appendChild(configPanel);
+                    listContainer.appendChild(itemDiv);
+                });
+            },
+
+            filterMap(farmCode) {
+                const map = App.state.regAppMap;
+                if (!map || !map.getLayer('regapp-talhoes-layer')) return;
+                const filter = ['==', ['get', 'AGV_FUNDO'], String(farmCode)];
+                map.setFilter('regapp-talhoes-layer', filter);
+                map.setFilter('regapp-talhoes-border-layer', filter);
+                map.setFilter('regapp-talhoes-labels', filter);
+            },
+
+            zoomToFarm(farmCode) {
+                const map = App.state.regAppMap;
+                if (!map || !App.state.geoJsonData) return;
+                const features = App.state.geoJsonData.features.filter(f => f.properties.AGV_FUNDO == farmCode);
+                if (features.length > 0) {
+                    const collection = turf.featureCollection(features);
+                    const bbox = turf.bbox(collection);
+                    map.fitBounds(bbox, { padding: 20 });
+                }
+            },
+
+            updateTotalArea() {
+                let total = 0;
+                App.state.regAppSelectedPlots.forEach(p => {
+                    total += p.appliedArea;
+                });
+                App.elements.registroAplicacao.totalArea.textContent = `${total.toFixed(2)} ha`;
+                this.calculateTotalProduct();
+            },
+
+            calculateTotalProduct() {
+                const dosage = parseFloat(App.elements.registroAplicacao.dosage.value) || 0;
+                let totalArea = 0;
+                App.state.regAppSelectedPlots.forEach(p => totalArea += p.appliedArea);
+
+                const totalProduct = dosage * totalArea;
+                App.elements.registroAplicacao.totalProduct.textContent = totalProduct.toFixed(2);
+            },
+
+            findOperatorName() {
+                const { operatorId, operatorName } = App.elements.registroAplicacao;
+                const matricula = operatorId.value.trim();
+                operatorName.textContent = '';
+                if (!matricula) return;
+
+                const person = App.state.personnel.find(p => p.matricula === matricula);
+                if (person) {
+                    operatorName.textContent = person.name;
+                    operatorName.style.color = 'var(--color-primary)';
+                } else {
+                    operatorName.textContent = 'Operador não encontrado';
+                    operatorName.style.color = 'var(--color-danger)';
+                }
+            },
+
+            updateMapVisualization() {
+                const map = App.state.regAppMap;
+                if (!map || !App.state.geoJsonData) return;
+
+                const turno = App.elements.registroAplicacao.turno.value;
+                const appliedFeatures = [];
+
+                App.state.regAppSelectedPlots.forEach(plot => {
+                    // Find original feature
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.registroAplicacao.farmSelect.value)?.code;
+                    const originalFeature = App.state.geoJsonData.features.find(f =>
+                        f.properties.AGV_TALHAO === plot.name &&
+                        String(f.properties.AGV_FUNDO) === String(farmCode)
+                    );
+
+                    if (!originalFeature) return;
+
+                    if (!plot.isPartial || plot.appliedArea >= plot.totalArea) {
+                        // Full geometry
+                        appliedFeatures.push({
+                            type: 'Feature',
+                            geometry: originalFeature.geometry,
+                            properties: { turno: turno }
+                        });
+                    } else {
+                        // Partial geometry logic
+                        try {
+                            const sliced = this.calculatePartialGeometry(originalFeature, plot.appliedArea, plot.totalArea, plot.direction);
+                            if (sliced) {
+                                appliedFeatures.push({
+                                    type: 'Feature',
+                                    geometry: sliced.geometry,
+                                    properties: { turno: turno }
+                                });
+                            }
+                        } catch (e) {
+                            console.error("Error slicing polygon:", e);
+                        }
+                    }
+                });
+
+                const source = map.getSource('regapp-applied-source');
+                if (source) {
+                    source.setData({
+                        type: 'FeatureCollection',
+                        features: appliedFeatures
+                    });
+                }
+            },
+
+            calculatePartialGeometry(feature, targetArea, totalArea, direction) {
+                // Simplified slicing logic: Create a bounding box mask based on direction/ratio
+                const bbox = turf.bbox(feature); // [minX, minY, maxX, maxY]
+                const [minX, minY, maxX, maxY] = bbox;
+                const width = maxX - minX;
+                const height = maxY - minY;
+                const ratio = Math.min(Math.max(targetArea / totalArea, 0.01), 1); // Clamp ratio
+
+                let maskBox;
+
+                switch (direction) {
+                    case 'N': // Top to Bottom
+                        maskBox = turf.bboxPolygon([minX, maxY - (height * ratio), maxX, maxY]);
+                        break;
+                    case 'S': // Bottom to Top
+                        maskBox = turf.bboxPolygon([minX, minY, maxX, minY + (height * ratio)]);
+                        break;
+                    case 'E': // Right to Left
+                        maskBox = turf.bboxPolygon([maxX - (width * ratio), minY, maxX, maxY]);
+                        break;
+                    case 'W': // Left to Right
+                        maskBox = turf.bboxPolygon([minX, minY, minX + (width * ratio), maxY]);
+                        break;
+                    default:
+                        return feature;
+                }
+
+                const intersect = turf.intersect(turf.featureCollection([feature, maskBox]));
+                return intersect;
+            },
+
+            async saveRegistro() {
+                const els = App.elements.registroAplicacao;
+
+                if (!App.ui.validateFields(['regAppFarmSelect', 'regAppDate', 'regAppProduct', 'regAppDosage', 'regAppOperatorId'])) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios.", "error");
+                    return;
+                }
+
+                if (App.state.regAppSelectedPlots.size === 0) {
+                    App.ui.showAlert("Selecione ao menos um talhão.", "error");
+                    return;
+                }
+
+                const operator = App.state.personnel.find(p => p.matricula === els.operatorId.value.trim());
+                if (!operator) {
+                    App.ui.showAlert("Operador não encontrado. Verifique a matrícula.", "error");
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === els.farmSelect.value);
+                const plotsData = [];
+
+                // Process each selected plot to calculate geometry
+                App.state.regAppSelectedPlots.forEach(plot => {
+                    let geometry = null;
+                    if (App.state.geoJsonData && App.state.geoJsonData.features) {
+                        const originalFeature = App.state.geoJsonData.features.find(f =>
+                            f.properties.AGV_TALHAO === plot.name &&
+                            String(f.properties.AGV_FUNDO) === String(farm.code)
+                        );
+
+                        if (originalFeature) {
+                            if (!plot.isPartial || plot.appliedArea >= plot.totalArea) {
+                                geometry = originalFeature.geometry;
+                            } else {
+                                try {
+                                    const sliced = this.calculatePartialGeometry(originalFeature, plot.appliedArea, plot.totalArea, plot.direction);
+                                    if (sliced) geometry = sliced.geometry;
+                                } catch (e) {
+                                    console.error("Erro ao calcular geometria parcial:", e);
+                                    geometry = originalFeature.geometry; // Fallback
+                                }
+                            }
+                        }
+                    }
+
+                    plotsData.push({
+                        ...plot,
+                        geometry: geometry // Store geometry for PDF generation
+                    });
+                });
+
+                const record = {
+                    companyId: App.state.currentUser.companyId,
+                    fazendaId: farm.id,
+                    fazendaCode: farm.code,
+                    fazendaNome: farm.name,
+                    data: els.date.value,
+                    turno: els.turno.value,
+                    produto: els.product.value,
+                    dosagem: parseFloat(els.dosage.value),
+                    operadorId: operator.matricula,
+                    operadorNome: operator.name,
+                    talhoes: plotsData,
+                    totalArea: parseFloat(els.totalArea.textContent),
+                    totalProduto: parseFloat(els.totalProduct.textContent),
+                    criadoPor: App.state.currentUser.email,
+                    criadoEm: new Date().toISOString()
+                };
+
+                App.ui.setLoading(true, "A guardar registro...");
+
+                try {
+                    let savedDocId = null;
+                    if (navigator.onLine) {
+                        const docRef = await App.data.addDocument('registrosAplicacao', record);
+                        savedDocId = docRef.id;
+                        App.ui.showAlert("Registro de aplicação guardado com sucesso!", "success");
+                    } else {
+                        const entryId = `offline_app_${Date.now()}`;
+                        await OfflineDB.add('offline-writes', { id: entryId, collection: 'registrosAplicacao', data: record });
+                        App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
+                    }
+
+                    // Reset form
+                    els.product.value = '';
+                    els.dosage.value = '';
+                    els.operatorId.value = '';
+                    els.operatorName.textContent = '';
+                    this.handleFarmChange(); // Resets plots and map
+
+                    // Offer PDF download if online and saved successfully
+                    if (savedDocId) {
+                        App.ui.showConfirmationModal(
+                            "Deseja gerar o relatório em PDF agora?",
+                            () => this.generatePDF(savedDocId),
+                            false,
+                            null
+                        );
+                        // Update button text contextually
+                        const confirmBtn = App.elements.confirmationModal.confirmBtn;
+                        if (confirmBtn) confirmBtn.textContent = "Gerar PDF";
+                    }
+
+                } catch (error) {
+                    console.error("Erro ao guardar registro:", error);
+                    App.ui.showAlert("Erro ao guardar registro.", "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async generatePDF(recordId) {
+                if (!navigator.onLine) {
+                    App.ui.showAlert("É necessário estar online para gerar o relatório.", "warning");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A gerar PDF...");
+                try {
+                    const token = await auth.currentUser.getIdToken();
+                    const params = new URLSearchParams({
+                        id: recordId,
+                        companyId: App.state.currentUser.companyId,
+                        generatedBy: App.state.currentUser.username
+                    });
+
+                    const response = await fetch(`${App.config.backendUrl}/reports/registro-aplicacao/pdf?${params.toString()}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(await response.text());
+                    }
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `registro_aplicacao_${recordId}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+
+                    App.ui.showAlert("PDF gerado com sucesso!", "success");
+                } catch (error) {
+                    console.error("Erro ao gerar PDF:", error);
+                    App.ui.showAlert(`Erro ao gerar PDF: ${error.message}`, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            toggleMapSize() {
+                const container = document.getElementById('registroAplicacao');
+                container.classList.toggle('map-expanded');
+                if (App.state.regAppMap) {
+                    setTimeout(() => App.state.regAppMap.resize(), 400);
+                }
+            }
         },
 
         osManual: {

@@ -125,6 +125,10 @@ service cloud.firestore {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
+    match /registrosAplicacao/{docId} {
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
+    }
     match /armadilhas/{trapId} {
       // Read, update, and create rules remain the same.
       // canAccessCompanyData correctly handles super-admin access for these.
