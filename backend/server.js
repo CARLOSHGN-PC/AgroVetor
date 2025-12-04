@@ -3619,6 +3619,275 @@ try {
         }
     });
 
+    // --- ROTA DE REGISTRO DE APLICAÇÃO (PDF) ---
+    app.get('/reports/registro-aplicacao/pdf', authMiddleware, async (req, res) => {
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape', bufferPages: true });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=registro_aplicacao.pdf`);
+        doc.pipe(res);
+
+        try {
+            const { id, companyId, generatedBy } = req.query;
+
+            if (!id) throw new Error('ID do registro não fornecido.');
+            if (!companyId) throw new Error('ID da empresa não fornecido.');
+
+            const recordDoc = await db.collection('registrosAplicacao').doc(id).get();
+            if (!recordDoc.exists) throw new Error('Registro de aplicação não encontrado.');
+
+            const record = recordDoc.data();
+
+            // Setup Header
+            await generatePdfHeader(doc, 'Registro de Aplicação de Defensivos', companyId);
+
+            // --- Info Block ---
+            const infoY = doc.y;
+            const leftColX = 30;
+            const rightColX = 350;
+            const lineHeight = 15;
+
+            doc.fontSize(10).font('Helvetica-Bold');
+
+            // Row 1
+            doc.text(`Data:`, leftColX, infoY);
+            doc.font('Helvetica').text(new Date(record.data).toLocaleDateString('pt-BR'), leftColX + 40, infoY);
+
+            doc.font('Helvetica-Bold').text(`Turno:`, rightColX, infoY);
+            // Colorize text for Turno? Maybe just text is enough.
+            doc.font('Helvetica').text(record.turno || 'N/A', rightColX + 40, infoY);
+
+            // Row 2
+            doc.font('Helvetica-Bold').text(`Fazenda:`, leftColX, infoY + lineHeight);
+            doc.font('Helvetica').text(`${record.fazendaCode} - ${record.fazendaNome}`, leftColX + 50, infoY + lineHeight);
+
+            doc.font('Helvetica-Bold').text(`Operador:`, rightColX, infoY + lineHeight);
+            doc.font('Helvetica').text(`${record.operadorId} - ${record.operadorNome}`, rightColX + 60, infoY + lineHeight);
+
+            // Row 3
+            doc.font('Helvetica-Bold').text(`Produto:`, leftColX, infoY + lineHeight * 2);
+            doc.font('Helvetica').text(record.produto, leftColX + 50, infoY + lineHeight * 2);
+
+            doc.font('Helvetica-Bold').text(`Dosagem:`, rightColX, infoY + lineHeight * 2);
+            doc.font('Helvetica').text(`${formatNumber(record.dosagem)} L/ha`, rightColX + 60, infoY + lineHeight * 2);
+
+            // Row 4
+            doc.font('Helvetica-Bold').text(`Área Total:`, leftColX, infoY + lineHeight * 3);
+            doc.font('Helvetica').text(`${formatNumber(record.totalArea)} ha`, leftColX + 60, infoY + lineHeight * 3);
+
+            doc.font('Helvetica-Bold').text(`Total Produto:`, rightColX, infoY + lineHeight * 3);
+            doc.font('Helvetica').text(`${formatNumber(record.totalProduto)} L`, rightColX + 80, infoY + lineHeight * 3);
+
+            doc.moveDown(5);
+
+            // --- Map Logic ---
+            const pageMargin = 30;
+            const contentStartY = doc.y + 20;
+            const availableHeight = doc.page.height - contentStartY - pageMargin;
+
+            // Layout: Map on the left (65%), Plot List on the right (30%)
+            const mapWidth = doc.page.width * 0.65;
+            const mapHeight = availableHeight;
+            const mapX = pageMargin;
+            const mapY = contentStartY;
+
+            const listX = mapX + mapWidth + 15;
+            const listWidth = doc.page.width - listX - pageMargin;
+
+            const geojsonData = await getShapefileData(companyId);
+
+            if (geojsonData) {
+                // Filter features for this farm
+                const farmFeatures = geojsonData.features.filter(f => {
+                    if (!f.properties) return false;
+                    // Try standardized keys or fallback
+                    const code = findShapefileProp(f.properties, ['AGV_FUNDO', 'FUNDO_AGR', 'CD_FAZENDA']);
+                    return code && parseInt(code, 10) === parseInt(record.fazendaCode, 10);
+                });
+
+                if (farmFeatures.length > 0) {
+                    // Calculate BBox
+                    const allCoords = farmFeatures.flatMap(f => f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates.flatMap(p => p[0]));
+                    const bbox = {
+                        minX: Math.min(...allCoords.map(c => c[0])), maxX: Math.max(...allCoords.map(c => c[0])),
+                        minY: Math.min(...allCoords.map(c => c[1])), maxY: Math.max(...allCoords.map(c => c[1])),
+                    };
+
+                    // Maintain aspect ratio
+                    const scaleX = mapWidth / (bbox.maxX - bbox.minX);
+                    const scaleY = mapHeight / (bbox.maxY - bbox.minY);
+                    const scale = Math.min(scaleX, scaleY) * 0.95;
+
+                    const offsetX = mapX + (mapWidth - (bbox.maxX - bbox.minX) * scale) / 2;
+                    const offsetY = mapY + (mapHeight - (bbox.maxY - bbox.minY) * scale) / 2;
+
+                    const transformCoord = (coord) => [ (coord[0] - bbox.minX) * scale + offsetX, (bbox.maxY - coord[1]) * scale + offsetY ];
+
+                    doc.save();
+
+                    // 1. Draw Background Farm Features (Grey)
+                    doc.lineWidth(0.5).strokeColor('#999');
+                    doc.fillColor('#f0f0f0');
+
+                    farmFeatures.forEach(feature => {
+                        const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+                        polygons.forEach(polygon => {
+                            const path = polygon[0];
+                            if (!path || path.length === 0) return;
+                            const firstPoint = transformCoord(path[0]);
+                            doc.moveTo(firstPoint[0], firstPoint[1]);
+                            for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
+                            doc.fillAndStroke();
+                        });
+                    });
+
+                    // 2. Draw Applied Areas (Colored by Turno)
+                    let turnColor = '#999';
+                    const t = String(record.turno).toUpperCase();
+                    if (t === 'A') turnColor = '#2196F3'; // Blue
+                    else if (t === 'B') turnColor = '#4CAF50'; // Green
+                    else if (t === 'C') turnColor = '#FF9800'; // Orange
+                    else turnColor = '#9C27B0'; // Purple default
+
+                    doc.lineWidth(1).strokeColor('#333');
+                    doc.fillColor(turnColor);
+
+                    record.talhoes.forEach(plot => {
+                        let geometryToDraw = null;
+
+                        // Use specific calculated geometry if available (partial)
+                        if (plot.geometry) {
+                            geometryToDraw = plot.geometry;
+                        } else {
+                            // Fallback to full shapefile feature if no specific geometry saved
+                            const feature = farmFeatures.find(f => {
+                                const name = findShapefileProp(f.properties, ['AGV_TALHAO', 'CD_TALHAO', 'TALHAO']);
+                                return String(name) === String(plot.name);
+                            });
+                            if (feature) geometryToDraw = feature.geometry;
+                        }
+
+                        if (geometryToDraw) {
+                            const polygons = geometryToDraw.type === 'Polygon' ? [geometryToDraw.coordinates] : geometryToDraw.coordinates;
+                            polygons.forEach(polygon => {
+                                const path = polygon[0];
+                                if (!path || path.length === 0) return;
+                                const firstPoint = transformCoord(path[0]);
+                                doc.moveTo(firstPoint[0], firstPoint[1]);
+                                for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
+                                doc.fillAndStroke();
+                            });
+                        }
+                    });
+
+                    // 3. Draw Labels (on top of everything)
+                    doc.fillColor('black');
+                    doc.fontSize(8);
+
+                    farmFeatures.forEach(feature => {
+                         const talhaoNome = findShapefileProp(feature.properties, ['AGV_TALHAO', 'CD_TALHAO', 'TALHAO']) || '';
+                         if (!talhaoNome) return;
+
+                         // Calculate centroid
+                         const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+                         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                         let hasPoints = false;
+                         polygons.forEach(polygon => {
+                            const ring = polygon[0];
+                            if(ring) {
+                                ring.forEach(c => {
+                                    const tc = transformCoord(c);
+                                    if(tc[0] < minX) minX = tc[0];
+                                    if(tc[0] > maxX) maxX = tc[0];
+                                    if(tc[1] < minY) minY = tc[1];
+                                    if(tc[1] > maxY) maxY = tc[1];
+                                    hasPoints = true;
+                                });
+                            }
+                         });
+
+                         if (hasPoints) {
+                             const cx = (minX + maxX) / 2;
+                             const cy = (minY + maxY) / 2;
+
+                             const textWidth = doc.widthOfString(talhaoNome);
+                             const textHeight = doc.currentLineHeight();
+
+                             // White background for label
+                             doc.fillOpacity(0.7);
+                             doc.fillColor('white');
+                             doc.rect(cx - textWidth/2 - 1, cy - textHeight/2 - 1, textWidth + 2, textHeight + 2).fill();
+
+                             doc.fillOpacity(1);
+                             doc.fillColor('black');
+                             doc.text(talhaoNome, cx - textWidth/2, cy - textHeight/2, { lineBreak: false });
+                         }
+                    });
+
+                    doc.restore();
+
+                    // Legend for Turno
+                    doc.fontSize(10);
+                    const legendY = mapY + mapHeight + 5; // Below map? Or maybe inside map box?
+                    // Let's put it top-right of map area
+                    const legendX = mapX + 10;
+                    const legendBoxY = mapY + 10;
+
+                    doc.save();
+                    doc.rect(legendX, legendBoxY, 100, 25).fillAndStroke('white', '#ccc');
+                    doc.rect(legendX + 5, legendBoxY + 5, 15, 15).fill(turnColor);
+                    doc.fillColor('black').text(`Turno ${record.turno}`, legendX + 25, legendBoxY + 8);
+                    doc.restore();
+
+                } else {
+                    doc.text("Geometria da fazenda não encontrada no shapefile.", mapX, mapY);
+                }
+            } else {
+                doc.text("Shapefile não carregado.", mapX, mapY);
+            }
+
+            // --- List of Plots (Right Side) ---
+            let currentListY = contentStartY;
+            doc.fontSize(10).font('Helvetica-Bold').text('Talhões Aplicados', listX, currentListY);
+            currentListY += 15;
+
+            // Headers
+            doc.fontSize(9);
+            doc.rect(listX, currentListY, listWidth, 15).fillAndStroke('#eee', '#ccc');
+            doc.fillColor('black');
+            doc.text('Talhão', listX + 5, currentListY + 3);
+            doc.text('Área (ha)', listX + listWidth - 50, currentListY + 3, { width: 45, align: 'right' });
+
+            currentListY += 15;
+
+            // Rows
+            doc.font('Helvetica');
+            record.talhoes.forEach(plot => {
+                doc.text(plot.name, listX + 5, currentListY + 3);
+                doc.text(formatNumber(plot.appliedArea), listX + listWidth - 50, currentListY + 3, { width: 45, align: 'right' });
+
+                // Add indicator for partial
+                if (plot.isPartial) {
+                     doc.fontSize(7).text('(Parcial)', listX + 40, currentListY + 4);
+                     doc.fontSize(9);
+                }
+
+                doc.moveTo(listX, currentListY + 15).lineTo(listX + listWidth, currentListY + 15).strokeColor('#eee').stroke();
+                currentListY += 15;
+            });
+
+            generatePdfFooter(doc, generatedBy || record.criadoPor);
+            doc.end();
+
+        } catch (error) {
+            console.error("Erro ao gerar PDF de Registro de Aplicação:", error);
+            if (!res.headersSent) {
+                res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
+            } else {
+                doc.end();
+            }
+        }
+    });
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     // Não bloqueia o servidor inteiro com middleware 500 aqui para permitir testes de unidade do middleware de auth.
