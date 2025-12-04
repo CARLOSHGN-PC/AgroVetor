@@ -4576,6 +4576,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             initMap() {
                 if (App.state.regAppMap) {
+                    this.loadShapes();
                     setTimeout(() => App.state.regAppMap.resize(), 200);
                     return;
                 }
@@ -4766,6 +4767,9 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             handleFarmChange() {
+                // Ensure map is loaded with data if it arrived late
+                this.loadShapes();
+
                 const farmId = App.elements.regApp.farmSelect.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
 

@@ -1744,6 +1744,45 @@
           color: var(--color-accent);
           flex-shrink: 0;
       }
+
+      /* Shift Selector Styles */
+      .shift-selector {
+          display: flex;
+          background-color: var(--color-bg);
+          border-radius: var(--border-radius);
+          padding: 4px;
+          border: 1px solid var(--color-border);
+          gap: 4px;
+      }
+      .shift-option {
+          flex: 1;
+          position: relative;
+          cursor: pointer;
+          text-align: center;
+          margin-top: 0; /* Override label default */
+      }
+      .shift-option input {
+          position: absolute;
+          opacity: 0;
+          cursor: pointer;
+          height: 0;
+          width: 0;
+      }
+      .shift-option span {
+          display: block;
+          padding: 8px;
+          border-radius: calc(var(--border-radius) - 2px);
+          font-weight: 500;
+          font-size: 14px;
+          color: var(--color-text-light);
+          transition: all 0.3s ease;
+      }
+      .shift-option input:checked + span {
+          background-color: var(--color-surface);
+          color: var(--color-primary);
+          box-shadow: var(--shadow-sm);
+          font-weight: 600;
+      }
     </style>
 </head>
 <body>
@@ -3316,12 +3355,21 @@
                                 <input type="date" id="regAppDate" required>
                             </div>
 
-                            <div class="form-col" style="margin-bottom: 10px;">
-                                <label class="required">Turno:</label>
-                                <div style="display: flex; gap: 10px;">
-                                    <label style="font-weight: normal;"><input type="radio" name="regAppShift" value="A" checked> Turno A</label>
-                                    <label style="font-weight: normal;"><input type="radio" name="regAppShift" value="B"> Turno B</label>
-                                    <label style="font-weight: normal;"><input type="radio" name="regAppShift" value="C"> Turno C</label>
+                            <div class="form-col" style="margin-bottom: 15px;">
+                                <label class="required" style="margin-bottom: 8px;">Turno:</label>
+                                <div class="shift-selector">
+                                    <label class="shift-option">
+                                        <input type="radio" name="regAppShift" value="A" checked>
+                                        <span>Turno A</span>
+                                    </label>
+                                    <label class="shift-option">
+                                        <input type="radio" name="regAppShift" value="B">
+                                        <span>Turno B</span>
+                                    </label>
+                                    <label class="shift-option">
+                                        <input type="radio" name="regAppShift" value="C">
+                                        <span>Turno C</span>
+                                    </label>
                                 </div>
                             </div>
 
