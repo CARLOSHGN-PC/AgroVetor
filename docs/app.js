@@ -2165,6 +2165,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
+
+                // Bind click handler for selection and direction logic
+                map.on('click', (e) => this.handleMapClick(e));
             },
             setDefaultDatesForDashboard(type) {
                 const today = new Date();
@@ -4778,13 +4781,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <input type="number" class="partial-area-input" max="${talhao.area}" placeholder="0.00">
                             </div>
                             <div style="flex: 1; min-width: 120px;">
-                                <label style="font-size: 12px; display: block; margin-bottom: 2px;">Sentido (Início)</label>
-                                <select class="partial-direction-select" style="padding: 8px;">
-                                    <option value="N">Norte</option>
-                                    <option value="S">Sul</option>
-                                    <option value="E">Leste</option>
-                                    <option value="W">Oeste</option>
-                                </select>
+                                <label style="font-size: 12px; display: block; margin-bottom: 2px;">Sentido</label>
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <span id="regapp-direction-display-${talhao.id}" style="font-size: 13px; color: var(--color-text);">Norte</span>
+                                    <button class="btn-set-direction" data-id="${talhao.id}" style="padding: 4px 8px; font-size: 12px; background: var(--color-info); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                        <i class="fas fa-map-marker-alt"></i> Mapa
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -4793,7 +4796,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const partialCheck = details.querySelector('.partial-check');
                     const partialInputs = details.querySelector('.partial-inputs');
                     const areaInput = details.querySelector('.partial-area-input');
-                    const dirSelect = details.querySelector('.partial-direction-select');
+                    const btnSetDirection = details.querySelector('.btn-set-direction');
 
                     // Event Listeners
                     header.addEventListener('click', (e) => {
@@ -4816,8 +4819,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     partialCheck.addEventListener('change', (e) => {
                         if (e.target.checked) {
                             partialInputs.style.display = 'flex';
-                            areaInput.value = (talhao.area / 2).toFixed(2); // Default to half? Or empty.
-                            this.updateSelectedState(talhao.id, talhao.area, true, parseFloat(areaInput.value), dirSelect.value);
+                            areaInput.value = (talhao.area / 2).toFixed(2);
+                            this.updateSelectedState(talhao.id, talhao.area, true, parseFloat(areaInput.value), 'N');
                         } else {
                             partialInputs.style.display = 'none';
                             this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 'N');
@@ -4828,11 +4831,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         let val = parseFloat(areaInput.value);
                         if (isNaN(val) || val <= 0) val = 0;
                         if (val > talhao.area) { val = talhao.area; areaInput.value = val; }
-                        this.updateSelectedState(talhao.id, talhao.area, true, val, dirSelect.value);
+                        // Keep existing direction
+                        const currentDir = App.state.regAppSelectedPlots.get(talhao.id)?.direction || 'N';
+                        this.updateSelectedState(talhao.id, talhao.area, true, val, currentDir);
                     });
 
-                    dirSelect.addEventListener('change', () => {
-                        this.updateSelectedState(talhao.id, talhao.area, true, parseFloat(areaInput.value), dirSelect.value);
+                    btnSetDirection.addEventListener('click', () => {
+                        App.state.regAppPartialSelectionMode = { talhaoId: talhao.id };
+                        App.ui.showAlert("Clique no mapa para definir a direção de onde vem a aplicação.", "info");
+                        if (App.state.regAppMap) {
+                            App.state.regAppMap.getCanvas().style.cursor = 'crosshair';
+                        }
                     });
 
                     container.appendChild(header);
@@ -4988,6 +4997,90 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (App.state.regAppMap) {
                     setTimeout(() => App.state.regAppMap.resize(), 400);
+                }
+            },
+
+            handleMapClick(e) {
+                const map = App.state.regAppMap;
+                const sourceId = 'regapp-talhoes-source';
+                const layerId = 'regapp-talhoes-layer';
+
+                // Check if we are in "Partial Selection Mode" (waiting for a direction click)
+                if (App.state.regAppPartialSelectionMode) {
+                    const { talhaoId } = App.state.regAppPartialSelectionMode;
+                    const clickPoint = e.lngLat;
+
+                    // Find the feature for the current talhaoId
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value)?.code;
+                    const farm = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value);
+                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
+
+                    if (farmCode && talhao) {
+                        const feature = App.state.geoJsonData.features.find(f =>
+                            f.properties.AGV_TALHAO === talhao.name &&
+                            String(f.properties.AGV_FUNDO) === String(farmCode)
+                        );
+
+                        if (feature) {
+                            // Calculate Direction
+                            try {
+                                const centroid = turf.centroid(feature);
+                                const bearing = turf.bearing(centroid, [clickPoint.lng, clickPoint.lat]);
+
+                                let direction = 'N';
+                                if (bearing >= -45 && bearing < 45) direction = 'N';
+                                else if (bearing >= 45 && bearing < 135) direction = 'E';
+                                else if (bearing >= 135 || bearing < -135) direction = 'S';
+                                else if (bearing >= -135 && bearing < -45) direction = 'W';
+
+                                // Update State
+                                const currentData = App.state.regAppSelectedPlots.get(talhaoId);
+                                if (currentData) {
+                                    this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, direction);
+                                }
+
+                                // Update UI (Text)
+                                const dirDisplay = document.getElementById(`regapp-direction-display-${talhaoId}`);
+                                if (dirDisplay) {
+                                    const dirNames = { 'N': 'Norte', 'S': 'Sul', 'E': 'Leste', 'W': 'Oeste' };
+                                    dirDisplay.textContent = dirNames[direction];
+                                    dirDisplay.style.color = 'var(--color-primary)';
+                                    dirDisplay.style.fontWeight = 'bold';
+                                }
+
+                                App.ui.showAlert(`Direção definida: ${direction === 'N' ? 'Norte' : direction === 'S' ? 'Sul' : direction === 'E' ? 'Leste' : 'Oeste'}`, 'success');
+
+                            } catch (err) {
+                                console.error("Error calculating direction:", err);
+                                App.ui.showAlert("Erro ao calcular direção.", "error");
+                            }
+                        }
+                    }
+
+                    // Exit Mode
+                    App.state.regAppPartialSelectionMode = null;
+                    map.getCanvas().style.cursor = '';
+                    return;
+                }
+
+                // Normal Click Selection Logic
+                const features = map.queryRenderedFeatures(e.point, { layers: [layerId] });
+                if (features.length > 0) {
+                    const feature = features[0];
+                    const talhaoName = feature.properties.AGV_TALHAO;
+                    const farmCode = feature.properties.AGV_FUNDO;
+
+                    const farm = App.state.fazendas.find(f => f.code == farmCode);
+                    if (farm) {
+                        const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName.toUpperCase());
+                        if (talhao) {
+                            const checkbox = document.getElementById(`regapp-plot-${talhao.id}`);
+                            if (checkbox) {
+                                checkbox.checked = !checkbox.checked;
+                                checkbox.dispatchEvent(new Event('change'));
+                            }
+                        }
+                    }
                 }
             },
 
