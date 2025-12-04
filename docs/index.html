@@ -1642,15 +1642,25 @@
         transition: min-width 0.4s ease, flex-basis 0.4s ease; /* Transição suave */
       }
 
+      /* Estilos para o módulo Registro de Aplicação (mesma lógica) */
+      #registroAplicacao .card {
+        flex: 0 0 450px;
+        min-width: 320px;
+        max-width: 100%;
+        transition: min-width 0.4s ease, flex-basis 0.4s ease;
+      }
+
       @media (max-width: 768px) {
-          #btnMobileToggleMap { display: flex !important; }
+          #btnMobileToggleMap, #btnMobileToggleRegAppMap { display: flex !important; }
       }
 
       /* Quando o mapa está expandido, o painel encolhe */
-      #ordemServicoManual.map-expanded .card {
+      #ordemServicoManual.map-expanded .card,
+      #registroAplicacao.map-expanded .card {
           flex: 0 0 0;
           min-width: 0;
           overflow: hidden;
+          padding: 0;
       }
 
       /* Old .os-plot-item styles removed or deprecated */
