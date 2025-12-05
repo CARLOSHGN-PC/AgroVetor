@@ -4670,27 +4670,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (feature) {
                     const center = turf.center(feature);
-                    const centerCoords = center.geometry.coordinates; // [lng, lat]
 
-                    const dx = lngLat.lng - centerCoords[0];
-                    const dy = lngLat.lat - centerCoords[1];
-
-                    let direction = 'N';
-                    // Simple quadrant logic
-                    if (Math.abs(dx) > Math.abs(dy)) {
-                        direction = dx > 0 ? 'E' : 'W';
-                    } else {
-                        direction = dy > 0 ? 'N' : 'S'; // Mapbox/Leaflet lat increases upwards (North)
-                    }
+                    // Calculate Bearing from Center to Click Point
+                    const clickPoint = turf.point([lngLat.lng, lngLat.lat]);
+                    const bearing = turf.bearing(center, clickPoint);
 
                     // Update State
                     const currentData = App.state.regAppSelectedPlots.get(talhaoId);
                     if (currentData) {
-                        this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, direction);
-
-                        // Update UI Button Text (optional but good feedback)
-                        const dirLabel = { 'N': 'Norte (Cima)', 'S': 'Sul (Baixo)', 'E': 'Leste (Direita)', 'W': 'Oeste (Esquerda)' };
-                        App.ui.showAlert(`Direção definida: ${dirLabel[direction]}`, 'success');
+                        this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, bearing);
+                        App.ui.showAlert(`Direção definida: ${bearing.toFixed(0)}°`, 'success');
                     }
                 }
 
@@ -4934,14 +4923,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         const appliedArea = isPartial ? parseFloat((talhao.area / 2).toFixed(2)) : talhao.area;
                         if (isPartial) areaInput.value = appliedArea;
 
-                        this.updateSelectedState(talhao.id, talhao.area, isPartial, appliedArea, 'N');
+                        // Default direction to 0 (North) if not set
+                        const currentData = App.state.regAppSelectedPlots.get(talhao.id);
+                        const direction = currentData ? (currentData.direction || 0) : 0;
+
+                        this.updateSelectedState(talhao.id, talhao.area, isPartial, appliedArea, direction);
                     });
 
                     areaInput.addEventListener('input', () => {
                         let val = parseFloat(areaInput.value);
                         if (isNaN(val) || val <= 0) val = 0;
                         if (val > talhao.area) { val = talhao.area; areaInput.value = val; }
-                        this.updateSelectedState(talhao.id, talhao.area, true, val, 'N'); // Direction defaults to N or keeps previous if logic enhanced
+
+                        const currentData = App.state.regAppSelectedPlots.get(talhao.id);
+                        const direction = currentData ? (currentData.direction || 0) : 0;
+
+                        this.updateSelectedState(talhao.id, talhao.area, true, val, direction);
                     });
 
                     pickDirectionBtn.addEventListener('click', (e) => {
@@ -4965,7 +4962,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isChecked) {
                     details.style.display = 'block';
-                    this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 'N');
+                    this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 0);
 
                     if(App.state.regAppMap) {
                         const farmCode = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value)?.code;
@@ -5059,47 +5056,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!originalFeature) return;
 
                     if (data.isPartial && data.appliedArea < data.totalArea && data.appliedArea > 0) {
-                        // INTELLIGENCE: CLIPPING LOGIC
+                        // INTELLIGENCE: ROTATIONAL CLIPPING LOGIC
                         try {
-                            const bbox = turf.bbox(originalFeature);
-                            const [minX, minY, maxX, maxY] = bbox;
-                            const ratio = data.appliedArea / data.totalArea;
+                            const center = turf.center(originalFeature);
+                            const bearing = typeof data.direction === 'number' ? data.direction : 0;
 
-                            let clipBox;
-                            const width = maxX - minX;
+                            // 1. Rotate the feature so the "Entry Direction" aligns with North (0 degrees)
+                            // We rotate by -bearing. If bearing is 90 (East), -90 makes East become North.
+                            const rotated = turf.transformRotate(originalFeature, -bearing, { pivot: center });
+
+                            // 2. Get BBox of the rotated feature
+                            const bbox = turf.bbox(rotated);
+                            const [minX, minY, maxX, maxY] = bbox;
+
+                            const ratio = data.appliedArea / data.totalArea;
                             const height = maxY - minY;
 
-                            // Simple bbox cut.
-                            // North = Top. South = Bottom. East = Right. West = Left.
-                            // 'Direction' means "Starting From".
-                            switch (data.direction) {
-                                case 'N': // Start from North (Top), keep Top part
-                                    // Top Y is maxY. Cut Y is maxY - (height * ratio)
-                                    clipBox = turf.bboxPolygon([minX, maxY - (height * ratio), maxX, maxY]);
-                                    break;
-                                case 'S': // Start from South (Bottom)
-                                    clipBox = turf.bboxPolygon([minX, minY, maxX, minY + (height * ratio)]);
-                                    break;
-                                case 'E': // Start from East (Right)
-                                    clipBox = turf.bboxPolygon([maxX - (width * ratio), minY, maxX, maxY]);
-                                    break;
-                                case 'W': // Start from West (Left)
-                                    clipBox = turf.bboxPolygon([minX, minY, minX + (width * ratio), maxY]);
-                                    break;
-                                default:
-                                    clipBox = turf.bboxPolygon(bbox);
-                            }
+                            // 3. Create a Clip Box for the "Top" part (which corresponds to the clicked direction)
+                            // We keep the top 'ratio' of the height.
+                            const clipBox = turf.bboxPolygon([minX, maxY - (height * ratio), maxX, maxY]);
 
-                            const clipped = turf.intersect(turf.featureCollection([originalFeature, clipBox]));
-                            if (clipped) {
-                                clipped.properties = { color: color };
-                                features.push(clipped);
+                            // 4. Intersect
+                            const clippedRotated = turf.intersect(turf.featureCollection([rotated, clipBox]));
+
+                            if (clippedRotated) {
+                                // 5. Rotate back to original orientation
+                                const finalFeature = turf.transformRotate(clippedRotated, bearing, { pivot: center });
+                                finalFeature.properties = { color: color };
+                                features.push(finalFeature);
                             } else {
-                                // Fallback if intersect fails (rare)
                                 features.push({ ...originalFeature, properties: { ...originalFeature.properties, color: color } });
                             }
                         } catch (e) {
-                            console.error("Turf intersect error", e);
+                            console.error("Turf processing error", e);
                              features.push({ ...originalFeature, properties: { ...originalFeature.properties, color: color } });
                         }
                     } else {
