@@ -4670,27 +4670,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (feature) {
                     const center = turf.center(feature);
-                    const centerCoords = center.geometry.coordinates; // [lng, lat]
 
-                    const dx = lngLat.lng - centerCoords[0];
-                    const dy = lngLat.lat - centerCoords[1];
+                    // Calculate bearing from CLICK to CENTROID (Sweep Direction)
+                    const clickPoint = turf.point([lngLat.lng, lngLat.lat]);
+                    const bearing = turf.bearing(clickPoint, center);
 
-                    let direction = 'N';
-                    // Simple quadrant logic
-                    if (Math.abs(dx) > Math.abs(dy)) {
-                        direction = dx > 0 ? 'E' : 'W';
-                    } else {
-                        direction = dy > 0 ? 'N' : 'S'; // Mapbox/Leaflet lat increases upwards (North)
-                    }
-
-                    // Update State
+                    // Update State with numeric bearing
                     const currentData = App.state.regAppSelectedPlots.get(talhaoId);
                     if (currentData) {
-                        this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, direction);
-
-                        // Update UI Button Text (optional but good feedback)
-                        const dirLabel = { 'N': 'Norte (Cima)', 'S': 'Sul (Baixo)', 'E': 'Leste (Direita)', 'W': 'Oeste (Esquerda)' };
-                        App.ui.showAlert(`Direção definida: ${dirLabel[direction]}`, 'success');
+                        this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, bearing);
+                        App.ui.showAlert(`Direção de aplicação definida!`, 'success');
                     }
                 }
 
@@ -4698,6 +4687,69 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.regAppDirectionTarget = null;
                 const map = App.state.regAppMap;
                 map.getCanvas().style.cursor = '';
+            },
+
+            calculateCutPolygon(originalFeature, targetAreaHa, bearing) {
+                try {
+                    const centroid = turf.centroid(originalFeature);
+                    const rotated = turf.transformRotate(originalFeature, -bearing, { pivot: centroid });
+                    const bbox = turf.bbox(rotated); // [minX, minY, maxX, maxY]
+                    const minX = bbox[0];
+                    const minY = bbox[1];
+                    const maxX = bbox[2];
+                    const maxY = bbox[3];
+
+                    let lowY = minY;
+                    let highY = maxY;
+                    let bestSlice = null;
+                    const targetAreaSqm = targetAreaHa * 10000;
+                    const tolerance = targetAreaSqm * 0.05; // 5% tolerance
+
+                    // Binary search for 20 iterations (approximate solution)
+                    for (let i = 0; i < 20; i++) {
+                        const midY = (lowY + highY) / 2;
+                        const clipBox = turf.bboxPolygon([minX, minY, maxX, midY]);
+
+                        // Compatible with older Turf versions that use FeatureCollection for intersect
+                        let sliced = null;
+                        try {
+                            sliced = turf.intersect(rotated, clipBox);
+                        } catch(e) {
+                            try {
+                                sliced = turf.intersect(turf.featureCollection([rotated, clipBox]));
+                            } catch(e2) {
+                                console.warn("Turf intersect failed", e2);
+                            }
+                        }
+
+                        if (!sliced) {
+                            lowY = midY;
+                            continue;
+                        }
+
+                        const currentAreaSqm = turf.area(sliced);
+
+                        if (Math.abs(currentAreaSqm - targetAreaSqm) < tolerance) {
+                            bestSlice = sliced;
+                            break;
+                        }
+
+                        if (currentAreaSqm < targetAreaSqm) {
+                            lowY = midY;
+                            bestSlice = sliced; // Store best result so far
+                        } else {
+                            highY = midY;
+                        }
+                    }
+
+                    if (bestSlice) {
+                        return turf.transformRotate(bestSlice, bearing, { pivot: centroid });
+                    }
+                    return originalFeature; // Fallback if calculation fails
+                } catch (e) {
+                    console.error("Error calculating cut polygon:", e);
+                    return originalFeature;
+                }
             },
 
             loadShapes() {
@@ -5039,13 +5091,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!farmCode || !App.state.geoJsonData) return;
 
                 App.state.regAppSelectedPlots.forEach((data, talhaoId) => {
-                    // Find the original feature
-                    // Assuming talhaoId maps to a plot name we can find in the features.
-                    // Wait, I used ID in the map, but finding by ID in geoJsonData features array is O(N).
-                    // Better: Find the feature in geoJsonData that corresponds to this farm and talhaoId.
-                    // Since I don't have a direct map of ID -> Feature, I have to search.
-
-                    // Optimization: Build a quick lookup if performance is bad. For now, filter.
                     const farm = App.state.fazendas.find(f => f.code == farmCode);
                     const talhao = farm.talhoes.find(t => t.id == talhaoId);
 
@@ -5059,48 +5104,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!originalFeature) return;
 
                     if (data.isPartial && data.appliedArea < data.totalArea && data.appliedArea > 0) {
-                        // INTELLIGENCE: CLIPPING LOGIC
-                        try {
-                            const bbox = turf.bbox(originalFeature);
-                            const [minX, minY, maxX, maxY] = bbox;
-                            const ratio = data.appliedArea / data.totalArea;
+                        let finalFeature = originalFeature;
+                        let bearing = 0;
 
-                            let clipBox;
-                            const width = maxX - minX;
-                            const height = maxY - minY;
+                        // Normalize direction to numeric bearing
+                        if (typeof data.direction === 'number') {
+                            bearing = data.direction;
+                        } else {
+                            // Legacy/Default Fallback
+                            const mapDir = { 'N': 0, 'E': 90, 'S': 180, 'W': -90 };
+                            bearing = mapDir[data.direction] !== undefined ? mapDir[data.direction] : 0;
+                        }
 
-                            // Simple bbox cut.
-                            // North = Top. South = Bottom. East = Right. West = Left.
-                            // 'Direction' means "Starting From".
-                            switch (data.direction) {
-                                case 'N': // Start from North (Top), keep Top part
-                                    // Top Y is maxY. Cut Y is maxY - (height * ratio)
-                                    clipBox = turf.bboxPolygon([minX, maxY - (height * ratio), maxX, maxY]);
-                                    break;
-                                case 'S': // Start from South (Bottom)
-                                    clipBox = turf.bboxPolygon([minX, minY, maxX, minY + (height * ratio)]);
-                                    break;
-                                case 'E': // Start from East (Right)
-                                    clipBox = turf.bboxPolygon([maxX - (width * ratio), minY, maxX, maxY]);
-                                    break;
-                                case 'W': // Start from West (Left)
-                                    clipBox = turf.bboxPolygon([minX, minY, minX + (width * ratio), maxY]);
-                                    break;
-                                default:
-                                    clipBox = turf.bboxPolygon(bbox);
-                            }
+                        // Use the new sweep algorithm
+                        finalFeature = this.calculateCutPolygon(originalFeature, data.appliedArea, bearing);
 
-                            const clipped = turf.intersect(turf.featureCollection([originalFeature, clipBox]));
-                            if (clipped) {
-                                clipped.properties = { color: color };
-                                features.push(clipped);
-                            } else {
-                                // Fallback if intersect fails (rare)
-                                features.push({ ...originalFeature, properties: { ...originalFeature.properties, color: color } });
-                            }
-                        } catch (e) {
-                            console.error("Turf intersect error", e);
-                             features.push({ ...originalFeature, properties: { ...originalFeature.properties, color: color } });
+                        if (finalFeature) {
+                            finalFeature.properties = { ...finalFeature.properties, color: color };
+                            features.push(finalFeature);
                         }
                     } else {
                         // Full plot
