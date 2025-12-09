@@ -248,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
             regAppMap: null,
             regAppSelectedPlots: new Map(), // Map<talhaoId, {area: number, direction: string, isPartial: boolean}>
             regAppDirectionTarget: null, // Stores talhaoId when selecting direction on map
+            regAppStartPoint: null, // Temporary store for start point during direction selection
         },
         
         elements: {
@@ -4653,51 +4654,95 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             handleDirectionClick(lngLat) {
-                const talhaoId = App.state.regAppDirectionTarget;
-                const farmId = App.elements.regApp.farmSelect.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) return;
+                const map = App.state.regAppMap;
 
-                const talhao = farm.talhoes.find(t => t.id === talhaoId);
-                if (!talhao) return;
+                // STEP 1: If no start point, set it and wait for second click
+                if (!App.state.regAppStartPoint) {
+                    App.state.regAppStartPoint = lngLat;
 
-                // Find feature center to calculate bearing
-                const farmCode = farm.code;
-                const feature = App.state.geoJsonData.features.find(f =>
-                    f.properties.AGV_TALHAO === talhao.name &&
-                    String(f.properties.AGV_FUNDO) === String(farmCode)
-                );
+                    // Add visual marker for start point
+                    const markerEl = document.createElement('div');
+                    markerEl.className = 'temp-start-marker';
+                    markerEl.style.width = '15px';
+                    markerEl.style.height = '15px';
+                    markerEl.style.backgroundColor = '#4caf50'; // Green
+                    markerEl.style.borderRadius = '50%';
+                    markerEl.style.border = '2px solid white';
+                    markerEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
 
-                if (feature) {
-                    const center = turf.center(feature);
+                    new mapboxgl.Marker(markerEl)
+                        .setLngLat(lngLat)
+                        .addTo(map);
 
-                    // Calculate bearing from CLICK to CENTROID (Sweep Direction)
-                    const clickPoint = turf.point([lngLat.lng, lngLat.lat]);
-                    const bearing = turf.bearing(clickPoint, center);
+                    // Store marker instance on map object to remove later
+                    map.tempStartMarker = markerEl;
 
-                    // Update State with numeric bearing
-                    const currentData = App.state.regAppSelectedPlots.get(talhaoId);
-                    if (currentData) {
-                        this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, bearing);
-                        App.ui.showAlert(`Direção de aplicação definida!`, 'success');
-                    }
+                    App.ui.showAlert("Ponto de INÍCIO definido. Agora clique no ponto onde a aplicação PAROU.", "info", 5000);
+                    return;
                 }
 
-                // Reset Mode
+                // STEP 2: Second click - Calculate Direction and Sweep
+                const startLngLat = App.state.regAppStartPoint;
+                const endLngLat = lngLat;
+                const talhaoId = App.state.regAppDirectionTarget;
+
+                // Calculate bearing from Start to End
+                const startPoint = turf.point([startLngLat.lng, startLngLat.lat]);
+                const endPoint = turf.point([endLngLat.lng, endLngLat.lat]);
+                const bearing = turf.bearing(startPoint, endPoint);
+
+                // Update State
+                const currentData = App.state.regAppSelectedPlots.get(talhaoId);
+                if (currentData) {
+                    // Update state with new bearing AND the start point coordinates
+                    // We need the start point to anchor the sweep correctly
+                    this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, bearing, startLngLat);
+                    App.ui.showAlert(`Direção definida! (Ângulo: ${bearing.toFixed(0)}°)`, 'success');
+                }
+
+                // Cleanup
+                if (map.tempStartMarker) {
+                    map.tempStartMarker.remove();
+                    delete map.tempStartMarker;
+                }
+                // Clear temporary markers by refreshing map if needed, or rely on updateMapVisuals
+                document.querySelectorAll('.temp-start-marker').forEach(el => el.remove());
+
+                App.state.regAppStartPoint = null;
                 App.state.regAppDirectionTarget = null;
-                const map = App.state.regAppMap;
                 map.getCanvas().style.cursor = '';
             },
 
-            calculateCutPolygon(originalFeature, targetAreaHa, bearing) {
+            calculateCutPolygon(originalFeature, targetAreaHa, bearing, startPointCoords) {
                 try {
-                    const centroid = turf.centroid(originalFeature);
-                    const rotated = turf.transformRotate(originalFeature, -bearing, { pivot: centroid });
+                    // If we have a specific start point, use it as pivot to ensure rotation happens around the start of the sweep
+                    // If not (legacy), use centroid
+                    let pivot = turf.centroid(originalFeature);
+
+                    if (startPointCoords) {
+                        pivot = turf.point([startPointCoords.lng, startPointCoords.lat]);
+                    }
+
+                    // Rotate the feature so the sweep direction (bearing) points UP (North/Y-Axis)
+                    // If Bearing is 90 (East), we want East to align with North.
+                    // Rotate by -90.
+                    const rotated = turf.transformRotate(originalFeature, -bearing, { pivot: pivot });
                     const bbox = turf.bbox(rotated); // [minX, minY, maxX, maxY]
                     const minX = bbox[0];
                     const minY = bbox[1];
                     const maxX = bbox[2];
                     const maxY = bbox[3];
+
+                    // If anchored, the start point is at the pivot.
+                    // Since we rotated around the pivot, the pivot's new coordinates are the same as old (if we rotated strictly around it).
+                    // However, turf.transformRotate returns a new feature.
+                    // Let's rely on the BBox.
+                    // If we sweep from Start to End, and we aligned Start->End to point UP (+Y),
+                    // Then we should sweep from minY upwards.
+
+                    // BUT: The rotated bounding box min-Y might be lower than the pivot if the shape extends "behind" the start point.
+                    // Uniport logic: "Pega uma ponta e vai". Usually start point is an extremity.
+                    // So sweeping from BBox minY is generally correct for "filling from the bottom up".
 
                     let lowY = minY;
                     let highY = maxY;
@@ -4743,7 +4788,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (bestSlice) {
-                        return turf.transformRotate(bestSlice, bearing, { pivot: centroid });
+                        return turf.transformRotate(bestSlice, bearing, { pivot: pivot });
                     }
                     return originalFeature; // Fallback if calculation fails
                 } catch (e) {
@@ -4982,24 +5027,48 @@ document.addEventListener('DOMContentLoaded', () => {
                         const isPartial = e.target.checked;
                         partialInputs.style.display = isPartial ? 'flex' : 'none';
 
-                        // Default values for partial
-                        const appliedArea = isPartial ? parseFloat((talhao.area / 2).toFixed(2)) : talhao.area;
-                        if (isPartial) areaInput.value = appliedArea;
+                        // Logic updated: Allow user manual input.
+                        // If checking: set area to full area (initially) OR keep existing if user typed.
+                        // If unchecking: reset everything.
 
-                        this.updateSelectedState(talhao.id, talhao.area, isPartial, appliedArea, 'N');
+                        let currentVal = parseFloat(areaInput.value);
+
+                        if (isPartial) {
+                            if (isNaN(currentVal) || currentVal <= 0) {
+                                // Default to full area if empty, let user edit down
+                                currentVal = parseFloat(talhao.area.toFixed(2));
+                                areaInput.value = currentVal;
+                            }
+                            this.updateSelectedState(talhao.id, talhao.area, true, currentVal, 0); // Default bearing 0
+                        } else {
+                            // Reset when unchecking
+                            this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 0);
+                        }
                     });
 
                     areaInput.addEventListener('input', () => {
                         let val = parseFloat(areaInput.value);
-                        if (isNaN(val) || val <= 0) val = 0;
-                        if (val > talhao.area) { val = talhao.area; areaInput.value = val; }
-                        this.updateSelectedState(talhao.id, talhao.area, true, val, 'N'); // Direction defaults to N or keeps previous if logic enhanced
+                        if (isNaN(val) || val < 0) val = 0;
+                        if (val > talhao.area) {
+                            val = talhao.area;
+                            areaInput.value = val.toFixed(2);
+                            App.ui.showAlert("A área aplicada não pode ser maior que a área total.", "warning");
+                        }
+
+                        // Preserve existing direction/startPoint if available
+                        const currentData = App.state.regAppSelectedPlots.get(talhao.id);
+                        const bearing = currentData ? currentData.direction : 0;
+                        const startPoint = currentData ? currentData.startPoint : null;
+
+                        this.updateSelectedState(talhao.id, talhao.area, true, val, bearing, startPoint);
                     });
 
+                    pickDirectionBtn.innerHTML = '<i class="fas fa-route"></i> Definir Pontos (Início -> Fim)';
                     pickDirectionBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         App.state.regAppDirectionTarget = talhao.id;
-                        App.ui.showAlert("Clique no mapa para definir a direção de entrada.", "info", 3000);
+                        App.state.regAppStartPoint = null; // Reset start point for new selection
+                        App.ui.showAlert("1. Clique no Ponto de INÍCIO da aplicação no mapa.", "info", 5000);
                         if(App.state.regAppMap) App.state.regAppMap.getCanvas().style.cursor = 'crosshair';
                     });
 
@@ -5064,12 +5133,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.handleSelectionChange(talhao, newState);
             },
 
-            updateSelectedState(talhaoId, totalArea, isPartial, appliedArea, direction) {
+            updateSelectedState(talhaoId, totalArea, isPartial, appliedArea, direction, startPoint = null) {
                 App.state.regAppSelectedPlots.set(talhaoId, {
                     totalArea,
                     isPartial,
                     appliedArea: isPartial ? appliedArea : totalArea,
-                    direction: direction
+                    direction: direction,
+                    startPoint: startPoint
                 });
                 this.updateMapVisualization();
             },
@@ -5117,7 +5187,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         // Use the new sweep algorithm
-                        finalFeature = this.calculateCutPolygon(originalFeature, data.appliedArea, bearing);
+                        finalFeature = this.calculateCutPolygon(originalFeature, data.appliedArea, bearing, data.startPoint);
 
                         if (finalFeature) {
                             finalFeature.properties = { ...finalFeature.properties, color: color };
