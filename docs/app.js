@@ -4653,6 +4653,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            getPrincipalDirection(feature) {
+                try {
+                    let maxDist = 0;
+                    let bearing = 0;
+                    let coords = feature.geometry.coordinates;
+
+                    if (feature.geometry.type === 'MultiPolygon') {
+                        coords = coords[0]; // Take the first polygon
+                    }
+
+                    // coords is now [ring1, ring2...]. ring1 is outer.
+                    const ring = coords[0];
+
+                    for (let i = 0; i < ring.length - 1; i++) {
+                        const start = turf.point(ring[i]);
+                        const end = turf.point(ring[i+1]);
+                        const dist = turf.distance(start, end);
+                        if (dist > maxDist) {
+                            maxDist = dist;
+                            bearing = turf.bearing(start, end);
+                        }
+                    }
+                    return bearing;
+                } catch (e) {
+                    console.error("Error calculating direction:", e);
+                    return 0;
+                }
+            },
+
             handleDirectionClick(lngLat) {
                 const map = App.state.regAppMap;
 
@@ -5158,17 +5187,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isChecked) {
                     details.style.display = 'block';
+
                     // Default values for new selection
                     const side = 'left';
                     const anchor = 'edge';
-                    this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 0, null, side, anchor);
+
+                    // Calculate automatic direction (Longest Edge)
+                    let direction = 0;
+                    let feature = null;
 
                     if(App.state.regAppMap) {
                         const farmCode = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value)?.code;
-                        const feature = App.state.geoJsonData.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
-                        // Initially select base layer, updateMapVisualization will handle partials
-                        if(feature) App.state.regAppMap.setFeatureState({ source: 'regapp-talhoes-source', id: feature.id }, { selected: true });
+                        feature = App.state.geoJsonData?.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
+
+                        if (feature) {
+                            direction = this.getPrincipalDirection(feature);
+                            // Initially select base layer
+                            App.state.regAppMap.setFeatureState({ source: 'regapp-talhoes-source', id: feature.id }, { selected: true });
+                        }
                     }
+
+                    this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, direction, null, side, anchor);
+
                 } else {
                     details.style.display = 'none';
                     partialCheck.checked = false;
