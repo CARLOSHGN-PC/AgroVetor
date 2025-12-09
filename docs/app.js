@@ -4694,9 +4694,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update State
                 const currentData = App.state.regAppSelectedPlots.get(talhaoId);
                 if (currentData) {
+                    const side = currentData.side || 'left';
+                    const anchor = currentData.anchor || 'edge';
                     // Update state with new bearing AND the start point coordinates
-                    // We need the start point to anchor the sweep correctly
-                    this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, bearing, startLngLat);
+                    this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, bearing, startLngLat, side, anchor);
                     App.ui.showAlert(`Direção definida! (Ângulo: ${bearing.toFixed(0)}°)`, 'success');
                 }
 
@@ -4705,7 +4706,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     map.tempStartMarker.remove();
                     delete map.tempStartMarker;
                 }
-                // Clear temporary markers by refreshing map if needed, or rely on updateMapVisuals
                 document.querySelectorAll('.temp-start-marker').forEach(el => el.remove());
 
                 App.state.regAppStartPoint = null;
@@ -4713,84 +4713,125 @@ document.addEventListener('DOMContentLoaded', () => {
                 map.getCanvas().style.cursor = '';
             },
 
-            calculateCutPolygon(originalFeature, targetAreaHa, bearing, startPointCoords) {
+            calculateCutPolygon(originalFeature, targetAreaHa, bearing, startPointCoords, side = 'left', anchor = 'edge') {
                 try {
-                    // If we have a specific start point, use it as pivot to ensure rotation happens around the start of the sweep
-                    // If not (legacy), use centroid
                     let pivot = turf.centroid(originalFeature);
-
                     if (startPointCoords) {
                         pivot = turf.point([startPointCoords.lng, startPointCoords.lat]);
                     }
 
-                    // Rotate the feature so the sweep direction (bearing) points UP (North/Y-Axis)
-                    // If Bearing is 90 (East), we want East to align with North.
-                    // Rotate by -90.
+                    // Rotate so Bearing points NORTH (Y-Axis)
                     const rotated = turf.transformRotate(originalFeature, -bearing, { pivot: pivot });
+
                     const bbox = turf.bbox(rotated); // [minX, minY, maxX, maxY]
                     const minX = bbox[0];
-                    const minY = bbox[1];
                     const maxX = bbox[2];
+                    const minY = bbox[1];
                     const maxY = bbox[3];
 
-                    // If anchored, the start point is at the pivot.
-                    // Since we rotated around the pivot, the pivot's new coordinates are the same as old (if we rotated strictly around it).
-                    // However, turf.transformRotate returns a new feature.
-                    // Let's rely on the BBox.
-                    // If we sweep from Start to End, and we aligned Start->End to point UP (+Y),
-                    // Then we should sweep from minY upwards.
+                    const pivotCoord = pivot.geometry.coordinates;
+                    const lineX = pivotCoord[0];
 
-                    // BUT: The rotated bounding box min-Y might be lower than the pivot if the shape extends "behind" the start point.
-                    // Uniport logic: "Pega uma ponta e vai". Usually start point is an extremity.
-                    // So sweeping from BBox minY is generally correct for "filling from the bottom up".
-
-                    let lowY = minY;
-                    let highY = maxY;
-                    let bestSlice = null;
                     const targetAreaSqm = targetAreaHa * 10000;
-                    const tolerance = targetAreaSqm * 0.05; // 5% tolerance
+                    const tolerance = targetAreaSqm * 0.05;
 
-                    // Binary search for 20 iterations (approximate solution)
-                    for (let i = 0; i < 20; i++) {
-                        const midY = (lowY + highY) / 2;
-                        const clipBox = turf.bboxPolygon([minX, minY, maxX, midY]);
+                    let finalSlice = null;
+                    let sweepMinX, sweepMaxX;
+                    let low, high;
 
-                        // Compatible with older Turf versions that use FeatureCollection for intersect
-                        let sliced = null;
-                        try {
-                            sliced = turf.intersect(rotated, clipBox);
-                        } catch(e) {
-                            try {
-                                sliced = turf.intersect(turf.featureCollection([rotated, clipBox]));
-                            } catch(e2) {
-                                console.warn("Turf intersect failed", e2);
+                    // Standardize search range based on selection
+                    if (side === 'left') {
+                        // Filling the Left/West side
+                        if (anchor === 'edge') {
+                            // Start from minX, grow towards maxX
+                            low = minX; high = maxX;
+                        } else {
+                            // Start from lineX, grow towards minX (Left)
+                            // Interval is [midX, lineX]
+                            low = minX; high = lineX;
+                        }
+                    } else { // right
+                        // Filling the Right/East side
+                        if (anchor === 'edge') {
+                            // Start from maxX, grow towards minX
+                            low = minX; high = maxX;
+                        } else {
+                            // Start from lineX, grow towards maxX (Right)
+                            low = lineX; high = maxX;
+                        }
+                    }
+
+                    // Binary search
+                    for(let i=0; i<20; i++) {
+                        const midX = (low + high) / 2;
+                        let clipPoly;
+
+                        if (side === 'left') {
+                            if (anchor === 'edge') {
+                                clipPoly = turf.bboxPolygon([minX, minY, midX, maxY]);
+                            } else { // line
+                                clipPoly = turf.bboxPolygon([midX, minY, lineX, maxY]);
+                            }
+                        } else { // right
+                            if (anchor === 'edge') {
+                                clipPoly = turf.bboxPolygon([midX, minY, maxX, maxY]);
+                            } else { // line
+                                clipPoly = turf.bboxPolygon([lineX, minY, midX, maxY]);
                             }
                         }
 
+                        let sliced = null;
+                        try {
+                            sliced = turf.intersect(rotated, clipPoly);
+                        } catch(e) {
+                            try { sliced = turf.intersect(turf.featureCollection([rotated, clipPoly])); } catch(e2){}
+                        }
+
                         if (!sliced) {
-                            lowY = midY;
+                            // Empty intersection: adjust bounds to find the shape
+                            if (side === 'left') {
+                                if (anchor === 'edge') low = midX; // Move right to find shape
+                                else high = midX; // Move left?
+                            } else {
+                                if (anchor === 'edge') high = midX; // Move left to find shape
+                                else low = midX;
+                            }
                             continue;
                         }
 
-                        const currentAreaSqm = turf.area(sliced);
+                        const currentArea = turf.area(sliced);
 
-                        if (Math.abs(currentAreaSqm - targetAreaSqm) < tolerance) {
-                            bestSlice = sliced;
+                        if (Math.abs(currentArea - targetAreaSqm) < tolerance) {
+                            finalSlice = sliced;
                             break;
                         }
 
-                        if (currentAreaSqm < targetAreaSqm) {
-                            lowY = midY;
-                            bestSlice = sliced; // Store best result so far
+                        if (currentArea < targetAreaSqm) {
+                            // Need MORE area -> Expand
+                            if (side === 'left') {
+                                if (anchor === 'edge') low = midX; // Expand right
+                                else high = midX; // Expand left (towards minX)
+                            } else { // right
+                                if (anchor === 'edge') high = midX; // Expand left
+                                else low = midX; // Expand right (towards maxX)
+                            }
+                            finalSlice = sliced;
                         } else {
-                            highY = midY;
+                            // Need LESS area -> Shrink
+                            if (side === 'left') {
+                                if (anchor === 'edge') high = midX;
+                                else low = midX;
+                            } else { // right
+                                if (anchor === 'edge') low = midX;
+                                else high = midX;
+                            }
                         }
                     }
 
-                    if (bestSlice) {
-                        return turf.transformRotate(bestSlice, bearing, { pivot: pivot });
+                    if (finalSlice) {
+                        return turf.transformRotate(finalSlice, bearing, { pivot: pivot });
                     }
-                    return originalFeature; // Fallback if calculation fails
+                    return originalFeature;
                 } catch (e) {
                     console.error("Error calculating cut polygon:", e);
                     return originalFeature;
@@ -4991,15 +5032,45 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <input type="checkbox" class="partial-check" style="width: auto; margin-right: 8px;"> Aplicação Parcial?
                             </label>
                         </div>
-                        <div class="partial-inputs" style="display: none; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
-                            <div style="flex: 1; min-width: 100px;">
-                                <label style="font-size: 12px; display: block; margin-bottom: 2px;">Área (ha)</label>
-                                <input type="number" class="partial-area-input" max="${talhao.area}" placeholder="0.00">
+                        <div class="partial-inputs" style="display: none; flex-direction: column; gap: 10px;">
+                            <div style="display: flex; gap: 10px; width: 100%; align-items: flex-end;">
+                                <div style="flex: 1; min-width: 100px;">
+                                    <label style="font-size: 12px; display: block; margin-bottom: 2px;">Área (ha)</label>
+                                    <input type="number" class="partial-area-input" max="${talhao.area}" placeholder="0.00">
+                                </div>
+                                <div style="flex: 1; min-width: 120px;">
+                                    <button type="button" class="btn-pick-direction save" style="width:100%; padding: 8px; font-size: 12px; background: var(--color-warning);">
+                                        <i class="fas fa-route"></i> Definir Direção
+                                    </button>
+                                </div>
                             </div>
-                            <div style="flex: 1; min-width: 120px;">
-                                <button type="button" class="btn-pick-direction save" style="width:100%; padding: 8px; font-size: 12px; background: var(--color-warning);">
-                                    <i class="fas fa-map-marker-alt"></i> Definir Direção no Mapa
-                                </button>
+
+                            <!-- Side Selection -->
+                            <div style="width: 100%; background: rgba(0,0,0,0.03); padding: 8px; border-radius: 4px;">
+                                <div style="display: flex; gap: 15px; margin-bottom: 5px;">
+                                    <div style="flex: 1;">
+                                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Lado do Preenchimento:</label>
+                                        <div style="display: flex; gap: 10px;">
+                                            <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center;">
+                                                <input type="radio" name="fill-side-${talhao.id}" value="left" checked style="width:auto; margin-right:4px;"> Esq.
+                                            </label>
+                                            <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center;">
+                                                <input type="radio" name="fill-side-${talhao.id}" value="right" style="width:auto; margin-right:4px;"> Dir.
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Ponto de Início:</label>
+                                        <div style="display: flex; gap: 10px;">
+                                            <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center;">
+                                                <input type="radio" name="fill-anchor-${talhao.id}" value="edge" checked style="width:auto; margin-right:4px;"> Borda
+                                            </label>
+                                            <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center;">
+                                                <input type="radio" name="fill-anchor-${talhao.id}" value="line" style="width:auto; margin-right:4px;"> Linha
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -5009,6 +5080,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const partialInputs = details.querySelector('.partial-inputs');
                     const areaInput = details.querySelector('.partial-area-input');
                     const pickDirectionBtn = details.querySelector('.btn-pick-direction');
+                    const sideRadios = details.querySelectorAll(`input[name="fill-side-${talhao.id}"]`);
+                    const anchorRadios = details.querySelectorAll(`input[name="fill-anchor-${talhao.id}"]`);
 
                     // Event Listeners
                     header.addEventListener('click', (e) => {
@@ -5023,30 +5096,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.handleSelectionChange(talhao, e.target.checked);
                     });
 
-                    partialCheck.addEventListener('change', (e) => {
-                        const isPartial = e.target.checked;
-                        partialInputs.style.display = isPartial ? 'flex' : 'none';
-
-                        // Logic updated: Allow user manual input.
-                        // If checking: set area to full area (initially) OR keep existing if user typed.
-                        // If unchecking: reset everything.
-
-                        let currentVal = parseFloat(areaInput.value);
-
-                        if (isPartial) {
-                            if (isNaN(currentVal) || currentVal <= 0) {
-                                // Default to full area if empty, let user edit down
-                                currentVal = parseFloat(talhao.area.toFixed(2));
-                                areaInput.value = currentVal;
-                            }
-                            this.updateSelectedState(talhao.id, talhao.area, true, currentVal, 0); // Default bearing 0
-                        } else {
-                            // Reset when unchecking
-                            this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 0);
-                        }
-                    });
-
-                    areaInput.addEventListener('input', () => {
+                    const updateState = () => {
                         let val = parseFloat(areaInput.value);
                         if (isNaN(val) || val < 0) val = 0;
                         if (val > talhao.area) {
@@ -5055,13 +5105,35 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showAlert("A área aplicada não pode ser maior que a área total.", "warning");
                         }
 
-                        // Preserve existing direction/startPoint if available
                         const currentData = App.state.regAppSelectedPlots.get(talhao.id);
                         const bearing = currentData ? currentData.direction : 0;
                         const startPoint = currentData ? currentData.startPoint : null;
+                        const side = details.querySelector(`input[name="fill-side-${talhao.id}"]:checked`).value;
+                        const anchor = details.querySelector(`input[name="fill-anchor-${talhao.id}"]:checked`).value;
 
-                        this.updateSelectedState(talhao.id, talhao.area, true, val, bearing, startPoint);
+                        this.updateSelectedState(talhao.id, talhao.area, true, val, bearing, startPoint, side, anchor);
+                    };
+
+                    partialCheck.addEventListener('change', (e) => {
+                        const isPartial = e.target.checked;
+                        partialInputs.style.display = isPartial ? 'flex' : 'none';
+
+                        let currentVal = parseFloat(areaInput.value);
+
+                        if (isPartial) {
+                            if (isNaN(currentVal) || currentVal <= 0) {
+                                currentVal = parseFloat(talhao.area.toFixed(2));
+                                areaInput.value = currentVal;
+                            }
+                            updateState();
+                        } else {
+                            this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 0);
+                        }
                     });
+
+                    areaInput.addEventListener('input', updateState);
+                    sideRadios.forEach(r => r.addEventListener('change', updateState));
+                    anchorRadios.forEach(r => r.addEventListener('change', updateState));
 
                     pickDirectionBtn.innerHTML = '<i class="fas fa-route"></i> Definir Pontos (Início -> Fim)';
                     pickDirectionBtn.addEventListener('click', (e) => {
@@ -5086,11 +5158,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isChecked) {
                     details.style.display = 'block';
-                    this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 'N');
+                    // Default values for new selection
+                    const side = 'left';
+                    const anchor = 'edge';
+                    this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 0, null, side, anchor);
 
                     if(App.state.regAppMap) {
                         const farmCode = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value)?.code;
                         const feature = App.state.geoJsonData.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
+                        // Initially select base layer, updateMapVisualization will handle partials
                         if(feature) App.state.regAppMap.setFeatureState({ source: 'regapp-talhoes-source', id: feature.id }, { selected: true });
                     }
                 } else {
@@ -5133,13 +5209,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.handleSelectionChange(talhao, newState);
             },
 
-            updateSelectedState(talhaoId, totalArea, isPartial, appliedArea, direction, startPoint = null) {
+            updateSelectedState(talhaoId, totalArea, isPartial, appliedArea, direction, startPoint = null, side = 'left', anchor = 'edge') {
                 App.state.regAppSelectedPlots.set(talhaoId, {
                     totalArea,
                     isPartial,
                     appliedArea: isPartial ? appliedArea : totalArea,
                     direction: direction,
-                    startPoint: startPoint
+                    startPoint: startPoint,
+                    side: side,
+                    anchor: anchor
                 });
                 this.updateMapVisualization();
             },
@@ -5177,25 +5255,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         let finalFeature = originalFeature;
                         let bearing = 0;
 
-                        // Normalize direction to numeric bearing
                         if (typeof data.direction === 'number') {
                             bearing = data.direction;
                         } else {
-                            // Legacy/Default Fallback
                             const mapDir = { 'N': 0, 'E': 90, 'S': 180, 'W': -90 };
                             bearing = mapDir[data.direction] !== undefined ? mapDir[data.direction] : 0;
                         }
 
-                        // Use the new sweep algorithm
-                        finalFeature = this.calculateCutPolygon(originalFeature, data.appliedArea, bearing, data.startPoint);
+                        // Use the new sweep algorithm with side/anchor
+                        finalFeature = this.calculateCutPolygon(originalFeature, data.appliedArea, bearing, data.startPoint, data.side, data.anchor);
 
                         if (finalFeature) {
                             finalFeature.properties = { ...finalFeature.properties, color: color };
                             features.push(finalFeature);
                         }
+
+                        // For partials, unselect the base layer so the dark background remains visible
+                        if(map.getLayer('regapp-talhoes-layer')) {
+                             map.setFeatureState({ source: 'regapp-talhoes-source', id: originalFeature.id }, { selected: false });
+                        }
                     } else {
                         // Full plot
                         features.push({ ...originalFeature, properties: { ...originalFeature.properties, color: color } });
+                        // For full plots, we can also unselect base since the applied layer covers it
+                        if(map.getLayer('regapp-talhoes-layer')) {
+                             map.setFeatureState({ source: 'regapp-talhoes-source', id: originalFeature.id }, { selected: false });
+                        }
                     }
                 });
 
