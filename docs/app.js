@@ -9064,36 +9064,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         mapModule: {
-            _reprojectGeometry(geometry, sourceProj, destProj) {
-                if (!window.proj4) return;
-
-                const reprojectPoint = (coord) => {
-                    // Garante que apenas X e Y sejam passados, ignorando Z se existir
-                    const point2D = coord.length > 2 ? [coord[0], coord[1]] : coord;
-                    return proj4(sourceProj, destProj, point2D);
-                };
-
-                try {
-                    if (geometry.type === 'Point') {
-                        geometry.coordinates = reprojectPoint(geometry.coordinates);
-                    } else if (geometry.type === 'LineString' || geometry.type === 'MultiPoint') {
-                        geometry.coordinates = geometry.coordinates.map(reprojectPoint);
-                    } else if (geometry.type === 'Polygon' || geometry.type === 'MultiLineString') {
-                        geometry.coordinates = geometry.coordinates.map(ring =>
-                            ring.map(reprojectPoint)
-                        );
-                    } else if (geometry.type === 'MultiPolygon') {
-                        geometry.coordinates = geometry.coordinates.map(polygon =>
-                            polygon.map(ring =>
-                                ring.map(reprojectPoint)
-                            )
-                        );
-                    }
-                } catch (e) {
-                    console.error(`Erro ao reprojetar geometria (${geometry.type}):`, e);
-                }
-            },
-
             initMap() {
                 if (App.state.mapboxMap) return; // Evita reinicialização
                 if (typeof mapboxgl === 'undefined') {
@@ -9256,7 +9226,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const destProjection = "WGS84";
                         geojson.features.forEach(feature => {
                             if (feature.geometry && feature.geometry.coordinates) {
-                                this._reprojectGeometry(feature.geometry, sourceProjection, destProjection);
+                                try {
+                                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                        polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                    );
+                                } catch (e) {
+                                    console.error("Erro ao reprojetar coordenada:", e);
+                                }
                             }
                         });
                         console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
@@ -9309,7 +9285,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             const destProjection = "WGS84";
                             geojson.features.forEach(feature => {
                                 if (feature.geometry && feature.geometry.coordinates) {
-                                    this._reprojectGeometry(feature.geometry, sourceProjection, destProjection);
+                                    try {
+                                        feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
+                                            polygon.map(coord => proj4(sourceProjection, destProjection, coord))
+                                        );
+                                    } catch (e) {
+                                    console.error("Erro ao reprojetar coordenada do cache:", e);
+                                    }
                                 }
                             });
                             console.log(`Reprojeção de coordenadas do cache de ${sourceProjection} para ${destProjection} concluída.`);
