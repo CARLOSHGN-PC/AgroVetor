@@ -1,4 +1,4 @@
-const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable, formatNumber, calculateColumnWidths, drawSummaryRow } = require('../utils/pdfGenerator');
+const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable, formatNumber, calculateColumnWidths, drawSummaryRow, formatDate } = require('../utils/pdfGenerator');
 const { getFilteredData } = require('../utils/dataUtils');
 
 const generateBrocaPdf = async (req, res, db) => {
@@ -40,7 +40,7 @@ const generateBrocaPdf = async (req, res, db) => {
             const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
             const rows = enrichedData.map(r => [
                 `${r.codigo} - ${r.fazenda}`,
-                r.data,
+                formatDate(r.data),
                 r.talhao,
                 r.variedade,
                 r.corte,
@@ -53,7 +53,7 @@ const generateBrocaPdf = async (req, res, db) => {
             ]);
 
             const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY);
+            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
             // Calculate totals
             const totalEntrenos = enrichedData.reduce((sum, r) => sum + r.entrenos, 0);
@@ -78,11 +78,17 @@ const generateBrocaPdf = async (req, res, db) => {
 
             // Pre-calculate column widths using all data to keep alignment consistent
             const allRows = enrichedData.map(r => [
-                 r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento
+                 formatDate(r.data), r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento
             ]);
             const columnWidths = calculateColumnWidths(doc, headers, allRows, doc.page.width, doc.page.margins);
 
-            const sortedFarms = Object.keys(groupedData).sort();
+            // Sort logic: Numeric farm code
+            const sortedFarms = Object.keys(groupedData).sort((a, b) => {
+                const codeA = parseInt(a.split(' - ')[0]) || 0;
+                const codeB = parseInt(b.split(' - ')[0]) || 0;
+                if (codeA !== codeB) return codeA - codeB;
+                return a.localeCompare(b);
+            });
 
             let grandTotalEntrenos = 0;
             let grandTotalBrocado = 0;
@@ -93,6 +99,15 @@ const generateBrocaPdf = async (req, res, db) => {
             for (const fazendaKey of sortedFarms) {
                 const farmData = groupedData[fazendaKey];
 
+                // Sort by Talhao inside farm
+                farmData.sort((a, b) => {
+                    const tA = String(a.talhao||'');
+                    const tB = String(b.talhao||'');
+                    const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
+                    if (tCompare !== 0) return tCompare;
+                    return new Date(a.data) - new Date(b.data);
+                });
+
                 if (currentY > doc.page.height - doc.page.margins.bottom - 40) {
                     doc.addPage();
                     currentY = await generatePdfHeader(doc, title, logoBase64);
@@ -102,10 +117,11 @@ const generateBrocaPdf = async (req, res, db) => {
                 currentY = doc.y + 5;
 
                 const rows = farmData.map(r => [
-                    r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento
+                    formatDate(r.data), r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento
                 ]);
 
-                currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY);
+                // Use global columnWidths
+                currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
                 const subTotalEntrenos = farmData.reduce((sum, r) => sum + r.entrenos, 0);
                 const subTotalBrocado = farmData.reduce((sum, r) => sum + r.brocado, 0);

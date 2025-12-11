@@ -61,13 +61,32 @@ const getFilteredData = async (db, collectionName, filters) => {
         filteredData = filteredData.filter(d => d.frenteServico && d.frenteServico.toLowerCase().includes(filters.frenteServico.toLowerCase()));
     }
 
-    // Sort logic
+    // Sort logic: Farm (Numeric if possible) ASC, then Talhao (Alphanumeric) ASC, then Date ASC
     filteredData.sort((a, b) => {
-        const dateComparison = new Date(a.data) - new Date(b.data);
-        if (dateComparison !== 0) return dateComparison;
-        const codeA = parseInt(a.codigo, 10) || 0;
-        const codeB = parseInt(b.codigo, 10) || 0;
-        return codeA - codeB;
+        // Farm Sort
+        const farmA = String(a.codigo || '').trim();
+        const farmB = String(b.codigo || '').trim();
+
+        // Try numeric sort for farms
+        const farmANum = parseInt(farmA, 10);
+        const farmBNum = parseInt(farmB, 10);
+
+        if (!isNaN(farmANum) && !isNaN(farmBNum)) {
+            if (farmANum !== farmBNum) return farmANum - farmBNum;
+        } else {
+            if (farmA !== farmB) return farmA.localeCompare(farmB, undefined, { numeric: true });
+        }
+
+        // Talhao Sort
+        const talhaoA = String(a.talhao || '').trim();
+        const talhaoB = String(b.talhao || '').trim();
+        const talhaoCompare = talhaoA.localeCompare(talhaoB, undefined, { numeric: true });
+        if (talhaoCompare !== 0) return talhaoCompare;
+
+        // Date Sort (Fallback)
+        const dateA = new Date(a.data);
+        const dateB = new Date(b.data);
+        return dateA - dateB;
     });
 
     return filteredData;
