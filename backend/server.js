@@ -3,7 +3,7 @@
 const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
-const PDFDocument = require('pdfkit'); // Used by some internal routes not yet migrated if any
+const PDFDocument = require('pdfkit');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 const os = require('os');
@@ -15,17 +15,20 @@ const csv = require('csv-parser');
 const { Readable } = require('stream');
 const xlsx = require('xlsx');
 
+// Import utilities
+const { formatNumber } = require('./utils/pdfGenerator');
+const { getFilteredData } = require('./utils/dataUtils');
+
 // Import new report modules
 const { generatePlantioFazendaPdf, generatePlantioTalhaoPdf, getPlantioData } = require('./reports/plantioReport');
 const { generateClimaPdf, getClimaData } = require('./reports/climaReport');
-const { generateBrocaPdf, getFilteredData } = require('./reports/brocaReport');
+const { generateBrocaPdf } = require('./reports/brocaReport');
 const { generatePerdaPdf } = require('./reports/perdaReport');
 const { generateCigarrinhaPdf, generateCigarrinhaAmostragemPdf } = require('./reports/cigarrinhaReport');
 const { generateMonitoramentoPdf, generateArmadilhasPdf, generateArmadilhasAtivasPdf } = require('./reports/monitoramentoReport');
 const { generateColheitaPdf, generateColheitaMensalPdf } = require('./reports/colheitaReport');
 const { generateOsPdf } = require('./reports/osReport');
 const { generateRiskViewPdf, getRiskViewData } = require('./reports/riskViewReport');
-const { formatNumber } = require('./utils/pdfGenerator');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -1051,13 +1054,7 @@ try {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
 
-            // Use geoUtils module logic here if needed, but CSV usually repeats PDF logic
-            // To avoid huge diff, I am keeping inline logic similar to before but slightly cleaned up
-            // Ideally we would move this to report module too.
-            // For now, let's keep it here but use the helpers if possible
-            // Note: getShapefileData requires import
-
-            const { getShapefileData, findTalhaoForTrap, findShapefileProp, safeToDate } = require('./reports/../utils/geoUtils');
+            const { getShapefileData, findTalhaoForTrap, findShapefileProp, safeToDate } = require('./utils/geoUtils');
             const geojsonData = await getShapefileData(db, companyId);
 
             let enrichedData = data.map(trap => {
@@ -1147,7 +1144,7 @@ try {
                 usersMap[doc.id] = doc.data().username || doc.data().email;
             });
 
-            const { getShapefileData, findTalhaoForTrap, findShapefileProp, safeToDate } = require('./reports/../utils/geoUtils');
+            const { getShapefileData, findTalhaoForTrap, findShapefileProp, safeToDate } = require('./utils/geoUtils');
             const geojsonData = await getShapefileData(db, companyId);
 
             let enrichedData = data.map(trap => {
