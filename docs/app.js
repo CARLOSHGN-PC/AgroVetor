@@ -4,8 +4,7 @@ import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, upda
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
-// Utiliza a versão UMD que é compatível com o global 'idb' carregado no index.html
-const { openDB } = idb;
+import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
