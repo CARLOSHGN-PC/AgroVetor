@@ -9207,14 +9207,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (mapContainer) mapContainer.classList.remove('loading');
                     return;
                 }
-
-                // [OFFLINE CHECK]: Se estiver offline, pula direto para o carregamento do cache
-                if (!navigator.onLine) {
-                    console.log("Offline detectado. Carregando mapa do cache...");
-                    await this.loadOfflineShapes();
-                    return;
-                }
-
                 console.log("Iniciando o carregamento dos contornos do mapa em segundo plano...");
                 if (mapContainer) mapContainer.classList.add('loading');
                 try {
@@ -9271,10 +9263,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     console.log("Contornos do mapa carregados com sucesso.");
                 } catch(err) {
-                    console.error("Erro ao carregar shapefile online:", err);
+                    console.error("Erro ao carregar shapefile do Storage:", err);
+                    App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
                     if (mapContainer) mapContainer.classList.remove('loading');
-                    // [FALLBACK]: Se o fetch falhar, tenta carregar do cache
-                    await this.loadOfflineShapes();
+                    this.loadOfflineShapes();
                 }
             },
 
