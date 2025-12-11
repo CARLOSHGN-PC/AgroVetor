@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v14'; // Incremented version for update
+const CACHE_NAME = 'agrovetor-cache-v15'; // Incremented version for update
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the IndexedDB tile cache
@@ -33,9 +33,14 @@ const urlsToCache = [
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
-  'https://cdn.jsdelivr.net/npm/shpjs@latest/dist/shp.js',
+  'https://cdn.jsdelivr.net/npm/shpjs@6.2.0/dist/shp.min.js',
   'https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js',
+  'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/umd.js',
   'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js',
+  'https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css',
+  'https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
@@ -86,7 +91,7 @@ self.addEventListener('activate', event => {
 });
 
 // Importar a biblioteca IDB para uso no Service Worker
-importScripts('https://cdn.jsdelivr.net/npm/idb@7.1.1/build/iife/index-min.js');
+importScripts('https://cdn.jsdelivr.net/npm/idb@7.1.1/build/umd.js');
 
 const DB_NAME = 'agrovetor-offline-storage';
 const DB_VERSION = 6;
