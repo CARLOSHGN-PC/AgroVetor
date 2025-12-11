@@ -9201,6 +9201,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            _reprojectGeoJSON(geojson) {
+                if (!window.proj4) return;
+                const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
+                const destProjection = "WGS84";
+
+                geojson.features.forEach(feature => {
+                    if (!feature.geometry || !feature.geometry.coordinates) return;
+
+                    try {
+                        const reprojectPolygon = (rings) => {
+                            return rings.map(ring => {
+                                return ring.map(coord => {
+                                    // Ensure we only take [x, y] even if Z exists
+                                    const p = [coord[0], coord[1]];
+                                    return proj4(sourceProjection, destProjection, p);
+                                });
+                            });
+                        };
+
+                        if (feature.geometry.type === 'Polygon') {
+                            feature.geometry.coordinates = reprojectPolygon(feature.geometry.coordinates);
+                        } else if (feature.geometry.type === 'MultiPolygon') {
+                            feature.geometry.coordinates = feature.geometry.coordinates.map(poly => reprojectPolygon(poly));
+                        }
+                    } catch (e) {
+                        console.error("Erro ao reprojetar feature:", feature.id || 'unknown', e);
+                    }
+                });
+                console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
+            },
+
             async loadAndCacheShapes(url) {
                 const mapContainer = document.getElementById('map-container');
                 if (!url) {
@@ -9221,22 +9252,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let geojson = await shp(buffer);
 
                     // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                    if (window.proj4) {
-                        const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
-                        const destProjection = "WGS84";
-                        geojson.features.forEach(feature => {
-                            if (feature.geometry && feature.geometry.coordinates) {
-                                try {
-                                    feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                        polygon.map(coord => proj4(sourceProjection, destProjection, coord))
-                                    );
-                                } catch (e) {
-                                    console.error("Erro ao reprojetar coordenada:", coord, e);
-                                }
-                            }
-                        });
-                        console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
-                    }
+                    this._reprojectGeoJSON(geojson);
 
 
                     // ETAPA DE NORMALIZAÇÃO:
@@ -9280,22 +9296,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         let geojson = await shp(buffer);
 
                         // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                        if (window.proj4) {
-                            const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
-                            const destProjection = "WGS84";
-                            geojson.features.forEach(feature => {
-                                if (feature.geometry && feature.geometry.coordinates) {
-                                    try {
-                                        feature.geometry.coordinates = feature.geometry.coordinates.map(polygon =>
-                                            polygon.map(coord => proj4(sourceProjection, destProjection, coord))
-                                        );
-                                    } catch (e) {
-                                        console.error("Erro ao reprojetar coordenada do cache:", coord, e);
-                                    }
-                                }
-                            });
-                            console.log(`Reprojeção de coordenadas do cache de ${sourceProjection} para ${destProjection} concluída.`);
-                        }
+                        this._reprojectGeoJSON(geojson);
 
                         // ETAPA DE NORMALIZAÇÃO (CACHE OFFLINE): Garante a consistência dos dados carregados do cache.
                         let featureIdCounter = 0;
