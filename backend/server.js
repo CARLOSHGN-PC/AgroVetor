@@ -863,7 +863,7 @@ try {
             let currentY = await generatePdfHeader(doc, title, filters.companyId);
 
             const headers = ['Data', 'Fazenda', 'Prestador', 'Matrícula do Líder', 'Variedade Plantada', 'Talhão', 'Área Plant. (ha)', 'Chuva (mm)', 'Obs'];
-            const columnWidths = [60, 200, 100, 80, 100, 60, 60, 60, 100];
+            const columnWidths = [60, 160, 80, 80, 100, 60, 60, 60, 100];
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
@@ -885,7 +885,11 @@ try {
                 farmRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
 
                 for (const record of farmRecords) {
+                    const prevY = currentY;
                     currentY = await checkPageBreak(doc, currentY, title);
+                    if (currentY < prevY) {
+                         currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+                    }
                     const row = [
                         record.date,
                         `${record.farmCode} - ${record.farmName}`,
@@ -1011,7 +1015,7 @@ try {
             let currentY = await generatePdfHeader(doc, title, filters.companyId);
 
             const headers = ['Data', 'Fazenda', 'Talhão', 'Temp. Máx (°C)', 'Temp. Mín (°C)', 'Umidade (%)', 'Pluviosidade (mm)', 'Vento (km/h)', 'Observações'];
-            const columnWidths = [60, 140, 80, 80, 80, 80, 80, 80, 100];
+            const columnWidths = [60, 140, 70, 70, 70, 70, 80, 80, 100];
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
@@ -1023,7 +1027,11 @@ try {
             let count = 0;
 
             for (const item of data) {
+                const prevY = currentY;
                 currentY = await checkPageBreak(doc, currentY, title);
+                if (currentY < prevY) {
+                     currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+                }
                 const row = [
                     item.data,
                     item.fazendaNome,
@@ -1171,7 +1179,7 @@ try {
             let currentY = await generatePdfHeader(doc, title, filters.companyId);
 
             const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade Plantada', 'Prestador', 'Área Plant. (ha)', 'Chuva (mm)', 'Obs'];
-            const columnWidths = [60, 220, 100, 100, 100, 60, 60, 100];
+            const columnWidths = [60, 180, 80, 100, 100, 60, 60, 100];
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
@@ -1192,7 +1200,11 @@ try {
             });
 
             for (const record of allRecords) {
+                    const prevY = currentY;
                     currentY = await checkPageBreak(doc, currentY, title);
+                    if (currentY < prevY) {
+                         currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+                    }
                     const row = [
                         record.date,
                         `${record.farmCode} - ${record.farmName}`,
@@ -1296,7 +1308,7 @@ try {
             let currentY = await generatePdfHeader(doc, title);
 
             const headersA = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
-            const columnWidthsA = [160, 60, 60, 100, 80, 60, 45, 45, 45, 55, 62];
+            const columnWidthsA = [180, 60, 70, 90, 70, 60, 45, 45, 45, 50, 60];
             const headersB = ['Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
             const columnWidthsB = [75, 80, 160, 90, 75, 50, 50, 50, 70, 77];
 
@@ -1307,7 +1319,11 @@ try {
             if (!isModelB) { // Modelo A
                 currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, 5, 18, headersAConfig);
                 for(const r of enrichedData) {
+                    const prevY = currentY;
                     currentY = await checkPageBreak(doc, currentY, title);
+                    if (currentY < prevY) {
+                         currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, 5, 18, headersAConfig);
+                    }
                     currentY = drawRow(doc, [`${r.codigo} - ${r.fazenda}`, r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsA, 5, 18, headersAConfig);
                 }
             } else { // Modelo B
@@ -1329,7 +1345,11 @@ try {
 
                     const farmData = groupedData[fazendaKey];
                     for(const r of farmData) {
+                        const prevY = currentY;
                         currentY = await checkPageBreak(doc, currentY, title);
+                        if (currentY < prevY) {
+                            currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, 5, 18, headersBConfig);
+                        }
                         currentY = drawRow(doc, [r.data, r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento], currentY, false, false, columnWidthsB, 5, 18, headersBConfig);
                     }
                     
@@ -1419,9 +1439,9 @@ try {
             let currentY = await generatePdfHeader(doc, title);
 
             const headersA = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
-            const columnWidthsA = [80, 160, 80, 100, 60, 120, 80];
+            const columnWidthsA = [80, 200, 80, 100, 60, 120, 80];
             const headersB = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaco', 'Pedaco', 'Total'];
-            const columnWidthsB = [60, 120, 60, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50];
+            const columnWidthsB = [60, 140, 60, 70, 40, 90, 50, 50, 40, 40, 50, 50, 50];
 
             const headersAConfig = headersA.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
             const headersBConfig = headersB.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
@@ -1432,7 +1452,11 @@ try {
             if (!isDetailed) { // Modelo A - Resumido
                 currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
                 for(const p of data) {
+                    const prevY = currentY;
                     currentY = await checkPageBreak(doc, currentY, title);
+                    if (currentY < prevY) {
+                         currentY = drawRow(doc, headersA, currentY, true, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
+                    }
                     currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.total)], currentY, false, false, columnWidthsA, textPadding, rowHeight, headersAConfig);
                 }
             } else { // Modelo B - Detalhado
@@ -1454,7 +1478,11 @@ try {
 
                     const farmData = groupedData[fazendaKey];
                     for(const p of farmData) {
+                        const prevY = currentY;
                         currentY = await checkPageBreak(doc, currentY, title);
+                        if (currentY < prevY) {
+                             currentY = drawRow(doc, headersB, currentY, true, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
+                        }
                         currentY = drawRow(doc, [p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco), formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)], currentY, false, false, columnWidthsB, textPadding, rowHeight, headersBConfig);
                     }
                     
@@ -1569,13 +1597,17 @@ try {
             let currentY = await generatePdfHeader(doc, title);
 
             const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado'];
-            const columnWidths = [80, 180, 80, 100, 40, 40, 40, 40, 40, 50, 72];
+            const columnWidths = [60, 200, 80, 100, 40, 40, 40, 40, 40, 50, 70];
             const headersConfig = headers.map(title => ({ id: title.toLowerCase().replace(/[^a-z0-9]/g, ''), title: title }));
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 18, headersConfig);
 
             for(const r of enrichedData) {
+                const prevY = currentY;
                 currentY = await checkPageBreak(doc, currentY, title);
+                if (currentY < prevY) {
+                    currentY = drawRow(doc, headers, currentY, true, false, columnWidths, 5, 18, headersConfig);
+                }
                 const date = new Date(r.data + 'T03:00:00Z');
                 const formattedDate = date.toLocaleDateString('pt-BR');
                 const row = [
@@ -1658,7 +1690,7 @@ try {
                 }, {});
 
                 const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Fase 1 (Soma)', 'Fase 2 (Soma)', 'Fase 3 (Soma)', 'Fase 4 (Soma)', 'Fase 5 (Soma)'];
-                const columnWidths = [80, 150, 80, 100, 60, 60, 60, 60, 72];
+                const columnWidths = [80, 180, 80, 100, 60, 60, 60, 60, 72];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
                 const summarizedData = Object.values(groupedData);
@@ -1672,13 +1704,17 @@ try {
                         group.variedade,
                         group.fase1, group.fase2, group.fase3, group.fase4, group.fase5
                     ];
+                    const prevY = currentY;
                     currentY = await checkPageBreak(doc, currentY, title);
+                    if (currentY < prevY) {
+                         currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+                    }
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                 }
 
             } else if (tipoRelatorio === 'final') {
                 const headers = ['Fazenda', 'Data', 'Variedade', 'Adulto', 'Fase1', 'Fase2', 'Fase3', 'Fase4', 'Fase5', 'Resultado Final'];
-                const columnWidths = [190, 70, 120, 50, 45, 45, 45, 45, 45, 82];
+                const columnWidths = [200, 70, 120, 50, 45, 45, 45, 45, 45, 82];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
 
                 for (const r of data) {
@@ -1706,12 +1742,16 @@ try {
                         totalFases.f5,
                         (r.resultado || 0).toFixed(2).replace('.', ',')
                     ];
+                    const prevY = currentY;
                     currentY = await checkPageBreak(doc, currentY, title);
+                    if (currentY < prevY) {
+                         currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+                    }
                     currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                 }
             } else { // Detalhado
                 const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Adulto', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
-                const columnWidths = [140, 70, 65, 100, 50, 60, 40, 40, 40, 40, 40, 97];
+                const columnWidths = [160, 70, 65, 100, 50, 60, 40, 40, 40, 40, 40, 97];
                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
                 const divisor = parseInt(filters.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
 
@@ -1739,7 +1779,11 @@ try {
                                 amostra.fase5 || 0,
                                 resultadoAmostra
                             ];
+                            const prevY = currentY;
                             currentY = await checkPageBreak(doc, currentY, title);
+                            if (currentY < prevY) {
+                                 currentY = drawRow(doc, headers, currentY, true, false, columnWidths);
+                            }
                             currentY = drawRow(doc, row, currentY, false, false, columnWidths);
                         }
                     }
@@ -2461,14 +2505,18 @@ try {
             }
 
             const headers = ['Fazenda', 'Talhão', 'Data Instalação', 'Data Coleta', 'Qtd. Mariposas'];
-            const columnWidths = [200, 100, 120, 120, 120];
+            const columnWidths = [180, 100, 120, 120, 120];
             const rowHeight = 18;
             const textPadding = 5;
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
 
             for (const trap of finalData) {
+                const prevY = currentY;
                 currentY = await checkPageBreak(doc, currentY, title);
+                if (currentY < prevY) {
+                     currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
+                }
                 const rowData = [
                     `${trap.fazendaCodigoShape} - ${trap.fazendaNome}`,
                     trap.talhaoNome,
@@ -2571,14 +2619,18 @@ try {
             let currentY = await generatePdfHeader(doc, title);
 
             const headers = ['Fundo Agrícola', 'Fazenda', 'Talhão', 'Data Inst.', 'Data Coleta', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
-            const columnWidths = [90, 120, 60, 65, 65, 60, 75, 80, 80, 87];
+            const columnWidths = [80, 130, 60, 65, 65, 60, 75, 80, 80, 87];
             const rowHeight = 18;
             const textPadding = 5;
 
             currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
 
             for (const trap of enrichedData) {
+                const prevY = currentY;
                 currentY = await checkPageBreak(doc, currentY, title);
+                if (currentY < prevY) {
+                     currentY = drawRow(doc, headers, currentY, true, false, columnWidths, textPadding, rowHeight);
+                }
                 const rowData = [
                     trap.fundoAgricola,
                     trap.fazendaNome,
