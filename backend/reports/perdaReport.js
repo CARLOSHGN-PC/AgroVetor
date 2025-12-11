@@ -1,4 +1,4 @@
-const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable, formatNumber, calculateColumnWidths, drawSummaryRow } = require('../utils/pdfGenerator');
+const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable, formatNumber, calculateColumnWidths, drawSummaryRow, formatDate } = require('../utils/pdfGenerator');
 const { getFilteredData } = require('../utils/dataUtils');
 
 const generatePerdaPdf = async (req, res, db) => {
@@ -27,7 +27,7 @@ const generatePerdaPdf = async (req, res, db) => {
         if (!isDetailed) {
             const headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
             const rows = data.map(p => [
-                p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.total)
+                formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.total)
             ]);
 
             const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
@@ -42,7 +42,7 @@ const generatePerdaPdf = async (req, res, db) => {
 
             // Pre-calculate column widths
             const allRows = data.map(p => [
-                p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador,
+                formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador,
                 formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco),
                 formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)
             ]);
@@ -55,12 +55,27 @@ const generatePerdaPdf = async (req, res, db) => {
                 return acc;
             }, {});
 
-            const sortedFarms = Object.keys(groupedData).sort();
+            // Sort: Numeric farm code
+            const sortedFarms = Object.keys(groupedData).sort((a, b) => {
+                const codeA = parseInt(a.split(' - ')[0]) || 0;
+                const codeB = parseInt(b.split(' - ')[0]) || 0;
+                if (codeA !== codeB) return codeA - codeB;
+                return a.localeCompare(b);
+            });
 
             let grandTotals = { canaInteira: 0, tolete: 0, toco: 0, ponta: 0, estilhaco: 0, pedaco: 0, total: 0 };
 
             for (const fazendaKey of sortedFarms) {
                 const farmData = groupedData[fazendaKey];
+
+                // Sort by Talhao then Date
+                farmData.sort((a, b) => {
+                    const tA = String(a.talhao||'');
+                    const tB = String(b.talhao||'');
+                    const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
+                    if (tCompare !== 0) return tCompare;
+                    return new Date(a.data) - new Date(b.data);
+                });
 
                 if (currentY > doc.page.height - doc.page.margins.bottom - 40) {
                     doc.addPage();
@@ -71,7 +86,7 @@ const generatePerdaPdf = async (req, res, db) => {
                 currentY = doc.y + 5;
 
                 const rows = farmData.map(p => [
-                    p.data, `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador,
+                    formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador,
                     formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco),
                     formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)
                 ]);

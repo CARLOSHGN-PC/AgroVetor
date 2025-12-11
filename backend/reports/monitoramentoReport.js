@@ -1,4 +1,4 @@
-const { setupDoc, generatePdfHeader, generatePdfFooter, drawTable } = require('../utils/pdfGenerator');
+const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable, formatNumber } = require('../utils/pdfGenerator');
 const { getShapefileData, findTalhaoForTrap, findShapefileProp, safeToDate } = require('../utils/geoUtils');
 const admin = require('firebase-admin');
 
@@ -11,11 +11,14 @@ const generateMonitoramentoPdf = async (req, res, db) => {
     try {
         const { inicio, fim, fazendaCodigo, generatedBy, companyId } = req.query;
         if (!companyId) {
-            await generatePdfHeader(doc, 'Erro', companyId, db);
+            await generatePdfHeader(doc, 'Erro', null);
             doc.text('O ID da empresa não foi fornecido.');
             doc.end();
             return;
         }
+
+        const logoBase64 = await getLogoBase64(db, companyId);
+
         let query = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
 
         if (inicio) query = query.where('dataColeta', '>=', new Date(inicio));
@@ -26,7 +29,7 @@ const generateMonitoramentoPdf = async (req, res, db) => {
         snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
 
         const title = 'Relatório de Monitoramento de Armadilhas';
-        let currentY = await generatePdfHeader(doc, title, companyId, db);
+        let currentY = await generatePdfHeader(doc, title, logoBase64);
 
         if (data.length === 0) {
             doc.text('Nenhuma armadilha coletada encontrada para os filtros selecionados.');
@@ -51,16 +54,32 @@ const generateMonitoramentoPdf = async (req, res, db) => {
             finalData = enrichedData.filter(d => String(d.fazendaCodigoShape) === String(fazendaCodigo));
         }
 
+        // Sort: Farm > Talhao > Date
+        finalData.sort((a, b) => {
+            const fCodeA = parseInt(a.fazendaCodigoShape) || 0;
+            const fCodeB = parseInt(b.fazendaCodigoShape) || 0;
+            if (fCodeA !== fCodeB) return fCodeA - fCodeB;
+
+            const tA = String(a.talhaoNome||'');
+            const tB = String(b.talhaoNome||'');
+            const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
+            if (tCompare !== 0) return tCompare;
+
+            const dateA = a.dataColeta ? a.dataColeta.toDate() : new Date(0);
+            const dateB = b.dataColeta ? b.dataColeta.toDate() : new Date(0);
+            return dateA - dateB;
+        });
+
         const headers = ['Fazenda', 'Talhão', 'Data Instalação', 'Data Coleta', 'Qtd. Mariposas'];
         const rows = finalData.map(trap => [
             `${trap.fazendaCodigoShape} - ${trap.fazendaNome}`,
             trap.talhaoNome,
-            trap.dataInstalacao && typeof trap.dataInstalacao.toDate === 'function' ? trap.dataInstalacao.toDate().toLocaleString('pt-BR') : 'N/A',
-            trap.dataColeta && typeof trap.dataColeta.toDate === 'function' ? trap.dataColeta.toDate().toLocaleString('pt-BR') : 'N/A',
+            trap.dataInstalacao && typeof trap.dataInstalacao.toDate === 'function' ? trap.dataInstalacao.toDate().toLocaleDateString('pt-BR') : 'N/A',
+            trap.dataColeta && typeof trap.dataColeta.toDate === 'function' ? trap.dataColeta.toDate().toLocaleDateString('pt-BR') : 'N/A',
             trap.contagemMariposas || 0
         ]);
 
-        await drawTable(doc, headers, rows, title, companyId, db, currentY);
+        await drawTable(doc, headers, rows, title, logoBase64, currentY);
 
         generatePdfFooter(doc, generatedBy);
         doc.end();
@@ -80,11 +99,14 @@ const generateArmadilhasPdf = async (req, res, db) => {
     try {
         const { inicio, fim, fazendaCodigo, generatedBy, companyId } = req.query;
         if (!companyId) {
-            await generatePdfHeader(doc, 'Erro', companyId, db);
+            await generatePdfHeader(doc, 'Erro', null);
             doc.text('O ID da empresa não foi fornecido.');
             doc.end();
             return;
         }
+
+        const logoBase64 = await getLogoBase64(db, companyId);
+
         let query = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Coletada');
 
         if (inicio) query = query.where('dataColeta', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
@@ -97,7 +119,7 @@ const generateArmadilhasPdf = async (req, res, db) => {
         const title = 'Relatório de Armadilhas Coletadas';
 
         if (data.length === 0) {
-            await generatePdfHeader(doc, title, companyId, db);
+            await generatePdfHeader(doc, title, logoBase64);
             doc.text('Nenhuma armadilha coletada encontrada para os filtros selecionados.');
             generatePdfFooter(doc, generatedBy);
             return doc.end();
@@ -132,6 +154,7 @@ const generateArmadilhasPdf = async (req, res, db) => {
                 diasEmCampo: diasEmCampo,
                 instaladoPorNome: usersMap[trap.instaladoPor] || 'Desconhecido',
                 coletadoPorNome: usersMap[trap.coletadoPor] || 'Desconhecido',
+                rawDateColeta: dataColeta,
             };
         });
 
@@ -146,7 +169,23 @@ const generateArmadilhasPdf = async (req, res, db) => {
             }
         }
 
-        let currentY = await generatePdfHeader(doc, title, companyId, db);
+        // Sort: Farm Code > Talhao > Date
+        enrichedData.sort((a, b) => {
+            const fCodeA = parseInt(a.fundoAgricola) || 0;
+            const fCodeB = parseInt(b.fundoAgricola) || 0;
+            if (fCodeA !== fCodeB) return fCodeA - fCodeB;
+
+            const tA = String(a.talhaoNome||'');
+            const tB = String(b.talhaoNome||'');
+            const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
+            if (tCompare !== 0) return tCompare;
+
+            const d1 = a.rawDateColeta || new Date(0);
+            const d2 = b.rawDateColeta || new Date(0);
+            return d1 - d2;
+        });
+
+        let currentY = await generatePdfHeader(doc, title, logoBase64);
 
         const headers = ['Fundo Agr.', 'Fazenda', 'Talhão', 'Data Inst.', 'Data Coleta', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
         const rows = enrichedData.map(trap => [
@@ -162,7 +201,7 @@ const generateArmadilhasPdf = async (req, res, db) => {
             trap.observacoes || ''
         ]);
 
-        await drawTable(doc, headers, rows, title, companyId, db, currentY);
+        await drawTable(doc, headers, rows, title, logoBase64, currentY);
 
         generatePdfFooter(doc, generatedBy);
         doc.end();
@@ -183,11 +222,14 @@ const generateArmadilhasAtivasPdf = async (req, res, db) => {
     try {
         const { inicio, fim, fazendaCodigo, generatedBy, companyId } = req.query;
         if (!companyId) {
-            await generatePdfHeader(doc, 'Erro', companyId, db);
+            await generatePdfHeader(doc, 'Erro', null);
             doc.text('O ID da empresa não foi fornecido.');
             doc.end();
             return;
         }
+
+        const logoBase64 = await getLogoBase64(db, companyId);
+
         let query = db.collection('armadilhas').where('companyId', '==', companyId).where('status', '==', 'Ativa');
 
         if (inicio) query = query.where('dataInstalacao', '>=', admin.firestore.Timestamp.fromDate(new Date(inicio + 'T00:00:00')));
@@ -200,7 +242,7 @@ const generateArmadilhasAtivasPdf = async (req, res, db) => {
         const title = 'Relatório de Armadilhas Instaladas (Ativas)';
 
         if (data.length === 0) {
-            await generatePdfHeader(doc, title, companyId, db);
+            await generatePdfHeader(doc, title, logoBase64);
             doc.text('Nenhuma armadilha ativa encontrada para os filtros selecionados.');
             generatePdfFooter(doc, generatedBy);
             return doc.end();
@@ -239,6 +281,7 @@ const generateArmadilhasAtivasPdf = async (req, res, db) => {
                 previsaoRetiradaFmt: previsaoRetiradaFmt,
                 diasEmCampo: diasEmCampo,
                 instaladoPorNome: usersMap[trap.instaladoPor] || 'Desconhecido',
+                rawDateInst: dataInstalacao
             };
         });
 
@@ -253,7 +296,23 @@ const generateArmadilhasAtivasPdf = async (req, res, db) => {
             }
         }
 
-        let currentY = await generatePdfHeader(doc, title, companyId, db);
+        // Sort: Farm > Talhao > Date
+        enrichedData.sort((a, b) => {
+            const fCodeA = parseInt(a.fundoAgricola) || 0;
+            const fCodeB = parseInt(b.fundoAgricola) || 0;
+            if (fCodeA !== fCodeB) return fCodeA - fCodeB;
+
+            const tA = String(a.talhaoNome||'');
+            const tB = String(b.talhaoNome||'');
+            const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
+            if (tCompare !== 0) return tCompare;
+
+            const d1 = a.rawDateInst || new Date(0);
+            const d2 = b.rawDateInst || new Date(0);
+            return d1 - d2;
+        });
+
+        let currentY = await generatePdfHeader(doc, title, logoBase64);
 
         const headers = ['Fundo Agr.', 'Fazenda', 'Talhão', 'Data Inst.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
         const rows = enrichedData.map(trap => [
@@ -267,7 +326,7 @@ const generateArmadilhasAtivasPdf = async (req, res, db) => {
             trap.observacoes || ''
         ]);
 
-        await drawTable(doc, headers, rows, title, companyId, db, currentY);
+        await drawTable(doc, headers, rows, title, logoBase64, currentY);
 
         generatePdfFooter(doc, generatedBy);
         doc.end();

@@ -1,4 +1,4 @@
-const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable, formatNumber, calculateColumnWidths, drawSummaryRow } = require('../utils/pdfGenerator');
+const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable, formatNumber, calculateColumnWidths, drawSummaryRow, formatDate } = require('../utils/pdfGenerator');
 
 const getClimaData = async (db, filters) => {
     if (!filters.companyId) {
@@ -25,7 +25,25 @@ const getClimaData = async (db, filters) => {
         data = data.filter(d => d.fazendaId === filters.fazendaId);
     }
 
-    return data.sort((a, b) => new Date(a.data) - new Date(b.data));
+    // Sort: Farm > Talhao > Date
+    data.sort((a, b) => {
+        const fA = String(a.fazendaNome||'');
+        const fB = String(b.fazendaNome||'');
+        // Try to extract code if present "123 - Name"
+        const fCodeA = parseInt(fA.split(' - ')[0]) || 0;
+        const fCodeB = parseInt(fB.split(' - ')[0]) || 0;
+        if (fCodeA !== fCodeB) return fCodeA - fCodeB;
+        if (fA !== fB) return fA.localeCompare(fB);
+
+        const tA = String(a.talhaoNome||'');
+        const tB = String(b.talhaoNome||'');
+        const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
+        if (tCompare !== 0) return tCompare;
+
+        return new Date(a.data) - new Date(b.data);
+    });
+
+    return data;
 };
 
 const generateClimaPdf = async (req, res, db) => {
@@ -68,7 +86,7 @@ const generateClimaPdf = async (req, res, db) => {
             count++;
 
             return [
-                item.data,
+                formatDate(item.data),
                 item.fazendaNome,
                 item.talhaoNome,
                 formatNumber(item.tempMax),

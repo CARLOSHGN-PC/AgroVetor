@@ -11,6 +11,35 @@ const formatNumber = (num) => {
     });
 };
 
+const formatDate = (dateInput) => {
+    if (!dateInput) return '';
+    // Handle Firestore Timestamp
+    if (dateInput && typeof dateInput.toDate === 'function') {
+        dateInput = dateInput.toDate();
+    }
+
+    let date;
+    if (dateInput instanceof Date) {
+        date = dateInput;
+    } else {
+        // If string is YYYY-MM-DD:
+        if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+             date = new Date(dateInput + 'T00:00:00'); // Local midnight
+        } else {
+             date = new Date(dateInput);
+        }
+    }
+
+    if (isNaN(date.getTime())) return String(dateInput);
+
+    return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'UTC'
+    });
+};
+
 const setupDoc = (options = {}) => {
     const defaultOptions = { margin: 30, size: 'A4', layout: 'landscape', bufferPages: true };
     return new PDFDocument({ ...defaultOptions, ...options });
@@ -45,13 +74,18 @@ const getLogoBase64 = async (db, companyId) => {
 
 const generatePdfHeader = async (doc, title, logoBase64) => {
     if (logoBase64) {
-        doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
+        try {
+            if ((typeof logoBase64 === 'string' && logoBase64.startsWith('data:image')) || Buffer.isBuffer(logoBase64)) {
+                doc.image(logoBase64, doc.page.margins.left, 15, { width: 40 });
+            }
+        } catch (e) {
+            console.warn("Failed to render logo image:", e.message);
+        }
     }
 
-    // Auto-adjust title font size to fit width
     let fontSize = 18;
     doc.font('Helvetica-Bold').fontSize(fontSize);
-    const maxTitleWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right - 60; // -60 for logo space/padding
+    const maxTitleWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right - 60;
 
     while (doc.widthOfString(title) > maxTitleWidth && fontSize > 10) {
         fontSize--;
@@ -79,14 +113,12 @@ const generatePdfFooter = (doc, generatedBy = 'N/A') => {
 
 const calculateColumnWidths = (doc, headers, data, pageWidth, margins) => {
     const availableWidth = pageWidth - margins.left - margins.right;
-    const padding = 10; // 5px padding on each side
+    const padding = 10;
 
-    doc.fontSize(8).font('Helvetica'); // Base font for calculation
+    doc.fontSize(8).font('Helvetica');
 
-    // Initialize max widths with header widths
     const maxWidths = headers.map(header => doc.widthOfString(header) + padding);
 
-    // Scan data for max content width
     data.forEach(row => {
         row.forEach((cell, i) => {
             if (i < maxWidths.length) {
@@ -102,21 +134,20 @@ const calculateColumnWidths = (doc, headers, data, pageWidth, margins) => {
     const totalRequiredWidth = maxWidths.reduce((sum, w) => sum + w, 0);
 
     if (totalRequiredWidth <= availableWidth) {
-        // Distribute extra space proportionally
         const extraSpace = availableWidth - totalRequiredWidth;
         const distributedWidths = maxWidths.map(w => w + (extraSpace * (w / totalRequiredWidth)));
         return distributedWidths;
     } else {
-        // Scale down proportionally
         const scaleFactor = availableWidth / totalRequiredWidth;
         return maxWidths.map(w => w * scaleFactor);
     }
 };
 
-const drawTable = async (doc, headers, data, title, logoBase64, startY) => {
+const drawTable = async (doc, headers, data, title, logoBase64, startY, customColumnWidths = null) => {
     const margins = doc.page.margins;
     const pageWidth = doc.page.width;
-    const columnWidths = calculateColumnWidths(doc, headers, data, pageWidth, margins);
+    // Use custom column widths if provided, otherwise calculate them
+    const columnWidths = customColumnWidths || calculateColumnWidths(doc, headers, data, pageWidth, margins);
 
     let currentY = startY;
     const rowHeight = 18;
@@ -125,7 +156,6 @@ const drawTable = async (doc, headers, data, title, logoBase64, startY) => {
     const drawRowContent = (rowData, y, isHeader = false, isSummary = false) => {
         const startX = margins.left;
 
-        // Background
         if (isHeader) {
             doc.font('Helvetica-Bold').fontSize(8);
             doc.rect(startX, y, pageWidth - margins.left - margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
@@ -148,7 +178,6 @@ const drawTable = async (doc, headers, data, title, logoBase64, startY) => {
             const maxTextWidth = colWidth - (textPadding * 2);
             let cellText = String(cell);
 
-            // Text Scaling: Reduce font size if text is too wide
             let fontSize = 8;
             doc.fontSize(fontSize);
             if (doc.widthOfString(cellText) > maxTextWidth) {
@@ -158,13 +187,13 @@ const drawTable = async (doc, headers, data, title, logoBase64, startY) => {
                  }
             }
 
-            // Align numbers to right, text to left (heuristic)
-            const align = (typeof cell === 'number' || (typeof cell === 'string' && cell.match(/^[0-9,.]+$/))) ? 'center' : 'left';
+            const isNumber = (typeof cell === 'number' || (typeof cell === 'string' && /^[0-9,.]+([%])?$/.test(cell.trim())));
+            const align = isNumber ? 'center' : 'left';
 
             doc.text(cellText, currentX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
                 width: maxTextWidth,
                 align: align,
-                lineBreak: false // Enforce no line breaks
+                lineBreak: false
             });
 
             currentX += colWidth;
@@ -173,10 +202,8 @@ const drawTable = async (doc, headers, data, title, logoBase64, startY) => {
         return y + rowHeight;
     };
 
-    // Draw Header
     currentY = drawRowContent(headers, currentY, true);
 
-    // Draw Data
     for (const row of data) {
         if (currentY > doc.page.height - margins.bottom - rowHeight) {
             doc.addPage();
@@ -189,7 +216,6 @@ const drawTable = async (doc, headers, data, title, logoBase64, startY) => {
     return currentY;
 };
 
-// Helper for drawing a single summary row
 const drawSummaryRow = async (doc, rowData, currentY, columnWidths, title, logoBase64) => {
     const margins = doc.page.margins;
     const rowHeight = 18;
@@ -212,7 +238,8 @@ const drawSummaryRow = async (doc, rowData, currentY, columnWidths, title, logoB
          const maxTextWidth = colWidth - (textPadding * 2);
          let cellText = String(cell);
 
-         const align = (typeof cell === 'number' || (typeof cell === 'string' && cell.match(/^[0-9,.]+$/))) ? 'center' : 'left';
+         const isNumber = (typeof cell === 'number' || (typeof cell === 'string' && /^[0-9,.]+([%])?$/.test(cell.trim())));
+         const align = isNumber ? 'center' : 'left';
 
          doc.text(cellText, currentX + textPadding, currentY + (rowHeight - doc.currentLineHeight()) / 2, {
              width: maxTextWidth,
@@ -233,6 +260,7 @@ module.exports = {
     generatePdfFooter,
     drawTable,
     formatNumber,
+    formatDate,
     calculateColumnWidths,
     drawSummaryRow
 };
