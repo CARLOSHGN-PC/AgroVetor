@@ -111,13 +111,14 @@ const generatePdfFooter = (doc, generatedBy = 'N/A') => {
     }
 };
 
-const calculateColumnWidths = (doc, headers, data, pageWidth, margins) => {
+const analyzeColumns = (doc, headers, data, pageWidth, margins) => {
     const availableWidth = pageWidth - margins.left - margins.right;
     const padding = 10;
 
     doc.fontSize(8).font('Helvetica');
 
     const maxWidths = headers.map(header => doc.widthOfString(header) + padding);
+    const isNumericCol = headers.map(() => true); // Assume true, disprove if non-numeric found
 
     data.forEach(row => {
         row.forEach((cell, i) => {
@@ -127,27 +128,54 @@ const calculateColumnWidths = (doc, headers, data, pageWidth, margins) => {
                 if (width > maxWidths[i]) {
                     maxWidths[i] = width;
                 }
+
+                // Check for numeric content to determine column alignment
+                // Allow empty strings to not disqualify numeric status
+                if (cell !== '' && cell !== null && cell !== undefined) {
+                    const isNum = (typeof cell === 'number' || (typeof cell === 'string' && /^[0-9,.]+([%])?$/.test(cell.trim())));
+                    if (!isNum) {
+                        isNumericCol[i] = false;
+                    }
+                }
             }
         });
     });
 
+    // If a column is all empty, default to left (false) or keep true?
+    // Keeping true centers it, which is fine.
+
     const totalRequiredWidth = maxWidths.reduce((sum, w) => sum + w, 0);
+    let columnWidths;
 
     if (totalRequiredWidth <= availableWidth) {
         const extraSpace = availableWidth - totalRequiredWidth;
-        const distributedWidths = maxWidths.map(w => w + (extraSpace * (w / totalRequiredWidth)));
-        return distributedWidths;
+        // Distribute extra space proportionally
+        columnWidths = maxWidths.map(w => w + (extraSpace * (w / totalRequiredWidth)));
     } else {
         const scaleFactor = availableWidth / totalRequiredWidth;
-        return maxWidths.map(w => w * scaleFactor);
+        columnWidths = maxWidths.map(w => w * scaleFactor);
     }
+
+    return { columnWidths, isNumericCol };
+};
+
+// Backwards compatibility wrapper if needed, but we update usages
+const calculateColumnWidths = (doc, headers, data, pageWidth, margins) => {
+    return analyzeColumns(doc, headers, data, pageWidth, margins).columnWidths;
 };
 
 const drawTable = async (doc, headers, data, title, logoBase64, startY, customColumnWidths = null) => {
     const margins = doc.page.margins;
     const pageWidth = doc.page.width;
-    // Use custom column widths if provided, otherwise calculate them
-    const columnWidths = customColumnWidths || calculateColumnWidths(doc, headers, data, pageWidth, margins);
+
+    // Analyze columns for widths and types
+    // If customColumnWidths is provided, we still need isNumericCol.
+    // Ideally customColumnWidths should come with types, but for now we re-scan for types if needed.
+    // Optimization: Calculate once.
+
+    const analysis = analyzeColumns(doc, headers, data, pageWidth, margins);
+    const columnWidths = customColumnWidths || analysis.columnWidths;
+    const isNumericCol = analysis.isNumericCol;
 
     let currentY = startY;
     const rowHeight = 18;
@@ -178,6 +206,7 @@ const drawTable = async (doc, headers, data, title, logoBase64, startY, customCo
             const maxTextWidth = colWidth - (textPadding * 2);
             let cellText = String(cell);
 
+            // Font Scaling
             let fontSize = 8;
             doc.fontSize(fontSize);
             if (doc.widthOfString(cellText) > maxTextWidth) {
@@ -187,8 +216,8 @@ const drawTable = async (doc, headers, data, title, logoBase64, startY, customCo
                  }
             }
 
-            const isNumber = (typeof cell === 'number' || (typeof cell === 'string' && /^[0-9,.]+([%])?$/.test(cell.trim())));
-            const align = isNumber ? 'center' : 'left';
+            // Alignment: Center if column is numeric, otherwise Left
+            const align = isNumericCol[i] ? 'center' : 'left';
 
             doc.text(cellText, currentX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
                 width: maxTextWidth,
@@ -238,8 +267,27 @@ const drawSummaryRow = async (doc, rowData, currentY, columnWidths, title, logoB
          const maxTextWidth = colWidth - (textPadding * 2);
          let cellText = String(cell);
 
+         // Determine alignment for summary cells
+         // We can use the same heuristic: if the cell content looks numeric, center it.
+         // Or strictly, we should align with the column above.
+         // Since we don't pass isNumericCol here, we infer from content.
+         // "Total Geral" (string) -> Left/Right? User wants totals aligned with numeric columns.
+         // Numeric values -> Center.
+         // Text labels in numeric columns? Should not happen if data is clean.
+         // Text labels in text columns -> Left.
+
          const isNumber = (typeof cell === 'number' || (typeof cell === 'string' && /^[0-9,.]+([%])?$/.test(cell.trim())));
          const align = isNumber ? 'center' : 'left';
+
+         // Font Scaling for Summary Row
+         let fontSize = 8;
+         doc.fontSize(fontSize);
+         if (doc.widthOfString(cellText) > maxTextWidth) {
+              while (doc.widthOfString(cellText) > maxTextWidth && fontSize > 5) {
+                  fontSize -= 0.5;
+                  doc.fontSize(fontSize);
+              }
+         }
 
          doc.text(cellText, currentX + textPadding, currentY + (rowHeight - doc.currentLineHeight()) / 2, {
              width: maxTextWidth,
@@ -262,5 +310,6 @@ module.exports = {
     formatNumber,
     formatDate,
     calculateColumnWidths,
-    drawSummaryRow
+    drawSummaryRow,
+    analyzeColumns // Export for external use if needed
 };
