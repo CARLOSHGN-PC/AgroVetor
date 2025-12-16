@@ -74,32 +74,39 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Data', 'Fazenda', 'Prestador', 'Matrícula Líder', 'Variedade', 'Talhão', 'Área (ha)', 'Chuva (mm)', 'Obs'];
+        // Updated Headers: Fazenda first, Data second
+        const headers = ['Fazenda', 'Data', 'Prestador', 'Matrícula Líder', 'Variedade', 'Talhão', 'Área (ha)', 'Chuva (mm)', 'Obs'];
 
         // Group data by farm
         const dataByFarm = {};
         data.forEach(item => {
             item.records.forEach(record => {
-                if (!dataByFarm[item.farmName]) {
-                    dataByFarm[item.farmName] = [];
+                const key = `${item.farmCode} - ${item.farmName}`;
+                if (!dataByFarm[key]) {
+                    dataByFarm[key] = [];
                 }
-                dataByFarm[item.farmName].push({ ...item, ...record });
+                dataByFarm[key].push({ ...item, ...record });
             });
         });
 
         let totalAreaGeral = 0;
 
-        // Iterate over farms
-        const farmNames = Object.keys(dataByFarm).sort();
+        // Iterate over farms sorted by code
+        const farmKeys = Object.keys(dataByFarm).sort((a, b) => {
+            const codeA = parseInt(a.split(' - ')[0]) || 0;
+            const codeB = parseInt(b.split(' - ')[0]) || 0;
+            if (codeA !== codeB) return codeA - codeB;
+            return a.localeCompare(b);
+        });
 
         // Calculate global column widths based on ALL data
         let allRows = [];
-        farmNames.forEach(farmName => {
-             const farmRecords = dataByFarm[farmName];
+        farmKeys.forEach(farmKey => {
+             const farmRecords = dataByFarm[farmKey];
              farmRecords.forEach(record => {
                  allRows.push([
+                    farmKey,
                     formatDate(record.date),
-                    `${record.farmCode} - ${record.farmName}`,
                     record.provider,
                     record.leaderId,
                     record.variedade,
@@ -113,8 +120,8 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
 
         const columnWidths = calculateColumnWidths(doc, headers, allRows, doc.page.width, doc.page.margins);
 
-        for (const farmName of farmNames) {
-            const farmRecords = dataByFarm[farmName];
+        for (const farmKey of farmKeys) {
+            const farmRecords = dataByFarm[farmKey];
             // Sort by Date then Talhao inside farm
             farmRecords.sort((a,b) => {
                 const dateA = new Date(a.date);
@@ -129,8 +136,8 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
             const rows = farmRecords.map(record => {
                 farmTotalArea += record.area;
                 return [
+                    farmKey,
                     formatDate(record.date),
-                    `${record.farmCode} - ${record.farmName}`,
                     record.provider,
                     record.leaderId,
                     record.variedade,
@@ -149,14 +156,14 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
             // Pass global columnWidths to ensure table matches summary row
             currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
-            const subtotalRow = ['', '', '', '', 'SUB TOTAL', '', formatNumber(farmTotalArea), '', ''];
+            const subtotalRow = ['', '', '', '', '', 'SUB TOTAL', formatNumber(farmTotalArea), '', ''];
             currentY = await drawSummaryRow(doc, subtotalRow, currentY, columnWidths, title, logoBase64);
             currentY += 10;
 
             totalAreaGeral += farmTotalArea;
         }
 
-        const totalRow = ['', '', '', '', 'TOTAL GERAL', '', formatNumber(totalAreaGeral), '', ''];
+        const totalRow = ['', '', '', '', '', 'TOTAL GERAL', formatNumber(totalAreaGeral), '', ''];
         await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
 
         generatePdfFooter(doc, filters.generatedBy);
@@ -193,7 +200,8 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Prestador', 'Área (ha)', 'Chuva (mm)', 'Obs'];
+        // Updated Headers: Fazenda first, Data second
+        const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Prestador', 'Área (ha)', 'Chuva (mm)', 'Obs'];
 
         const allRecords = [];
         let totalAreaGeral = 0;
@@ -204,25 +212,27 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             });
         });
 
-        // Sort: Farm > Talhao > Date
+        // Sort: Farm > Date > Talhao
         allRecords.sort((a, b) => {
             const farmCodeA = parseInt(a.farmCode, 10) || 0;
             const farmCodeB = parseInt(b.farmCode, 10) || 0;
             if (farmCodeA !== farmCodeB) return farmCodeA - farmCodeB;
 
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            if (dateA - dateB !== 0) return dateA - dateB;
+
             const tA = String(a.talhao||'');
             const tB = String(b.talhao||'');
             const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
-            if (tCompare !== 0) return tCompare;
-
-            return new Date(a.date) - new Date(b.date);
+            return tCompare;
         });
 
         const rows = allRecords.map(record => {
             totalAreaGeral += record.area;
             return [
-                formatDate(record.date),
                 `${record.farmCode} - ${record.farmName}`,
+                formatDate(record.date),
                 record.talhao,
                 record.variedade,
                 record.provider,

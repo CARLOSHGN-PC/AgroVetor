@@ -524,8 +524,8 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'date', title: 'Data' },
                     { id: 'farmName', title: 'Fazenda' },
+                    { id: 'date', title: 'Data' },
                     { id: 'provider', title: 'Prestador' },
                     { id: 'leaderId', title: 'Matrícula do Líder' },
                     { id: 'variedade', title: 'Variedade Plantada' },
@@ -541,6 +541,13 @@ try {
                 item.records.forEach(record => {
                     records.push({ ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` });
                 });
+            });
+
+            records.sort((a, b) => {
+                const farmA = parseInt(a.farmCode) || 0;
+                const farmB = parseInt(b.farmCode) || 0;
+                if (farmA !== farmB) return farmA - farmB;
+                return new Date(a.date) - new Date(b.date);
             });
 
             await csvWriter.writeRecords(records);
@@ -563,8 +570,8 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'data', title: 'Data' },
                     { id: 'fazendaNome', title: 'Fazenda' },
+                    { id: 'data', title: 'Data' },
                     { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'tempMax', title: 'Temperatura Máxima (°C)' },
                     { id: 'tempMin', title: 'Temperatura Mínima (°C)' },
@@ -573,6 +580,31 @@ try {
                     { id: 'vento', title: 'Velocidade do Vento (km/h)' },
                     { id: 'obs', title: 'Observações' }
                 ]
+            });
+
+            // Format Fazenda name as required: CODE - NAME
+            const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
+            const fazendasMap = {};
+            fazendasSnapshot.forEach(doc => {
+                const d = doc.data();
+                fazendasMap[d.name.toUpperCase()] = d.code;
+            });
+
+            data.forEach(r => {
+                if (r.fazendaNome && !r.fazendaNome.includes(' - ')) {
+                    const code = fazendasMap[r.fazendaNome.toUpperCase()] || '';
+                    if (code) {
+                        r.fazendaNome = `${code} - ${r.fazendaNome}`;
+                    }
+                }
+            });
+
+            data.sort((a, b) => {
+                // Sort by Farm Code (extracted from "CODE - NAME")
+                const codeA = parseInt(a.fazendaNome.split(' - ')[0]) || 0;
+                const codeB = parseInt(b.fazendaNome.split(' - ')[0]) || 0;
+                if (codeA !== codeB) return codeA - codeB;
+                return new Date(a.data) - new Date(b.data);
             });
 
             await csvWriter.writeRecords(data);
@@ -595,8 +627,8 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'date', title: 'Data' },
                     { id: 'farmName', title: 'Fazenda' },
+                    { id: 'date', title: 'Data' },
                     { id: 'talhao', title: 'Talhão' },
                     { id: 'variedade', title: 'Variedade Plantada' },
                     { id: 'provider', title: 'Prestador' },
@@ -611,6 +643,20 @@ try {
                 item.records.forEach(record => {
                     records.push({ ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` });
                 });
+            });
+
+            records.sort((a, b) => {
+                const farmCodeA = parseInt(a.farmCode, 10) || 0;
+                const farmCodeB = parseInt(b.farmCode, 10) || 0;
+                if (farmCodeA !== farmCodeB) return farmCodeA - farmCodeB;
+
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                if (dateA - dateB !== 0) return dateA - dateB;
+
+                const tA = String(a.talhao||'');
+                const tB = String(b.talhao||'');
+                return tA.localeCompare(tB, undefined, {numeric: true});
             });
 
             await csvWriter.writeRecords(records);
@@ -637,7 +683,23 @@ try {
                     {id: 'brocamento', title: 'Brocamento (%)'}
                 ]
             });
+
             const records = data.map(r => ({ ...r, fazenda: `${r.codigo} - ${r.fazenda}` }));
+
+            records.sort((a, b) => {
+                const codeA = parseInt(a.fazenda.split(' - ')[0]) || 0;
+                const codeB = parseInt(b.fazenda.split(' - ')[0]) || 0;
+                if (codeA !== codeB) return codeA - codeB;
+
+                const dateA = new Date(a.data);
+                const dateB = new Date(b.data);
+                if (dateA - dateB !== 0) return dateA - dateB;
+
+                const tA = String(a.talhao||'');
+                const tB = String(b.talhao||'');
+                return tA.localeCompare(tB, undefined, {numeric: true});
+            });
+
             await csvWriter.writeRecords(records);
             res.download(filePath);
         } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
@@ -657,19 +719,33 @@ try {
 
             if (isDetailed) {
                 header = [
-                    {id: 'data', title: 'Data'}, {id: 'fazenda', title: 'Fazenda'}, {id: 'talhao', title: 'Talhão'}, {id: 'frenteServico', title: 'Frente'},
+                    {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'}, {id: 'frenteServico', title: 'Frente'},
                     {id: 'turno', title: 'Turno'}, {id: 'operador', title: 'Operador'}, {id: 'canaInteira', title: 'C.Inteira'}, {id: 'tolete', title: 'Tolete'},
                     {id: 'toco', title: 'Toco'}, {id: 'ponta', title: 'Ponta'}, {id: 'estilhaco', title: 'Estilhaço'}, {id: 'pedaco', title: 'Pedaço'}, {id: 'total', title: 'Total'}
                 ];
                 records = data.map(p => ({ ...p, fazenda: `${p.codigo} - ${p.fazenda}` }));
             } else {
                 header = [
-                    {id: 'data', title: 'Data'}, {id: 'fazenda', title: 'Fazenda'}, {id: 'talhao', title: 'Talhão'}, {id: 'frenteServico', title: 'Frente'},
+                    {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'}, {id: 'frenteServico', title: 'Frente'},
                     {id: 'turno', title: 'Turno'}, {id: 'operador', title: 'Operador'}, {id: 'total', title: 'Total'}
                 ];
                 records = data.map(p => ({ data: p.data, fazenda: `${p.codigo} - ${p.fazenda}`, talhao: p.talhao, frenteServico: p.frenteServico, turno: p.turno, operador: p.operador, total: p.total }));
             }
             
+            records.sort((a, b) => {
+                const codeA = parseInt(a.fazenda.split(' - ')[0]) || 0;
+                const codeB = parseInt(b.fazenda.split(' - ')[0]) || 0;
+                if (codeA !== codeB) return codeA - codeB;
+
+                const dateA = new Date(a.data);
+                const dateB = new Date(b.data);
+                if (dateA - dateB !== 0) return dateA - dateB;
+
+                const tA = String(a.talhao||'');
+                const tB = String(b.talhao||'');
+                return tA.localeCompare(tB, undefined, {numeric: true});
+            });
+
             const csvWriter = createObjectCsvWriter({ path: filePath, header });
             await csvWriter.writeRecords(records);
             res.download(filePath);
@@ -693,7 +769,7 @@ try {
 
             if (tipoRelatorio === 'resumido') {
                 header = [
-                    { id: 'data', title: 'Data' }, { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
+                    { id: 'fazenda', title: 'Fazenda' }, { id: 'data', title: 'Data' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
                     { id: 'fase1', title: 'Fase 1 (Soma)' }, { id: 'fase2', title: 'Fase 2 (Soma)' }, { id: 'fase3', title: 'Fase 3 (Soma)' },
                     { id: 'fase4', title: 'Fase 4 (Soma)' }, { id: 'fase5', title: 'Fase 5 (Soma)' }
                 ];
@@ -725,10 +801,19 @@ try {
                 }, {});
 
                 let summarizedData = Object.values(groupedData);
-                // Sort manual? Need to import sortByDateAndFazenda?
-                // For now reuse CSV logic without sort function or duplicate it.
-                // Let's rely on data order for now or simple sort
-                summarizedData.sort((a,b) => new Date(a.data) - new Date(b.data));
+                summarizedData.sort((a,b) => {
+                    const codeA = parseInt(a.codigo) || 0;
+                    const codeB = parseInt(b.codigo) || 0;
+                    if (codeA !== codeB) return codeA - codeB;
+
+                    const dateA = new Date(a.data);
+                    const dateB = new Date(b.data);
+                    if (dateA - dateB !== 0) return dateA - dateB;
+
+                    const tA = String(a.talhao||'');
+                    const tB = String(b.talhao||'');
+                    return tA.localeCompare(tB, undefined, {numeric: true});
+                });
 
                 records = summarizedData.map(rec => ({
                     data: rec.formattedDate,
@@ -765,6 +850,7 @@ try {
                     return {
                         fazenda: `${r.codigo} - ${r.fazenda}`,
                         data: formattedDate,
+                        originalData: r.data,
                         variedade: r.variedade,
                         fase1: totalFases.f1,
                         fase2: totalFases.f2,
@@ -775,15 +861,36 @@ try {
                     };
                 });
 
+                records.sort((a,b) => {
+                    const codeA = parseInt(a.fazenda.split(' - ')[0]) || 0;
+                    const codeB = parseInt(b.fazenda.split(' - ')[0]) || 0;
+                    if (codeA !== codeB) return codeA - codeB;
+                    return new Date(a.originalData) - new Date(b.originalData);
+                });
+
             } else { // Detalhado
                 header = [
-                    { id: 'fazenda', title: 'Fazenda' }, { id: 'talhao', title: 'Talhão' }, { id: 'data', title: 'Data' }, { id: 'variedade', title: 'Variedade' },
+                    { id: 'fazenda', title: 'Fazenda' }, { id: 'data', title: 'Data' }, { id: 'talhao', title: 'Talhão' }, { id: 'variedade', title: 'Variedade' },
                     { id: 'adulto', title: 'Adulto Presente'}, { id: 'numeroAmostra', title: 'Nº Amostra' }, { id: 'fase1', title: 'Fase 1' }, { id: 'fase2', title: 'Fase 2' },
                     { id: 'fase3', title: 'Fase 3' }, { id: 'fase4', title: 'Fase 4' }, { id: 'fase5', title: 'Fase 5' },
                     { id: 'resultadoAmostra', title: 'Resultado Amostra'}
                 ];
                 records = [];
                 const divisor = parseInt(req.query.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
+
+                data.sort((a,b) => {
+                     const codeA = parseInt(a.codigo) || 0;
+                     const codeB = parseInt(b.codigo) || 0;
+                     if (codeA !== codeB) return codeA - codeB;
+
+                     const dateA = new Date(a.data);
+                     const dateB = new Date(b.data);
+                     if (dateA - dateB !== 0) return dateA - dateB;
+
+                     const tA = String(a.talhao||'');
+                     const tB = String(b.talhao||'');
+                     return tA.localeCompare(tB, undefined, {numeric: true});
+                });
 
                 data.forEach(lancamento => {
                     if (lancamento.amostras && lancamento.amostras.length > 0) {
@@ -822,7 +929,7 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    {id: 'data', title: 'Data'}, {id: 'fazenda', title: 'Fazenda'}, {id: 'talhao', title: 'Talhão'},
+                    {id: 'fazenda', title: 'Fazenda'}, {id: 'data', title: 'Data'}, {id: 'talhao', title: 'Talhão'},
                     {id: 'variedade', title: 'Variedade'}, {id: 'fase1', title: 'Fase 1'}, {id: 'fase2', title: 'Fase 2'},
                     {id: 'fase3', title: 'Fase 3'}, {id: 'fase4', title: 'Fase 4'}, {id: 'fase5', title: 'Fase 5'},
                     {id: 'adulto', title: 'Adulto Presente'}, {id: 'resultado', title: 'Resultado'}
@@ -833,6 +940,21 @@ try {
             const fazendasData = {};
             fazendasSnapshot.forEach(docSnap => {
                 fazendasData[docSnap.data().code] = docSnap.data();
+            });
+
+            // Sort data first
+            data.sort((a,b) => {
+                 const codeA = parseInt(a.codigo) || 0;
+                 const codeB = parseInt(b.codigo) || 0;
+                 if (codeA !== codeB) return codeA - codeB;
+
+                 const dateA = new Date(a.data);
+                 const dateB = new Date(b.data);
+                 if (dateA - dateB !== 0) return dateA - dateB;
+
+                 const tA = String(a.talhao||'');
+                 const tB = String(b.talhao||'');
+                 return tA.localeCompare(tB, undefined, {numeric: true});
             });
 
             const records = data.map(r => {
@@ -1068,9 +1190,19 @@ try {
                     diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 }
 
+                // Format fazendaNome as CODE - NAME using properties from shapefile or trap data
+                const fazendaNameOnly = findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A';
+                const fazendaCode = findShapefileProp(talhaoProps, ['FUNDO_AGR', 'CD_FAZENDA']) || trap.fazendaCode || '0';
+
+                // Ensure format CODE - NAME
+                let fazendaNomeFormatted = fazendaNameOnly;
+                if (fazendaCode && fazendaCode !== '0' && !fazendaNameOnly.startsWith(fazendaCode)) {
+                    fazendaNomeFormatted = `${fazendaCode} - ${fazendaNameOnly}`;
+                }
+
                 return {
-                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
-                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
+                    fundoAgricola: fazendaCode,
+                    fazendaNome: fazendaNomeFormatted,
                     talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
                     dataInstalacao: dataInstalacao ? dataInstalacao.toLocaleDateString('pt-BR') : 'N/A',
                     dataColeta: dataColeta ? dataColeta.toLocaleDateString('pt-BR') : 'N/A',
@@ -1083,24 +1215,43 @@ try {
             });
             
             if (fazendaCodigo) {
-                const farmQuery = db.collection('fazendas').where('companyId', '==', companyId).where('code', '==', fazendaCodigo).limit(1);
-                const farm = await farmQuery.get();
-                if (!farm.empty) {
-                    const farmName = farm.docs[0].data().name;
-                    enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
-                } else {
-                    enrichedData = [];
-                }
+                // Filter by the code extracted above or the passed parameter
+                enrichedData = enrichedData.filter(d => {
+                    const code = parseInt(d.fundoAgricola) || 0;
+                    return code === parseInt(fazendaCodigo);
+                });
             }
+
+            // Sort: Farm > Date Inst > Talhao
+            enrichedData.sort((a,b) => {
+                 // Numeric sort for farm code which is at start of fazendaNome or in fundoAgricola
+                 const codeA = parseInt(a.fundoAgricola) || 0;
+                 const codeB = parseInt(b.fundoAgricola) || 0;
+                 if (codeA !== codeB) return codeA - codeB;
+
+                 // Date compare (DD/MM/YYYY string to Date)
+                 const toDate = (str) => {
+                     if(!str || str === 'N/A') return new Date(0);
+                     const [d, m, y] = str.split('/');
+                     return new Date(`${y}-${m}-${d}`);
+                 };
+                 const dateA = toDate(a.dataInstalacao);
+                 const dateB = toDate(b.dataInstalacao);
+                 if (dateA - dateB !== 0) return dateA - dateB;
+
+                 const tA = String(a.talhaoNome||'');
+                 const tB = String(b.talhaoNome||'');
+                 return tA.localeCompare(tB, undefined, {numeric: true});
+            });
 
             const filePath = path.join(os.tmpdir(), `armadilhas_report_${Date.now()}.csv`);
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'fundoAgricola', title: 'Fundo Agrícola' },
                     { id: 'fazendaNome', title: 'Fazenda' },
-                    { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'dataInstalacao', title: 'Data Instalação' },
+                    { id: 'talhaoNome', title: 'Talhão' },
+                    { id: 'fundoAgricola', title: 'Fundo Agrícola' },
                     { id: 'dataColeta', title: 'Data Coleta' },
                     { id: 'diasEmCampo', title: 'Dias em Campo' },
                     { id: 'contagemMariposas', title: 'Qtd. Mariposas' },
@@ -1161,9 +1312,18 @@ try {
                     previsaoRetiradaFmt = previsaoRetirada.toLocaleDateString('pt-BR');
                 }
 
+                // Format fazendaNome as CODE - NAME
+                const fazendaNameOnly = findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A';
+                const fazendaCode = findShapefileProp(talhaoProps, ['FUNDO_AGR', 'CD_FAZENDA']) || trap.fazendaCode || '0';
+
+                let fazendaNomeFormatted = fazendaNameOnly;
+                if (fazendaCode && fazendaCode !== '0' && !fazendaNameOnly.startsWith(fazendaCode)) {
+                    fazendaNomeFormatted = `${fazendaCode} - ${fazendaNameOnly}`;
+                }
+
                 return {
-                    fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fundoAgricola || 'N/A',
-                    fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
+                    fundoAgricola: fazendaCode,
+                    fazendaNome: fazendaNomeFormatted,
                     talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
                     dataInstalacao: dataInstalacao ? dataInstalacao.toLocaleDateString('pt-BR') : 'N/A',
                     previsaoRetirada: previsaoRetiradaFmt,
@@ -1174,14 +1334,7 @@ try {
             });
             
             if (fazendaCodigo) {
-                const farmQuery = db.collection('fazendas').where('companyId', '==', companyId).where('code', '==', fazendaCodigo).limit(1);
-                const farm = await farmQuery.get();
-                if (!farm.empty) {
-                    const farmName = farm.docs[0].data().name;
-                    enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
-                } else {
-                    enrichedData = [];
-                }
+                enrichedData = enrichedData.filter(d => parseInt(d.fundoAgricola) === parseInt(fazendaCodigo));
             }
 
             const filePath = path.join(os.tmpdir(), `armadilhas_instaladas_report_${Date.now()}.csv`);

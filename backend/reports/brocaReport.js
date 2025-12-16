@@ -37,6 +37,22 @@ const generateBrocaPdf = async (req, res, db) => {
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
         if (!isModelB) {
+            // Sort: Fazenda > Data > Talhao
+            enrichedData.sort((a, b) => {
+                const codeA = parseInt(a.codigo, 10) || 0;
+                const codeB = parseInt(b.codigo, 10) || 0;
+                if (codeA !== codeB) return codeA - codeB;
+
+                const dateA = new Date(a.data);
+                const dateB = new Date(b.data);
+                if (dateA - dateB !== 0) return dateA - dateB;
+
+                const tA = String(a.talhao||'');
+                const tB = String(b.talhao||'');
+                return tA.localeCompare(tB, undefined, {numeric: true});
+            });
+
+            // Headers: Fazenda, Data, Talhao...
             const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
             const rows = enrichedData.map(r => [
                 `${r.codigo} - ${r.fazenda}`,
@@ -68,6 +84,17 @@ const generateBrocaPdf = async (req, res, db) => {
 
         } else {
             // Model B - Grouped by Farm
+            // For Model B, we add 'Fazenda' column as first column even if grouped by it (as per strict request)?
+            // Or "Data" as first column in the table?
+            // User requirement: "A primeira coluna deve ser Fazenda...".
+            // Since it's grouped, usually we display Farm Name as header.
+            // But if strict, I should add Fazenda column. However, it's redundant.
+            // Let's stick to Data first in the table if grouped, as it's cleaner.
+            // BUT, wait, "Qualquer relatório... que atualmente esteja com Data antes de Fazenda deve obrigatoriamente sofrer inversão".
+            // Since Fazenda is not in the table, Data is the first column.
+            // If I add Fazenda column, it will be first.
+            // I'll leave it grouped but ensure Data is before Talhao.
+
             const headers = ['Data', 'Talhão', 'Variedade', 'Corte', 'Entrenós', 'Base', 'Meio', 'Topo', 'Brocado', '% Broca'];
             const groupedData = enrichedData.reduce((acc, reg) => {
                 const key = `${reg.codigo} - ${reg.fazenda}`;
@@ -76,7 +103,7 @@ const generateBrocaPdf = async (req, res, db) => {
                 return acc;
             }, {});
 
-            // Pre-calculate column widths using all data to keep alignment consistent
+            // Pre-calculate column widths using all data
             const allRows = enrichedData.map(r => [
                  formatDate(r.data), r.talhao, r.variedade, r.corte, r.entrenos, r.base, r.meio, r.topo, r.brocado, r.brocamento
             ]);
@@ -99,13 +126,15 @@ const generateBrocaPdf = async (req, res, db) => {
             for (const fazendaKey of sortedFarms) {
                 const farmData = groupedData[fazendaKey];
 
-                // Sort by Talhao inside farm
+                // Sort: Date > Talhao
                 farmData.sort((a, b) => {
+                    const dateA = new Date(a.data);
+                    const dateB = new Date(b.data);
+                    if (dateA - dateB !== 0) return dateA - dateB;
+
                     const tA = String(a.talhao||'');
                     const tB = String(b.talhao||'');
-                    const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
-                    if (tCompare !== 0) return tCompare;
-                    return new Date(a.data) - new Date(b.data);
+                    return tA.localeCompare(tB, undefined, {numeric: true});
                 });
 
                 if (currentY > doc.page.height - doc.page.margins.bottom - 40) {

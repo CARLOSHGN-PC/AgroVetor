@@ -2,13 +2,17 @@ const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable
 const { getFilteredData } = require('../utils/dataUtils');
 
 const sortByDateAndFazenda = (a, b) => {
-    const dateComparison = new Date(a.data) - new Date(b.data);
-    if (dateComparison !== 0) {
-        return dateComparison;
-    }
+    // Sort Order: Fazenda (Code) > Data > Talhao
     const codeA = parseInt(a.codigo, 10) || 0;
     const codeB = parseInt(b.codigo, 10) || 0;
-    return codeA - codeB;
+    if (codeA !== codeB) return codeA - codeB;
+
+    const dateComparison = new Date(a.data) - new Date(b.data);
+    if (dateComparison !== 0) return dateComparison;
+
+    const tA = String(a.talhao||'');
+    const tB = String(b.talhao||'');
+    return tA.localeCompare(tB, undefined, {numeric: true});
 };
 
 const generateCigarrinhaPdf = async (req, res, db) => {
@@ -43,16 +47,31 @@ const generateCigarrinhaPdf = async (req, res, db) => {
             return { ...reg, variedade: talhao?.variedade || 'N/A' };
         });
 
+        // Sort: Fazenda > Data > Talhao
+        enrichedData.sort((a, b) => {
+            const codeA = parseInt(a.codigo, 10) || 0;
+            const codeB = parseInt(b.codigo, 10) || 0;
+            if (codeA !== codeB) return codeA - codeB;
+
+            const dateComparison = new Date(a.data) - new Date(b.data);
+            if (dateComparison !== 0) return dateComparison;
+
+            const tA = String(a.talhao||'');
+            const tB = String(b.talhao||'');
+            return tA.localeCompare(tB, undefined, {numeric: true});
+        });
+
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado'];
+        // Updated Headers: Fazenda, Data, Talhao
+        const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'F1', 'F2', 'F3', 'F4', 'F5', 'Adulto', 'Resultado'];
 
         const rows = enrichedData.map(r => {
             const date = new Date(r.data + 'T03:00:00Z');
             const formattedDate = date.toLocaleDateString('pt-BR');
             return [
-                formattedDate,
                 `${r.codigo} - ${r.fazenda}`,
+                formattedDate,
                 r.talhao,
                 r.variedade,
                 r.fase1,
@@ -132,13 +151,14 @@ const generateCigarrinhaAmostragemPdf = async (req, res, db) => {
                 return acc;
             }, {});
 
-            const headers = ['Data', 'Fazenda', 'Talhão', 'Variedade', 'Fase 1 (Soma)', 'Fase 2 (Soma)', 'Fase 3 (Soma)', 'Fase 4 (Soma)', 'Fase 5 (Soma)'];
+            // Updated Headers: Fazenda, Data, Talhao
+            const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Fase 1 (Soma)', 'Fase 2 (Soma)', 'Fase 3 (Soma)', 'Fase 4 (Soma)', 'Fase 5 (Soma)'];
             const summarizedData = Object.values(groupedData);
             summarizedData.sort(sortByDateAndFazenda);
 
             const rows = summarizedData.map(group => [
-                group.formattedDate,
                 `${group.codigo} - ${group.fazenda}`,
+                group.formattedDate,
                 group.talhao,
                 group.variedade,
                 group.fase1, group.fase2, group.fase3, group.fase4, group.fase5
@@ -147,7 +167,16 @@ const generateCigarrinhaAmostragemPdf = async (req, res, db) => {
             await drawTable(doc, headers, rows, title, logoBase64, currentY);
 
         } else if (tipoRelatorio === 'final') {
+            // Updated Headers: Fazenda, Data
             const headers = ['Fazenda', 'Data', 'Variedade', 'Adulto', 'Fase1', 'Fase2', 'Fase3', 'Fase4', 'Fase5', 'Resultado Final'];
+
+            // Sort logic: Farm > Date
+            data.sort((a,b) => {
+                const codeA = parseInt(a.codigo, 10) || 0;
+                const codeB = parseInt(b.codigo, 10) || 0;
+                if (codeA !== codeB) return codeA - codeB;
+                return new Date(a.data) - new Date(b.data);
+            });
 
             const rows = data.map(r => {
                 const date = new Date(r.data + 'T03:00:00Z');
@@ -179,8 +208,24 @@ const generateCigarrinhaAmostragemPdf = async (req, res, db) => {
             await drawTable(doc, headers, rows, title, logoBase64, currentY);
 
         } else { // Detalhado
-            const headers = ['Fazenda', 'Talhão', 'Data', 'Variedade', 'Adulto', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
+            // Updated Headers: Fazenda, Data, Talhao
+            const headers = ['Fazenda', 'Data', 'Talhão', 'Variedade', 'Adulto', 'Nº Amostra', 'F1', 'F2', 'F3', 'F4', 'F5', 'Resultado Amostra'];
             const divisor = parseInt(filters.divisor, 10) || parseInt(data[0]?.divisor || '5', 10);
+
+            // Sort: Farm > Date > Talhao
+            data.sort((a,b) => {
+                 const codeA = parseInt(a.codigo) || 0;
+                 const codeB = parseInt(b.codigo) || 0;
+                 if (codeA !== codeB) return codeA - codeB;
+
+                 const dateA = new Date(a.data);
+                 const dateB = new Date(b.data);
+                 if (dateA - dateB !== 0) return dateA - dateB;
+
+                 const tA = String(a.talhao||'');
+                 const tB = String(b.talhao||'');
+                 return tA.localeCompare(tB, undefined, {numeric: true});
+            });
 
             const rows = [];
             data.forEach(r => {
@@ -193,8 +238,8 @@ const generateCigarrinhaAmostragemPdf = async (req, res, db) => {
 
                         rows.push([
                             `${r.codigo} - ${r.fazenda}`,
-                            r.talhao,
                             formattedDate,
+                            r.talhao,
                             r.variedade,
                             r.adulto ? 'Sim' : 'Não',
                             i + 1,

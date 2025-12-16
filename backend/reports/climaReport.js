@@ -25,24 +25,6 @@ const getClimaData = async (db, filters) => {
         data = data.filter(d => d.fazendaId === filters.fazendaId);
     }
 
-    // Sort: Farm > Talhao > Date
-    data.sort((a, b) => {
-        const fA = String(a.fazendaNome||'');
-        const fB = String(b.fazendaNome||'');
-        // Try to extract code if present "123 - Name"
-        const fCodeA = parseInt(fA.split(' - ')[0]) || 0;
-        const fCodeB = parseInt(fB.split(' - ')[0]) || 0;
-        if (fCodeA !== fCodeB) return fCodeA - fCodeB;
-        if (fA !== fB) return fA.localeCompare(fB);
-
-        const tA = String(a.talhaoNome||'');
-        const tB = String(b.talhaoNome||'');
-        const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
-        if (tCompare !== 0) return tCompare;
-
-        return new Date(a.data) - new Date(b.data);
-    });
-
     return data;
 };
 
@@ -66,9 +48,45 @@ const generateClimaPdf = async (req, res, db) => {
             return;
         }
 
+        // Fetch farms to ensure correct format CODE - NAME
+        const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
+        const fazendasMap = {};
+        fazendasSnapshot.forEach(doc => {
+            const d = doc.data();
+            fazendasMap[d.name.toUpperCase()] = d.code;
+        });
+
+        data.forEach(r => {
+            if (r.fazendaNome && !r.fazendaNome.includes(' - ')) {
+                const code = fazendasMap[r.fazendaNome.toUpperCase()] || '';
+                if (code) {
+                    r.fazendaNome = `${code} - ${r.fazendaNome}`;
+                }
+            }
+        });
+
+        // Sort: Farm Code > Date > Talhao
+        data.sort((a, b) => {
+            const fA = String(a.fazendaNome||'');
+            const fB = String(b.fazendaNome||'');
+            const fCodeA = parseInt(fA.split(' - ')[0]) || 0;
+            const fCodeB = parseInt(fB.split(' - ')[0]) || 0;
+
+            if (fCodeA !== fCodeB) return fCodeA - fCodeB;
+
+            const dateA = new Date(a.data);
+            const dateB = new Date(b.data);
+            if (dateA - dateB !== 0) return dateA - dateB;
+
+            const tA = String(a.talhaoNome||'');
+            const tB = String(b.talhaoNome||'');
+            return tA.localeCompare(tB, undefined, {numeric: true});
+        });
+
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Data', 'Fazenda', 'Talhão', 'Temp. Máx (°C)', 'Temp. Mín (°C)', 'Umidade (%)', 'Pluviosidade (mm)', 'Vento (km/h)', 'Obs'];
+        // Updated Headers: Fazenda, Data
+        const headers = ['Fazenda', 'Data', 'Talhão', 'Temp. Máx (°C)', 'Temp. Mín (°C)', 'Umidade (%)', 'Pluviosidade (mm)', 'Vento (km/h)', 'Obs'];
 
         let totalPluviosidade = 0;
         let totalTempMax = 0;
@@ -86,8 +104,8 @@ const generateClimaPdf = async (req, res, db) => {
             count++;
 
             return [
-                formatDate(item.data),
                 item.fazendaNome,
+                formatDate(item.data),
                 item.talhaoNome,
                 formatNumber(item.tempMax),
                 formatNumber(item.tempMin),
@@ -100,7 +118,7 @@ const generateClimaPdf = async (req, res, db) => {
 
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
 
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY);
+        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
         const summaryRow = [
             'MÉDIAS/TOTAIS', '', '',

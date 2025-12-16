@@ -54,28 +54,27 @@ const generateMonitoramentoPdf = async (req, res, db) => {
             finalData = enrichedData.filter(d => String(d.fazendaCodigoShape) === String(fazendaCodigo));
         }
 
-        // Sort: Farm > Talhao > Date
+        // Sort: Farm > Date > Talhao
         finalData.sort((a, b) => {
             const fCodeA = parseInt(a.fazendaCodigoShape) || 0;
             const fCodeB = parseInt(b.fazendaCodigoShape) || 0;
             if (fCodeA !== fCodeB) return fCodeA - fCodeB;
 
-            const tA = String(a.talhaoNome||'');
-            const tB = String(b.talhaoNome||'');
-            const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
-            if (tCompare !== 0) return tCompare;
-
             const dateA = a.dataColeta ? a.dataColeta.toDate() : new Date(0);
             const dateB = b.dataColeta ? b.dataColeta.toDate() : new Date(0);
-            return dateA - dateB;
+            if (dateA - dateB !== 0) return dateA - dateB;
+
+            const tA = String(a.talhaoNome||'');
+            const tB = String(b.talhaoNome||'');
+            return tA.localeCompare(tB, undefined, {numeric: true});
         });
 
-        const headers = ['Fazenda', 'Talhão', 'Data Instalação', 'Data Coleta', 'Qtd. Mariposas'];
+        const headers = ['Fazenda', 'Data Coleta', 'Data Instalação', 'Talhão', 'Qtd. Mariposas'];
         const rows = finalData.map(trap => [
             `${trap.fazendaCodigoShape} - ${trap.fazendaNome}`,
-            trap.talhaoNome,
-            trap.dataInstalacao && typeof trap.dataInstalacao.toDate === 'function' ? trap.dataInstalacao.toDate().toLocaleDateString('pt-BR') : 'N/A',
             trap.dataColeta && typeof trap.dataColeta.toDate === 'function' ? trap.dataColeta.toDate().toLocaleDateString('pt-BR') : 'N/A',
+            trap.dataInstalacao && typeof trap.dataInstalacao.toDate === 'function' ? trap.dataInstalacao.toDate().toLocaleDateString('pt-BR') : 'N/A',
+            trap.talhaoNome,
             trap.contagemMariposas || 0
         ]);
 
@@ -169,31 +168,30 @@ const generateArmadilhasPdf = async (req, res, db) => {
             }
         }
 
-        // Sort: Farm Code > Talhao > Date
+        // Sort: Farm > Data Inst > Talhao
         enrichedData.sort((a, b) => {
             const fCodeA = parseInt(a.fundoAgricola) || 0;
             const fCodeB = parseInt(b.fundoAgricola) || 0;
             if (fCodeA !== fCodeB) return fCodeA - fCodeB;
 
+            const d1 = a.dataInstalacao ? safeToDate(a.dataInstalacao) : new Date(0);
+            const d2 = b.dataInstalacao ? safeToDate(b.dataInstalacao) : new Date(0);
+            if (d1 - d2 !== 0) return d1 - d2;
+
             const tA = String(a.talhaoNome||'');
             const tB = String(b.talhaoNome||'');
-            const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
-            if (tCompare !== 0) return tCompare;
-
-            const d1 = a.rawDateColeta || new Date(0);
-            const d2 = b.rawDateColeta || new Date(0);
-            return d1 - d2;
+            return tA.localeCompare(tB, undefined, {numeric: true});
         });
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Fundo Agr.', 'Fazenda', 'Talhão', 'Data Inst.', 'Data Coleta', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
+        const headers = ['Fazenda', 'Data Inst.', 'Data Coleta', 'Talhão', 'Fundo Agr.', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
         const rows = enrichedData.map(trap => [
-            trap.fundoAgricola,
             trap.fazendaNome,
-            trap.talhaoNome,
             trap.dataInstalacaoFmt,
             trap.dataColetaFmt,
+            trap.talhaoNome,
+            trap.fundoAgricola,
             trap.diasEmCampo,
             trap.contagemMariposas || 0,
             trap.instaladoPorNome,
@@ -296,30 +294,29 @@ const generateArmadilhasAtivasPdf = async (req, res, db) => {
             }
         }
 
-        // Sort: Farm > Talhao > Date
+        // Sort: Farm > Date > Talhao
         enrichedData.sort((a, b) => {
             const fCodeA = parseInt(a.fundoAgricola) || 0;
             const fCodeB = parseInt(b.fundoAgricola) || 0;
             if (fCodeA !== fCodeB) return fCodeA - fCodeB;
 
-            const tA = String(a.talhaoNome||'');
-            const tB = String(b.talhaoNome||'');
-            const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
-            if (tCompare !== 0) return tCompare;
-
             const d1 = a.rawDateInst || new Date(0);
             const d2 = b.rawDateInst || new Date(0);
-            return d1 - d2;
+            if (d1 - d2 !== 0) return d1 - d2;
+
+            const tA = String(a.talhaoNome||'');
+            const tB = String(b.talhaoNome||'');
+            return tA.localeCompare(tB, undefined, {numeric: true});
         });
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Fundo Agr.', 'Fazenda', 'Talhão', 'Data Inst.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
+        const headers = ['Fazenda', 'Data Inst.', 'Talhão', 'Fundo Agr.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
         const rows = enrichedData.map(trap => [
-            trap.fundoAgricola,
             trap.fazendaNome,
-            trap.talhaoNome,
             trap.dataInstalacaoFmt,
+            trap.talhaoNome,
+            trap.fundoAgricola,
             trap.previsaoRetiradaFmt,
             trap.diasEmCampo,
             trap.instaladoPorNome,

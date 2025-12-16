@@ -25,24 +25,42 @@ const generatePerdaPdf = async (req, res, db) => {
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
         if (!isDetailed) {
-            const headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
+            // Updated Headers: Fazenda, Data
+            const headers = ['Fazenda', 'Data', 'Talhão', 'Frente', 'Turno', 'Operador', 'Total'];
+
+            // Sort: Fazenda > Data > Talhao
+            data.sort((a, b) => {
+                const codeA = parseInt(a.codigo, 10) || 0;
+                const codeB = parseInt(b.codigo, 10) || 0;
+                if (codeA !== codeB) return codeA - codeB;
+
+                const dateA = new Date(a.data);
+                const dateB = new Date(b.data);
+                if (dateA - dateB !== 0) return dateA - dateB;
+
+                const tA = String(a.talhao||'');
+                const tB = String(b.talhao||'');
+                return tA.localeCompare(tB, undefined, {numeric: true});
+            });
+
             const rows = data.map(p => [
-                formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.total)
+                `${p.codigo} - ${p.fazenda}`, formatDate(p.data), p.talhao, p.frenteServico, p.turno, p.operador, formatNumber(p.total)
             ]);
 
             const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY);
+            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
             const grandTotal = data.reduce((sum, p) => sum + p.total, 0);
             const totalRow = ['', '', '', '', '', 'Total Geral', formatNumber(grandTotal)];
             await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
 
         } else {
-            const headers = ['Data', 'Fazenda', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaco', 'Pedaco', 'Total'];
+            // Updated Headers: Fazenda, Data
+            const headers = ['Fazenda', 'Data', 'Talhão', 'Frente', 'Turno', 'Operador', 'C.Inteira', 'Tolete', 'Toco', 'Ponta', 'Estilhaco', 'Pedaco', 'Total'];
 
             // Pre-calculate column widths
             const allRows = data.map(p => [
-                formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador,
+                `${p.codigo} - ${p.fazenda}`, formatDate(p.data), p.talhao, p.frenteServico, p.turno, p.operador,
                 formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco),
                 formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)
             ]);
@@ -68,13 +86,15 @@ const generatePerdaPdf = async (req, res, db) => {
             for (const fazendaKey of sortedFarms) {
                 const farmData = groupedData[fazendaKey];
 
-                // Sort by Talhao then Date
+                // Sort: Date > Talhao
                 farmData.sort((a, b) => {
+                    const dateA = new Date(a.data);
+                    const dateB = new Date(b.data);
+                    if (dateA - dateB !== 0) return dateA - dateB;
+
                     const tA = String(a.talhao||'');
                     const tB = String(b.talhao||'');
-                    const tCompare = tA.localeCompare(tB, undefined, {numeric: true});
-                    if (tCompare !== 0) return tCompare;
-                    return new Date(a.data) - new Date(b.data);
+                    return tA.localeCompare(tB, undefined, {numeric: true});
                 });
 
                 if (currentY > doc.page.height - doc.page.margins.bottom - 40) {
@@ -86,12 +106,12 @@ const generatePerdaPdf = async (req, res, db) => {
                 currentY = doc.y + 5;
 
                 const rows = farmData.map(p => [
-                    formatDate(p.data), `${p.codigo} - ${p.fazenda}`, p.talhao, p.frenteServico, p.turno, p.operador,
+                    `${p.codigo} - ${p.fazenda}`, formatDate(p.data), p.talhao, p.frenteServico, p.turno, p.operador,
                     formatNumber(p.canaInteira), formatNumber(p.tolete), formatNumber(p.toco),
                     formatNumber(p.ponta), formatNumber(p.estilhaco), formatNumber(p.pedaco), formatNumber(p.total)
                 ]);
 
-                currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY);
+                currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
                 const subTotals = farmData.reduce((acc, p) => {
                     acc.canaInteira += p.canaInteira; acc.tolete += p.tolete; acc.toco += p.toco;
