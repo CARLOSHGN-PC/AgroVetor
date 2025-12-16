@@ -261,41 +261,74 @@ const drawSummaryRow = async (doc, rowData, currentY, columnWidths, title, logoB
     doc.fillColor('black');
 
     let currentX = startX;
-    rowData.forEach((cell, i) => {
-         if (i >= columnWidths.length) return;
-         const colWidth = columnWidths[i];
-         const maxTextWidth = colWidth - (textPadding * 2);
-         let cellText = String(cell);
 
-         // Determine alignment for summary cells
-         // We can use the same heuristic: if the cell content looks numeric, center it.
-         // Or strictly, we should align with the column above.
-         // Since we don't pass isNumericCol here, we infer from content.
-         // "Total Geral" (string) -> Left/Right? User wants totals aligned with numeric columns.
-         // Numeric values -> Center.
-         // Text labels in numeric columns? Should not happen if data is clean.
-         // Text labels in text columns -> Left.
+    // We iterate manually to handle merged cells for labels
+    for (let i = 0; i < rowData.length; i++) {
+        if (i >= columnWidths.length) break;
 
-         const isNumber = (typeof cell === 'number' || (typeof cell === 'string' && /^[0-9,.]+([%])?$/.test(cell.trim())));
-         const align = isNumber ? 'center' : 'left';
+        let cell = rowData[i];
+        let cellText = String(cell);
 
-         // Font Scaling for Summary Row
-         let fontSize = 8;
-         doc.fontSize(fontSize);
-         if (doc.widthOfString(cellText) > maxTextWidth) {
-              while (doc.widthOfString(cellText) > maxTextWidth && fontSize > 5) {
-                  fontSize -= 0.5;
-                  doc.fontSize(fontSize);
-              }
-         }
+        // Skip rendering empty cells if we are processing them as part of a merge logic
+        // But here we process cell by cell.
+        // Logic: If current cell is empty, we just move X.
+        // If current cell is Text (Label) -> Check if we can merge with preceding empty cells.
 
-         doc.text(cellText, currentX + textPadding, currentY + (rowHeight - doc.currentLineHeight()) / 2, {
-             width: maxTextWidth,
-             align: align,
-             lineBreak: false
-         });
-         currentX += colWidth;
-    });
+        const isNumber = (typeof cell === 'number' || (typeof cell === 'string' && /^[0-9,.]+([%])?$/.test(cell.trim())));
+
+        // If cell is empty, just advance X. Unless we want to support "Next cell merges this".
+        // Easier approach: If current cell is a Label (non-empty, non-number), check preceding empty cells.
+
+        let drawX = currentX;
+        let drawWidth = columnWidths[i];
+        let align = isNumber ? 'center' : 'left';
+
+        if (cellText && !isNumber) {
+            // It's a label. Check left neighbors for emptiness.
+            let mergeStartIndex = i;
+            let extraWidth = 0;
+
+            // Look back
+            for (let j = i - 1; j >= 0; j--) {
+                if (!rowData[j] || rowData[j] === '') {
+                    extraWidth += columnWidths[j];
+                    mergeStartIndex = j;
+                } else {
+                    break;
+                }
+            }
+
+            if (extraWidth > 0) {
+                // Adjust draw position to start from the first empty cell
+                // We need to calculate X position of mergeStartIndex.
+                // We can't easily get it from 'currentX' alone without re-summing.
+                // So let's re-calculate X for mergeStartIndex.
+                let tempX = startX;
+                for(let k=0; k<mergeStartIndex; k++) tempX += columnWidths[k];
+
+                drawX = tempX;
+                drawWidth = extraWidth + columnWidths[i];
+                align = 'right'; // Right align labels that span multiple columns to stick to the data
+            }
+        }
+
+        if (cellText) {
+            const maxTextWidth = drawWidth - (textPadding * 2);
+
+            // NO FONT SHRINKING as requested
+            // If it overflows, it might wrap or cut. But with merge logic, it likely fits.
+            doc.fontSize(8);
+
+            doc.text(cellText, drawX + textPadding, currentY + (rowHeight - doc.currentLineHeight()) / 2, {
+                width: maxTextWidth,
+                align: align,
+                lineBreak: false,
+                ellipsis: true // Use ellipsis if it absolutely fails to fit
+            });
+        }
+
+        currentX += columnWidths[i];
+    }
 
     return currentY + rowHeight;
 }

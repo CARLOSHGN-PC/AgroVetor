@@ -41,10 +41,19 @@ const generateMonitoramentoPdf = async (req, res, db) => {
 
         const enrichedData = data.map(trap => {
             const talhaoProps = geojsonData ? findTalhaoForTrap(trap, geojsonData) : null;
+
+            const fazendaNameOnly = findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A';
+            const fazendaCode = findShapefileProp(talhaoProps, ['CD_FAZENDA', 'FUNDO_AGR']) || trap.fazendaCode || '0';
+
+            let fazendaNomeFormatted = fazendaNameOnly;
+            if (fazendaCode && fazendaCode !== '0' && !fazendaNameOnly.startsWith(fazendaCode)) {
+                fazendaNomeFormatted = `${fazendaCode} - ${fazendaNameOnly}`;
+            }
+
             return {
                 ...trap,
-                fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
-                fazendaCodigoShape: findShapefileProp(talhaoProps, ['CD_FAZENDA', 'FUNDO_AGR']) || 'N/A',
+                fazendaNome: fazendaNomeFormatted,
+                fazendaCodigoShape: fazendaCode,
                 talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A'
             };
         });
@@ -69,9 +78,10 @@ const generateMonitoramentoPdf = async (req, res, db) => {
             return tA.localeCompare(tB, undefined, {numeric: true});
         });
 
+        // Adjusted headers - remove Fundo Agrícola if it was there (it wasn't in this specific function but checking consistency)
         const headers = ['Fazenda', 'Data Coleta', 'Data Instalação', 'Talhão', 'Qtd. Mariposas'];
         const rows = finalData.map(trap => [
-            `${trap.fazendaCodigoShape} - ${trap.fazendaNome}`,
+            trap.fazendaNome, // Now properly formatted
             trap.dataColeta && typeof trap.dataColeta.toDate === 'function' ? trap.dataColeta.toDate().toLocaleDateString('pt-BR') : 'N/A',
             trap.dataInstalacao && typeof trap.dataInstalacao.toDate === 'function' ? trap.dataInstalacao.toDate().toLocaleDateString('pt-BR') : 'N/A',
             trap.talhaoNome,
@@ -143,10 +153,18 @@ const generateArmadilhasPdf = async (req, res, db) => {
                 diasEmCampo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             }
 
+            const fazendaNameOnly = findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A';
+            const fazendaCode = findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fazendaCode || '0';
+
+            let fazendaNomeFormatted = fazendaNameOnly;
+            if (fazendaCode && fazendaCode !== '0' && !fazendaNameOnly.startsWith(fazendaCode)) {
+                fazendaNomeFormatted = `${fazendaCode} - ${fazendaNameOnly}`;
+            }
+
             return {
                 ...trap,
-                fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
-                fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fazendaCode || 'N/A',
+                fazendaNome: fazendaNomeFormatted,
+                fundoAgricola: fazendaCode,
                 talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
                 dataInstalacaoFmt: dataInstalacao ? dataInstalacao.toLocaleDateString('pt-BR') : 'N/A',
                 dataColetaFmt: dataColeta ? dataColeta.toLocaleDateString('pt-BR') : 'N/A',
@@ -162,7 +180,7 @@ const generateArmadilhasPdf = async (req, res, db) => {
             const farm = await farmQuery.get();
             if (!farm.empty) {
                 const farmName = farm.docs[0].data().name;
-                enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
+                enrichedData = enrichedData.filter(d => d.fazendaNome.includes(farmName));
             } else {
                 enrichedData = [];
             }
@@ -185,13 +203,13 @@ const generateArmadilhasPdf = async (req, res, db) => {
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Fazenda', 'Data Inst.', 'Data Coleta', 'Talhão', 'Fundo Agr.', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
+        // REMOVED 'Fundo Agr.' column
+        const headers = ['Fazenda', 'Data Inst.', 'Data Coleta', 'Talhão', 'Dias Campo', 'Qtd. Mariposas', 'Instalado Por', 'Coletado Por', 'Obs.'];
         const rows = enrichedData.map(trap => [
             trap.fazendaNome,
             trap.dataInstalacaoFmt,
             trap.dataColetaFmt,
             trap.talhaoNome,
-            trap.fundoAgricola,
             trap.diasEmCampo,
             trap.contagemMariposas || 0,
             trap.instaladoPorNome,
@@ -270,10 +288,18 @@ const generateArmadilhasAtivasPdf = async (req, res, db) => {
                 previsaoRetiradaFmt = previsaoRetirada.toLocaleDateString('pt-BR');
             }
 
+            const fazendaNameOnly = findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A';
+            const fazendaCode = findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fazendaCode || '0';
+
+            let fazendaNomeFormatted = fazendaNameOnly;
+            if (fazendaCode && fazendaCode !== '0' && !fazendaNameOnly.startsWith(fazendaCode)) {
+                fazendaNomeFormatted = `${fazendaCode} - ${fazendaNameOnly}`;
+            }
+
             return {
                 ...trap,
-                fazendaNome: findShapefileProp(talhaoProps, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']) || trap.fazendaNome || 'N/A',
-                fundoAgricola: findShapefileProp(talhaoProps, ['FUNDO_AGR']) || trap.fazendaCode || 'N/A',
+                fazendaNome: fazendaNomeFormatted,
+                fundoAgricola: fazendaCode,
                 talhaoNome: findShapefileProp(talhaoProps, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || trap.talhaoNome || 'N/A',
                 dataInstalacaoFmt: dataInstalacao ? dataInstalacao.toLocaleDateString('pt-BR') : 'N/A',
                 previsaoRetiradaFmt: previsaoRetiradaFmt,
@@ -288,7 +314,7 @@ const generateArmadilhasAtivasPdf = async (req, res, db) => {
             const farm = await farmQuery.get();
             if (!farm.empty) {
                 const farmName = farm.docs[0].data().name;
-                enrichedData = enrichedData.filter(d => d.fazendaNome === farmName);
+                enrichedData = enrichedData.filter(d => d.fazendaNome.includes(farmName));
             } else {
                 enrichedData = [];
             }
@@ -311,12 +337,12 @@ const generateArmadilhasAtivasPdf = async (req, res, db) => {
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Fazenda', 'Data Inst.', 'Talhão', 'Fundo Agr.', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
+        // REMOVED 'Fundo Agr.' column
+        const headers = ['Fazenda', 'Data Inst.', 'Talhão', 'Previsão Retirada', 'Dias Campo', 'Instalado Por', 'Obs.'];
         const rows = enrichedData.map(trap => [
             trap.fazendaNome,
             trap.dataInstalacaoFmt,
             trap.talhaoNome,
-            trap.fundoAgricola,
             trap.previsaoRetiradaFmt,
             trap.diasEmCampo,
             trap.instaladoPorNome,

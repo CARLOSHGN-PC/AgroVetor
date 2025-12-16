@@ -1250,9 +1250,8 @@ try {
                 header: [
                     { id: 'fazendaNome', title: 'Fazenda' },
                     { id: 'dataInstalacao', title: 'Data Instalação' },
-                    { id: 'talhaoNome', title: 'Talhão' },
-                    { id: 'fundoAgricola', title: 'Fundo Agrícola' },
                     { id: 'dataColeta', title: 'Data Coleta' },
+                    { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'diasEmCampo', title: 'Dias em Campo' },
                     { id: 'contagemMariposas', title: 'Qtd. Mariposas' },
                     { id: 'instaladoPor', title: 'Instalado Por' },
@@ -1341,10 +1340,9 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'fundoAgricola', title: 'Fundo Agrícola' },
                     { id: 'fazendaNome', title: 'Fazenda' },
-                    { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'dataInstalacao', title: 'Data Instalação' },
+                    { id: 'talhaoNome', title: 'Talhão' },
                     { id: 'previsaoRetirada', title: 'Previsão Retirada' },
                     { id: 'diasEmCampo', title: 'Dias em Campo' },
                     { id: 'instaladoPor', title: 'Instalado Por' },
