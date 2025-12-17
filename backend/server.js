@@ -22,6 +22,7 @@ const { getFilteredData } = require('./utils/dataUtils');
 // Import new report modules
 const { generatePlantioFazendaPdf, generatePlantioTalhaoPdf, getPlantioData } = require('./reports/plantioReport');
 const { generateClimaPdf, getClimaData } = require('./reports/climaReport');
+const { generateApplicationMapPdf } = require('./reports/applicationReport');
 const { generateBrocaPdf } = require('./reports/brocaReport');
 const { generatePerdaPdf } = require('./reports/perdaReport');
 const { generateCigarrinhaPdf, generateCigarrinhaAmostragemPdf } = require('./reports/cigarrinhaReport');
@@ -1458,6 +1459,8 @@ try {
             res.status(500).json({ message: 'Erro no servidor ao criar O.S. sequencial.' });
         }
     });
+
+    app.get('/reports/application/pdf', authMiddleware, (req, res) => generateApplicationMapPdf(req, res, db));
 
     app.get('/reports/os/pdf', authMiddleware, (req, res) => generateOsPdf(req, res, db));
 

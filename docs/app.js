@@ -129,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Registro de Aplicação', icon: 'fas fa-spray-can',
                     submenu: [
                         { label: 'Novo Registro', icon: 'fas fa-plus', target: 'registroAplicacao', permission: 'registroAplicacao' },
+                        { label: 'Relatórios de Aplicação', icon: 'fas fa-file-alt', target: 'relatorioAplicacao', permission: 'registroAplicacao' },
                     ]
                 },
                 {
@@ -260,6 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dosage: document.getElementById('regAppDosage'),
                 operator: document.getElementById('regAppOperator'),
                 plotsList: document.getElementById('regAppPlotsList'),
+                finalizeCheckbox: document.getElementById('regAppFinalize'),
                 btnSave: document.getElementById('btnSaveRegApp'),
                 mapContainer: document.getElementById('regAppMap'),
                 btnCenterMap: document.getElementById('btnCenterRegAppMap'),
@@ -751,6 +753,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 fim: document.getElementById('riscoRelatorioFim'),
                 btnPDF: document.getElementById('btnPDFRisco'),
                 btnExcel: document.getElementById('btnExcelRisco'),
+            },
+            relatorioAplicacao: {
+                fazenda: document.getElementById('aplicacaoRelatorioFazenda'),
+                inicio: document.getElementById('aplicacaoRelatorioInicio'),
+                fim: document.getElementById('aplicacaoRelatorioFim'),
+                btnPDF: document.getElementById('btnPDFAplicacao'),
             },
             trapPlacementModal: {
                 overlay: document.getElementById('trapPlacementModal'),
@@ -1988,6 +1996,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (id === 'registroAplicacao') {
                     App.regApp.init();
+                }
+                if (id === 'relatorioAplicacao') {
+                    App.ui.populateFazendaSelects();
+                    App.ui.setDefaultDatesForReportForms();
                 }
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
@@ -4544,7 +4556,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const els = App.elements.regApp;
                 if (!els.farmSelect) return;
 
-                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+                els.farmSelect.addEventListener('change', () => {
+                    this.handleFarmChange();
+                    this.loadExistingPlots();
+                });
+                els.date.addEventListener('change', () => {
+                    this.loadExistingPlots();
+                });
                 els.btnSave.addEventListener('click', () => this.saveRegistro());
 
                 if (els.btnCenterMap) {
@@ -4574,6 +4592,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.shiftRadios.forEach(radio => {
                     radio.addEventListener('change', () => this.updateMapVisualization());
                 });
+            },
+
+            async loadExistingPlots() {
+                const { farmSelect, date } = App.elements.regApp;
+                const farmId = farmSelect.value;
+                const selectedDate = date.value;
+
+                if (!farmId) return;
+
+                App.ui.setLoading(true, "A verificar registros existentes...");
+
+                try {
+                    // 1. Find the active Application ID for this farm (most recent active one)
+                    // If we find an 'isFinal: false' record, use its ID.
+                    // If we find an 'isFinal: true' record, or no record, we are starting fresh (but need to check if user picked same date to attach)
+
+                    // Actually, simpler logic:
+                    // Fetch ALL records for this Farm that are NOT finalized.
+                    // If date is provided, we prioritize checking if there's an ongoing app for this farm.
+
+                    const q = query(
+                        collection(db, 'registroAplicacao'),
+                        where('farmId', '==', farmId),
+                        where('companyId', '==', App.state.currentUser.companyId),
+                        orderBy('createdAt', 'desc') // Get latest first
+                    );
+
+                    const querySnapshot = await getDocs(q);
+                    const lockedPlots = new Map();
+                    let activeApplicationId = null;
+
+                    // Iterate to find the active context
+                    // We need to group by "Application Context".
+                    // If the latest record is NOT final, that is our active context.
+                    // If the latest record IS final, we are starting a NEW context (unless date matches an existing one? No, final means closed).
+
+                    let latestRecord = null;
+                    if (!querySnapshot.empty) {
+                        latestRecord = querySnapshot.docs[0].data();
+                    }
+
+                    if (latestRecord && !latestRecord.isFinal) {
+                        activeApplicationId = latestRecord.applicationId;
+                    }
+
+                    // If we have an active application, load ALL its plots to lock them
+                    if (activeApplicationId) {
+                        // We filter the client-side snapshot we just got to avoid another query if possible,
+                        // or just iterate. Since we queried by Farm, we have history.
+                        // We only care about records with THIS applicationId.
+
+                        querySnapshot.forEach(doc => {
+                            const data = doc.data();
+                            if (data.applicationId === activeApplicationId) {
+                                if (data.selectedPlots && Array.isArray(data.selectedPlots)) {
+                                    data.selectedPlots.forEach(plotName => {
+                                        lockedPlots.set(plotName, { shift: data.shift });
+                                    });
+                                }
+                            }
+                        });
+
+                        // Also, if the user changed the date to something widely different, should we warn?
+                        // For now, we respect the active application ID.
+                    }
+
+                    this.renderPlotsList(App.state.fazendas.find(f => f.id === farmId)?.talhoes, lockedPlots);
+
+                    // Store the found ID in state to be used by Save
+                    App.state.currentRegAppId = activeApplicationId;
+
+                } catch (error) {
+                    console.error("Erro ao carregar registros existentes:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
             },
 
             initMap() {
@@ -5014,7 +5108,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            renderPlotsList(talhoes) {
+            renderPlotsList(talhoes, lockedPlots = new Map()) {
                 const listContainer = App.elements.regApp.plotsList;
                 listContainer.innerHTML = '';
 
@@ -5024,13 +5118,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
+                    const isLocked = lockedPlots.has(talhao.name);
+                    const lockedInfo = lockedPlots.get(talhao.name);
+
                     const container = document.createElement('div');
                     container.className = 'talhao-selection-item-wrapper';
+                    if (isLocked) container.classList.add('disabled-plot');
                     container.style.marginBottom = '10px';
-                    container.style.backgroundColor = 'var(--color-surface)';
+                    container.style.backgroundColor = isLocked ? '#f5f5f5' : 'var(--color-surface)';
                     container.style.border = '1px solid var(--color-border)';
                     container.style.borderRadius = 'var(--border-radius)';
                     container.style.overflow = 'hidden';
+                    if (isLocked) container.style.opacity = '0.7';
 
                     const header = document.createElement('div');
                     header.style.padding = '12px';
@@ -5038,12 +5137,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     header.style.gridTemplateColumns = 'auto 1fr';
                     header.style.gap = '10px';
                     header.style.alignItems = 'center';
-                    header.style.cursor = 'pointer';
+                    header.style.cursor = isLocked ? 'not-allowed' : 'pointer';
+
+                    const disabledAttr = isLocked ? 'disabled' : '';
+                    const statusText = isLocked ? `<span style="color: #d32f2f; font-weight: bold; font-size: 0.85em; margin-left: 5px;">(Feito: Turno ${lockedInfo.shift})</span>` : '';
 
                     header.innerHTML = `
-                        <input type="checkbox" id="regapp-plot-${talhao.id}" data-id="${talhao.id}">
+                        <input type="checkbox" id="regapp-plot-${talhao.id}" data-id="${talhao.id}" ${disabledAttr}>
                         <div>
-                            <div style="font-weight: 600; color: var(--color-primary-dark);">${talhao.name}</div>
+                            <div style="font-weight: 600; color: var(--color-primary-dark);">${talhao.name} ${statusText}</div>
                             <div style="font-size: 13px; color: var(--color-text-light);">Área Total: ${talhao.area.toFixed(2)} ha</div>
                         </div>
                     `;
@@ -5058,7 +5160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     details.innerHTML = `
                         <div style="margin-bottom: 8px;">
                             <label style="display: flex; align-items: center; font-size: 14px; cursor: pointer;">
-                                <input type="checkbox" class="partial-check" style="width: auto; margin-right: 8px;"> Aplicação Parcial?
+                                <input type="checkbox" class="partial-check" style="width: auto; margin-right: 8px;" ${disabledAttr}> Aplicação Parcial?
                             </label>
                         </div>
                         <div class="partial-inputs" style="display: none; flex-direction: column; gap: 10px;">
@@ -5379,80 +5481,108 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async saveRegistro() {
-                const { farmSelect, date, product, dosage, operator } = App.elements.regApp;
+                const { farmSelect, date, product, dosage, operator, finalizeCheckbox } = App.elements.regApp;
                 const shift = document.querySelector('input[name="regAppShift"]:checked').value;
 
-                if (!farmSelect.value || !date.value || !product.value || !dosage.value) {
-                    App.ui.showAlert("Preencha todos os campos obrigatórios (Fazenda, Data, Produto, Dosagem).", "error");
+                if (!farmSelect.value || !date.value || !product.value || !dosage.value || !operator.value) {
+                    App.ui.showAlert("Preencha todos os campos obrigatórios.", "error");
                     return;
                 }
 
                 if (App.state.regAppSelectedPlots.size === 0) {
-                    App.ui.showAlert("Selecione pelo menos um talhão.", "error");
+                    App.ui.showAlert("Selecione e configure pelo menos um talhão no mapa.", "error");
                     return;
                 }
 
                 const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
-                const plotsData = [];
-                let totalAreaApplied = 0;
+                const selectedPlotsData = [];
 
                 App.state.regAppSelectedPlots.forEach((data, talhaoId) => {
-                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
-                    if (talhao) {
-                        plotsData.push({
-                            talhaoId: talhao.id,
-                            talhaoName: talhao.name,
-                            totalArea: talhao.area,
-                            appliedArea: data.appliedArea,
-                            isPartial: data.isPartial,
-                            direction: data.direction
-                        });
-                        totalAreaApplied += data.appliedArea;
+                    const t = farm.talhoes.find(plot => plot.id === talhaoId);
+                    if (t) {
+                        selectedPlotsData.push(t.name);
                     }
                 });
 
+                const details = [];
+                App.state.regAppSelectedPlots.forEach((data, talhaoId) => {
+                     const t = farm.talhoes.find(plot => plot.id === talhaoId);
+                     if(t) {
+                         details.push({
+                             talhaoId: t.id,
+                             talhaoName: t.name,
+                             areaAplicada: data.area || data.appliedArea || t.area,
+                             direction: data.direction,
+                             isPartial: data.isPartial
+                         });
+                     }
+                });
+
+                const totalAppliedArea = details.reduce((sum, d) => sum + d.areaAplicada, 0);
+                const totalProduct = totalAppliedArea * parseFloat(dosage.value);
+
+                // Use the active ID found by loadExistingPlots, OR create a new one based on date
+                let applicationId = App.state.currentRegAppId;
+                if (!applicationId) {
+                    const dateClean = date.value.replace(/-/g, '');
+                    applicationId = `APP-${farm.code}-${dateClean}`;
+                }
+
                 const registroData = {
+                    applicationId: applicationId,
                     companyId: App.state.currentUser.companyId,
+                    date: date.value,
+                    shift: shift,
                     farmId: farm.id,
                     farmName: farm.name,
                     farmCode: farm.code,
-                    date: date.value,
-                    shift: shift,
-                    product: product.value.trim(),
+                    product: product.value,
                     dosage: parseFloat(dosage.value),
-                    operator: operator.value.trim(),
-                    plots: plotsData,
-                    totalAreaApplied: totalAreaApplied,
-                    createdBy: App.state.currentUser.username
+                    operator: operator.value || 'N/A',
+                    selectedPlots: selectedPlotsData,
+                    plotDetails: details,
+                    totalArea: totalAppliedArea,
+                    totalProduct: totalProduct,
+                    isFinal: finalizeCheckbox ? finalizeCheckbox.checked : false,
+                    createdAt: new Date().toISOString(),
+                    createdBy: App.state.currentUser.uid
                 };
 
-                App.ui.showConfirmationModal("Confirmar registro de aplicação?", async () => {
-                    App.ui.setLoading(true, "Salvando...");
-                    try {
-                        if (navigator.onLine) {
-                            await App.data.addDocument('registroAplicacao', registroData);
-                            App.ui.showAlert("Registro salvo com sucesso!", "success");
-                        } else {
-                            const entryId = `offline_regApp_${Date.now()}`;
-                            await OfflineDB.add('offline-writes', { id: entryId, collection: 'registroAplicacao', data: registroData });
-                            App.ui.showAlert('Salvo offline. Será enviado quando houver conexão.', 'info');
-                        }
+                App.ui.setLoading(true, "A salvar registro...");
 
-                        // Reset
-                        product.value = '';
-                        dosage.value = '';
-                        operator.value = '';
-                        App.state.regAppSelectedPlots.clear();
-                        this.renderPlotsList(farm.talhoes); // Re-renders list to clear checks
-                        this.updateMapVisualization();
-
-                    } catch (error) {
-                        console.error(error);
-                        App.ui.showAlert("Erro ao salvar registro.", "error");
-                    } finally {
-                        App.ui.setLoading(false);
+                try {
+                    if (navigator.onLine) {
+                        await App.data.addDocument('registroAplicacao', registroData);
+                        App.ui.showAlert("Registro de aplicação salvo com sucesso!");
+                    } else {
+                        // Offline logic
+                        const entryId = `offline_regApp_${Date.now()}`;
+                        await OfflineDB.add('offline-writes', { id: entryId, collection: 'registroAplicacao', data: registroData });
+                        App.ui.showAlert("Registro salvo offline. Será sincronizado quando houver conexão.", "warning");
                     }
-                });
+
+                    // Reset form
+                    // product.value = '';
+                    // dosage.value = '';
+                    operator.value = '';
+                    if (finalizeCheckbox) finalizeCheckbox.checked = false;
+                    this.handleFarmChange();
+
+                    // Reload to update state
+                    if (typeof this.loadExistingPlots === 'function') {
+                        this.loadExistingPlots();
+                    }
+
+                    if (App.state.regAppMap) {
+                        App.state.regAppMap.resize();
+                    }
+
+                } catch (error) {
+                    console.error("Erro ao salvar registro:", error);
+                    App.ui.showAlert("Erro ao salvar registro.", "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
             }
         },
         
