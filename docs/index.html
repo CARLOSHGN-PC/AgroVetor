@@ -2672,29 +2672,6 @@
                 </div>
             </section>
 
-            <section id="relatorioAplicacao" class="tab-content card" aria-label="Relatório de Aplicação" tabindex="0" hidden>
-                <h2><i class="fas fa-spray-can"></i> Relatório de Aplicação</h2>
-                <div class="report-filters">
-                    <div class="form-group">
-                        <label for="aplicacaoRelatorioFazenda">Fazenda:</label>
-                        <select id="aplicacaoRelatorioFazenda">
-                            <option value="">Selecione...</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="aplicacaoRelatorioInicio">Data Início:</label>
-                        <input type="date" id="aplicacaoRelatorioInicio">
-                    </div>
-                    <div class="form-group">
-                        <label for="aplicacaoRelatorioFim">Data Fim:</label>
-                        <input type="date" id="aplicacaoRelatorioFim">
-                    </div>
-                </div>
-                <div class="report-actions">
-                    <button class="save" id="btnPDFAplicacao"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
-                </div>
-            </section>
-
             <section id="relatorioRisco" class="tab-content card" aria-label="Relatório de Risco" tabindex="0" hidden>
                 <h2><i class="fas fa-biohazard"></i> Relatório de Risco</h2>
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere um relatório em PDF com a visualização de risco das fazendas.</p>
@@ -3416,11 +3393,6 @@
                             <h4 style="margin-bottom: 10px;">Talhões Aplicados</h4>
                             <div id="regAppPlotsList" class="talhao-selection-list" style="flex-grow: 1; max-height: none; overflow-y: auto; background: var(--color-bg);">
                                 <p style="text-align: center; color: var(--color-text-light); padding: 20px;">Selecione uma fazenda para carregar os talhões.</p>
-                            </div>
-
-                            <div class="checkbox-container" style="margin-top: 15px; display: flex; align-items: center;">
-                                <input type="checkbox" id="regAppFinalize" style="width: 20px; height: 20px; margin-right: 10px;">
-                                <label for="regAppFinalize" style="font-weight: bold; margin-bottom: 0;">Finalizar Aplicação na Fazenda</label>
                             </div>
 
                             <button id="btnSaveRegApp" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
