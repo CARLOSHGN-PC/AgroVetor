@@ -306,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loginForm: document.getElementById('loginForm'),
             offlineUserSelection: document.getElementById('offlineUserSelection'),
             offlineUserList: document.getElementById('offlineUserList'),
-            headerTitle: document.querySelector('header h1'),
+            headerTitle: document.getElementById('pageTitle'),
             headerLogo: document.getElementById('headerLogo'),
             currentDateTime: document.getElementById('currentDateTime'),
             logoutBtn: document.getElementById('logoutBtn'),
@@ -1492,49 +1492,61 @@ document.addEventListener('DOMContentLoaded', () => {
                     border: styles.getPropertyValue('--color-border').trim(),
                 };
             },
+            toggleVisibility(element, show) {
+                if (!element) return;
+                if (show) {
+                    element.classList.remove('hidden');
+                    element.style.display = '';
+                } else {
+                    element.classList.add('hidden');
+                    element.style.display = 'none';
+                }
+            },
             setLoading(isLoading, progressText = "A processar...") {
-                App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
-                App.elements.loadingProgressText.textContent = progressText;
+                this.toggleVisibility(App.elements.loadingOverlay, isLoading);
+                if (App.elements.loadingProgressText) {
+                    App.elements.loadingProgressText.textContent = progressText;
+                }
             },
             showLoginScreen() {
-                App.elements.loginForm.style.display = 'block';
-                App.elements.offlineUserSelection.style.display = 'none';
-                App.elements.loginScreen.style.display = 'flex';
-                App.elements.appScreen.style.display = 'none';
+                this.toggleVisibility(App.elements.loginForm, true);
+                this.toggleVisibility(App.elements.offlineUserSelection, false);
+                this.toggleVisibility(App.elements.loginScreen, true);
+                this.toggleVisibility(App.elements.appScreen, false);
                 
                 if (App.elements.userMenu && App.elements.userMenu.container) {
-                    App.elements.userMenu.container.style.display = 'none';
+                    this.toggleVisibility(App.elements.userMenu.container, false);
                 }
                 if (App.elements.notificationBell && App.elements.notificationBell.container) {
-                    App.elements.notificationBell.container.style.display = 'none';
+                    this.toggleVisibility(App.elements.notificationBell.container, false);
                 }
 
                 App.elements.loginUser.value = '';
                 App.elements.loginPass.value = '';
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
-                App.ui.setLoading(false);
+                this.setLoading(false);
             },
             showOfflineUserSelection() { // Removed profiles argument
-                App.elements.loginForm.style.display = 'none';
-                App.elements.offlineUserSelection.style.display = 'block';
+                this.toggleVisibility(App.elements.loginForm, false);
+                this.toggleVisibility(App.elements.offlineUserSelection, true);
                 // No longer need to populate a select list
                 const offlineEmailInput = document.getElementById('offlineEmail');
                 if(offlineEmailInput) {
                     offlineEmailInput.value = ''; // Clear previous entries
                     offlineEmailInput.focus();
                 }
-                App.elements.loginScreen.style.display = 'flex';
-                App.elements.appScreen.style.display = 'none';
-                App.ui.setLoading(false);
+                this.toggleVisibility(App.elements.loginScreen, true);
+                this.toggleVisibility(App.elements.appScreen, false);
+                this.setLoading(false);
             },
             showAppScreen() {
                 const { currentUser } = App.state;
-                App.ui.setLoading(false);
-                App.elements.loginScreen.style.display = 'none';
-                App.elements.appScreen.style.display = 'flex';
-                App.elements.userMenu.container.style.display = 'block';
-                App.elements.notificationBell.container.style.display = 'block';
+                this.setLoading(false);
+                this.toggleVisibility(App.elements.loginScreen, false);
+                this.toggleVisibility(App.elements.appScreen, true);
+                this.toggleVisibility(App.elements.userMenu.container, true);
+                this.toggleVisibility(App.elements.notificationBell.container, true);
                 App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
                 
                 // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
@@ -1684,11 +1696,21 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
             renderMenu() {
-                const { menu } = App.elements; const { menuConfig } = App.config; const { currentUser } = App.state;
-                menu.innerHTML = '';
-                const menuContent = document.createElement('div');
-                menuContent.className = 'menu-content';
-                menu.appendChild(menuContent);
+                const menuContainer = App.elements.menu;
+                // Find or create the content container to preserve header/footer
+                let menuContent = menuContainer.querySelector('.menu-content');
+                if (!menuContent) {
+                    // Fallback for old structure or if missing
+                    menuContainer.innerHTML = '';
+                    menuContent = document.createElement('div');
+                    menuContent.className = 'p-4 space-y-1 menu-content'; // Tailwind classes
+                    menuContainer.appendChild(menuContent);
+                } else {
+                    menuContent.innerHTML = ''; // Clear only content
+                }
+
+                const { menuConfig } = App.config;
+                const { currentUser } = App.state;
 
                 const createMenuItem = (item) => {
                     const { currentUser, companies } = App.state;
@@ -1711,104 +1733,124 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!isVisible) return null;
                     }
                     
-                    const btn = document.createElement('button');
-                    btn.className = 'menu-btn';
-                    btn.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span>`;
-
-                    if (isSuperAdmin) {
-                        const isAnySubItemHidden = item.submenu && item.submenu.some(sub => !App.isFeatureGloballyActive(sub.permission));
-                        const isDirectItemHidden = !item.submenu && item.permission && !App.isFeatureGloballyActive(item.permission);
-
-                        if (isAnySubItemHidden || isDirectItemHidden) {
-                            btn.classList.add('globally-disabled-feature');
-                            btn.innerHTML += '<span class="feature-status-badge">Oculto</span>';
-                        }
-                    }
-                    
                     if (item.submenu) {
-                        btn.innerHTML += '<span class="arrow">&rsaquo;</span>';
-                        btn.addEventListener('click', (e) => {
+                        // Group (Accordion)
+                        const groupDiv = document.createElement('div');
+                        groupDiv.className = 'menu-group';
+
+                        const toggleBtn = document.createElement('button');
+                        toggleBtn.className = 'menu-item justify-between group w-full'; // Added w-full
+                        const submenuId = `submenu-${item.label.replace(/\s+/g, '-').toLowerCase()}`;
+                        toggleBtn.setAttribute('data-toggle', submenuId);
+
+                        toggleBtn.innerHTML = `
+                            <div class="flex items-center">
+                                <i class="${item.icon}"></i>
+                                <span>${item.label}</span>
+                            </div>
+                            <i class="fas fa-chevron-down text-xs transition-transform duration-200"></i>
+                        `;
+
+                        const submenuDiv = document.createElement('div');
+                        submenuDiv.className = 'menu-submenu hidden';
+                        submenuDiv.setAttribute('data-submenu', submenuId);
+
+                        // Toggle Logic
+                        toggleBtn.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            this.renderSubmenu(item);
+                            submenuDiv.classList.toggle('hidden');
+                            const icon = toggleBtn.querySelector('.fa-chevron-down');
+                            if(icon) icon.classList.toggle('rotate-180');
                         });
+
+                        item.submenu.forEach(subItem => {
+                             // ... permission checks for subItem ...
+                            const isSubSuperAdmin = currentUser.role === 'super-admin';
+                            const subHasPermission = isSubSuperAdmin || (currentUser.permissions && currentUser.permissions[subItem.permission]);
+                            if (!subHasPermission) return;
+
+                            const subIsGloballyActive = App.isFeatureGloballyActive(subItem.permission);
+                            const userCompany = App.state.companies.find(c => c.id === currentUser.companyId);
+                            const subscribedModules = new Set(userCompany?.subscribedModules || []);
+                            const subIsSubscribed = isSubSuperAdmin || subscribedModules.has(subItem.permission);
+
+                            if (!isSubSuperAdmin && (!subIsGloballyActive || !subIsSubscribed)) return;
+
+                            const subLink = document.createElement('a');
+                            subLink.href = '#';
+                            subLink.className = 'menu-subitem';
+                            subLink.setAttribute('data-target', subItem.target);
+                            subLink.innerHTML = `<i class="${subItem.icon}"></i> <span>${subItem.label}</span>`;
+
+                            if (isSubSuperAdmin && !subIsGloballyActive) {
+                                subLink.classList.add('opacity-50');
+                                subLink.title = "Oculto Globalmente";
+                            }
+
+                            subLink.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                // Close mobile menu if open
+                                if (window.innerWidth < 1024) {
+                                    document.getElementById('menu').classList.add('-translate-x-full');
+                                    document.getElementById('sidebarOverlay').classList.add('hidden');
+                                }
+                                // Update active state
+                                document.querySelectorAll('.menu-item, .menu-subitem').forEach(el => el.classList.remove('active'));
+                                subLink.classList.add('active');
+                                // Update Title
+                                document.getElementById('pageTitle').textContent = subItem.label;
+
+                                this.showTab(subItem.target);
+                            });
+
+                            submenuDiv.appendChild(subLink);
+                        });
+
+                        if (submenuDiv.children.length > 0) {
+                            groupDiv.appendChild(toggleBtn);
+                            groupDiv.appendChild(submenuDiv);
+                            return groupDiv;
+                        }
+                        return null;
+
                     } else {
-                        btn.addEventListener('click', () => {
-                            this.closeAllMenus();
+                        // Single Item
+                        const link = document.createElement('a');
+                        link.href = '#';
+                        link.className = 'menu-item';
+                        link.setAttribute('data-target', item.target);
+                        link.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span>`;
+
+                        link.addEventListener('click', (e) => {
+                            e.preventDefault();
+                             if (window.innerWidth < 1024) {
+                                document.getElementById('menu').classList.add('-translate-x-full');
+                                document.getElementById('sidebarOverlay').classList.add('hidden');
+                            }
+                            document.querySelectorAll('.menu-item, .menu-subitem').forEach(el => el.classList.remove('active'));
+                            link.classList.add('active');
+                            document.getElementById('pageTitle').textContent = item.label;
+
                             this.showTab(item.target);
                         });
+                        return link;
                     }
-                    return btn;
                 };
+
                 menuConfig.forEach(item => { const menuItem = createMenuItem(item); if (menuItem) menuContent.appendChild(menuItem); });
             },
-            renderSubmenu(parentItem) {
-                const { menu } = App.elements;
-                let submenuContent = menu.querySelector('.submenu-content');
-                if (submenuContent) submenuContent.remove();
-
-                submenuContent = document.createElement('div');
-                submenuContent.className = 'submenu-content';
-
-                const backBtn = document.createElement('button');
-                backBtn.className = 'submenu-back-btn';
-                backBtn.innerHTML = '<i class="fas fa-arrow-left"></i> <span>Voltar</span>';
-                backBtn.onclick = () => {
-                    submenuContent.classList.remove('active');
-                    setTimeout(() => this.renderMenu(), 300);
-                };
-                submenuContent.appendChild(backBtn);
-                
-                const { currentUser, companies } = App.state;
-                const userCompany = currentUser.role !== 'super-admin' ? companies.find(c => c.id === currentUser.companyId) : null;
-                const subscribedModules = new Set(userCompany?.subscribedModules || []);
-
-                parentItem.submenu.forEach(subItem => {
-                    const isSuperAdmin = currentUser.role === 'super-admin';
-                    const hasPermission = isSuperAdmin || (currentUser.permissions && currentUser.permissions[subItem.permission]);
-
-                    if (!hasPermission) return;
-
-                    const isGloballyActive = App.isFeatureGloballyActive(subItem.permission);
-                    const isSubscribed = isSuperAdmin || subscribedModules.has(subItem.permission);
-
-                    if (!isSuperAdmin && (!isGloballyActive || !isSubscribed)) {
-                        return; // Não renderiza para utilizadores normais se não estiver globalmente ativo OU não estiver subscrito
-                    }
-
-                    const subBtn = document.createElement('button');
-                    subBtn.className = 'submenu-btn';
-                    subBtn.innerHTML = `<i class="${subItem.icon}"></i> ${subItem.label}`;
-
-                    if (isSuperAdmin && !isGloballyActive) {
-                        subBtn.classList.add('globally-disabled-feature');
-                        subBtn.innerHTML += '<span class="feature-status-badge">Oculto</span>';
-                    }
-
-                    if (!isSubscribed && !isSuperAdmin) {
-                        // Este caso não deveria acontecer por causa do filtro acima, mas é uma segurança.
-                        subBtn.classList.add('disabled-module');
-                        subBtn.title = "Módulo não disponível na sua subscrição.";
-                        subBtn.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa.", "warning", 5000);
-                        });
-                    } else {
-                        subBtn.addEventListener('click', () => {
-                            this.closeAllMenus();
-                            this.showTab(subItem.target);
-                        });
-                    }
-                    submenuContent.appendChild(subBtn);
-                });
-                menu.appendChild(submenuContent);
-                requestAnimationFrame(() => submenuContent.classList.add('active'));
-            },
             closeAllMenus() {
-                document.body.classList.remove('mobile-menu-open');
-                App.elements.menu.classList.remove('open');
-                App.elements.btnToggleMenu.classList.remove('open');
-                const activeSubmenu = App.elements.menu.querySelector('.submenu-content.active');
-                if(activeSubmenu) activeSubmenu.classList.remove('active');
+                // Tailwind based toggling
+                const sidebar = document.getElementById('menu');
+                const overlay = document.getElementById('sidebarOverlay');
+                if (sidebar) sidebar.classList.add('-translate-x-full');
+                if (overlay) overlay.classList.add('hidden');
+
+                // Also close dropdowns
+                const notificationDropdown = document.getElementById('notification-dropdown');
+                const userDropdown = document.getElementById('user-menu-dropdown');
+                if (notificationDropdown) notificationDropdown.classList.add('hidden', 'opacity-0', 'scale-95');
+                if (userDropdown) userDropdown.classList.add('hidden', 'opacity-0', 'scale-95');
             },
             populateHarvestPlanSelect() {
                 const { select } = App.elements.relatorioColheita;

@@ -1,19 +1,150 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="scroll-smooth">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>AgroVetor - Inspeção e Planejamento</title>
+    <title>AgroVetor Pro - Sistema Inteligente de Gestão Agrícola</title>
 
-    <!-- PWA (Progressive Web App) Tags -->
+    <!-- PWA Tags (mantidas do original) -->
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#2e7d32">
+    <meta name="theme-color" content="#10b981">
     <link rel="apple-touch-icon" href="./icons/icon-192x192.png">
     <link rel="icon" type="image/png" href="icons/icon-512x512.png">
 
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom CSS (para funcionalidades específicas) -->
     <style>
+        :root {
+            --color-primary: #10b981;
+            --color-primary-dark: #059669;
+            --color-primary-light: #d1fae5;
+            --color-accent: #3b82f6;
+            --color-danger: #ef4444;
+            --color-warning: #f59e0b;
+            --color-success: #10b981;
+            --color-info: #3b82f6;
+            --color-purple: #8b5cf6;
+        }
+
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* Smooth transitions */
+        .transition-all-300 {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+
+        /* Glass morphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .dark .glass {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Card hover effects */
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Loading animation */
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .animate-pulse-subtle {
+            animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        /* Shimmer effect */
+        .shimmer {
+            background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.4) 50%,
+                transparent 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        /* Notification bell animation */
+        @keyframes bell-ring {
+            0%, 100% { transform: rotate(0); }
+            25% { transform: rotate(15deg); }
+            75% { transform: rotate(-15deg); }
+        }
+
+        .bell-ring:hover {
+            animation: bell-ring 0.5s ease;
+        }
+
+        /* Status indicators */
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .status-online { background-color: #10b981; }
+        .status-offline { background-color: #ef4444; }
+        .status-warning { background-color: #f59e0b; }
+
+        /* Form input focus styles */
+        .input-focus:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        /* Modal backdrop blur */
+        .modal-backdrop {
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+
       :root {
           --color-primary: #2e7d32;
           --color-primary-dark: #1b5e20;
@@ -62,10 +193,7 @@
       }
 
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body { scroll-behavior: smooth; height: 100%; overflow: hidden; }
-      body { margin: 0; font-family: var(--font-family); background-color: var(--color-bg); color: var(--color-text); min-height: 100vh; display: flex; flex-direction: column; line-height: 1.5; -webkit-font-smoothing: antialiased; }
       
-      #loginScreen { 
           flex: 1; 
           background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('./icons/imagens.png');
           background-size: cover;
@@ -77,7 +205,6 @@
           padding: 20px; 
       }
       
-      #loginBox {
           background: color-mix(in srgb, var(--color-surface) 60%, transparent);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
@@ -93,9 +220,7 @@
           overflow: hidden; 
       }
 
-      #loginBox::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(to right, var(--color-primary), var(--color-accent)); }
       @keyframes slideUpFadeIn { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
-      #loginBox h2 { margin-bottom: 30px; color: var(--color-primary); font-weight: 600; font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 10px; }
 
       .input-field {
           position: relative;
@@ -139,14 +264,6 @@
       #btnLogin:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
       #loginMessage { color: var(--color-danger); min-height: 20px; margin-top: 16px; font-size: 14px; font-weight: 500; transition: var(--transition); }
       
-      header { 
-          position: fixed; top: 0; left: 0; right: 0; height: 70px; 
-          background: linear-gradient(to right, var(--color-primary), var(--color-primary-dark)); 
-          color: var(--color-white); 
-          display: flex; align-items: center; justify-content: space-between; 
-          padding: 0 16px; 
-          box-shadow: var(--shadow-md); z-index: 1000; user-select: none; 
-      }
       .header-title-container {
           flex-grow: 1;
           text-align: center;
@@ -170,8 +287,6 @@
       .menu-toggle.open div:nth-child(1) { transform: translateY(9px) rotate(45deg); }
       .menu-toggle.open div:nth-child(2) { opacity: 0; }
       .menu-toggle.open div:nth-child(3) { transform: translateY(-9px) rotate(-45deg); }
-      nav.menu { position: fixed; top: 0; bottom: 0; left: 0; width: 280px; background: linear-gradient(to bottom, var(--color-primary), var(--color-primary-dark)); overflow-x: hidden; overflow-y: auto; transform: translateX(-100%); transition: transform 0.3s ease; z-index: 1050; box-shadow: var(--shadow-lg); }
-      nav.menu.open { transform: translateX(0); }
       .menu-content { width: 100%; }
       .submenu-content { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to bottom, var(--color-primary), var(--color-primary-dark)); transform: translateX(100%); transition: transform 0.3s ease; padding: 20px 0; }
       .submenu-content.active { transform: translateX(0); }
@@ -200,8 +315,6 @@
       }
       .menu-btn .arrow { margin-left: auto; transition: transform 0.3s ease; font-size: 14px; }
       .submenu-back-btn { font-weight: 600; }
-      main.content { margin-top: 70px; padding: 20px; transition: filter 0.3s ease; height: calc(100vh - 70px); overflow-y: auto; }
-      .mobile-menu-open main.content, .mobile-menu-open header { filter: blur(4px) brightness(0.7); }
       .tab-content { display: none; animation: fadeIn 0.3s ease-out; }
       .tab-content.active { display: block; }
       .card { background: var(--color-surface); padding: 24px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-sm); font-size: 16px; max-width: 1200px; margin: 0 auto 30px; border-left: 4px solid var(--color-accent); transition: var(--transition); position: relative; }
@@ -1538,7 +1651,6 @@
               max-width: calc(100% - 140px); /* Espaço para botão de menu e ações */
           }
           header h1 { font-size: 16px; }
-          main.content { padding: 15px; height: calc(100vh - 70px); }
           .card { padding: 16px; }
           .card-header-actions { flex-direction: column; align-items: stretch; }
           .card-header-actions .button-group { justify-content: center; }
@@ -1783,125 +1895,613 @@
           box-shadow: var(--shadow-sm);
           font-weight: 600;
       }
-    </style>
+
+</style>
+
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        agro: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        },
+                        agroblue: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        },
+                        agrored: {
+                            50: '#fef2f2',
+                            100: '#fee2e2',
+                            200: '#fecaca',
+                            300: '#fca5a5',
+                            400: '#f87171',
+                            500: '#ef4444',
+                            600: '#dc2626',
+                            700: '#b91c1c',
+                            800: '#991b1b',
+                            900: '#7f1d1d',
+                        },
+                        agroyellow: {
+                            50: '#fffbeb',
+                            100: '#fef3c7',
+                            200: '#fde68a',
+                            300: '#fcd34d',
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            800: '#92400e',
+                            900: '#78350f',
+                        }
+                    },
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-in-right': 'slideInRight 0.3s ease-out',
+                        'slide-in-left': 'slideInLeft 0.3s ease-out',
+                        'slide-in-up': 'slideInUp 0.4s ease-out',
+                        'bounce-slow': 'bounce 2s infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideInRight: {
+                            '0%': { transform: 'translateX(100%)' },
+                            '100%': { transform: 'translateX(0)' },
+                        },
+                        slideInLeft: {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(0)' },
+                        },
+                        slideInUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div id="splash-screen">
-        <img src="icons/icon-512x512.png" alt="AgroVetor Logo" class="splash-logo">
-        <p class="splash-message">Bem-vindo ao futuro do agronegócio.</p>
-    </div>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
 
-    <div id="alertContainer"></div>
-    <div id="notification-container"></div>
-
-    <div id="loading-overlay">
-        <div class="spinner"></div>
-        <p id="loading-progress-text" style="color: var(--color-ai); font-weight: 500;">A processar...</p>
-    </div>
-
-    <div id="loginScreen" style="display: none;">
-        <div id="loginBox" role="main" aria-label="Tela de login">
-            <div id="loginForm">
-                <h2><i class="fas fa-leaf"></i> AGROVETOR</h2>
-                <div class="input-field">
-                    <input id="loginUser" type="email" placeholder=" " required />
-                    <label for="loginUser">Email</label>
+    <!-- Splash Screen (Premium) -->
+    <div id="splash-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-agro-700 to-agro-900">
+        <div class="text-center animate-fade-in">
+            <!-- Animated logo -->
+            <div class="relative mb-8">
+                <div class="w-32 h-32 mx-auto rounded-full bg-white/10 flex items-center justify-center">
+                    <i class="fas fa-leaf text-white text-5xl animate-pulse-subtle"></i>
                 </div>
-                <div class="input-field">
-                    <input id="loginPass" type="password" placeholder=" " required autocomplete="new-password" />
-                    <label for="loginPass">Senha</label>
-                </div>
-                <button id="btnLogin" aria-label="Botão de login"><i class="fas fa-sign-in-alt"></i> LOGIN</button>
-                <div id="loginMessage" role="alert" aria-live="assertive"></div>
+                <!-- Pulsing rings -->
+                <div class="absolute inset-0 rounded-full border-4 border-white/20 animate-ping"></div>
+                <div class="absolute inset-4 rounded-full border-2 border-white/30 animate-ping" style="animation-delay: 0.2s;"></div>
             </div>
-            
-            <div id="offlineUserSelection" style="display: none;">
-                <h2><i class="fas fa-wifi-slash"></i> Acesso Offline</h2>
-                <p style="color: var(--color-text-light); margin-bottom: 20px;">Insira seu e-mail para continuar sem conexão.</p>
-                <div class="input-field">
-                    <input id="offlineEmail" type="email" placeholder=" " required />
-                    <label for="offlineEmail">Email</label>
-                </div>
-                <div class="input-field">
-                    <input id="offlinePassword" type="password" placeholder=" " />
-                    <label for="offlinePassword">Senha</label>
-                </div>
-                <button id="btnOfflineLogin" class="save" style="width: 100%; margin-top: 24px; background: var(--color-info);"><i class="fas fa-sign-in-alt"></i> Entrar Offline</button>
+
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">
+                AgroVetor<span class="text-agro-300"> Pro</span>
+            </h1>
+            <p class="text-xl text-white/90 mb-8 font-light">Sistema Inteligente de Gestão Agrícola</p>
+
+            <!-- Progress bar -->
+            <div class="w-64 h-1.5 bg-white/20 rounded-full overflow-hidden mx-auto">
+                <div id="splash-progress" class="h-full bg-gradient-to-r from-agro-400 to-agro-300 rounded-full w-0 transition-all duration-1000"></div>
             </div>
+
+            <!-- Loading text -->
+            <p class="text-white/70 text-sm mt-4 font-medium">
+                <span id="splash-text">Inicializando sistema...</span>
+                <span class="loading-dots">
+                    <span class="dot">.</span>
+                    <span class="dot">.</span>
+                    <span class="dot">.</span>
+                </span>
+            </p>
+        </div>
+
+        <!-- Version badge -->
+        <div class="absolute bottom-6 right-6">
+            <span class="text-xs text-white/50 font-mono">v2.1.0</span>
         </div>
     </div>
 
-    <div id="appScreen" style="display:none; flex:1; flex-direction: column;">
-        <header>
-            <button class="menu-toggle" id="btnToggleMenu" aria-label="Abrir menu" aria-expanded="false" aria-controls="menu">
-                <div></div><div></div><div></div>
-            </button>
-            <div class="header-title-container">
-                <!-- ALTERAÇÃO PONTO 3: Texto do título removido -->
-                <h1 id="headerLogo" style="cursor: pointer;"><i class="fas fa-leaf"></i></h1>
+    <!-- Login Screen (Premium) -->
+    <div id="loginScreen" class="min-h-screen hidden">
+        <!-- Background with overlay -->
+        <div class="absolute inset-0 bg-gradient-to-br from-agro-800 via-agro-700 to-agroblue-800">
+            <!-- Animated background pattern -->
+            <div class="absolute inset-0 opacity-10">
+                <div class="absolute top-0 left-0 w-64 h-64 bg-white rounded-full mix-blend-overlay filter blur-3xl animate-bounce-slow"></div>
+                <div class="absolute bottom-0 right-0 w-96 h-96 bg-agroblue-300 rounded-full mix-blend-overlay filter blur-3xl animate-bounce-slow" style="animation-delay: 1s;"></div>
             </div>
-            
-            <div class="header-actions-container">
-                <div id="notification-bell-container" class="notification-bell" style="display: none;">
-                    <button id="notification-bell-toggle" aria-label="Notificações">
-                        <i class="fas fa-bell"></i>
-                        <span id="notification-count">0</span>
-                    </button>
-                    <div id="notification-dropdown">
-                        <div class="notification-header">
-                            <span>Notificações</span>
-                            <button id="clear-notifications-btn">Limpar</button>
+        </div>
+
+        <!-- Login Container -->
+        <div class="relative min-h-screen flex items-center justify-center p-4">
+            <!-- Login Card -->
+            <div class="w-full max-w-md">
+                <!-- Floating card -->
+                <div class="glass rounded-2xl shadow-2xl overflow-hidden animate-slide-in-up">
+                    <!-- Card header with gradient -->
+                    <div class="relative p-8 text-center bg-gradient-to-r from-agro-600 to-agro-500">
+                        <div class="absolute -top-6 left-1/2 transform -translate-x-1/2">
+                            <div class="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg">
+                                <i class="fas fa-leaf text-agro-600 text-2xl"></i>
+                            </div>
                         </div>
-                        <div id="notification-list">
-                            <!-- Itens de notificação aqui -->
+
+                        <h2 class="text-2xl font-bold text-white mt-8">AgroVetor Pro</h2>
+                        <p class="text-white/80 text-sm mt-2">Acesso ao Sistema</p>
+
+                        <!-- Connection status -->
+                        <div class="mt-4 inline-flex items-center px-3 py-1 rounded-full bg-white/20 text-white text-xs font-medium">
+                            <span class="status-indicator status-online"></span>
+                            <span id="connection-status">Conectado</span>
                         </div>
-                        <div id="no-notifications" style="display: none;">
-                            <p>Nenhuma notificação nova.</p>
+                    </div>
+
+                    <!-- Login form -->
+                    <div class="p-8">
+                        <!-- Online login form -->
+                        <div id="loginForm">
+                            <div class="space-y-6">
+                                <!-- Email field -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        <i class="fas fa-envelope mr-2 text-agro-500"></i>
+                                        Email
+                                    </label>
+                                    <div class="relative">
+                                        <input id="loginUser" type="email"
+                                               class="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-600
+                                                      bg-white dark:bg-gray-800 text-gray-900 dark:text-white
+                                                      focus:outline-none focus:ring-2 focus:ring-agro-500 focus:border-transparent
+                                                      transition-all-300"
+                                               placeholder="seu@email.com">
+                                        <div class="absolute left-3 top-3.5 text-gray-400">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Password field -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        <i class="fas fa-lock mr-2 text-agro-500"></i>
+                                        Senha
+                                    </label>
+                                    <div class="relative">
+                                        <input id="loginPass" type="password"
+                                               class="w-full px-4 py-3 pl-10 pr-10 rounded-lg border border-gray-300 dark:border-gray-600
+                                                      bg-white dark:bg-gray-800 text-gray-900 dark:text-white
+                                                      focus:outline-none focus:ring-2 focus:ring-agro-500 focus:border-transparent
+                                                      transition-all-300"
+                                               placeholder="Sua senha"
+                                               autocomplete="new-password">
+                                        <div class="absolute left-3 top-3.5 text-gray-400">
+                                            <i class="fas fa-key"></i>
+                                        </div>
+                                        <button type="button" id="togglePassword" class="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Remember me -->
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center space-x-2 cursor-pointer">
+                                        <div class="relative">
+                                            <input type="checkbox" class="sr-only" id="rememberMe">
+                                            <div class="w-4 h-4 border border-gray-300 dark:border-gray-600 rounded
+                                                        flex items-center justify-center checkbox-bg">
+                                                <i class="fas fa-check text-white text-xs hidden"></i>
+                                            </div>
+                                        </div>
+                                        <span class="text-sm text-gray-600 dark:text-gray-400">Lembrar-me</span>
+                                    </label>
+
+                                    <a href="#" class="text-sm text-agro-600 dark:text-agro-400 hover:underline transition-all-300">
+                                        Esqueceu a senha?
+                                    </a>
+                                </div>
+
+                                <!-- Login button -->
+                                <button id="btnLogin"
+                                        class="w-full bg-gradient-to-r from-agro-600 to-agro-500 hover:from-agro-700 hover:to-agro-600
+                                               text-white font-semibold py-3 px-4 rounded-lg transition-all-300
+                                               transform hover:-translate-y-0.5 focus:outline-none focus:ring-2
+                                               focus:ring-offset-2 focus:ring-agro-500 shadow-lg hover:shadow-xl">
+                                    <i class="fas fa-sign-in-alt mr-2"></i> Entrar no Sistema
+                                </button>
+
+                                <!-- Divider -->
+                                <div class="relative">
+                                    <div class="absolute inset-0 flex items-center">
+                                        <div class="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                                    </div>
+                                    <div class="relative flex justify-center text-sm">
+                                        <span class="px-3 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
+                                            ou continue offline
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Offline access button -->
+                                <button id="offlineAccessBtn"
+                                        class="w-full border-2 border-gray-300 dark:border-gray-600
+                                               text-gray-700 dark:text-gray-300 font-medium
+                                               py-3 px-4 rounded-lg transition-all-300
+                                               hover:bg-gray-50 dark:hover:bg-gray-800
+                                               hover:border-agro-500 dark:hover:border-agro-500
+                                               focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">
+                                    <i class="fas fa-wifi-slash mr-2"></i> Acessar Modo Offline
+                                </button>
+                            </div>
+
+                            <!-- Error message -->
+                            <div id="loginMessage" class="mt-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200
+                                                         dark:border-red-800 rounded-lg text-red-600 dark:text-red-400
+                                                         text-sm hidden animate-fade-in">
+                                <div class="flex items-center">
+                                    <i class="fas fa-exclamation-circle mr-2"></i>
+                                    <span id="errorText">Email ou senha incorretos</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Offline login form (hidden by default) -->
+                        <div id="offlineUserSelection" class="hidden animate-fade-in">
+                            <div class="text-center mb-6">
+                                <div class="w-12 h-12 mx-auto rounded-full bg-yellow-100 dark:bg-yellow-900/30
+                                            flex items-center justify-center mb-3">
+                                    <i class="fas fa-wifi-slash text-yellow-600 dark:text-yellow-400 text-xl"></i>
+                                </div>
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Modo Offline</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                    Use suas credenciais para acesso sem internet
+                                </p>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Email
+                                    </label>
+                                    <input id="offlineEmail" type="email"
+                                           class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600
+                                                  bg-white dark:bg-gray-800 text-gray-900 dark:text-white
+                                                  focus:outline-none focus:ring-2 focus:ring-agro-500 focus:border-transparent"
+                                           placeholder="seu@email.com">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Senha (opcional)
+                                    </label>
+                                    <input id="offlinePassword" type="password"
+                                           class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600
+                                                  bg-white dark:bg-gray-800 text-gray-900 dark:text-white
+                                                  focus:outline-none focus:ring-2 focus:ring-agro-500 focus:border-transparent"
+                                           placeholder="Senha (opcional)">
+                                </div>
+
+                                <button id="btnOfflineLogin"
+                                        class="w-full bg-gradient-to-r from-agroblue-600 to-agroblue-500
+                                               hover:from-agroblue-700 hover:to-agroblue-600
+                                               text-white font-semibold py-3 px-4 rounded-lg transition-all-300
+                                               transform hover:-translate-y-0.5">
+                                    <i class="fas fa-sign-in-alt mr-2"></i> Entrar Offline
+                                </button>
+
+                                <button id="backToOnline"
+                                        class="w-full text-agro-600 dark:text-agro-400 font-medium py-2
+                                               hover:underline transition-all-300">
+                                    <i class="fas fa-arrow-left mr-2"></i> Voltar para login online
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="px-8 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
+                        <div class="text-center">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                © 2024 AgroVetor Pro. Todos os direitos reservados.
+                            </p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                Sistema de Gestão Agrícola Inteligente
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                <div id="user-menu-container" style="display:none;">
-                    <button id="user-menu-toggle" aria-label="Menu do Utilizador" aria-haspopup="true" aria-expanded="false">
-                        <i class="fas fa-user-circle"></i>
-                    </button>
-                    <div id="user-menu-dropdown" role="menu">
-                        <div class="user-menu-header">
-                            <p><strong>Conectado como:</strong></p>
-                            <p id="userMenuUsername"></p>
+                <!-- Demo accounts -->
+                <div class="mt-6 glass rounded-xl p-4 animate-slide-in-up" style="animation-delay: 0.1s;">
+                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                        <i class="fas fa-users mr-2 text-agro-500"></i>
+                        Contas de demonstração
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div class="bg-white/50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <div class="font-medium text-gray-700 dark:text-gray-300">Admin</div>
+                            <div class="text-gray-600 dark:text-gray-400 truncate">admin@agrovetor.com</div>
                         </div>
-                        <div id="currentDateTime" class="user-menu-item"></div>
-                        <hr>
-                        <div class="theme-selector-container">
-                            <p>Tema</p>
-                            <div class="theme-buttons">
-                                <button id="theme-green" class="theme-button" title="Verde (Padrão)"></button>
-                                <button id="theme-blue" class="theme-button" title="Azul"></button>
-                                <button id="theme-dark" class="theme-button" title="Escuro"></button>
+                        <div class="bg-white/50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <div class="font-medium text-gray-700 dark:text-gray-300">Técnico</div>
+                            <div class="text-gray-600 dark:text-gray-400 truncate">tecnico@agrovetor.com</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Interface -->
+    <div id="appScreen" class="hidden min-h-screen flex flex-col">
+        <!-- Modern Header -->
+        <header class="sticky top-0 z-40 bg-gradient-to-r from-agro-700 to-agro-600 shadow-lg">
+            <div class="px-4 sm:px-6">
+                <div class="flex items-center justify-between h-16">
+                    <!-- Left: Menu toggle and logo -->
+                    <div class="flex items-center space-x-3">
+                        <button id="btnToggleMenu"
+                                class="p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/10
+                                       transition-all-300 focus:outline-none focus:ring-2 focus:ring-white/30">
+                            <div class="flex flex-col items-center justify-center w-6 h-6">
+                                <div class="w-5 h-0.5 bg-white mb-1.5 transition-all-300"></div>
+                                <div class="w-5 h-0.5 bg-white mb-1.5 transition-all-300"></div>
+                                <div class="w-5 h-0.5 bg-white transition-all-300"></div>
+                            </div>
+                        </button>
+
+                        <!-- Logo -->
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                                <i class="fas fa-leaf text-white text-lg"></i>
+                            </div>
+                            <h1 id="headerLogo" class="text-lg font-bold text-white cursor-pointer hidden md:block">
+                                AgroVetor<span class="font-light"> Pro</span>
+                            </h1>
+                        </div>
+                    </div>
+
+                    <!-- Center: Page title -->
+                    <div class="flex-1 px-4">
+                        <div class="max-w-2xl mx-auto">
+                            <h2 id="pageTitle" class="text-base font-semibold text-white text-center truncate">
+                                Dashboard Principal
+                            </h2>
+                        </div>
+                    </div>
+
+                    <!-- Right: Actions -->
+                    <div class="flex items-center space-x-1">
+                        <!-- Theme toggle -->
+                        <button id="themeToggle"
+                                class="p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/10
+                                       transition-all-300 focus:outline-none focus:ring-2 focus:ring-white/30">
+                            <i class="fas fa-moon text-lg" id="themeIcon"></i>
+                        </button>
+
+                        <!-- Notifications -->
+                        <div class="relative" id="notification-bell-container">
+                            <button id="notification-bell-toggle"
+                                    class="p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/10
+                                           transition-all-300 focus:outline-none focus:ring-2 focus:ring-white/30 bell-ring">
+                                <i class="fas fa-bell text-lg"></i>
+                                <span id="notification-count"
+                                      class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white
+                                             text-xs rounded-full flex items-center justify-center hidden animate-pulse">
+                                    3
+                                </span>
+                            </button>
+
+                            <!-- Notifications dropdown -->
+                            <div id="notification-dropdown"
+                                 class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl
+                                        shadow-2xl border border-gray-200 dark:border-gray-700
+                                        transform opacity-0 scale-95 transition-all-300
+                                        origin-top-right z-50 hidden">
+                                <!-- Header -->
+                                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                                    <div class="flex justify-between items-center">
+                                        <h3 class="font-semibold text-gray-900 dark:text-white">Notificações</h3>
+                                        <button id="clear-notifications-btn" class="text-sm text-agro-600 dark:text-agro-400 hover:underline">
+                                            Limpar todas
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- List -->
+                                <div id="notification-list" class="max-h-96 overflow-y-auto custom-scrollbar">
+                                    <!-- Notifications will be inserted here -->
+                                    <!-- <div class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50
+                                                border-b border-gray-100 dark:border-gray-700 cursor-pointer">
+                                        <div class="flex">
+                                            <div class="flex-shrink-0">
+                                                <div class="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30
+                                                     flex items-center justify-center">
+                                                    <i class="fas fa-exclamation text-red-600 dark:text-red-400"></i>
+                                                </div>
+                                            </div>
+                                            <div class="ml-3">
+                                                <p class="text-sm text-gray-900 dark:text-gray-200">
+                                                    <span class="font-semibold">Alta infestação de broca</span>
+                                                </p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    Fazenda São João • Talhão T12 • Há 2 horas
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div> -->
+                                </div>
+
+                                <div id="no-notifications" class="p-8 text-center text-gray-500 hidden">
+                                    <i class="fas fa-bell-slash text-2xl mb-2"></i>
+                                    <p>Nenhuma notificação nova.</p>
+                                </div>
+
+                                <!-- Footer -->
+                                <div class="p-3 border-t border-gray-200 dark:border-gray-700 text-center">
+                                    <a href="#" class="text-sm text-agro-600 dark:text-agro-400 hover:underline">
+                                        Ver todas as notificações
+                                    </a>
+                                </div>
                             </div>
                         </div>
-                        <hr>
-                        <button id="installAppBtn" role="menuitem" class="user-menu-item is-action" style="display: none;">
-                            <i class="fas fa-download"></i> Instalar App
-                        </button>
-                        <button id="manualSyncBtn" role="menuitem" class="user-menu-item is-action">
-                            <i class="fas fa-sync"></i> Sincronizar Manualmente
-                        </button>
-                        <button id="changePasswordBtn" role="menuitem" class="user-menu-item is-action">
-                            <i class="fas fa-key"></i> Alterar Senha
-                        </button>
-                        <button id="logoutBtn" role="menuitem" class="user-menu-item is-action">
-                            <i class="fas fa-sign-out-alt"></i> Sair
-                        </button>
+
+                        <!-- User menu -->
+                        <div class="relative" id="user-menu-container">
+                            <button id="user-menu-toggle"
+                                    class="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-white/10
+                                           transition-all-300 focus:outline-none focus:ring-2 focus:ring-white/30">
+                                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                                    <i class="fas fa-user text-white"></i>
+                                </div>
+                                <i class="fas fa-chevron-down text-white/70 text-xs"></i>
+                            </button>
+
+                            <!-- User dropdown -->
+                            <div id="user-menu-dropdown"
+                                 class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-xl
+                                        shadow-2xl border border-gray-200 dark:border-gray-700
+                                        transform opacity-0 scale-95 transition-all-300
+                                        origin-top-right z-50 hidden">
+                                <!-- Header -->
+                                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-agro-500 to-agro-600
+                                                    flex items-center justify-center">
+                                            <i class="fas fa-user text-white"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p id="userMenuUsername" class="font-semibold text-gray-900 dark:text-white">
+                                                Carregando...
+                                            </p>
+                                            <p class="text-sm text-gray-600 dark:text-gray-400 truncate" id="currentDateTime">
+                                                --/--/---- --:--
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Menu items -->
+                                <div class="py-2">
+                                    <a href="#" class="flex items-center px-4 py-2.5 text-gray-700 dark:text-gray-300
+                                       hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                        <i class="fas fa-user-circle mr-3 text-gray-400"></i>
+                                        Meu Perfil
+                                    </a>
+
+                                    <a href="#" id="installAppBtn" class="flex items-center px-4 py-2.5 text-gray-700 dark:text-gray-300
+                                       hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors hidden">
+                                        <i class="fas fa-download mr-3 text-gray-400"></i>
+                                        Instalar App
+                                    </a>
+
+                                    <a href="#" id="manualSyncBtn" class="flex items-center px-4 py-2.5 text-gray-700 dark:text-gray-300
+                                       hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                        <i class="fas fa-sync mr-3 text-gray-400"></i>
+                                        Sincronizar Dados
+                                    </a>
+
+                                    <a href="#" id="changePasswordBtn" class="flex items-center px-4 py-2.5 text-gray-700 dark:text-gray-300
+                                       hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                        <i class="fas fa-key mr-3 text-gray-400"></i>
+                                        Alterar Senha
+                                    </a>
+
+                                    <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+
+                                    <!-- Theme selector -->
+                                    <div class="px-4 py-2">
+                                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">TEMA</p>
+                                        <div class="flex space-x-2 theme-buttons">
+                                            <button id="theme-green" data-theme="green" class="theme-button theme-selector active w-8 h-8 rounded-full bg-agro-500 border-2 border-agro-600"></button>
+                                            <button id="theme-blue" data-theme="blue" class="theme-button theme-selector w-8 h-8 rounded-full bg-agroblue-500 border-2 border-gray-300"></button>
+                                            <button id="theme-dark" data-theme="dark" class="theme-button theme-selector w-8 h-8 rounded-full bg-gray-800 border-2 border-gray-300"></button>
+                                        </div>
+                                    </div>
+
+                                    <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+
+                                    <a href="#" id="logoutBtn" class="flex items-center px-4 py-2.5 text-red-600 dark:text-red-400
+                                       hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                        <i class="fas fa-sign-out-alt mr-3"></i>
+                                        Sair do Sistema
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </header>
 
-        <nav class="menu" id="menu" aria-label="Menu Principal" tabindex="-1"></nav>
-        
-        <main class="content" id="content">
-            <section id="dashboard" class="tab-content" aria-label="Dashboard" tabindex="0" hidden>
+        <!-- Main Layout -->
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Sidebar Navigation -->
+            <nav id="menu" class="fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-800 shadow-xl
+                                 transform -translate-x-full transition-transform duration-300
+                                 overflow-y-auto lg:translate-x-0 custom-scrollbar menu">
+                <div class="h-16 flex items-center px-6 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-white">
+                        <i class="fas fa-leaf text-agro-500 mr-2"></i>
+                        Navegação
+                    </h2>
+                </div>
+
+                <!-- Menu content will be injected by app.js -->
+                <div class="p-4 space-y-1 menu-content"></div>
+
+                <!-- Sidebar footer -->
+                <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Status</p>
+                            <p class="text-agro-600 dark:text-agro-400 text-sm flex items-center">
+                                <span class="status-indicator status-online"></span>
+                                <span id="sidebarConnectionStatus">Online</span>
+                            </p>
+                        </div>
+                        <button class="p-2 rounded-lg bg-agro-100 dark:bg-agro-900/30
+                                text-agro-700 dark:text-agro-400 hover:bg-agro-200 dark:hover:bg-agro-800/50
+                                transition-colors">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content Area -->
+            <main id="content" class="flex-1 overflow-y-auto transition-all duration-300 lg:ml-64 custom-scrollbar content">
+                <!-- We'll insert the original content here with updated styling -->
+                <div id="originalContent" class="p-4 md:p-6 lg:p-8">
+<section id="dashboard" class="tab-content" aria-label="Dashboard" tabindex="0" hidden>
                 
                 <div id="dashboard-selector" class="dashboard-selector-grid">
                     <div id="card-broca" class="dashboard-card">
@@ -2315,8 +2915,7 @@
                 </div>
 
             </section>
-            
-            <section id="ordemServicoManual" class="tab-content" aria-label="Ordem de Serviço Manual" tabindex="0" hidden style="padding: 0; height: calc(100% + 40px); width: calc(100% + 40px); margin: -20px; overflow: hidden;">
+<section id="ordemServicoManual" class="tab-content" aria-label="Ordem de Serviço Manual" tabindex="0" hidden style="padding: 0; height: calc(100% + 40px); width: calc(100% + 40px); margin: -20px; overflow: hidden;">
                 <div style="display: flex; height: 100%;">
 
                     <!-- Sidebar (Formulário e Lista) -->
@@ -2386,8 +2985,7 @@
 
                 </div>
             </section>
-
-            <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
+<section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
                 <div class="card-header-actions">
                     <h2 style="color: var(--color-success); margin: 0;"><i class="fas fa-stream"></i> Planejamento de Colheita</h2>
                     <div class="button-group">
@@ -2481,8 +3079,7 @@
                     </div>
                 </div>
             </section>
-
-            <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
+<section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
                 <h2><i class="fas fa-calendar-alt"></i> Planejamento de Inspeções</h2>
                 <div class="card" style="border-left-color: var(--color-info);">
                     <h3><i class="fas fa-plus-circle"></i> Agendar Nova Inspeção</h3>
@@ -2508,8 +3105,7 @@
                 <h3><i class="fas fa-tasks"></i> Inspeções Agendadas</h3>
                 <div id="listaPlanejamento"></div>
             </section>
-
-            <section id="lancamentoBroca" class="tab-content card" aria-label="Lançamento Broca" tabindex="0" hidden>
+<section id="lancamentoBroca" class="tab-content card" aria-label="Lançamento Broca" tabindex="0" hidden>
                 <h2><i class="fas fa-bug"></i> Lançamento Broca</h2>
                 <div class="form-row">
                     <div class="form-col">
@@ -2546,8 +3142,7 @@
                 <div class="resultado" id="resultado"></div>
                 <button class="save" type="button" id="btnSalvarBrocamento"><i class="fas fa-save"></i> Guardar Inspeção</button>
             </section>
-            
-            <section id="relatorioBroca" class="tab-content card" aria-label="Relatório Broca" tabindex="0" hidden>
+<section id="relatorioBroca" class="tab-content card" aria-label="Relatório Broca" tabindex="0" hidden>
                 <h2><i class="fas fa-chart-bar"></i> Relatório de Inspeção de Cana (Brocamento)</h2>
                 <div class="form-row">
                     <div class="form-col"><label for="fazendaFiltroBrocamento">Filtrar por Fazenda:</label><select id="fazendaFiltroBrocamento"><option value="">Todas</option></select></div>
@@ -2578,8 +3173,7 @@
                     <button id="btnExcelBrocamento" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
-
-            <section id="relatorioColheitaCustom" class="tab-content card" aria-label="Relatório Customizado de Colheita" tabindex="0" hidden>
+<section id="relatorioColheitaCustom" class="tab-content card" aria-label="Relatório Customizado de Colheita" tabindex="0" hidden>
                 <h2 style="color: var(--color-purple);"><i class="fas fa-file-invoice"></i> Relatório Customizado de Colheita</h2>
                 
                 <div class="card" style="border-left-color: var(--color-purple);">
@@ -2648,8 +3242,7 @@
                     </div>
                 </div>
             </section>
-
-            <section id="relatorioMonitoramento" class="tab-content card" aria-label="Relatório de Monitoramento" tabindex="0" hidden>
+<section id="relatorioMonitoramento" class="tab-content card" aria-label="Relatório de Monitoramento" tabindex="0" hidden>
                 <h2><i class="fas fa-bug"></i> Relatório de Armadilhas</h2>
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere relatórios em PDF ou Excel das armadilhas, com filtros por período e fazenda.</p>
                 <div class="form-row">
@@ -2671,8 +3264,7 @@
                     <button id="btnExcelMonitoramento" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
-
-            <section id="relatorioRisco" class="tab-content card" aria-label="Relatório de Risco" tabindex="0" hidden>
+<section id="relatorioRisco" class="tab-content card" aria-label="Relatório de Risco" tabindex="0" hidden>
                 <h2><i class="fas fa-biohazard"></i> Relatório de Risco</h2>
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Gere um relatório em PDF com a visualização de risco das fazendas.</p>
                 <div class="form-row">
@@ -2692,8 +3284,7 @@
                     <button id="btnExcelRisco" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
-
-            <section id="lancamentoPerda" class="tab-content card" aria-label="Lançamento Perda" tabindex="0" hidden>
+<section id="lancamentoPerda" class="tab-content card" aria-label="Lançamento Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-dollar-sign"></i> Lançamento Perda</h2>
                 <div class="form-row">
                     <div class="form-col"><label for="dataPerda" class="required">Data:</label><input type="date" id="dataPerda" required /></div>
@@ -2722,8 +3313,7 @@
                 <div class="resultado" id="resultadoPerda"></div>
                 <button class="save" type="button" id="btnSalvarPerda"><i class="fas fa-save"></i> Guardar Perda de Cana</button>
             </section>
-
-            <section id="lancamentoCigarrinhaAmostragem" class="tab-content card" aria-label="Lançamento Cigarrinha por Amostragem" tabindex="0" hidden>
+<section id="lancamentoCigarrinhaAmostragem" class="tab-content card" aria-label="Lançamento Cigarrinha por Amostragem" tabindex="0" hidden>
                 <h2><i class="fas fa-vial"></i> Monitoramento de Cigarrinha (Amostragem)</h2>
                 <form id="formCigarrinhaAmostragem">
                     <div class="form-row">
@@ -2762,8 +3352,7 @@
                     <button type="button" id="btnSalvarCigarrinhaAmostragem" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Lançamento</button>
                 </form>
             </section>
-
-            <section id="lancamentoCigarrinha" class="tab-content card" aria-label="Lançamento Cigarrinha" tabindex="0" hidden>
+<section id="lancamentoCigarrinha" class="tab-content card" aria-label="Lançamento Cigarrinha" tabindex="0" hidden>
                 <h2><i class="fas fa-leaf"></i> Lançamento Monitoramento de Cigarrinha</h2>
                 <div class="form-row">
                     <div class="form-col">
@@ -2804,8 +3393,7 @@
                 <div class="resultado" id="resultadoCigarrinha"></div>
                 <button class="save" type="button" id="btnSalvarCigarrinha"><i class="fas fa-save"></i> Guardar Monitoramento</button>
             </section>
-
-            <section id="relatorioPerda" class="tab-content card" aria-label="Relatório Perda" tabindex="0" hidden>
+<section id="relatorioPerda" class="tab-content card" aria-label="Relatório Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-chart-pie"></i> Relatório de Perda de Cana</h2>
                 <div class="form-row">
                     <div class="form-col"><label for="fazendaFiltroPerda">Filtrar por Fazenda:</label><select id="fazendaFiltroPerda"><option value="">Todas</option></select></div>
@@ -2833,8 +3421,7 @@
                     <button id="btnExcelPerda" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
-
-            <section id="relatorioCigarrinha" class="tab-content card" aria-label="Relatório Cigarrinha" tabindex="0" hidden>
+<section id="relatorioCigarrinha" class="tab-content card" aria-label="Relatório Cigarrinha" tabindex="0" hidden>
                 <h2><i class="fas fa-leaf"></i> Relatório de Monitoramento de Cigarrinha</h2>
                 <div class="form-row">
                     <div class="form-col"><label for="fazendaFiltroCigarrinha">Filtrar por Fazenda:</label><select id="fazendaFiltroCigarrinha"><option value="">Todas</option></select></div>
@@ -2846,7 +3433,6 @@
                     <button id="btnExcelCigarrinha" type="button" style="height: 40px;"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
-
 <section id="relatorioCigarrinhaAmostragem" class="tab-content card" aria-label="Relatório de Cigarrinha de Amostragem" tabindex="0" hidden>
     <h2><i class="fas fa-file-invoice"></i> Relatório de Monitoramento de Cigarrinha (Amostragem)</h2>
     <div class="form-row">
@@ -2869,8 +3455,7 @@
         <button id="btnExcelCigarrinhaAmostragem" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
     </div>
 </section>
-
-            <section id="gerenciarLancamentos" class="tab-content card" aria-label="Gerenciar Lançamentos" tabindex="0" hidden>
+<section id="gerenciarLancamentos" class="tab-content card" aria-label="Gerenciar Lançamentos" tabindex="0" hidden>
                 <h2><i class="fas fa-edit"></i> Gerenciar Lançamentos</h2>
                 <p>Selecione um lançamento para editar ou excluir.</p>
                 <div class="card" style="border-left-color: var(--color-warning); margin-bottom: 20px;">
@@ -2897,8 +3482,7 @@
                 </div>
                 <div id="listaGerenciamento" tabindex="0"></div>
             </section>
-
-            <section id="cadastros" class="tab-content card" aria-label="Cadastros" tabindex="0" hidden>
+<section id="cadastros" class="tab-content card" aria-label="Cadastros" tabindex="0" hidden>
                 <h2><i class="fas fa-book"></i> Cadastros Gerais</h2>
 
                 <div id="superAdminFarmCreation" class="card" style="display: none; border-left-color: var(--color-purple); margin-bottom: 20px;">
@@ -2970,8 +3554,7 @@
                     </div>
                 </div>
             </section>
-
-            <section id="gerenciarUsuarios" class="tab-content card" aria-label="Gerir Utilizadores" tabindex="0" hidden>
+<section id="gerenciarUsuarios" class="tab-content card" aria-label="Gerir Utilizadores" tabindex="0" hidden>
                 <h2><i class="fas fa-users-cog"></i> Gerir Utilizadores</h2>
                 <div id="superAdminUserCreation" class="card" style="display: none; border-left-color: var(--color-purple); margin-bottom: 20px;">
                     <h4><i class="fas fa-user-shield"></i> Ação como Super Admin</h4>
@@ -2995,8 +3578,7 @@
                 <h3><i class="fas fa-users"></i> Utilizadores Cadastrados</h3>
                 <div id="usersList"></div>
             </section>
-
-            <section id="gerenciarAtualizacoes" class="tab-content card" aria-label="Gerenciar Atualizações" tabindex="0" hidden>
+<section id="gerenciarAtualizacoes" class="tab-content card" aria-label="Gerenciar Atualizações" tabindex="0" hidden>
                 <h2><i class="fas fa-bullhorn"></i> Gerenciar Atualizações do Sistema</h2>
                 <div class="card" style="border-left-color: var(--color-info);">
                     <h3><i class="fas fa-plus-circle"></i> Publicar Nova Atualização</h3>
@@ -3022,8 +3604,7 @@
                 <h3><i class="fas fa-history"></i> Histórico de Atualizações</h3>
                 <div id="announcementsList" class="table-responsive"></div>
             </section>
-
-            <section id="gerenciarEmpresas" class="tab-content card" aria-label="Gerir Empresas" tabindex="0" hidden>
+<section id="gerenciarEmpresas" class="tab-content card" aria-label="Gerir Empresas" tabindex="0" hidden>
                 <h2><i class="fas fa-building"></i> Gerir Empresas (Super Admin)</h2>
                 <div class="card" style="border-left-color: var(--color-danger);">
                     <h3><i class="fas fa-plus-circle"></i> Criar Nova Empresa e Admin</h3>
@@ -3069,8 +3650,7 @@
                     <button id="btnSaveGlobalFeatures" class="save" style="max-width: 300px; margin-top: 25px; background: var(--color-ai);"><i class="fas fa-save"></i> Guardar Alterações Globais</button>
                 </div>
             </section>
-
-            <section id="cadastrarPessoas" class="tab-content card" aria-label="Cadastrar Pessoas" tabindex="0" hidden>
+<section id="cadastrarPessoas" class="tab-content card" aria-label="Cadastrar Pessoas" tabindex="0" hidden>
                 <h2><i class="fas fa-id-card"></i> Cadastro de Pessoas</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-upload"></i> Importar Pessoas via CSV</h3>
@@ -3095,8 +3675,7 @@
                     <h3><i class="fas fa-users"></i> Pessoas Cadastradas</h3>
                 <div id="personnelList" class="table-responsive"></div>
             </section>
-            
-            <section id="configuracoesEmpresa" class="tab-content card" aria-label="Configurações da Empresa" tabindex="0" hidden>
+<section id="configuracoesEmpresa" class="tab-content card" aria-label="Configurações da Empresa" tabindex="0" hidden>
                 <h2><i class="fas fa-building"></i> Configurações da Empresa</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-image"></i> Logotipo da Empresa</h3>
@@ -3208,16 +3787,14 @@
                     <button id="btnSaveCompanySettings" class="save" style="max-width: 300px;"><i class="fas fa-save"></i> Guardar Todas as Configurações</button>
                 </div>
             </section>
-
-            <section id="syncHistory" class="tab-content card" aria-label="Histórico de Sincronização" tabindex="0" hidden>
+<section id="syncHistory" class="tab-content card" aria-label="Histórico de Sincronização" tabindex="0" hidden>
                 <h2><i class="fas fa-history"></i> Histórico de Sincronização</h2>
                 <p style="margin-top: -15px; margin-bottom: 20px; color: var(--color-text-light);">Veja os detalhes de cada tentativa de sincronização de dados.</p>
                 <div id="syncHistoryList">
                     <!-- Logs de sincronização serão inseridos aqui -->
                 </div>
             </section>
-
-            <section id="relatorioPlantio" class="tab-content card" aria-label="Relatórios de Plantio" tabindex="0" hidden>
+<section id="relatorioPlantio" class="tab-content card" aria-label="Relatórios de Plantio" tabindex="0" hidden>
                 <h2><i class="fas fa-chart-bar"></i> Relatórios de Plantio</h2>
                 <div class="form-row">
                     <div class="form-col">
@@ -3270,8 +3847,7 @@
                     <button id="btnExcelPlantio" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
-
-            <section id="apontamentoPlantio" class="tab-content card" aria-label="Apontamento Diário de Plantio" tabindex="0" hidden>
+<section id="apontamentoPlantio" class="tab-content card" aria-label="Apontamento Diário de Plantio" tabindex="0" hidden>
                 <h2><i class="fas fa-seedling"></i> Apontamento Diário de Plantio</h2>
                 <form id="formApontamentoPlantio">
                             <input type="hidden" id="plantioEntryId">
@@ -3333,8 +3909,7 @@
                     <button type="button" id="btnSaveApontamentoPlantio" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Apontamento</button>
                 </form>
             </section>
-
-            <section id="registroAplicacao" class="tab-content" aria-label="Registro de Aplicação" tabindex="0" hidden style="padding: 0; height: calc(100% + 40px); width: calc(100% + 40px); margin: -20px; overflow: hidden;">
+<section id="registroAplicacao" class="tab-content" aria-label="Registro de Aplicação" tabindex="0" hidden style="padding: 0; height: calc(100% + 40px); width: calc(100% + 40px); margin: -20px; overflow: hidden;">
                 <div style="display: flex; height: 100%;">
                     <!-- Sidebar (Formulário e Lista) -->
                     <div class="card" style="margin: 0; display: flex; flex-direction: column; height: 100%; overflow-y: auto; border-left-color: var(--color-primary); border-radius: 0;">
@@ -3418,8 +3993,7 @@
                     </div>
                 </div>
             </section>
-
-            <section id="frenteDePlantio" class="tab-content card" aria-label="Frente de Plantio" tabindex="0" hidden>
+<section id="frenteDePlantio" class="tab-content card" aria-label="Frente de Plantio" tabindex="0" hidden>
                 <h2><i class="fas fa-tractor"></i> Cadastro de Frente de Plantio</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
                     <h3><i class="fas fa-plus-circle"></i> Adicionar/Editar Frente de Plantio</h3>
@@ -3445,8 +4019,7 @@
                 <h3><i class="fas fa-list-ul"></i> Frentes Cadastradas</h3>
                 <div id="frenteDePlantioList" class="table-responsive"></div>
             </section>
-
-            <section id="lancamentoClima" class="tab-content card" aria-label="Apontamento Climatológico" tabindex="0" hidden>
+<section id="lancamentoClima" class="tab-content card" aria-label="Apontamento Climatológico" tabindex="0" hidden>
                 <h2><i class="fas fa-cloud"></i> Apontamento Climatológico</h2>
                 <form id="formLancamentoClima">
                     <input type="hidden" id="climaEntryId">
@@ -3497,8 +4070,7 @@
                     <button type="button" id="btnSaveLancamentoClima" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Apontamento</button>
                 </form>
             </section>
-
-            <section id="relatorioClima" class="tab-content card" aria-label="Relatório Climatológico" tabindex="0" hidden>
+<section id="relatorioClima" class="tab-content card" aria-label="Relatório Climatológico" tabindex="0" hidden>
                 <h2><i class="fas fa-file-pdf"></i> Relatório Climatológico</h2>
                 <div class="form-row">
                     <div class="form-col"><label for="climaRelatorioFazenda">Filtrar por Fazenda:</label><select id="climaRelatorioFazenda"><option value="">Todas</option></select></div>
@@ -3510,10 +4082,7 @@
                     <button id="btnExcelClima" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
-
-        </main>
-        
-        <div id="monitoramentoAereo-container" class="tab-content">
+<div id="monitoramentoAereo-container" class="tab-content">
             <div id="map-container" class="loading">
                 <div id="map"></div>
                 <div class="map-search-container">
@@ -3546,9 +4115,18 @@
                 </div>
             </div>
         </div>
+                    <!-- Original sections will be inserted here -->
+                </div>
+            </main>
+        </div>
 
-        <!-- MODAIS -->
-        <div id="trapPlacementModal" class="modal-overlay">
+        <!-- Mobile sidebar overlay -->
+        <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden hidden"></div>
+    </div>
+
+    <!-- Modals from original will be injected here by python script -->
+    <div id="modalsContainer">
+<div id="trapPlacementModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 500px;">
                 <div class="modal-header">
                     <h2>Instalar Nova Armadilha</h2>
@@ -3564,8 +4142,7 @@
                 </div>
             </div>
         </div>
-
-        <div id="userEditModal" class="modal-overlay">
+<div id="userEditModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 id="userEditModalTitle">Editar Utilizador</h2>
@@ -3603,8 +4180,7 @@
                 </div>
             </div>
         </div>
-        
-        <div id="confirmationModal" class="modal-overlay">
+<div id="confirmationModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 id="confirmationModalTitle">Confirmar Ação</h2>
@@ -3620,8 +4196,7 @@
                 </div>
             </div>
         </div>
-
-        <div id="changePasswordModal" class="modal-overlay">
+<div id="changePasswordModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 450px;">
                 <div class="modal-header">
                     <h2>Alterar Senha</h2>
@@ -3645,8 +4220,7 @@
                 </div>
             </div>
         </div>
-
-        <div id="adminPasswordConfirmModal" class="modal-overlay">
+<div id="adminPasswordConfirmModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>Confirmar Ação</h2>
@@ -3663,8 +4237,7 @@
                 </div>
             </div>
         </div>
-        
-        <div id="chartModal" class="modal-overlay">
+<div id="chartModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 id="chartModalTitle">Gráfico Expandido</h2>
@@ -3675,8 +4248,7 @@
                 </div>
             </div>
         </div>
-
-        <div id="editFarmModal" class="modal-overlay">
+<div id="editFarmModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>Editar Fazenda</h2>
@@ -3703,8 +4275,7 @@
                 </div>
             </div>
         </div>
-
-        <div id="editCompanyModal" class="modal-overlay">
+<div id="editCompanyModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 id="editCompanyModalTitle">Editar Empresa</h2>
@@ -3726,8 +4297,7 @@
                 </div>
             </div>
         </div>
-
-        <div id="historyFilterModal" class="modal-overlay">
+<div id="historyFilterModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 500px;">
                 <div class="modal-header">
                     <h2>Filtro de Histórico</h2>
@@ -3754,9 +4324,7 @@
                 </div>
             </div>
         </div>
-
-        <!-- NOVO: Modal para Detalhes do Histórico de Sincronização -->
-        <div id="syncHistoryDetailModal" class="modal-overlay">
+<div id="syncHistoryDetailModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 800px;">
                 <div class="modal-header">
                     <h2 id="syncHistoryDetailModalTitle">Detalhes da Sincronização</h2>
@@ -3770,8 +4338,7 @@
                 </div>
             </div>
         </div>
-
-        <div id="configHistoryModal" class="modal-overlay">
+<div id="configHistoryModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 800px;">
                 <div class="modal-header">
                     <h2 id="configHistoryModalTitle">Histórico de Alterações de Configuração</h2>
@@ -3785,8 +4352,7 @@
                 </div>
             </div>
         </div>
-
-        <div id="enableOfflineLoginModal" class="modal-overlay">
+<div id="enableOfflineLoginModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 450px;">
                 <div class="modal-header">
                     <h3>Habilitar Acesso Offline</h3>
@@ -3805,9 +4371,7 @@
                 </div>
             </div>
         </div>
-
-        <!-- Welcome Modal -->
-        <div id="welcomeModal" class="modal-overlay">
+<div id="welcomeModal" class="modal-overlay">
             <div class="modal-content" style="text-align: center; max-width: 500px;">
                 <div style="margin-bottom: 20px;">
                     <i class="fas fa-leaf" style="font-size: 48px; color: var(--color-primary);"></i>
@@ -3819,9 +4383,7 @@
                 <button id="btnCloseWelcome" class="save" style="width: 100%; justify-content: center;">Começar</button>
             </div>
         </div>
-
-        <!-- Update Notification Modal -->
-        <div id="updateModal" class="modal-overlay">
+<div id="updateModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 600px;">
                 <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
                     <h2 id="updateModalTitle" style="color: var(--color-primary); display: flex; align-items: center; gap: 10px;">
@@ -3840,17 +4402,138 @@
                 </div>
             </div>
         </div>
+</div>
 
+    <div id="loading-overlay" class="hidden fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-white/80 dark:bg-black/70 backdrop-blur-sm">
+        <div class="spinner border-8 border-gray-200 border-t-8 border-t-agro-600 rounded-full w-16 h-16 animate-spin"></div>
+        <p id="loading-progress-text" class="mt-4 font-medium text-agro-600 dark:text-agro-400">A processar...</p>
     </div>
 
-    <!-- Bibliotecas Externas -->
+    <div id="alertContainer"></div>
+    <div id="notification-container"></div>
+
+    <!-- Styles for navigation -->
+    <style>
+        /* Menu items */
+        .menu-item {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            color: #6b7280;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            background: none;
+            text-align: left;
+        }
+
+        .menu-item:hover {
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+
+        .dark .menu-item:hover {
+            background-color: #374151;
+            color: #f9fafb;
+        }
+
+        .menu-item.active {
+            background-color: #10b981;
+            color: white;
+        }
+
+        .menu-item i {
+            width: 1.25rem;
+            margin-right: 0.75rem;
+            text-align: center;
+        }
+
+        .menu-submenu {
+            margin-left: 1.5rem;
+            margin-top: 0.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .menu-subitem {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            color: #6b7280;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .menu-subitem:hover {
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+
+        .dark .menu-subitem:hover {
+            background-color: #374151;
+            color: #f9fafb;
+        }
+
+        .menu-subitem i {
+            width: 1rem;
+            margin-right: 0.5rem;
+            text-align: center;
+            font-size: 0.75rem;
+        }
+
+        /* Rotate chevron when expanded */
+        .rotate-180 {
+            transform: rotate(180deg);
+        }
+
+        /* Theme classes */
+        .theme-green {
+            --color-primary: #10b981;
+            --color-primary-dark: #059669;
+            --color-primary-light: #d1fae5;
+        }
+
+        .theme-blue {
+            --color-primary: #3b82f6;
+            --color-primary-dark: #2563eb;
+            --color-primary-light: #dbeafe;
+        }
+
+        .theme-dark {
+            --color-primary: #10b981;
+            --color-primary-dark: #059669;
+            --color-primary-light: #064e3b;
+        }
+
+        /* Loading dots animation */
+        .loading-dots .dot {
+            opacity: 0;
+            animation: dotFade 1.5s infinite;
+        }
+
+        .loading-dots .dot:nth-child(1) { animation-delay: 0s; }
+        .loading-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes dotFade {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+    </style>
+
+    <!-- Original scripts and libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     <script src="https://unpkg.com/idb@7.1.1/build/iife/index-min.js"></script>
-    
+
     <!-- Mapbox GL JS -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
@@ -3866,8 +4549,98 @@
     <!-- Capacitor script -->
     <script src="capacitor.js"></script>
 
-    <!-- Script principal da aplicação -->
+    <!-- Your original app.js -->
     <script type="module" src="./app.js"></script>
 
+    <!-- Script Visual Logic (Separate from App Logic) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Splash screen animation handled by app.js mostly, but we can ensure visual start here
+            const splashScreen = document.getElementById('splash-screen');
+            const splashProgress = document.getElementById('splash-progress');
+            const splashText = document.getElementById('splash-text');
+            const dots = document.querySelectorAll('.dot');
+
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if(splashProgress) splashProgress.style.width = Math.min(progress, 100) + '%';
+
+                if (progress < 30) {
+                    if(splashText) splashText.textContent = 'Carregando módulos...';
+                } else if (progress < 60) {
+                    if(splashText) splashText.textContent = 'Inicializando banco de dados...';
+                } else if (progress < 90) {
+                    if(splashText) splashText.textContent = 'Preparando interface...';
+                } else {
+                    if(splashText) splashText.textContent = 'Pronto!';
+                }
+
+                dots.forEach((dot, index) => {
+                    setTimeout(() => {
+                        dot.style.opacity = '0.5';
+                        setTimeout(() => {
+                            dot.style.opacity = '1';
+                        }, 300);
+                    }, index * 200);
+                });
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    // app.js will handle hiding it based on data load, but we can add a fallback
+                    // setTimeout(() => { splashScreen.classList.add('hidden'); }, 3000);
+                }
+            }, 100);
+
+            // Theme toggle
+            const themeToggle = document.getElementById('themeToggle');
+            const themeIcon = document.getElementById('themeIcon');
+
+            // Check saved theme
+            const savedTheme = localStorage.getItem('agrovetor-darkmode');
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                if(themeIcon) { themeIcon.classList.remove('fa-moon'); themeIcon.classList.add('fa-sun'); }
+            }
+
+            themeToggle?.addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+                themeIcon.classList.toggle('fa-moon');
+                themeIcon.classList.toggle('fa-sun');
+                localStorage.setItem('agrovetor-darkmode',
+                    document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+            });
+
+            // UI Interaction Helpers
+            document.addEventListener('click', function(e) {
+                // Dropdowns close on outside click
+                const notificationDropdown = document.getElementById('notification-dropdown');
+                const userDropdown = document.getElementById('user-menu-dropdown');
+                const bellToggle = document.getElementById('notification-bell-toggle');
+                const userToggle = document.getElementById('user-menu-toggle');
+
+                if (notificationDropdown && !notificationDropdown.classList.contains('hidden') &&
+                    !notificationDropdown.contains(e.target) && !bellToggle.contains(e.target)) {
+                    notificationDropdown.classList.add('hidden', 'opacity-0', 'scale-95');
+                }
+
+                if (userDropdown && !userDropdown.classList.contains('hidden') &&
+                    !userDropdown.contains(e.target) && !userToggle.contains(e.target)) {
+                    userDropdown.classList.add('hidden', 'opacity-0', 'scale-95');
+                }
+            });
+
+            // Input focus effects for Tailwind
+            document.querySelectorAll('input, select, textarea').forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.classList.add('input-focus');
+                });
+
+                input.addEventListener('blur', function() {
+                    this.classList.remove('input-focus');
+                });
+            });
+        });
+    </script>
 </body>
 </html>
