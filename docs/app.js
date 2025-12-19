@@ -5457,6 +5457,54 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+            async getWeatherForecast() {
+                try {
+                    const fazendas = App.state.fazendas;
+                    if (!fazendas || fazendas.length === 0) {
+                        console.warn("Nenhuma fazenda encontrada para previsão do tempo.");
+                        return null;
+                    }
+
+                    // 1. Calculate centroid of all farms
+                    const points = [];
+                    fazendas.forEach(f => {
+                        if (f.talhoes) {
+                            f.talhoes.forEach(t => {
+                                // Assuming talhao doesn't store geom yet in memory, but we might have map loaded
+                                // Fallback: Use map center or just a known region if no geo data
+                            });
+                        }
+                    });
+
+                    // Better approach: Use the first farm's location if available, or map center
+                    // Since we don't always have full GeoJSON loaded in state.fazendas,
+                    // we'll try to use App.state.geoJsonData if available.
+
+                    let centerLat, centerLng;
+
+                    if (App.state.geoJsonData && App.state.geoJsonData.features && App.state.geoJsonData.features.length > 0) {
+                        const center = turf.center(App.state.geoJsonData);
+                        centerLng = center.geometry.coordinates[0];
+                        centerLat = center.geometry.coordinates[1];
+                    } else {
+                        // Fallback generic location (e.g., Ribeirão Preto) if no data
+                        centerLat = -21.17;
+                        centerLng = -47.81;
+                    }
+
+                    // 2. Fetch from Open-Meteo
+                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${centerLat}&longitude=${centerLng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=America%2FSao_Paulo`;
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error("Falha na API de Clima");
+                    return await response.json();
+
+                } catch (error) {
+                    console.error("Erro ao obter previsão do tempo:", error);
+                    return null;
+                }
+            },
+
             async viewConfigHistory() {
                 const modal = App.elements.configHistoryModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
@@ -12359,9 +12407,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.actions.saveDashboardDates('clima', startDateEl.value, endDateEl.value);
 
+                // 1. Load Data
                 const consolidatedData = await App.actions.getConsolidatedData('clima');
-                let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
 
+                // 2. Fetch Forecast
+                const forecastData = await App.actions.getWeatherForecast();
+
+                // 3. Filter for KPIs and Standard Charts
+                let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
                 const selectedFazenda = fazendaEl.value;
                 if (selectedFazenda) {
                     data = data.filter(item => item.fazendaId === selectedFazenda);
@@ -12381,8 +12434,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
 
                 // Render Charts
+                this.renderAcumuloPluviosidadeChart(consolidatedData); // Passes full data for internal filtering
+                this.renderPrevisaoTempoChart(forecastData);
+                this.renderHistoricoAnualChart(consolidatedData);
                 this.renderVariacaoTemperaturaChart(data);
-                this.renderAcumuloPluviosidadeChart(data);
                 this.renderVelocidadeVentoChart(data);
                 this.renderIndiceClimatologicoChart(data);
             },
@@ -12442,25 +12497,195 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            renderAcumuloPluviosidadeChart(data) {
-                const dataByDay = data.reduce((acc, item) => {
-                    acc[item.data] = (acc[item.data] || 0) + item.pluviosidade;
-                    return acc;
-                }, {});
+            renderAcumuloPluviosidadeChart(fullData) {
+                // 1. Calculate Regional Daily Averages (Consolidated across all farms for each day)
+                const dailyMap = {};
+                fullData.forEach(item => {
+                    if (item.pluviosidade === undefined || item.pluviosidade === null) return;
+                    const dateKey = item.data;
+                    if (!dailyMap[dateKey]) dailyMap[dateKey] = { sum: 0, count: 0 };
+                    dailyMap[dateKey].sum += Number(item.pluviosidade);
+                    dailyMap[dateKey].count++;
+                });
 
-                const sortedDays = Object.keys(dataByDay).sort();
-                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
-                const chartData = sortedDays.map(date => dataByDay[date]);
+                const dailyAverages = {};
+                Object.keys(dailyMap).forEach(key => {
+                    dailyAverages[key] = dailyMap[key].sum / dailyMap[key].count;
+                });
+
+                // 2. Setup Timeline
+                const today = new Date();
+                const currentYear = today.getFullYear();
+                const currentMonth = today.getMonth();
+
+                const labels = [];
+                const dataPoints = [];
+                const backgroundColors = [];
+
+                let currentBucket = { key: null, sum: 0, count: 0, type: '' };
+
+                const pushBucket = () => {
+                    if (currentBucket.key) {
+                        labels.push(currentBucket.key);
+                        dataPoints.push(currentBucket.count > 0 ? currentBucket.sum / currentBucket.count : 0);
+
+                        if (currentBucket.type === 'month') backgroundColors.push('#B0BEC5'); // Grey for past months
+                        else if (currentBucket.type === 'week') backgroundColors.push('#42A5F5'); // Light Blue for past weeks
+                        else if (currentBucket.type === 'day') backgroundColors.push('#1976D2'); // Dark Blue for today
+                    }
+                };
+
+                // Helper to get Week Number (Month-relative, Calendar Weeks starting Sunday)
+                const getWeekNumber = (d) => {
+                    const firstDayOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+                    const dayOfWeekFirst = firstDayOfMonth.getDay();
+                    return Math.ceil((d.getDate() + dayOfWeekFirst) / 7);
+                };
+
+                // Iterate from Start of Current Year to Today
+                const iterDate = new Date(currentYear, 0, 1);
+
+                let safeCounter = 0;
+                while (iterDate <= today && safeCounter < 400) {
+                    safeCounter++;
+
+                    // Safe Date Key Generation (Local)
+                    const year = iterDate.getFullYear();
+                    const month = String(iterDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(iterDate.getDate()).padStart(2, '0');
+                    const dateKey = `${year}-${month}-${day}`;
+
+                    const val = dailyAverages[dateKey]; // Average rain for this day (or undefined)
+
+                    let bucketKey = '';
+                    let bucketType = '';
+
+                    // Logic:
+                    // Past Months -> Group by Month
+                    // Current Month -> Group by Week
+                    // Today -> Separate Day
+
+                    if (iterDate.getMonth() < currentMonth) {
+                        bucketKey = iterDate.toLocaleString('pt-BR', { month: 'short' }).toUpperCase();
+                        bucketType = 'month';
+                    } else {
+                        // Current Month Logic
+                        const isToday = iterDate.getDate() === today.getDate() &&
+                                      iterDate.getMonth() === today.getMonth() &&
+                                      iterDate.getFullYear() === today.getFullYear();
+
+                        if (isToday) {
+                            bucketKey = `Dia ${today.getDate()}/${today.getMonth() + 1}`;
+                            bucketType = 'day';
+                        } else {
+                            // Past days of current month are grouped into weeks
+                            bucketKey = `Sem ${getWeekNumber(iterDate)}`;
+                            bucketType = 'week';
+                        }
+                    }
+
+                    // If bucket changes, push previous and reset
+                    if (bucketKey !== currentBucket.key) {
+                        pushBucket();
+                        currentBucket = { key: bucketKey, sum: 0, count: 0, type: bucketType };
+                    }
+
+                    // Accumulate data for the current bucket
+                    // Treat missing data as 0 for averaging over the period
+                    currentBucket.sum += (val || 0);
+                    currentBucket.count++;
+
+                    // Next Day
+                    iterDate.setDate(iterDate.getDate() + 1);
+                }
+
+                // Push the final bucket (Today)
+                pushBucket();
 
                 const commonOptions = this._getCommonChartOptions();
+                const isDarkTheme = document.body.classList.contains('theme-dark');
+                const textColor = isDarkTheme ? '#FFFFFF' : '#333333';
+
                 this._createOrUpdateChart('graficoAcumuloPluviosidade', {
                     type: 'bar',
                     data: {
                         labels,
                         datasets: [{
-                            label: 'Pluviosidade (mm)',
-                            data: chartData,
-                            backgroundColor: '#1976D2',
+                            label: 'Precipitação Média Diária (mm)',
+                            data: dataPoints,
+                            backgroundColor: backgroundColors,
+                            barPercentage: 0.8,
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.parsed.y.toFixed(1)} mm`;
+                                    }
+                                }
+                            },
+                            datalabels: {
+                                anchor: 'end',
+                                align: 'top',
+                                color: textColor,
+                                font: { weight: 'bold' },
+                                formatter: (value) => value > 0 ? value.toFixed(1) : ''
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderHistoricoAnualChart(fullData) {
+                const dataByYear = {};
+
+                fullData.forEach(item => {
+                    const year = item.data.split('-')[0];
+                    if (!dataByYear[year]) dataByYear[year] = 0;
+                    // For history, usually we want Total Sum, but if we have multiple points per day (farms),
+                    // we should probably average the farms for that day, then sum the days?
+                    // User said "Cada coluna representando o acumulado anual".
+                    // If we just sum everything, more farms = more rain, which is wrong.
+                    // Correct approach: Average Rainfall across all farms for a specific day -> Sum those Daily Averages for the Year.
+                    // However, `fullData` is flat.
+                    // Let's assume we sum unique day-farm records? No.
+                    // Let's stick to: Sum of (Daily Averages).
+                });
+
+                // Re-process full data to get daily averages first
+                const dailyAverages = {};
+                fullData.forEach(item => {
+                    if (!dailyAverages[item.data]) dailyAverages[item.data] = { sum: 0, count: 0 };
+                    dailyAverages[item.data].sum += item.pluviosidade;
+                    dailyAverages[item.data].count++;
+                });
+
+                // Now sum up daily averages into years
+                Object.keys(dailyAverages).forEach(date => {
+                    const year = date.split('-')[0];
+                    const avg = dailyAverages[date].sum / dailyAverages[date].count;
+
+                    if (!dataByYear[year]) dataByYear[year] = 0;
+                    dataByYear[year] += avg;
+                });
+
+                const years = Object.keys(dataByYear).sort();
+                const values = years.map(y => dataByYear[y]);
+
+                const commonOptions = this._getCommonChartOptions();
+                this._createOrUpdateChart('graficoHistoricoAnual', {
+                    type: 'bar',
+                    data: {
+                        labels: years,
+                        datasets: [{
+                            label: 'Acumulado Anual (mm)',
+                            data: values,
+                            backgroundColor: '#2e7d32',
                         }]
                     },
                     options: {
@@ -12471,14 +12696,79 @@ document.addEventListener('DOMContentLoaded', () => {
                             datalabels: {
                                 align: 'end',
                                 anchor: 'end',
-                                backgroundColor: 'rgba(25, 118, 210, 0.8)',
-                                borderRadius: 4,
-                                color: 'white',
-                                font: {
-                                    weight: 'bold'
+                                color: document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333',
+                                font: { weight: 'bold' },
+                                formatter: (value) => value.toFixed(0)
+                            }
+                        }
+                    }
+                });
+            },
+
+            renderPrevisaoTempoChart(forecastData) {
+                if (!forecastData || !forecastData.daily) return;
+
+                const daily = forecastData.daily;
+                const labels = daily.time.map(t => new Date(t + 'T00:00:00').toLocaleDateString('pt-BR', {weekday: 'short', day:'2-digit'}));
+
+                const commonOptions = this._getCommonChartOptions();
+
+                this._createOrUpdateChart('graficoPrevisaoTempo', {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                type: 'line',
+                                label: 'Max Temp (°C)',
+                                data: daily.temperature_2m_max,
+                                borderColor: '#d32f2f',
+                                backgroundColor: '#d32f2f',
+                                yAxisID: 'y',
+                                tension: 0.4
+                            },
+                            {
+                                type: 'line',
+                                label: 'Min Temp (°C)',
+                                data: daily.temperature_2m_min,
+                                borderColor: '#1976d2',
+                                backgroundColor: '#1976d2',
+                                yAxisID: 'y',
+                                tension: 0.4
+                            },
+                            {
+                                type: 'bar',
+                                label: 'Chuva (mm)',
+                                data: daily.precipitation_sum,
+                                backgroundColor: 'rgba(76, 175, 80, 0.6)',
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: { display: true, text: 'Temp (°C)' }
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                title: { display: true, text: 'Chuva (mm)' },
+                                grid: {
+                                    drawOnChartArea: false,
                                 },
-                                formatter: (value) => value > 0 ? `${value.toFixed(1)} mm` : '',
-                                padding: 6
+                            },
+                            x: commonOptions.scales.x
+                        },
+                        plugins: {
+                            ...commonOptions.plugins,
+                            datalabels: {
+                                display: false // Too cluttered for forecast combo
                             }
                         }
                     }
