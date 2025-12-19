@@ -5457,54 +5457,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
-            async getWeatherForecast() {
-                try {
-                    const fazendas = App.state.fazendas;
-                    if (!fazendas || fazendas.length === 0) {
-                        console.warn("Nenhuma fazenda encontrada para previsão do tempo.");
-                        return null;
-                    }
-
-                    // 1. Calculate centroid of all farms
-                    const points = [];
-                    fazendas.forEach(f => {
-                        if (f.talhoes) {
-                            f.talhoes.forEach(t => {
-                                // Assuming talhao doesn't store geom yet in memory, but we might have map loaded
-                                // Fallback: Use map center or just a known region if no geo data
-                            });
-                        }
-                    });
-
-                    // Better approach: Use the first farm's location if available, or map center
-                    // Since we don't always have full GeoJSON loaded in state.fazendas,
-                    // we'll try to use App.state.geoJsonData if available.
-
-                    let centerLat, centerLng;
-
-                    if (App.state.geoJsonData && App.state.geoJsonData.features && App.state.geoJsonData.features.length > 0) {
-                        const center = turf.center(App.state.geoJsonData);
-                        centerLng = center.geometry.coordinates[0];
-                        centerLat = center.geometry.coordinates[1];
-                    } else {
-                        // Fallback generic location (e.g., Ribeirão Preto) if no data
-                        centerLat = -21.17;
-                        centerLng = -47.81;
-                    }
-
-                    // 2. Fetch from Open-Meteo
-                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${centerLat}&longitude=${centerLng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=America%2FSao_Paulo`;
-
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error("Falha na API de Clima");
-                    return await response.json();
-
-                } catch (error) {
-                    console.error("Erro ao obter previsão do tempo:", error);
-                    return null;
-                }
-            },
-
             async viewConfigHistory() {
                 const modal = App.elements.configHistoryModal;
                 modal.body.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
@@ -12407,14 +12359,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.actions.saveDashboardDates('clima', startDateEl.value, endDateEl.value);
 
-                // 1. Load Data
                 const consolidatedData = await App.actions.getConsolidatedData('clima');
-
-                // 2. Fetch Forecast
-                const forecastData = await App.actions.getWeatherForecast();
-
-                // 3. Filter for KPIs and Standard Charts
                 let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
+
                 const selectedFazenda = fazendaEl.value;
                 if (selectedFazenda) {
                     data = data.filter(item => item.fazendaId === selectedFazenda);
@@ -12434,10 +12381,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
 
                 // Render Charts
-                this.renderAcumuloPluviosidadeChart(consolidatedData); // Passes full data for internal filtering
-                this.renderPrevisaoTempoChart(forecastData);
-                this.renderHistoricoAnualChart(consolidatedData);
                 this.renderVariacaoTemperaturaChart(data);
+                this.renderAcumuloPluviosidadeChart(data);
                 this.renderVelocidadeVentoChart(data);
                 this.renderIndiceClimatologicoChart(data);
             },
@@ -12497,131 +12442,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            renderAcumuloPluviosidadeChart(fullData) {
-                // 1. Determine Date Range (Current Month + Previous Month)
-                const today = new Date();
-                const currentMonth = today.getMonth();
-                const currentYear = today.getFullYear();
+            renderAcumuloPluviosidadeChart(data) {
+                const dataByDay = data.reduce((acc, item) => {
+                    acc[item.data] = (acc[item.data] || 0) + item.pluviosidade;
+                    return acc;
+                }, {});
 
-                // Previous Month logic
-                let prevMonth = currentMonth - 1;
-                let prevYear = currentYear;
-                if (prevMonth < 0) {
-                    prevMonth = 11;
-                    prevYear = currentYear - 1;
-                }
-
-                const startDate = new Date(prevYear, prevMonth, 1);
-                // End date is effectively today or end of current month
-                const endDate = new Date(currentYear, currentMonth + 1, 0);
-
-                // 2. Filter Data
-                const filteredData = fullData.filter(item => {
-                    const d = new Date(item.data + 'T03:00:00Z');
-                    return d >= startDate && d <= endDate;
-                });
-
-                // 3. Process Data
-                // Group by Day first to calculate Daily Averages
-                const dailyData = {};
-                filteredData.forEach(item => {
-                    const dateKey = item.data; // YYYY-MM-DD
-                    if (!dailyData[dateKey]) dailyData[dateKey] = { sum: 0, count: 0 };
-                    dailyData[dateKey].sum += item.pluviosidade;
-                    dailyData[dateKey].count++;
-                });
-
-                // Prepare Chart Data
-                const labels = [];
-                const dataPoints = [];
-                const backgroundColors = [];
-
-                // A. Previous Month (Consolidated by Week)
-                // We iterate through weeks of the previous month
-                let currentIterDate = new Date(startDate);
-                const endOfPrevMonth = new Date(currentYear, currentMonth, 0);
-
-                let weekNum = 1;
-                while (currentIterDate <= endOfPrevMonth) {
-                    let weekRainSum = 0;
-                    let daysInWeekCount = 0;
-
-                    // Iterate for 7 days or until end of month
-                    // Note: "Week" here implies chunks of 7 days starting from 1st, or calendar weeks?
-                    // User said "consolidated by week". Grouping by calendar week (Sun-Sat) is standard.
-
-                    // Simple approach: Chunk by 7 days from start of month
-                    // Or standard calendar weeks. Let's do standard calendar weeks for consistency.
-                    // Actually, "columns daily organized by weeks" for current month implies visual separation.
-                    // For previous month "consolidated by week", one bar per week.
-
-                    // Let's iterate day by day and aggregate
-                    const weekStartLabel = `Sem ${weekNum}`;
-                    let weekDailyAvgSum = 0;
-                    let weekDaysWithData = 0;
-
-                    // Find end of this week (Saturday) or end of month
-                    const dayOfWeek = currentIterDate.getDay(); // 0 is Sunday
-                    const daysUntilSaturday = 6 - dayOfWeek;
-
-                    let nextIterDate = new Date(currentIterDate);
-                    nextIterDate.setDate(currentIterDate.getDate() + daysUntilSaturday);
-
-                    if (nextIterDate > endOfPrevMonth) nextIterDate = endOfPrevMonth;
-
-                    // Aggregate for this week window
-                    let tempDate = new Date(currentIterDate);
-                    while (tempDate <= nextIterDate) {
-                        const isoDate = tempDate.toISOString().split('T')[0];
-                        if (dailyData[isoDate]) {
-                            // Calculate Daily Average
-                            const dayAvg = dailyData[isoDate].sum / dailyData[isoDate].count;
-                            weekDailyAvgSum += dayAvg;
-                            weekDaysWithData++;
-                        }
-                        tempDate.setDate(tempDate.getDate() + 1);
-                    }
-
-                    // For the weekly bar, user asked for "Average Daily Precip".
-                    // So we take the average of the daily averages in that week.
-                    const weeklyVal = weekDaysWithData > 0 ? (weekDailyAvgSum / weekDaysWithData) : 0;
-
-                    labels.push(`Mês Ant. - ${weekStartLabel}`);
-                    dataPoints.push(weeklyVal);
-                    backgroundColors.push('rgba(25, 118, 210, 0.5)'); // Lighter blue for past
-
-                    // Move to next week
-                    currentIterDate = new Date(nextIterDate);
-                    currentIterDate.setDate(currentIterDate.getDate() + 1);
-                    weekNum++;
-                }
-
-                // B. Current Month (Daily with Spacing)
-                currentIterDate = new Date(currentYear, currentMonth, 1);
-                const todayBound = new Date(); // Or end of month? "Current month" usually means up to now or full month view. Let's show full month structure.
-                const endOfCurrentMonth = new Date(currentYear, currentMonth + 1, 0);
-
-                let isFirstDay = true;
-
-                while (currentIterDate <= endOfCurrentMonth) {
-                    // Add spacing if it's Monday (start of new week) and not the very first data point
-                    if (currentIterDate.getDay() === 1 && !isFirstDay) {
-                        labels.push(''); // Empty label
-                        dataPoints.push(null); // Null data for gap
-                        backgroundColors.push('transparent');
-                    }
-
-                    const isoDate = currentIterDate.toISOString().split('T')[0];
-                    const dayData = dailyData[isoDate];
-                    const dayAvg = dayData ? (dayData.sum / dayData.count) : 0;
-
-                    labels.push(currentIterDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
-                    dataPoints.push(dayAvg);
-                    backgroundColors.push('#1976D2'); // Main blue
-
-                    currentIterDate.setDate(currentIterDate.getDate() + 1);
-                    isFirstDay = false;
-                }
+                const sortedDays = Object.keys(dataByDay).sort();
+                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
+                const chartData = sortedDays.map(date => dataByDay[date]);
 
                 const commonOptions = this._getCommonChartOptions();
                 this._createOrUpdateChart('graficoAcumuloPluviosidade', {
@@ -12629,11 +12458,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: {
                         labels,
                         datasets: [{
-                            label: 'Precipitação Média Diária (mm)',
-                            data: dataPoints,
-                            backgroundColor: backgroundColors,
-                            barPercentage: 0.8,
-                            categoryPercentage: 0.9
+                            label: 'Pluviosidade (mm)',
+                            data: chartData,
+                            backgroundColor: '#1976D2',
                         }]
                     },
                     options: {
@@ -12641,163 +12468,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             ...commonOptions.plugins,
                             legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        if (context.raw === null) return '';
-                                        return `${context.parsed.y.toFixed(1)} mm`;
-                                    }
-                                }
-                            },
                             datalabels: {
                                 align: 'end',
                                 anchor: 'end',
-                                backgroundColor: (context) => {
-                                    if (context.dataset.data[context.dataIndex] === null) return 'transparent';
-                                    return 'rgba(25, 118, 210, 0.8)';
-                                },
+                                backgroundColor: 'rgba(25, 118, 210, 0.8)',
                                 borderRadius: 4,
                                 color: 'white',
                                 font: {
                                     weight: 'bold'
                                 },
-                                formatter: (value) => value > 0 ? `${value.toFixed(1)}` : '', // Removed 'mm'
-                                padding: 6,
-                                display: (context) => context.dataset.data[context.dataIndex] !== null
-                            }
-                        }
-                    }
-                });
-            },
-
-            renderHistoricoAnualChart(fullData) {
-                const dataByYear = {};
-
-                fullData.forEach(item => {
-                    const year = item.data.split('-')[0];
-                    if (!dataByYear[year]) dataByYear[year] = 0;
-                    // For history, usually we want Total Sum, but if we have multiple points per day (farms),
-                    // we should probably average the farms for that day, then sum the days?
-                    // User said "Cada coluna representando o acumulado anual".
-                    // If we just sum everything, more farms = more rain, which is wrong.
-                    // Correct approach: Average Rainfall across all farms for a specific day -> Sum those Daily Averages for the Year.
-                    // However, `fullData` is flat.
-                    // Let's assume we sum unique day-farm records? No.
-                    // Let's stick to: Sum of (Daily Averages).
-                });
-
-                // Re-process full data to get daily averages first
-                const dailyAverages = {};
-                fullData.forEach(item => {
-                    if (!dailyAverages[item.data]) dailyAverages[item.data] = { sum: 0, count: 0 };
-                    dailyAverages[item.data].sum += item.pluviosidade;
-                    dailyAverages[item.data].count++;
-                });
-
-                // Now sum up daily averages into years
-                Object.keys(dailyAverages).forEach(date => {
-                    const year = date.split('-')[0];
-                    const avg = dailyAverages[date].sum / dailyAverages[date].count;
-
-                    if (!dataByYear[year]) dataByYear[year] = 0;
-                    dataByYear[year] += avg;
-                });
-
-                const years = Object.keys(dataByYear).sort();
-                const values = years.map(y => dataByYear[y]);
-
-                const commonOptions = this._getCommonChartOptions();
-                this._createOrUpdateChart('graficoHistoricoAnual', {
-                    type: 'bar',
-                    data: {
-                        labels: years,
-                        datasets: [{
-                            label: 'Acumulado Anual (mm)',
-                            data: values,
-                            backgroundColor: '#2e7d32',
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                align: 'end',
-                                anchor: 'end',
-                                color: document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333',
-                                font: { weight: 'bold' },
-                                formatter: (value) => value.toFixed(0)
-                            }
-                        }
-                    }
-                });
-            },
-
-            renderPrevisaoTempoChart(forecastData) {
-                if (!forecastData || !forecastData.daily) return;
-
-                const daily = forecastData.daily;
-                const labels = daily.time.map(t => new Date(t + 'T00:00:00').toLocaleDateString('pt-BR', {weekday: 'short', day:'2-digit'}));
-
-                const commonOptions = this._getCommonChartOptions();
-
-                this._createOrUpdateChart('graficoPrevisaoTempo', {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                type: 'line',
-                                label: 'Max Temp (°C)',
-                                data: daily.temperature_2m_max,
-                                borderColor: '#d32f2f',
-                                backgroundColor: '#d32f2f',
-                                yAxisID: 'y',
-                                tension: 0.4
-                            },
-                            {
-                                type: 'line',
-                                label: 'Min Temp (°C)',
-                                data: daily.temperature_2m_min,
-                                borderColor: '#1976d2',
-                                backgroundColor: '#1976d2',
-                                yAxisID: 'y',
-                                tension: 0.4
-                            },
-                            {
-                                type: 'bar',
-                                label: 'Chuva (mm)',
-                                data: daily.precipitation_sum,
-                                backgroundColor: 'rgba(76, 175, 80, 0.6)',
-                                yAxisID: 'y1'
-                            }
-                        ]
-                    },
-                    options: {
-                        ...commonOptions,
-                        scales: {
-                            y: {
-                                type: 'linear',
-                                display: true,
-                                position: 'left',
-                                title: { display: true, text: 'Temp (°C)' }
-                            },
-                            y1: {
-                                type: 'linear',
-                                display: true,
-                                position: 'right',
-                                title: { display: true, text: 'Chuva (mm)' },
-                                grid: {
-                                    drawOnChartArea: false,
-                                },
-                            },
-                            x: commonOptions.scales.x
-                        },
-                        plugins: {
-                            ...commonOptions.plugins,
-                            datalabels: {
-                                display: false // Too cluttered for forecast combo
+                                formatter: (value) => value > 0 ? `${value.toFixed(1)} mm` : '',
+                                padding: 6
                             }
                         }
                     }
