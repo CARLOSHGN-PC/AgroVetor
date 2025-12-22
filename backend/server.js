@@ -1405,6 +1405,207 @@ try {
         }
     });
 
+    // ROTA PARA IMPORTAÇÃO DE DADOS CLIMATOLÓGICOS
+    app.post('/api/import/clima', authMiddleware, async (req, res) => {
+        let { fileBase64, companyId } = req.body;
+
+        // Security: Enforce companyId for non-super-admins
+        if (req.user.role !== 'super-admin') {
+            if (req.user.companyId && companyId && req.user.companyId !== companyId) {
+                return res.status(403).json({ message: 'Acesso negado: ID da empresa inválido.' });
+            }
+            companyId = req.user.companyId;
+        }
+
+        if (!fileBase64) return res.status(400).json({ message: 'Arquivo não fornecido.' });
+        if (!companyId) return res.status(400).json({ message: 'ID da empresa obrigatório.' });
+
+        try {
+            const buffer = Buffer.from(fileBase64, 'base64');
+            const workbook = xlsx.read(buffer, { type: 'buffer' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+
+            // 1. Detect Header Row
+            const rawData = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+            let headerRowIndex = 0;
+            for (let i = 0; i < Math.min(rawData.length, 20); i++) { // Check first 20 rows
+                const rowStr = rawData[i].map(c => String(c).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "")).join(' ');
+                // Look for key columns: 'data' and ('fazenda' or 'propriedade')
+                if (rowStr.includes('data') && (rowStr.includes('fazenda') || rowStr.includes('propriedade'))) {
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+
+            // 2. Parse Data with correct range
+            const data = xlsx.utils.sheet_to_json(worksheet, { range: headerRowIndex });
+
+            const batchSize = 400;
+            let count = 0;
+            let skipped = 0;
+
+            // Helper to fuzzy match column names
+            const getCol = (row, candidates) => {
+                const keys = Object.keys(row);
+                for (const key of keys) {
+                    const normKey = key.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    // Check exact match or inclusion
+                    if (candidates.some(c => normKey === c || normKey.includes(c))) return row[key];
+                }
+                return undefined;
+            };
+
+            for (let i = 0; i < data.length; i += batchSize) {
+                const batch = db.batch();
+                const chunk = data.slice(i, i + batchSize);
+
+                chunk.forEach(row => {
+                    // Extract fields using robust matching
+                    const fazendaRaw = getCol(row, ['fazenda', 'propriedade', 'imovel']) || '';
+                    const rawDate = getCol(row, ['data', 'dt_coleta', 'dia']);
+                    const talhaoVal = getCol(row, ['talhao', 'bloco', 'area']) || '';
+
+                    const tempMax = parseFloat(getCol(row, ['temp. max', 'temp max', 'maxima']) || 0);
+                    const tempMin = parseFloat(getCol(row, ['temp. min', 'temp min', 'minima']) || 0);
+                    const umidade = parseFloat(getCol(row, ['umidade', 'humid']) || 0);
+                    const pluviosidade = parseFloat(getCol(row, ['pluviosidade', 'chuva', 'mm', 'precipitacao']) || 0);
+                    const vento = parseFloat(getCol(row, ['vento', 'vel. vento', 'velocidade']) || 0);
+                    const obs = getCol(row, ['obs', 'observacoes', 'nota']) || '';
+
+                    // Normalize Farm Code
+                    let fazendaCode = '';
+                    if (String(fazendaRaw).includes(' - ')) {
+                        fazendaCode = String(fazendaRaw).split(' - ')[0].trim();
+                    } else if (!isNaN(parseInt(fazendaRaw))) {
+                        fazendaCode = String(parseInt(fazendaRaw));
+                    }
+
+                    // Normalize Date
+                    let dateStr = null;
+                    if (typeof rawDate === 'number') {
+                        // Excel serial date
+                        const dateObj = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
+                        dateStr = dateObj.toISOString().split('T')[0];
+                    } else if (typeof rawDate === 'string') {
+                        // Parse DD/MM/YYYY or YYYY-MM-DD
+                        if (rawDate.includes('/')) {
+                            const parts = rawDate.split('/');
+                            if (parts.length === 3) {
+                                // Assume DD/MM/YYYY
+                                dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                            }
+                        } else if (rawDate.includes('-')) {
+                            dateStr = rawDate.split('T')[0];
+                        }
+                    }
+
+                    if (dateStr && fazendaRaw) {
+                        // Generate deterministic ID
+                        const safeDate = dateStr.replace(/[^a-zA-Z0-9-]/g, '');
+                        const safeFarm = String(fazendaCode || fazendaRaw).replace(/[^a-zA-Z0-9]/g, '');
+                        const safeTalhao = String(talhaoVal || 'GERAL').replace(/[^a-zA-Z0-9]/g, '');
+                        const docId = `clima_${companyId}_${safeDate}_${safeFarm}_${safeTalhao}`;
+
+                        const docRef = db.collection('clima').doc(docId);
+                        const record = {
+                            companyId,
+                            data: dateStr,
+                            fazendaNome: String(fazendaRaw),
+                            fazendaId: fazendaCode,
+                            talhaoNome: String(talhaoVal),
+                            tempMax, tempMin, umidade, pluviosidade, vento, obs,
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            importedAt: new Date()
+                        };
+                        batch.set(docRef, record, { merge: true });
+                        count++;
+                    } else {
+                        skipped++;
+                    }
+                });
+                await batch.commit();
+            }
+
+            res.json({ message: `${count} registros importados com sucesso. ${skipped} linhas ignoradas (dados incompletos).` });
+
+        } catch (error) {
+            console.error("Erro na importação de clima:", error);
+            res.status(500).json({ message: `Erro ao processar arquivo: ${error.message}` });
+        }
+    });
+
+    // ROTA PARA MODELO DE IMPORTAÇÃO
+    app.get('/api/export/clima/template', authMiddleware, (req, res) => {
+        const wb = xlsx.utils.book_new();
+        const ws = xlsx.utils.json_to_sheet([
+            {
+                'Data': '2023-10-27',
+                'Fazenda': '101 - FAZENDA EXEMPLO',
+                'Talhão': 'T-01',
+                'Temp. Máx': 32,
+                'Temp. Mín': 20,
+                'Umidade': 65,
+                'Pluviosidade': 10,
+                'Vento': 15,
+                'Obs': 'Dia chuvoso'
+            }
+        ]);
+        xlsx.utils.book_append_sheet(wb, ws, "Modelo");
+        const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+        res.setHeader('Content-Disposition', 'attachment; filename="modelo_importacao_clima.xlsx"');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    });
+
+    // ROTA PARA EXPORTAR TODOS OS DADOS
+    app.get('/api/export/clima-all', authMiddleware, async (req, res) => {
+        try {
+            let { companyId } = req.query;
+
+            // Security: Enforce companyId for non-super-admins
+            if (req.user.role !== 'super-admin') {
+                if (req.user.companyId && companyId && req.user.companyId !== companyId) {
+                    return res.status(403).send('Acesso negado.');
+                }
+                companyId = req.user.companyId;
+            }
+
+            if (!companyId) return res.status(400).send('ID da empresa necessário.');
+
+            const snapshot = await db.collection('clima').where('companyId', '==', companyId).get();
+            const data = [];
+            snapshot.forEach(doc => {
+                const d = doc.data();
+                data.push({
+                    'Data': d.data,
+                    'Fazenda': d.fazendaNome,
+                    'Talhão': d.talhaoNome,
+                    'Temp. Máx': d.tempMax,
+                    'Temp. Mín': d.tempMin,
+                    'Umidade': d.umidade,
+                    'Pluviosidade': d.pluviosidade,
+                    'Vento': d.vento,
+                    'Obs': d.obs
+                });
+            });
+
+            const wb = xlsx.utils.book_new();
+            const ws = xlsx.utils.json_to_sheet(data);
+            xlsx.utils.book_append_sheet(wb, ws, "Dados Climatológicos");
+            const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+            res.setHeader('Content-Disposition', 'attachment; filename="dados_clima_completo.xlsx"');
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.send(buffer);
+
+        } catch (error) {
+            console.error("Erro ao exportar dados:", error);
+            res.status(500).send("Erro ao gerar exportação.");
+        }
+    });
+
     app.post('/api/os', authMiddleware, async (req, res) => {
         const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy } = req.body;
 

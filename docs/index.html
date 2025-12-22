@@ -3179,6 +3179,20 @@
                     </div>
                 </div>
 
+                <div class="card" style="border-left-color: #29b6f6; margin-top: 30px;">
+                    <h3><i class="fas fa-cloud-sun-rain"></i> Importar/Exportar Dados Climatológicos</h3>
+                    <p>Faça o upload de uma planilha Excel (.xlsx) com dados climatológicos para adicionar ao sistema, ou exporte todos os dados existentes.</p>
+                    <div class="upload-area" id="climaDataUploadArea">
+                        <i class="fas fa-file-excel fa-2x" style="color: #29b6f6;"></i>
+                        <p>Clique ou arraste o arquivo Excel aqui</p>
+                    </div>
+                    <input type="file" id="climaDataInput" accept=".xlsx" style="display: none;">
+                    <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; justify-content: center;">
+                         <button id="btnDownloadClimaTemplate" class="save" style="max-width: 250px; margin-top: 0; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo</button>
+                         <button id="btnExportClimaData" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-file-export"></i> Exportar Dados</button>
+                    </div>
+                </div>
+
                 <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
                     <h3><i class="fas fa-sync-alt"></i> Sincronização Global dos Planos de Colheita</h3>
                     <p>Importe relatórios do seu sistema principal para manter <strong>todos os planos de colheita</strong> sempre atualizados com a operação real.</p>

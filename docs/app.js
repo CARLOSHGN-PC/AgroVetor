@@ -415,6 +415,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 historicalReportInput: document.getElementById('historicalReportInput'),
                 btnDownloadHistoricalTemplate: document.getElementById('btnDownloadHistoricalTemplate'),
                 btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
+                climaDataUploadArea: document.getElementById('climaDataUploadArea'),
+                climaDataInput: document.getElementById('climaDataInput'),
+                btnDownloadClimaTemplate: document.getElementById('btnDownloadClimaTemplate'),
+                btnExportClimaData: document.getElementById('btnExportClimaData'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -3973,6 +3977,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.btnDeleteHistoricalData) {
                     companyConfigEls.btnDeleteHistoricalData.addEventListener('click', () => App.actions.deleteHistoricalData());
                 }
+
+                // Clima Data Listeners
+                if (companyConfigEls.climaDataUploadArea) {
+                    companyConfigEls.climaDataUploadArea.addEventListener('click', () => companyConfigEls.climaDataInput.click());
+                    companyConfigEls.climaDataUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); companyConfigEls.climaDataUploadArea.style.backgroundColor = 'rgba(0,0,0,0.05)'; });
+                    companyConfigEls.climaDataUploadArea.addEventListener('dragleave', (e) => { e.preventDefault(); companyConfigEls.climaDataUploadArea.style.backgroundColor = ''; });
+                    companyConfigEls.climaDataUploadArea.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        companyConfigEls.climaDataUploadArea.style.backgroundColor = '';
+                        if (e.dataTransfer.files.length) App.actions.importClimaData(e.dataTransfer.files[0]);
+                    });
+                }
+                if (companyConfigEls.climaDataInput) {
+                    companyConfigEls.climaDataInput.addEventListener('change', (e) => {
+                        if (e.target.files.length) App.actions.importClimaData(e.target.files[0]);
+                    });
+                }
+                if (companyConfigEls.btnDownloadClimaTemplate) {
+                    companyConfigEls.btnDownloadClimaTemplate.addEventListener('click', () => App.actions.downloadClimaTemplate());
+                }
+                if (companyConfigEls.btnExportClimaData) {
+                    companyConfigEls.btnExportClimaData.addEventListener('click', () => App.actions.exportClimaData());
+                }
+
                 if (companyConfigEls.historicalReportUploadArea) {
                     const uploadArea = companyConfigEls.historicalReportUploadArea;
                     const input = companyConfigEls.historicalReportInput;
@@ -4651,6 +4679,97 @@ document.addEventListener('DOMContentLoaded', () => {
                         hoveredFeatureId = null;
                     }
                 });
+            },
+
+            async importClimaData(file) {
+                if (!file) return;
+                App.ui.setLoading(true, "A carregar dados climatológicos...");
+
+                try {
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        const base64 = e.target.result.split(',')[1];
+                        const token = await auth.currentUser.getIdToken();
+
+                        const response = await fetch(`${App.config.backendUrl}/api/import/clima`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                fileBase64: base64,
+                                companyId: App.state.currentUser.companyId
+                            })
+                        });
+
+                        const result = await response.json();
+                        if (response.ok) {
+                            App.ui.showAlert(result.message || "Importação concluída com sucesso!");
+                        } else {
+                            throw new Error(result.message || "Erro na importação.");
+                        }
+                        App.ui.setLoading(false);
+                    };
+                    reader.readAsDataURL(file);
+                } catch (error) {
+                    console.error("Erro ao importar clima:", error);
+                    App.ui.showAlert(`Erro: ${error.message}`, "error");
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async downloadClimaTemplate() {
+                try {
+                    App.ui.setLoading(true, "A baixar modelo...");
+                    const token = await auth.currentUser.getIdToken();
+                    const response = await fetch(`${App.config.backendUrl}/api/export/clima/template`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (!response.ok) throw new Error("Erro ao baixar modelo.");
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = "modelo_importacao_clima.xlsx";
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } catch (e) {
+                    App.ui.showAlert("Erro ao baixar modelo: " + e.message, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async exportClimaData() {
+                try {
+                    App.ui.setLoading(true, "A exportar dados...");
+                    const token = await auth.currentUser.getIdToken();
+                    const companyId = App.state.currentUser.companyId;
+                    const response = await fetch(`${App.config.backendUrl}/api/export/clima-all?companyId=${companyId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (!response.ok) throw new Error("Erro ao exportar dados.");
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `dados_clima_completo_${new Date().toISOString().split('T')[0]}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } catch (e) {
+                    App.ui.showAlert("Erro ao exportar dados: " + e.message, "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
             },
 
             getPrincipalDirection(feature) {
@@ -12424,12 +12543,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const avgTempMax = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMax, 0) / data.length : 0;
                 const avgTempMin = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMin, 0) / data.length : 0;
                 const totalPluviosidade = data.reduce((sum, item) => sum + item.pluviosidade, 0);
+                const avgPluviosidade = data.length > 0 ? totalPluviosidade / data.length : 0; // Changed to average
                 const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
                 const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
 
                 document.getElementById('kpi-clima-temp-max').textContent = `${avgTempMax.toFixed(1)}°C`;
                 document.getElementById('kpi-clima-temp-min').textContent = `${avgTempMin.toFixed(1)}°C`;
-                document.getElementById('kpi-clima-pluviosidade').textContent = `${totalPluviosidade.toFixed(1)} mm`;
+                document.getElementById('kpi-clima-pluviosidade').textContent = `${avgPluviosidade.toFixed(1)} mm`; // Display average
                 document.getElementById('kpi-clima-umidade').textContent = `${avgUmidade.toFixed(1)}%`;
                 document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
 
