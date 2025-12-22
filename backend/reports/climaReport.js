@@ -125,7 +125,7 @@ const generateClimaPdf = async (req, res, db) => {
             formatNumber(totalTempMax / count),
             formatNumber(totalTempMin / count),
             formatNumber(totalUmidade / count),
-            formatNumber(totalPluviosidade),
+            formatNumber(totalPluviosidade / count),
             formatNumber(totalVento / count),
             ''
         ];
