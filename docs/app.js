@@ -415,6 +415,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 historicalReportInput: document.getElementById('historicalReportInput'),
                 btnDownloadHistoricalTemplate: document.getElementById('btnDownloadHistoricalTemplate'),
                 btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
+                climateUploadArea: document.getElementById('climateUploadArea'),
+                climateInput: document.getElementById('climateCsvInput'),
+                btnDownloadClimateTemplate: document.getElementById('btnDownloadClimateTemplate'),
+                btnExportClimateData: document.getElementById('btnExportClimateData'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -3973,6 +3977,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.btnDeleteHistoricalData) {
                     companyConfigEls.btnDeleteHistoricalData.addEventListener('click', () => App.actions.deleteHistoricalData());
                 }
+
+                // Event listeners for climate data import/export
+                if (companyConfigEls.btnDownloadClimateTemplate) {
+                    companyConfigEls.btnDownloadClimateTemplate.addEventListener('click', () => App.actions.downloadClimateTemplate());
+                }
+                if (companyConfigEls.btnExportClimateData) {
+                    companyConfigEls.btnExportClimateData.addEventListener('click', () => App.actions.exportClimateData());
+                }
+                if (companyConfigEls.climateUploadArea) {
+                    const uploadArea = companyConfigEls.climateUploadArea;
+                    const input = companyConfigEls.climateInput;
+
+                    uploadArea.addEventListener('click', () => input.click());
+                    input.addEventListener('change', (e) => App.actions.importClimateData(e.target.files[0]));
+
+                    uploadArea.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        uploadArea.style.borderColor = '#007bff';
+                    });
+                    uploadArea.addEventListener('dragleave', () => {
+                        uploadArea.style.borderColor = '#ccc';
+                    });
+                    uploadArea.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        uploadArea.style.borderColor = '#ccc';
+                        if (e.dataTransfer.files.length) {
+                            App.actions.importClimateData(e.dataTransfer.files[0]);
+                        }
+                    });
+                }
+
                 if (companyConfigEls.historicalReportUploadArea) {
                     const uploadArea = companyConfigEls.historicalReportUploadArea;
                     const input = companyConfigEls.historicalReportInput;
@@ -8951,6 +8986,233 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
+
+            downloadClimateTemplate() {
+                const csvContent = "FUNDO_AGR;TALHAO;DATA;TEMP_MAX;TEMP_MIN;UMIDADE;PLUVIOSIDADE;VENTO;OBS\n1;A1;2023-01-01;30;20;60;10;5;Observação exemplo";
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", "modelo_clima.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            },
+
+            async exportClimateData() {
+                try {
+                    App.ui.setLoading(true, "A exportar dados climatológicos...");
+
+                    // Garante que temos os dados mais recentes
+                    const climaData = App.state.clima || [];
+
+                    if (climaData.length === 0) {
+                        App.ui.showAlert("Não há dados climatológicos para exportar.", "info");
+                        return;
+                    }
+
+                    let csvContent = "FUNDO_AGR;TALHAO;DATA;TEMP_MAX;TEMP_MIN;UMIDADE;PLUVIOSIDADE;VENTO;OBS\n";
+
+                    for (const item of climaData) {
+                        // Tenta encontrar os códigos originais se disponíveis
+                        let farmCode = item.fazendaId; // Fallback
+                        let talhaoName = item.talhaoId; // Fallback
+
+                        // Encontra a fazenda no estado
+                        const farm = App.state.fazendas.find(f => f.id === item.fazendaId);
+                        if (farm) {
+                            farmCode = farm.code;
+                            // Encontra o talhão na fazenda
+                            const talhao = farm.talhoes ? farm.talhoes.find(t => t.id === item.talhaoId) : null;
+                            if (talhao) {
+                                talhaoName = talhao.name;
+                            }
+                        }
+
+                        // Formata a linha CSV
+                        const row = [
+                            farmCode,
+                            talhaoName,
+                            item.data,
+                            item.tempMax || '',
+                            item.tempMin || '',
+                            item.umidade || '',
+                            item.pluviosidade || '',
+                            item.vento || '',
+                            item.obs ? `"${item.obs.replace(/"/g, '""')}"` : '' // Escape quotes
+                        ].join(';');
+
+                        csvContent += row + "\n";
+                    }
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `historico_clima_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    App.ui.showAlert("Exportação concluída com sucesso!");
+
+                } catch (error) {
+                    console.error("Erro ao exportar dados:", error);
+                    App.ui.showAlert("Erro ao exportar dados.", "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async importClimateData(file) {
+                if (!file) return;
+
+                // Validação básica do tipo de arquivo
+                if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+                    App.ui.showAlert("Por favor, carregue um arquivo CSV válido.", "error");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A importar dados... Isso pode levar alguns momentos.");
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const text = e.target.result;
+                    const lines = text.split('\n');
+
+                    // Remove linhas vazias
+                    const nonEmptyLines = lines.filter(line => line.trim() !== '');
+
+                    if (nonEmptyLines.length < 2) {
+                        App.ui.setLoading(false);
+                        App.ui.showAlert("O arquivo CSV parece estar vazio ou sem dados.", "warning");
+                        return;
+                    }
+
+                    let successCount = 0;
+                    let errorCount = 0;
+                    const batchSize = 400; // Limite do Firestore é 500
+                    let batches = [];
+                    let currentBatch = writeBatch(db);
+                    let operationCount = 0;
+
+                    const companyId = App.state.currentUser.companyId;
+
+                    // Normalização para facilitar comparação
+                    const normalize = (str) => String(str).trim().toUpperCase();
+
+                    // Prepara mapas para lookup rápido
+                    const farmMap = new Map(); // Code -> Farm Object
+                    App.state.fazendas.forEach(f => {
+                         farmMap.set(normalize(f.code), f);
+                    });
+
+                    // Pula o cabeçalho (índice 1 em diante)
+                    for (let i = 1; i < nonEmptyLines.length; i++) {
+                        try {
+                            const line = nonEmptyLines[i].trim();
+                            if (!line) continue;
+
+                            const cols = line.split(';');
+                            // Esperado: FUNDO_AGR;TALHAO;DATA;TEMP_MAX;TEMP_MIN;UMIDADE;PLUVIOSIDADE;VENTO;OBS
+
+                            const fundoAgr = normalize(cols[0]);
+                            const talhaoNome = normalize(cols[1]);
+                            const data = cols[2]; // YYYY-MM-DD
+                            const tempMax = cols[3] ? parseFloat(cols[3].replace(',', '.')) : null;
+                            const tempMin = cols[4] ? parseFloat(cols[4].replace(',', '.')) : null;
+                            const umidade = cols[5] ? parseFloat(cols[5].replace(',', '.')) : null;
+                            const pluviosidade = cols[6] ? parseFloat(cols[6].replace(',', '.')) : null;
+                            const vento = cols[7] ? parseFloat(cols[7].replace(',', '.')) : null;
+                            const obs = cols[8] ? cols[8].replace(/^"|"$/g, '') : '';
+
+                            if (!fundoAgr || !talhaoNome || !data) {
+                                console.warn(`Linha ${i + 1} ignorada: Dados obrigatórios ausentes.`);
+                                errorCount++;
+                                continue;
+                            }
+
+                            // Match Fazenda
+                            let farm = farmMap.get(fundoAgr);
+                            if (!farm && !isNaN(parseInt(fundoAgr))) {
+                                farm = Array.from(farmMap.values()).find(f => parseInt(f.code) === parseInt(fundoAgr));
+                            }
+
+                            if (!farm) {
+                                console.warn(`Linha ${i + 1} ignorada: Fazenda ${fundoAgr} não encontrada.`);
+                                errorCount++;
+                                continue;
+                            }
+
+                            // Match Talhão
+                            let talhaoId = null;
+                            if (farm.talhoes) {
+                                const talhao = farm.talhoes.find(t => normalize(t.name) === talhaoNome);
+                                if (talhao) talhaoId = talhao.id;
+                            }
+
+                            if (!talhaoId) {
+                                console.warn(`Linha ${i + 1} ignorada: Talhão ${talhaoNome} não encontrado na fazenda ${fundoAgr}.`);
+                                errorCount++;
+                                continue;
+                            }
+
+                            // Prepara objeto para salvar
+                            const climaRecord = {
+                                companyId: companyId,
+                                fazendaId: farm.id,
+                                talhaoId: talhaoId,
+                                data: data,
+                                tempMax: tempMax,
+                                tempMin: tempMin,
+                                umidade: umidade,
+                                pluviosidade: pluviosidade,
+                                vento: vento,
+                                obs: obs,
+                                source: 'import_csv',
+                                importedAt: serverTimestamp(),
+                                createdBy: App.state.currentUser.uid
+                            };
+
+                            // Adiciona ao batch
+                            const ref = doc(collection(db, 'clima'));
+                            currentBatch.set(ref, climaRecord);
+                            operationCount++;
+                            successCount++;
+
+                            // Commit do batch se cheio
+                            if (operationCount >= batchSize) {
+                                batches.push(currentBatch.commit());
+                                currentBatch = writeBatch(db);
+                                operationCount = 0;
+                            }
+
+                        } catch (err) {
+                            console.error(`Erro ao processar linha ${i + 1}:`, err);
+                            errorCount++;
+                        }
+                    }
+
+                    // Commit final
+                    if (operationCount > 0) {
+                        batches.push(currentBatch.commit());
+                    }
+
+                    await Promise.all(batches);
+
+                    App.ui.setLoading(false);
+                    let msg = `Importação concluída. ${successCount} registros importados.`;
+                    if (errorCount > 0) msg += ` ${errorCount} linhas ignoradas.`;
+
+                    App.ui.showAlert(msg, errorCount > 0 ? "warning" : "success");
+
+                    // Limpa o input
+                    const inputEl = document.getElementById('climateCsvInput');
+                    if (inputEl) inputEl.value = '';
+                };
+
+                reader.readAsText(file);
+            },
         },
         gemini: {
             async _callGeminiAPI(prompt, contextData, loadingMessage = "A processar com IA...") {
@@ -10573,6 +10835,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }, 8000);
             },
+
         },
 
         osManual: {
