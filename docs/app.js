@@ -12187,8 +12187,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!acc[farmName]) {
                         acc[farmName] = { totalChuva: 0, count: 0 };
                     }
-                    if (item.chuva && !isNaN(parseFloat(item.chuva))) {
-                        acc[farmName].totalChuva += parseFloat(item.chuva);
+                    const chuvaVal = App.safeParseFloat(item.chuva);
+                    if (chuvaVal > 0) {
+                        acc[farmName].totalChuva += chuvaVal;
                         acc[farmName].count++;
                     }
                     return acc;
@@ -13024,7 +13025,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const farmId = item.fazendaId || 'unknown';
 
                     if (!dailyFarmData[dateKey][farmId]) dailyFarmData[dateKey][farmId] = 0;
-                    dailyFarmData[dateKey][farmId] += Number(item.pluviosidade);
+                    dailyFarmData[dateKey][farmId] += App.safeParseFloat(item.pluviosidade);
                 });
 
                 // 2. Setup Timeline
@@ -13211,7 +13212,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!monthlyFarmData[monthKey]) monthlyFarmData[monthKey] = {};
                     if (!monthlyFarmData[monthKey][farmId]) monthlyFarmData[monthKey][farmId] = 0;
 
-                    monthlyFarmData[monthKey][farmId] += Number(item.pluviosidade);
+                    monthlyFarmData[monthKey][farmId] += App.safeParseFloat(item.pluviosidade);
                 });
 
                 // 2. Calculate Monthly Average of Farm Totals and Sum to Year
