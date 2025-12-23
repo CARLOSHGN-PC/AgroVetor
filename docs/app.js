@@ -12034,6 +12034,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     options: {
                         ...commonOptions,
+                        scales: {
+                            ...commonOptions.scales,
+                            x: {
+                                ...commonOptions.scales.x,
+                                ticks: {
+                                    ...commonOptions.scales.x.ticks,
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    autoSkip: false
+                                }
+                            }
+                        },
                         plugins: {
                             ...commonOptions.plugins,
                             legend: { display: false },
@@ -12687,17 +12699,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 const avgTempMax = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMax, 0) / data.length : 0;
                 const avgTempMin = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMin, 0) / data.length : 0;
 
-                // Média de pluviosidade (considerando apenas registros válidos)
-                const validPluviosidade = data.filter(item => typeof item.pluviosidade === 'number');
-                const totalPluviosidadeSum = validPluviosidade.reduce((sum, item) => sum + item.pluviosidade, 0);
-                const avgPluviosidade = validPluviosidade.length > 0 ? totalPluviosidadeSum / validPluviosidade.length : 0;
+                // Cálculo de Pluviosidade: Soma das Médias Mensais
+                // 1. Agrupar por Mês
+                const pluviosidadeMonthlyStats = {};
+                data.forEach(item => {
+                    if (typeof item.pluviosidade === 'number') {
+                        const monthKey = item.data.substring(0, 7); // "YYYY-MM"
+                        if (!pluviosidadeMonthlyStats[monthKey]) pluviosidadeMonthlyStats[monthKey] = { sum: 0, count: 0 };
+                        pluviosidadeMonthlyStats[monthKey].sum += item.pluviosidade;
+                        pluviosidadeMonthlyStats[monthKey].count++;
+                    }
+                });
+
+                // 2. Calcular Média de Cada Mês e Somar
+                let acumuladoDasMedias = 0;
+                Object.values(pluviosidadeMonthlyStats).forEach(stat => {
+                    if (stat.count > 0) {
+                        acumuladoDasMedias += (stat.sum / stat.count);
+                    }
+                });
 
                 const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
                 const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
 
                 document.getElementById('kpi-clima-temp-max').textContent = `${avgTempMax.toFixed(1)}°C`;
                 document.getElementById('kpi-clima-temp-min').textContent = `${avgTempMin.toFixed(1)}°C`;
-                document.getElementById('kpi-clima-pluviosidade').textContent = `${avgPluviosidade.toFixed(1)} mm`;
+                document.getElementById('kpi-clima-pluviosidade').textContent = `${acumuladoDasMedias.toFixed(1)} mm`;
                 document.getElementById('kpi-clima-umidade').textContent = `${avgUmidade.toFixed(1)}%`;
                 document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
 
@@ -12970,6 +12997,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const labels = daily.time.map(t => new Date(t + 'T00:00:00').toLocaleDateString('pt-BR', {weekday: 'short', day:'2-digit'}));
 
                 const commonOptions = this._getCommonChartOptions();
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
 
                 this._createOrUpdateChart('graficoPrevisaoTempo', {
                     type: 'bar',
@@ -13026,7 +13054,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             ...commonOptions.plugins,
                             datalabels: {
-                                display: false // Too cluttered for forecast combo
+                                display: true,
+                                color: datalabelColor,
+                                anchor: 'end',
+                                align: 'top',
+                                font: { weight: 'bold', size: 11 },
+                                formatter: (value, context) => {
+                                    if (context.dataset.label.includes('Chuva')) return value > 0 ? `${value}mm` : '';
+                                    return `${value}°`;
+                                }
                             }
                         }
                     }
