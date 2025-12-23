@@ -12874,23 +12874,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 const avgTempMax = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMax, 0) / data.length : 0;
                 const avgTempMin = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMin, 0) / data.length : 0;
 
-                // Cálculo de Pluviosidade: Soma das Médias Mensais
-                // 1. Agrupar por Mês
-                const pluviosidadeMonthlyStats = {};
-                data.forEach(item => {
-                    if (typeof item.pluviosidade === 'number') {
-                        const monthKey = item.data.substring(0, 7); // "YYYY-MM"
-                        if (!pluviosidadeMonthlyStats[monthKey]) pluviosidadeMonthlyStats[monthKey] = { sum: 0, count: 0 };
-                        pluviosidadeMonthlyStats[monthKey].sum += item.pluviosidade;
-                        pluviosidadeMonthlyStats[monthKey].count++;
+                // Cálculo de Pluviosidade: Soma das Médias Mensais (Mesma lógica do Histórico Anual)
+                const normalizeDate = (dateStr) => {
+                    if (!dateStr) return null;
+                    if (dateStr.includes('/')) {
+                        const parts = dateStr.split('/');
+                        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
                     }
+                    return dateStr;
+                };
+
+                const monthlyFarmData = {};
+                data.forEach(item => {
+                    if (item.pluviosidade === undefined || item.pluviosidade === null) return;
+                    const normalizedDate = normalizeDate(item.data);
+                    if (!normalizedDate) return;
+
+                    const parts = normalizedDate.split('-');
+                    if (parts.length < 2) return;
+                    const monthKey = `${parts[0]}-${parts[1]}`; // YYYY-MM
+                    const farmId = item.fazendaId || 'unknown';
+
+                    if (!monthlyFarmData[monthKey]) monthlyFarmData[monthKey] = {};
+                    if (!monthlyFarmData[monthKey][farmId]) monthlyFarmData[monthKey][farmId] = 0;
+
+                    monthlyFarmData[monthKey][farmId] += Number(item.pluviosidade);
                 });
 
-                // 2. Calcular Média de Cada Mês e Somar
                 let acumuladoDasMedias = 0;
-                Object.values(pluviosidadeMonthlyStats).forEach(stat => {
-                    if (stat.count > 0) {
-                        acumuladoDasMedias += (stat.sum / stat.count);
+                Object.values(monthlyFarmData).forEach(farmsInMonth => {
+                    let monthlySumOfFarmTotals = 0;
+                    Object.values(farmsInMonth).forEach(total => monthlySumOfFarmTotals += total);
+                    const uniqueFarmCount = Object.keys(farmsInMonth).length;
+                    if (uniqueFarmCount > 0) {
+                        acumuladoDasMedias += (monthlySumOfFarmTotals / uniqueFarmCount);
                     }
                 });
 
@@ -13067,7 +13084,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (iterMonthYear !== targetMonthYear) {
                         // Past Month Logic
-                        bucketKey = iterDate.toLocaleString('pt-BR', { month: 'short', year: '2-digit' }).toUpperCase();
+                        const monthName = iterDate.toLocaleString('pt-BR', { month: 'short' }).replace('.', '');
+                        bucketKey = monthName.charAt(0).toUpperCase() + monthName.slice(1);
                         bucketType = 'month';
                     } else {
                         // Target/Current Month Logic
@@ -13080,7 +13098,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             bucketType = 'day';
                         } else {
                             // Days of target month grouped into weeks
-                            bucketKey = `Sem ${getWeekNumber(iterDate)}/${iterDate.getMonth() + 1}`;
+                            bucketKey = `Sem ${getWeekNumber(iterDate)}`;
                             bucketType = 'week';
                         }
                     }
@@ -13290,6 +13308,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         },
                         plugins: {
                             ...commonOptions.plugins,
+                            legend: {
+                                ...commonOptions.plugins.legend,
+                                position: 'bottom'
+                            },
                             datalabels: {
                                 display: true,
                                 color: datalabelColor,
