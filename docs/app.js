@@ -11564,11 +11564,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                     });
                                 }
                             } else if (id === 'graficoHistoricoAnual') {
-                                ds.backgroundColor = '#ccff00'; // Green
+                                ds.backgroundColor = '#c6fee9'; // Green
                             } else if (id === 'graficoPrevisaoTempo') {
                                 if (ds.label.includes('Max')) { ds.borderColor = '#ff3366'; ds.backgroundColor = '#ff3366'; } // Red Neon
                                 else if (ds.label.includes('Min')) { ds.borderColor = '#00e5ff'; ds.backgroundColor = '#00e5ff'; } // Blue Neon
-                                else { ds.backgroundColor = '#ccff00'; } // Rain -> Green Neon
+                                else { ds.backgroundColor = '#c6fee9'; } // Rain -> Green Neon
                             }
                         });
                     }
