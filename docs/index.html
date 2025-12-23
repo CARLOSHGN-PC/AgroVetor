@@ -2892,6 +2892,7 @@
                                 <option value="apontamentoPlantio">Apontamento de Plantio</option>
                                 <option value="brocamento">Brocamento</option>
                                 <option value="perda">Perda de Cana</option>
+                                <option value="clima">Climatológico</option>
                             </select>
                         </div>
                         <div class="form-col">
@@ -2901,6 +2902,9 @@
                         <div class="form-col">
                             <label for="manageEndDate">Data Fim:</label>
                             <input type="date" id="manageEndDate">
+                        </div>
+                        <div class="form-col" style="display: flex; align-items: flex-end;">
+                            <button id="btnFixClimateDates" class="btn-secondary" style="display: none;"><i class="fas fa-tools"></i> Corrigir Datas (Clima)</button>
                         </div>
                     </div>
                     <button id="btnApplyManageFilters" class="save" style="max-width: 200px;"><i class="fas fa-filter"></i> Aplicar Filtros</button>

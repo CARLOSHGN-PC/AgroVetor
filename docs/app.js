@@ -686,7 +686,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 dataType: document.getElementById('manageDataType'),
                 startDate: document.getElementById('manageStartDate'),
                 endDate: document.getElementById('manageEndDate'),
-                applyBtn: document.getElementById('btnApplyManageFilters')
+                applyBtn: document.getElementById('btnApplyManageFilters'),
+                btnFixClimateDates: document.getElementById('btnFixClimateDates')
             },
             relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
@@ -2833,11 +2834,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             renderGerenciamento() {
-                const { lista, dataType, startDate, endDate } = App.elements.gerenciamento;
+                const { lista, dataType, startDate, endDate, btnFixClimateDates } = App.elements.gerenciamento;
                 lista.innerHTML = '';
                 let content = '';
 
                 const type = dataType.value;
+
+                if (type === 'clima' && App.state.currentUser.role === 'super-admin') {
+                    if (btnFixClimateDates) btnFixClimateDates.style.display = 'block';
+                } else {
+                    if (btnFixClimateDates) btnFixClimateDates.style.display = 'none';
+                }
                 const start = startDate.value;
                 const end = endDate.value;
 
@@ -4208,6 +4215,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
                 if (App.elements.gerenciamento.applyBtn) App.elements.gerenciamento.applyBtn.addEventListener('click', () => this.renderGerenciamento());
+                if (App.elements.gerenciamento.btnFixClimateDates) App.elements.gerenciamento.btnFixClimateDates.addEventListener('click', () => App.actions.fixClimateDates());
                 
                 if (App.elements.announcements.btnPublish) {
                     App.elements.announcements.btnPublish.addEventListener('click', () => App.actions.publishAnnouncement());
@@ -5492,6 +5500,67 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+            async fixClimateDates() {
+                App.ui.setLoading(true, "A corrigir datas no banco de dados...");
+                try {
+                    const companyId = App.state.currentUser.companyId;
+                    // Busca todos os documentos de clima da empresa
+                    const q = query(collection(db, 'clima'), where('companyId', '==', companyId));
+                    const snapshot = await getDocs(q);
+
+                    if (snapshot.empty) {
+                        App.ui.showAlert("Nenhum registro de clima encontrado.", "info");
+                        return;
+                    }
+
+                    const batchSize = 400;
+                    let batch = writeBatch(db);
+                    let count = 0;
+                    let totalFixed = 0;
+
+                    for (const docSnap of snapshot.docs) {
+                        const data = docSnap.data();
+                        const oldDate = data.data;
+
+                        if (oldDate && oldDate.includes('-')) {
+                            const parts = oldDate.split('-');
+                            // Verifica se ano, mês ou dia não estão no formato correto (YYYY-MM-DD)
+                            // Ex: 2023-1-5 (len 1 for month/day)
+                            if (parts.length === 3) {
+                                const year = parts[0];
+                                const month = parts[1];
+                                const day = parts[2];
+
+                                if (month.length === 1 || day.length === 1) {
+                                    const newDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                                    batch.update(docSnap.ref, { data: newDate });
+                                    count++;
+                                    totalFixed++;
+                                }
+                            }
+                        }
+
+                        if (count >= batchSize) {
+                            await batch.commit();
+                            batch = writeBatch(db);
+                            count = 0;
+                        }
+                    }
+
+                    if (count > 0) {
+                        await batch.commit();
+                    }
+
+                    App.ui.showAlert(`Correção concluída! ${totalFixed} registros atualizados.`, "success");
+
+                } catch (error) {
+                    console.error("Erro ao corrigir datas:", error);
+                    App.ui.showAlert("Erro ao corrigir datas. Consulte o console.", "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
             async getWeatherForecast() {
                 try {
                     const fazendas = App.state.fazendas;
@@ -9117,7 +9186,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const parts = data.split('/');
                                 if (parts.length === 3) {
                                     // Assumes DD/MM/YYYY
-                                    data = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                                    const year = parts[2];
+                                    const month = parts[1].padStart(2, '0');
+                                    const day = parts[0].padStart(2, '0');
+                                    data = `${year}-${month}-${day}`;
                                 }
                             }
 
@@ -12765,21 +12837,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 const avgTempMax = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMax, 0) / data.length : 0;
                 const avgTempMin = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMin, 0) / data.length : 0;
 
-                // Cálculo de Pluviosidade: Média dos Totais por Fazenda (No período filtrado)
-                const farmRainfallTotals = {};
+                // Cálculo de Pluviosidade: Soma das Médias Diárias
+                // (Para cada dia, calcula a média de todas as fazendas, depois soma essas médias)
+                const dailyAverages = {};
+
                 data.forEach(item => {
                     if (typeof item.pluviosidade === 'number') {
-                        const farmKey = item.fazendaId || 'unknown';
-                        if (!farmRainfallTotals[farmKey]) farmRainfallTotals[farmKey] = 0;
-                        farmRainfallTotals[farmKey] += item.pluviosidade;
+                        const dateKey = item.data;
+                        if (!dailyAverages[dateKey]) dailyAverages[dateKey] = { sum: 0, count: 0 };
+                        dailyAverages[dateKey].sum += item.pluviosidade;
+                        dailyAverages[dateKey].count++;
                     }
                 });
 
-                let sumOfFarmTotals = 0;
-                const uniqueFarmsCount = Object.keys(farmRainfallTotals).length;
-                Object.values(farmRainfallTotals).forEach(total => sumOfFarmTotals += total);
-
-                const avgFarmTotalRainfall = uniqueFarmsCount > 0 ? sumOfFarmTotals / uniqueFarmsCount : 0;
+                let totalAccumulatedRainfall = 0;
+                Object.values(dailyAverages).forEach(day => {
+                    if (day.count > 0) {
+                        totalAccumulatedRainfall += (day.sum / day.count);
+                    }
+                });
 
                 const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
                 const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
@@ -12787,9 +12863,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kpi-clima-temp-max').textContent = `${avgTempMax.toFixed(1)}°C`;
                 document.getElementById('kpi-clima-temp-min').textContent = `${avgTempMin.toFixed(1)}°C`;
 
-                // Formatação: Inteiro se for > 0, usando locale pt-BR para separadores
-                const pluviosidadeFormatted = avgFarmTotalRainfall.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-                document.getElementById('kpi-clima-pluviosidade').textContent = `${pluviosidadeFormatted} mm`;
+                // Formatação: Inteiro (sem casas decimais) com ponto para milhares
+                const formatBigNumber = (num) => {
+                    return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                };
+
+                document.getElementById('kpi-clima-pluviosidade').textContent = `${formatBigNumber(totalAccumulatedRainfall)} mm`;
                 document.getElementById('kpi-clima-umidade').textContent = `${avgUmidade.toFixed(1)}%`;
                 document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
 
@@ -12898,22 +12977,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dataPoints = [];
                 const backgroundColors = [];
 
-                let currentBucket = { key: null, type: '', farms: {} };
+                let currentBucket = { key: null, type: '', sumOfDailyAverages: 0 };
 
                 const pushBucket = () => {
                     if (currentBucket.key) {
                         labels.push(currentBucket.key);
 
-                        // New Logic: Sum of Farm Totals in Bucket / Count of Unique Farms in Bucket
-                        const uniqueFarmCount = Object.keys(currentBucket.farms).length;
-                        let bucketTotal = 0;
-                        Object.values(currentBucket.farms).forEach(total => bucketTotal += total);
+                        // Updated Logic (consistent with KPI): Sum of (Sum Farm Totals / Count Unique Farms for each day in bucket)
+                        // Wait... the logic requested is "Sum of Averages".
+                        // My bucket logic aggregates "All farm totals in bucket / unique farms in bucket". This is effectively "Average of Bucket Total".
+                        // BUT, if I want "Sum of Daily Averages", I need to calculate daily averages FIRST, then sum them up for the bucket.
 
-                        dataPoints.push(uniqueFarmCount > 0 ? bucketTotal / uniqueFarmCount : 0);
+                        // Let's refactor the accumulation strategy slightly below to support this.
+                        // However, to keep it simple with existing data structure:
+                        // The 'dailyFarmData' has farm totals per day.
+                        // I can iterate the days within the bucket range again? No, that's inefficient.
 
-                        if (currentBucket.type === 'month') backgroundColors.push('#B0BEC5'); // Grey for past months
-                        else if (currentBucket.type === 'week') backgroundColors.push('#42A5F5'); // Light Blue for past weeks
-                        else if (currentBucket.type === 'day') backgroundColors.push('#1976D2'); // Dark Blue for today
+                        // Correct approach: The 'pushBucket' function assumes 'currentBucket' has data.
+                        // I need to change how I accumulate data into 'currentBucket'.
+                        // Instead of just 'farms' map, I should accumulate 'sumOfDailyAverages'.
+
+                        // REFACTORING accumulation logic below, so here I just push the value.
+                        dataPoints.push(currentBucket.sumOfDailyAverages);
+
+                        if (currentBucket.type === 'month') backgroundColors.push('#ccff00'); // Neon Green
+                        else if (currentBucket.type === 'week') backgroundColors.push('#b983ff'); // Neon Purple
+                        else if (currentBucket.type === 'day') backgroundColors.push('#00e5ff'); // Neon Blue
                     }
                 };
 
@@ -12978,16 +13067,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     // If bucket changes, push previous and reset
                     if (bucketKey !== currentBucket.key) {
                         pushBucket();
-                        currentBucket = { key: bucketKey, type: bucketType, farms: {} };
+                        currentBucket = { key: bucketKey, type: bucketType, sumOfDailyAverages: 0 };
                     }
 
                     // Accumulate data for the current bucket
                     if (dayData) {
-                        // Merge farm totals into the bucket accumulator
-                        Object.keys(dayData).forEach(farmId => {
-                            if (!currentBucket.farms[farmId]) currentBucket.farms[farmId] = 0;
-                            currentBucket.farms[farmId] += dayData[farmId];
-                        });
+                        // Calculate average for THIS day
+                        let dailySum = 0;
+                        const farmIds = Object.keys(dayData);
+                        farmIds.forEach(farmId => dailySum += dayData[farmId]);
+
+                        const dailyAvg = farmIds.length > 0 ? dailySum / farmIds.length : 0;
+                        currentBucket.sumOfDailyAverages += dailyAvg;
                     }
 
                     // Next Day
@@ -13021,7 +13112,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ticks: {
                                     ...commonOptions.scales.x.ticks,
                                     minRotation: -20,
-                                    maxRotation: -20
+                                    maxRotation: -20,
+                                    autoSkip: false
                                 }
                             }
                         },
@@ -13109,7 +13201,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         datasets: [{
                             label: 'Acumulado Anual (mm)',
                             data: values,
-                            backgroundColor: '#2e7d32',
+                            backgroundColor: '#ccff00',
                         }]
                     },
                     options: {
@@ -13147,8 +13239,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 type: 'line',
                                 label: 'Max Temp (°C)',
                                 data: daily.temperature_2m_max,
-                                borderColor: '#d32f2f',
-                                backgroundColor: '#d32f2f',
+                                borderColor: '#ccff00',
+                                backgroundColor: '#ccff00',
                                 yAxisID: 'y',
                                 tension: 0.4
                             },
@@ -13156,8 +13248,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 type: 'line',
                                 label: 'Min Temp (°C)',
                                 data: daily.temperature_2m_min,
-                                borderColor: '#1976d2',
-                                backgroundColor: '#1976d2',
+                                borderColor: '#b983ff',
+                                backgroundColor: '#b983ff',
                                 yAxisID: 'y',
                                 tension: 0.4
                             },
@@ -13165,7 +13257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 type: 'bar',
                                 label: 'Chuva (mm)',
                                 data: daily.precipitation_sum,
-                                backgroundColor: 'rgba(76, 175, 80, 0.6)',
+                                backgroundColor: 'rgba(0, 229, 255, 0.6)',
                                 yAxisID: 'y1'
                             }
                         ]
@@ -13174,7 +13266,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ...commonOptions,
                         layout: {
                             padding: {
-                                top: 40 // Add padding to prevent label overlapping with legend
+                                top: 60 // Add padding to prevent label overlapping with legend
                             }
                         },
                         scales: {

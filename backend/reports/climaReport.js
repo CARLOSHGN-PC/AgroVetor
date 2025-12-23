@@ -94,8 +94,9 @@ const generateClimaPdf = async (req, res, db) => {
         let totalVento = 0;
         let count = 0;
 
-        // Logic for "Average of Farm Totals" for Rainfall
-        const farmRainfallTotals = {};
+        // Logic for "Sum of Daily Averages" for Rainfall
+        // Group by Date, calc avg for that date, then sum averages
+        const dailyAverages = {};
 
         const rows = data.map(item => {
             const rain = item.pluviosidade || 0;
@@ -105,11 +106,11 @@ const generateClimaPdf = async (req, res, db) => {
             totalVento += item.vento || 0;
             count++;
 
-            // Accumulate rainfall per farm
-            // Ensure we have a valid key. Fallback to name if ID is missing (though getClimaData fetches flat data)
-            const farmKey = item.fazendaId || item.fazendaNome || 'unknown';
-            if (!farmRainfallTotals[farmKey]) farmRainfallTotals[farmKey] = 0;
-            farmRainfallTotals[farmKey] += rain;
+            // Group rainfall by date
+            const dateKey = item.data;
+            if (!dailyAverages[dateKey]) dailyAverages[dateKey] = { sum: 0, count: 0 };
+            dailyAverages[dateKey].sum += rain;
+            dailyAverages[dateKey].count++;
 
             return [
                 item.fazendaNome,
@@ -128,18 +129,20 @@ const generateClimaPdf = async (req, res, db) => {
 
         currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
-        // Calculate Average of Farm Totals for Rainfall
-        const uniqueFarms = Object.keys(farmRainfallTotals).length;
-        let sumOfFarmTotals = 0;
-        Object.values(farmRainfallTotals).forEach(val => sumOfFarmTotals += val);
-        const avgFarmTotalRainfall = uniqueFarms > 0 ? sumOfFarmTotals / uniqueFarms : 0;
+        // Calculate "Sum of Daily Averages" for Rainfall
+        let totalAccumulatedRainfall = 0;
+        Object.values(dailyAverages).forEach(day => {
+            if (day.count > 0) {
+                totalAccumulatedRainfall += (day.sum / day.count);
+            }
+        });
 
         const summaryRow = [
             'MÉDIAS/TOTAIS', '', '',
             formatNumber(totalTempMax / count),
             formatNumber(totalTempMin / count),
             formatNumber(totalUmidade / count),
-            formatNumber(avgFarmTotalRainfall), // Uses specific calculation
+            Math.round(totalAccumulatedRainfall).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."), // Custom formatting for rainfall
             formatNumber(totalVento / count),
             ''
         ];
