@@ -9067,20 +9067,17 @@ document.addEventListener('DOMContentLoaded', () => {
             async importClimateData(file) {
                 if (!file) return;
 
-                // Validação básica do tipo de arquivo
                 if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
                     App.ui.showAlert("Por favor, carregue um arquivo CSV válido.", "error");
                     return;
                 }
 
-                App.ui.setLoading(true, "A importar dados... Isso pode levar alguns momentos.");
+                App.ui.setLoading(true, "A analisar arquivo...");
 
                 const reader = new FileReader();
                 reader.onload = async (e) => {
                     const text = e.target.result;
                     const lines = text.split('\n');
-
-                    // Remove linhas vazias
                     const nonEmptyLines = lines.filter(line => line.trim() !== '');
 
                     if (nonEmptyLines.length < 2) {
@@ -9089,62 +9086,52 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    let successCount = 0;
-                    let errorCount = 0;
-                    const batchSize = 400; // Limite do Firestore é 500
-                    let batches = [];
-                    let currentBatch = writeBatch(db);
-                    let operationCount = 0;
-
                     const companyId = App.state.currentUser.companyId;
-
-                    // Normalização para facilitar comparação
                     const normalize = (str) => String(str).trim().toUpperCase();
 
-                    // Prepara mapas para lookup rápido
-                    const farmMap = new Map(); // Code -> Farm Object
+                    // Prepara mapa de fazendas (Código E Nome)
+                    const farmMap = new Map();
                     App.state.fazendas.forEach(f => {
-                         farmMap.set(normalize(f.code), f);
+                        farmMap.set(normalize(f.code), f);
+                        if (f.name) farmMap.set(normalize(f.name), f);
                     });
 
-                    // Pula o cabeçalho (índice 1 em diante)
+                    // 1. Parsing Inicial para Validar e Encontrar Range de Datas
+                    let parsedRows = [];
+                    let minDate = null;
+                    let maxDate = null;
+                    let errorCount = 0;
+
                     for (let i = 1; i < nonEmptyLines.length; i++) {
                         try {
                             const line = nonEmptyLines[i].trim();
                             if (!line) continue;
 
                             const cols = line.split(';');
-                            // Esperado: FUNDO_AGR;TALHAO;DATA;TEMP_MAX;TEMP_MIN;UMIDADE;PLUVIOSIDADE;VENTO;OBS
-
                             const fundoAgr = normalize(cols[0]);
                             const talhaoNome = normalize(cols[1]);
-                            const data = cols[2]; // YYYY-MM-DD
-                            const tempMax = cols[3] ? parseFloat(cols[3].replace(',', '.')) : null;
-                            const tempMin = cols[4] ? parseFloat(cols[4].replace(',', '.')) : null;
-                            const umidade = cols[5] ? parseFloat(cols[5].replace(',', '.')) : null;
-                            const pluviosidade = cols[6] ? parseFloat(cols[6].replace(',', '.')) : null;
-                            const vento = cols[7] ? parseFloat(cols[7].replace(',', '.')) : null;
-                            const obs = cols[8] ? cols[8].replace(/^"|"$/g, '') : '';
+                            const data = cols[2];
 
                             if (!fundoAgr || !talhaoNome || !data) {
-                                console.warn(`Linha ${i + 1} ignorada: Dados obrigatórios ausentes.`);
                                 errorCount++;
                                 continue;
                             }
 
-                            // Match Fazenda
+                            if (!minDate || data < minDate) minDate = data;
+                            if (!maxDate || data > maxDate) maxDate = data;
+
+                            // Resolve IDs aqui para preparar a chave de comparação
                             let farm = farmMap.get(fundoAgr);
+                            // Fallback para inteiros se for código numérico
                             if (!farm && !isNaN(parseInt(fundoAgr))) {
                                 farm = Array.from(farmMap.values()).find(f => parseInt(f.code) === parseInt(fundoAgr));
                             }
 
                             if (!farm) {
-                                console.warn(`Linha ${i + 1} ignorada: Fazenda ${fundoAgr} não encontrada.`);
                                 errorCount++;
                                 continue;
                             }
 
-                            // Match Talhão
                             let talhaoId = null;
                             if (farm.talhoes) {
                                 const talhao = farm.talhoes.find(t => normalize(t.name) === talhaoNome);
@@ -9152,61 +9139,131 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             if (!talhaoId) {
-                                console.warn(`Linha ${i + 1} ignorada: Talhão ${talhaoNome} não encontrado na fazenda ${fundoAgr}.`);
                                 errorCount++;
                                 continue;
                             }
 
-                            // Prepara objeto para salvar
-                            const climaRecord = {
-                                companyId: companyId,
-                                fazendaId: farm.id,
+                            parsedRows.push({
+                                raw: cols,
+                                farmId: farm.id,
                                 talhaoId: talhaoId,
                                 data: data,
-                                tempMax: tempMax,
-                                tempMin: tempMin,
-                                umidade: umidade,
-                                pluviosidade: pluviosidade,
-                                vento: vento,
-                                obs: obs,
-                                source: 'import_csv',
-                                importedAt: serverTimestamp(),
-                                createdBy: App.state.currentUser.uid
-                            };
-
-                            // Adiciona ao batch
-                            const ref = doc(collection(db, 'clima'));
-                            currentBatch.set(ref, climaRecord);
-                            operationCount++;
-                            successCount++;
-
-                            // Commit do batch se cheio
-                            if (operationCount >= batchSize) {
-                                batches.push(currentBatch.commit());
-                                currentBatch = writeBatch(db);
-                                operationCount = 0;
-                            }
+                                // Campos para comparação de duplicidade
+                                tempMax: cols[3] ? parseFloat(cols[3].replace(',', '.')) : null,
+                                tempMin: cols[4] ? parseFloat(cols[4].replace(',', '.')) : null,
+                                pluviosidade: cols[6] ? parseFloat(cols[6].replace(',', '.')) : null
+                            });
 
                         } catch (err) {
-                            console.error(`Erro ao processar linha ${i + 1}:`, err);
                             errorCount++;
+                        }
+                    }
+
+                    if (parsedRows.length === 0) {
+                        App.ui.setLoading(false);
+                        App.ui.showAlert("Nenhum dado válido encontrado para importar.", "warning");
+                        return;
+                    }
+
+                    // 2. Busca Dados Existentes no Range (Otimizado)
+                    App.ui.setLoading(true, "A verificar duplicidades no servidor...");
+                    const existingRecordsMap = new Set();
+
+                    try {
+                        const q = query(
+                            collection(db, 'clima'),
+                            where('companyId', '==', companyId),
+                            where('data', '>=', minDate),
+                            where('data', '<=', maxDate)
+                        );
+
+                        const querySnapshot = await getDocs(q);
+                        querySnapshot.forEach(doc => {
+                            const d = doc.data();
+                            // Chave Única: Fazenda + Talhão + Data + Valores Chave
+                            // Nota: Valores null/undefined são convertidos para string "undefined" ou "null" consistentemente pelo template literal
+                            const key = `${d.fazendaId}|${d.talhaoId}|${d.data}|${d.tempMax}|${d.tempMin}|${d.pluviosidade}`;
+                            existingRecordsMap.add(key);
+                        });
+                    } catch (e) {
+                        console.error("Erro ao buscar dados existentes:", e);
+                        // Continua, assumindo sem duplicatas se der erro na leitura (fallback arriscado, mas melhor que travar)
+                    }
+
+                    // 3. Filtragem e Preparação dos Lotes
+                    let duplicateCount = 0;
+                    let successCount = 0;
+                    const batchSize = 400;
+                    let currentBatch = writeBatch(db);
+                    let operationCount = 0;
+
+                    App.ui.setLoading(true, `A processar ${parsedRows.length} registros...`);
+
+                    for (const row of parsedRows) {
+                        const key = `${row.farmId}|${row.talhaoId}|${row.data}|${row.tempMax}|${row.tempMin}|${row.pluviosidade}`;
+
+                        if (existingRecordsMap.has(key)) {
+                            duplicateCount++;
+                            continue;
+                        }
+
+                        // Parse final dos outros campos
+                        const cols = row.raw;
+                        const umidade = cols[5] ? parseFloat(cols[5].replace(',', '.')) : null;
+                        const vento = cols[7] ? parseFloat(cols[7].replace(',', '.')) : null;
+                        const obs = cols[8] ? cols[8].replace(/^"|"$/g, '') : '';
+
+                        const climaRecord = {
+                            companyId: companyId,
+                            fazendaId: row.farmId,
+                            talhaoId: row.talhaoId,
+                            data: row.data,
+                            tempMax: row.tempMax,
+                            tempMin: row.tempMin,
+                            umidade: umidade,
+                            pluviosidade: row.pluviosidade,
+                            vento: vento,
+                            obs: obs,
+                            source: 'import_csv',
+                            importedAt: serverTimestamp(),
+                            createdBy: App.state.currentUser.uid
+                        };
+
+                        const ref = doc(collection(db, 'clima'));
+                        currentBatch.set(ref, climaRecord);
+                        operationCount++;
+                        successCount++;
+
+                        // Commit Sequencial para evitar erros de conexão
+                        if (operationCount >= batchSize) {
+                            App.ui.setLoading(true, `A salvar lote... (${successCount} prontos)`);
+                            await currentBatch.commit();
+                            currentBatch = writeBatch(db);
+                            operationCount = 0;
                         }
                     }
 
                     // Commit final
                     if (operationCount > 0) {
-                        batches.push(currentBatch.commit());
+                        await currentBatch.commit();
                     }
 
-                    await Promise.all(batches);
-
                     App.ui.setLoading(false);
-                    let msg = `Importação concluída. ${successCount} registros importados.`;
-                    if (errorCount > 0) msg += ` ${errorCount} linhas ignoradas.`;
 
-                    App.ui.showAlert(msg, errorCount > 0 ? "warning" : "success");
+                    let msg = `Importação finalizada.`;
+                    let type = "success";
 
-                    // Limpa o input
+                    if (successCount > 0) msg += ` ${successCount} novos registros importados.`;
+                    else msg += ` Nenhum novo registro.`;
+
+                    if (duplicateCount > 0) msg += ` ${duplicateCount} duplicados ignorados.`;
+                    if (errorCount > 0) {
+                        msg += ` ${errorCount} linhas com erro/ignoradas.`;
+                        if (successCount === 0) type = "warning";
+                    }
+
+                    App.ui.showSystemNotification("Importação de Clima", msg, type);
+
                     const inputEl = document.getElementById('climateCsvInput');
                     if (inputEl) inputEl.value = '';
                 };
