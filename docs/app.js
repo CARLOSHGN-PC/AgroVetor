@@ -11559,7 +11559,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     ds.backgroundColor = ds.backgroundColor.map(c => {
                                         if (c === '#B0BEC5') return '#b983ff'; // Past Month -> Purple
                                         if (c === '#42A5F5') return '#00e5ff'; // Past Week -> Blue
-                                        if (c === '#1976D2') return '#ccff00'; // Today -> Green
+                                        if (c === '#1976D2') return '#c6fee9'; // Today -> Green
                                         return c;
                                     });
                                 }
