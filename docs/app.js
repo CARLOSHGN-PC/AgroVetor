@@ -12686,13 +12686,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 // KPIs
                 const avgTempMax = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMax, 0) / data.length : 0;
                 const avgTempMin = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMin, 0) / data.length : 0;
-                const totalPluviosidade = data.reduce((sum, item) => sum + item.pluviosidade, 0);
+
+                // Média de pluviosidade (considerando apenas registros válidos)
+                const validPluviosidade = data.filter(item => typeof item.pluviosidade === 'number');
+                const totalPluviosidadeSum = validPluviosidade.reduce((sum, item) => sum + item.pluviosidade, 0);
+                const avgPluviosidade = validPluviosidade.length > 0 ? totalPluviosidadeSum / validPluviosidade.length : 0;
+
                 const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
                 const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
 
                 document.getElementById('kpi-clima-temp-max').textContent = `${avgTempMax.toFixed(1)}°C`;
                 document.getElementById('kpi-clima-temp-min').textContent = `${avgTempMin.toFixed(1)}°C`;
-                document.getElementById('kpi-clima-pluviosidade').textContent = `${totalPluviosidade.toFixed(1)} mm`;
+                document.getElementById('kpi-clima-pluviosidade').textContent = `${avgPluviosidade.toFixed(1)} mm`;
                 document.getElementById('kpi-clima-umidade').textContent = `${avgUmidade.toFixed(1)}%`;
                 document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
 
@@ -12761,19 +12766,14 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             renderAcumuloPluviosidadeChart(fullData) {
-                // 1. Calculate Regional Daily Averages (Consolidated across all farms for each day)
-                const dailyMap = {};
+                // 1. Calculate Daily Totals (Sum and Count of all records per day)
+                const dailyStats = {};
                 fullData.forEach(item => {
                     if (item.pluviosidade === undefined || item.pluviosidade === null) return;
                     const dateKey = item.data;
-                    if (!dailyMap[dateKey]) dailyMap[dateKey] = { sum: 0, count: 0 };
-                    dailyMap[dateKey].sum += Number(item.pluviosidade);
-                    dailyMap[dateKey].count++;
-                });
-
-                const dailyAverages = {};
-                Object.keys(dailyMap).forEach(key => {
-                    dailyAverages[key] = dailyMap[key].sum / dailyMap[key].count;
+                    if (!dailyStats[dateKey]) dailyStats[dateKey] = { sum: 0, count: 0 };
+                    dailyStats[dateKey].sum += Number(item.pluviosidade);
+                    dailyStats[dateKey].count++;
                 });
 
                 // 2. Setup Timeline
@@ -12790,6 +12790,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const pushBucket = () => {
                     if (currentBucket.key) {
                         labels.push(currentBucket.key);
+                        // Média de todos os lançamentos no período (Bucket)
                         dataPoints.push(currentBucket.count > 0 ? currentBucket.sum / currentBucket.count : 0);
 
                         if (currentBucket.type === 'month') backgroundColors.push('#B0BEC5'); // Grey for past months
@@ -12818,7 +12819,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const day = String(iterDate.getDate()).padStart(2, '0');
                     const dateKey = `${year}-${month}-${day}`;
 
-                    const val = dailyAverages[dateKey]; // Average rain for this day (or undefined)
+                    const dayStat = dailyStats[dateKey]; // { sum, count } for this day
 
                     let bucketKey = '';
                     let bucketType = '';
@@ -12854,9 +12855,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Accumulate data for the current bucket
-                    // Treat missing data as 0 for averaging over the period
-                    currentBucket.sum += (val || 0);
-                    currentBucket.count++;
+                    if (dayStat) {
+                        currentBucket.sum += dayStat.sum;
+                        currentBucket.count += dayStat.count;
+                    }
 
                     // Next Day
                     iterDate.setDate(iterDate.getDate() + 1);
@@ -12905,40 +12907,33 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             renderHistoricoAnualChart(fullData) {
-                const dataByYear = {};
+                // 1. Agrupar por Mês e calcular Média Mensal dos lançamentos
+                const monthlyStats = {};
 
                 fullData.forEach(item => {
-                    const year = item.data.split('-')[0];
-                    if (!dataByYear[year]) dataByYear[year] = 0;
-                    // For history, usually we want Total Sum, but if we have multiple points per day (farms),
-                    // we should probably average the farms for that day, then sum the days?
-                    // User said "Cada coluna representando o acumulado anual".
-                    // If we just sum everything, more farms = more rain, which is wrong.
-                    // Correct approach: Average Rainfall across all farms for a specific day -> Sum those Daily Averages for the Year.
-                    // However, `fullData` is flat.
-                    // Let's assume we sum unique day-farm records? No.
-                    // Let's stick to: Sum of (Daily Averages).
+                    if (item.pluviosidade === undefined || item.pluviosidade === null) return;
+                    // item.data formato esperado "YYYY-MM-DD"
+                    const monthKey = item.data.substring(0, 7); // "YYYY-MM"
+
+                    if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { sum: 0, count: 0 };
+                    monthlyStats[monthKey].sum += Number(item.pluviosidade);
+                    monthlyStats[monthKey].count++;
                 });
 
-                // Re-process full data to get daily averages first
-                const dailyAverages = {};
-                fullData.forEach(item => {
-                    if (!dailyAverages[item.data]) dailyAverages[item.data] = { sum: 0, count: 0 };
-                    dailyAverages[item.data].sum += item.pluviosidade;
-                    dailyAverages[item.data].count++;
+                // 2. Somar as médias mensais para obter o total anual
+                const yearlyTotals = {};
+
+                Object.keys(monthlyStats).forEach(monthKey => {
+                    const year = monthKey.split('-')[0];
+                    const stats = monthlyStats[monthKey];
+                    const monthlyAvg = stats.count > 0 ? stats.sum / stats.count : 0;
+
+                    if (!yearlyTotals[year]) yearlyTotals[year] = 0;
+                    yearlyTotals[year] += monthlyAvg;
                 });
 
-                // Now sum up daily averages into years
-                Object.keys(dailyAverages).forEach(date => {
-                    const year = date.split('-')[0];
-                    const avg = dailyAverages[date].sum / dailyAverages[date].count;
-
-                    if (!dataByYear[year]) dataByYear[year] = 0;
-                    dataByYear[year] += avg;
-                });
-
-                const years = Object.keys(dataByYear).sort();
-                const values = years.map(y => dataByYear[y]);
+                const years = Object.keys(yearlyTotals).sort();
+                const values = years.map(y => yearlyTotals[y]);
 
                 const commonOptions = this._getCommonChartOptions();
                 this._createOrUpdateChart('graficoHistoricoAnual', {
