@@ -11559,16 +11559,16 @@ document.addEventListener('DOMContentLoaded', () => {
                                     ds.backgroundColor = ds.backgroundColor.map(c => {
                                         if (c === '#B0BEC5') return '#b983ff'; // Past Month -> Purple
                                         if (c === '#42A5F5') return '#00e5ff'; // Past Week -> Blue
-                                        if (c === '#1976D2') return '#2a392f'; // Today -> Green
+                                        if (c === '#1976D2') return '#74a1af'; // Today -> Green
                                         return c;
                                     });
                                 }
                             } else if (id === 'graficoHistoricoAnual') {
-                                ds.backgroundColor = '#2a392f'; // Green
+                                ds.backgroundColor = '#74a1af'; // Green
                             } else if (id === 'graficoPrevisaoTempo') {
                                 if (ds.label.includes('Max')) { ds.borderColor = '#ff3366'; ds.backgroundColor = '#ff3366'; } // Red Neon
                                 else if (ds.label.includes('Min')) { ds.borderColor = '#00e5ff'; ds.backgroundColor = '#00e5ff'; } // Blue Neon
-                                else { ds.backgroundColor = '#2a392f'; } // Rain -> Green Neon
+                                else { ds.backgroundColor = '#74a1af'; } // Rain -> Green Neon
                             }
                         });
                     }
