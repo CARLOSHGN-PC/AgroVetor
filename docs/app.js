@@ -9110,7 +9110,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             const cols = line.split(';');
                             const fundoAgr = normalize(cols[0]);
                             const talhaoNome = normalize(cols[1]);
-                            const data = cols[2];
+                            let data = cols[2];
+
+                            // Normalize Date from DD/MM/YYYY to YYYY-MM-DD
+                            if (data && data.includes('/')) {
+                                const parts = data.split('/');
+                                if (parts.length === 3) {
+                                    // Assumes DD/MM/YYYY
+                                    data = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                                }
+                            }
 
                             if (!fundoAgr || !talhaoNome || !data) {
                                 errorCount++;
@@ -12786,7 +12795,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
 
                 // Render Charts
-                this.renderAcumuloPluviosidadeChart(consolidatedData); // Passes full data for internal filtering
+                this.renderAcumuloPluviosidadeChart(consolidatedData, startDateEl.value, endDateEl.value);
                 this.renderPrevisaoTempoChart(forecastData);
                 this.renderHistoricoAnualChart(consolidatedData);
                 this.renderVariacaoTemperaturaChart(data);
@@ -12849,12 +12858,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            renderAcumuloPluviosidadeChart(fullData) {
+            renderAcumuloPluviosidadeChart(fullData, startDateStr, endDateStr) {
+                // Helper to normalize dates (handles DD/MM/YYYY and YYYY-MM-DD)
+                const normalizeDate = (dateStr) => {
+                    if (!dateStr) return null;
+                    if (dateStr.includes('/')) {
+                        const parts = dateStr.split('/'); // Assumes DD/MM/YYYY
+                        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    }
+                    return dateStr;
+                };
+
                 // 1. Calculate Daily Totals (Sum and Count of all records per day)
                 const dailyStats = {};
                 fullData.forEach(item => {
                     if (item.pluviosidade === undefined || item.pluviosidade === null) return;
-                    const dateKey = item.data;
+                    const dateKey = normalizeDate(item.data);
+                    if (!dateKey) return;
+
                     if (!dailyStats[dateKey]) dailyStats[dateKey] = { sum: 0, count: 0 };
                     dailyStats[dateKey].sum += Number(item.pluviosidade);
                     dailyStats[dateKey].count++;
@@ -12862,8 +12883,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 2. Setup Timeline
                 const today = new Date();
-                const currentYear = today.getFullYear();
-                const currentMonth = today.getMonth();
+
+                // Determine start and end dates for the chart axis
+                let start = startDateStr ? new Date(startDateStr + 'T00:00:00') : new Date(today.getFullYear(), 0, 1);
+                let end = endDateStr ? new Date(endDateStr + 'T00:00:00') : today;
+
+                // Validate dates
+                if (isNaN(start.getTime())) start = new Date(today.getFullYear(), 0, 1);
+                if (isNaN(end.getTime())) end = today;
 
                 const labels = [];
                 const dataPoints = [];
@@ -12883,18 +12910,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
-                // Helper to get Week Number (Month-relative, Calendar Weeks starting Sunday)
+                // Helper to get Week Number
                 const getWeekNumber = (d) => {
                     const firstDayOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
                     const dayOfWeekFirst = firstDayOfMonth.getDay();
                     return Math.ceil((d.getDate() + dayOfWeekFirst) / 7);
                 };
 
-                // Iterate from Start of Current Year to Today
-                const iterDate = new Date(currentYear, 0, 1);
+                // Iterate from Start to End
+                const iterDate = new Date(start);
+
+                // Define what "Current Month" means relative to the selected range.
+                // We treat the month of the 'end' date as the "Current Month" for visualization purposes (detailed view),
+                // and previous months as "Past Months" (aggregated view).
+                const targetMonthYear = `${end.getFullYear()}-${end.getMonth()}`;
 
                 let safeCounter = 0;
-                while (iterDate <= today && safeCounter < 400) {
+                while (iterDate <= end && safeCounter < 3000) { // Increased safety limit for multi-year
                     safeCounter++;
 
                     // Safe Date Key Generation (Local)
@@ -12908,26 +12940,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     let bucketKey = '';
                     let bucketType = '';
 
-                    // Logic:
-                    // Past Months -> Group by Month
-                    // Current Month -> Group by Week
-                    // Today -> Separate Day
+                    const iterMonthYear = `${year}-${iterDate.getMonth()}`;
 
-                    if (iterDate.getMonth() < currentMonth) {
-                        bucketKey = iterDate.toLocaleString('pt-BR', { month: 'short' }).toUpperCase();
+                    // Logic:
+                    // Months before the Target End Month -> Group by Month
+                    // Target End Month -> Group by Week
+                    // Specific Days (if range is very short) -> handled by week logic mostly, or we could refine.
+                    // For now, let's stick to the requested "Current Month" detail logic.
+
+                    if (iterMonthYear !== targetMonthYear) {
+                        // Past Month Logic
+                        bucketKey = iterDate.toLocaleString('pt-BR', { month: 'short', year: '2-digit' }).toUpperCase();
                         bucketType = 'month';
                     } else {
-                        // Current Month Logic
-                        const isToday = iterDate.getDate() === today.getDate() &&
-                                      iterDate.getMonth() === today.getMonth() &&
-                                      iterDate.getFullYear() === today.getFullYear();
+                        // Target/Current Month Logic
+                        const isToday = iterDate.getDate() === end.getDate() &&
+                                      iterDate.getMonth() === end.getMonth() &&
+                                      iterDate.getFullYear() === end.getFullYear();
 
                         if (isToday) {
-                            bucketKey = `Dia ${today.getDate()}/${today.getMonth() + 1}`;
+                            bucketKey = `Dia ${iterDate.getDate()}/${iterDate.getMonth() + 1}`;
                             bucketType = 'day';
                         } else {
-                            // Past days of current month are grouped into weeks
-                            bucketKey = `Sem ${getWeekNumber(iterDate)}`;
+                            // Days of target month grouped into weeks
+                            bucketKey = `Sem ${getWeekNumber(iterDate)}/${iterDate.getMonth() + 1}`;
                             bucketType = 'week';
                         }
                     }
@@ -12991,20 +13027,36 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             renderHistoricoAnualChart(fullData) {
+                // Helper to normalize dates (handles DD/MM/YYYY and YYYY-MM-DD)
+                const normalizeDate = (dateStr) => {
+                    if (!dateStr) return null;
+                    if (dateStr.includes('/')) {
+                        const parts = dateStr.split('/'); // Assumes DD/MM/YYYY
+                        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    }
+                    return dateStr;
+                };
+
                 // 1. Agrupar por Mês e calcular Média Mensal dos lançamentos
                 const monthlyStats = {};
 
                 fullData.forEach(item => {
                     if (item.pluviosidade === undefined || item.pluviosidade === null) return;
-                    // item.data formato esperado "YYYY-MM-DD"
-                    const monthKey = item.data.substring(0, 7); // "YYYY-MM"
+
+                    const normalizedDate = normalizeDate(item.data);
+                    if (!normalizedDate) return;
+
+                    // Robust Year-Month extraction
+                    const parts = normalizedDate.split('-');
+                    if (parts.length < 2) return;
+                    const monthKey = `${parts[0]}-${parts[1]}`; // YYYY-MM
 
                     if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { sum: 0, count: 0 };
                     monthlyStats[monthKey].sum += Number(item.pluviosidade);
                     monthlyStats[monthKey].count++;
                 });
 
-                // 2. Somar as médias mensais para obter o total anual
+                // 2. Somar as médias mensais para obter o total anual (Requirement: Sum of all monthly averages)
                 const yearlyTotals = {};
 
                 Object.keys(monthlyStats).forEach(monthKey => {
