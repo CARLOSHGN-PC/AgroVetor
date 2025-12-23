@@ -11557,7 +11557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (id === 'graficoAcumuloPluviosidade') {
                                 if (ds.backgroundColor && Array.isArray(ds.backgroundColor)) {
                                     ds.backgroundColor = ds.backgroundColor.map(c => {
-                                        if (c === '#B0BEC5') return '#f5a502'; // Past Month -> Purple
+                                        if (c === '#B0BEC5') return '#00bdbd'; // Past Month -> Purple
                                         if (c === '#42A5F5') return '#00e5ff'; // Past Week -> Blue
                                         if (c === '#1976D2') return '#02f5c5'; // Today -> Green
                                         return c;
