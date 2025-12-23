@@ -783,6 +783,16 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         },
 
+        safeParseFloat(value) {
+            if (typeof value === 'number') return value;
+            if (typeof value === 'string') {
+                const normalized = value.replace(',', '.');
+                const parsed = parseFloat(normalized);
+                return isNaN(parsed) ? 0 : parsed;
+            }
+            return 0;
+        },
+
         init() {
             OfflineDB.init();
             this.native.init();
@@ -12898,14 +12908,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!monthlyFarmData[monthKey]) monthlyFarmData[monthKey] = {};
                     if (!monthlyFarmData[monthKey][farmId]) monthlyFarmData[monthKey][farmId] = 0;
 
-                    monthlyFarmData[monthKey][farmId] += Number(item.pluviosidade);
+                    // Use safeParseFloat para lidar com números com vírgula (Ex: "10,5")
+                    monthlyFarmData[monthKey][farmId] += App.safeParseFloat(item.pluviosidade);
                 });
 
+                // Cálculo do card de Pluviosidade Acumulada:
+                // 1. Agrupa por mês.
+                // 2. Para cada mês: Calcula a média pluviométrica das fazendas (Soma dos totais de cada fazenda / Quantidade de fazendas com dados).
+                // 3. Soma as médias mensais para obter o acumulado total do período.
+                // Exemplo do usuário: Jan (média 100) + Fev (média 100) = Card (200).
                 let acumuladoDasMedias = 0;
                 Object.values(monthlyFarmData).forEach(farmsInMonth => {
                     let monthlySumOfFarmTotals = 0;
                     Object.values(farmsInMonth).forEach(total => monthlySumOfFarmTotals += total);
-                    const uniqueFarmCount = Object.keys(farmsInMonth).length;
+                    const uniqueFarmCount = Object.keys(farmsInMonth).length; // Quantidade de fazendas com dados no mês
+
                     if (uniqueFarmCount > 0) {
                         acumuladoDasMedias += (monthlySumOfFarmTotals / uniqueFarmCount);
                     }
