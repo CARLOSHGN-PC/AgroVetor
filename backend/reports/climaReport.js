@@ -28,6 +28,15 @@ const getClimaData = async (db, filters) => {
     return data;
 };
 
+// Helper function to format numbers as integers with dot separators (e.g. 1.000)
+const formatInteger = (value) => {
+    if (value === null || value === undefined || isNaN(value)) return '-';
+    // Round to nearest integer to avoid commas/decimals
+    const rounded = Math.round(value);
+    // Format with dots for thousands
+    return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+
 const generateClimaPdf = async (req, res, db) => {
     const doc = setupDoc();
     res.setHeader('Content-Type', 'application/pdf');
@@ -88,30 +97,39 @@ const generateClimaPdf = async (req, res, db) => {
         // Updated Headers: Fazenda, Data
         const headers = ['Fazenda', 'Data', 'Talhão', 'Temp. Máx (°C)', 'Temp. Mín (°C)', 'Umidade (%)', 'Pluviosidade (mm)', 'Vento (km/h)', 'Obs'];
 
-        let totalPluviosidade = 0;
         let totalTempMax = 0;
         let totalTempMin = 0;
         let totalUmidade = 0;
         let totalVento = 0;
         let count = 0;
 
+        // Logic for Pluviosidade Acumulada: Sum of Monthly Averages
+        const pluviosidadeMonthlyStats = {};
+
         const rows = data.map(item => {
-            totalPluviosidade += item.pluviosidade || 0;
             totalTempMax += item.tempMax || 0;
             totalTempMin += item.tempMin || 0;
             totalUmidade += item.umidade || 0;
             totalVento += item.vento || 0;
             count++;
 
+            // Accumulate monthly stats for Pluviosidade
+            if (typeof item.pluviosidade === 'number') {
+                const monthKey = item.data.substring(0, 7); // "YYYY-MM"
+                if (!pluviosidadeMonthlyStats[monthKey]) pluviosidadeMonthlyStats[monthKey] = { sum: 0, count: 0 };
+                pluviosidadeMonthlyStats[monthKey].sum += item.pluviosidade;
+                pluviosidadeMonthlyStats[monthKey].count++;
+            }
+
             return [
                 item.fazendaNome,
                 formatDate(item.data),
                 item.talhaoNome,
-                formatNumber(item.tempMax),
-                formatNumber(item.tempMin),
-                formatNumber(item.umidade),
-                formatNumber(item.pluviosidade),
-                formatNumber(item.vento),
+                formatInteger(item.tempMax),
+                formatInteger(item.tempMin),
+                formatInteger(item.umidade),
+                formatInteger(item.pluviosidade),
+                formatInteger(item.vento),
                 item.obs || ''
             ];
         });
@@ -120,13 +138,21 @@ const generateClimaPdf = async (req, res, db) => {
 
         currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
+        // Calculate Accumulated Rainfall (Sum of Monthly Averages)
+        let accumulatedRainfall = 0;
+        Object.values(pluviosidadeMonthlyStats).forEach(stat => {
+            if (stat.count > 0) {
+                accumulatedRainfall += (stat.sum / stat.count);
+            }
+        });
+
         const summaryRow = [
             'MÉDIAS/TOTAIS', '', '',
-            formatNumber(totalTempMax / count),
-            formatNumber(totalTempMin / count),
-            formatNumber(totalUmidade / count),
-            formatNumber(totalPluviosidade / count),
-            formatNumber(totalVento / count),
+            formatInteger(totalTempMax / count),
+            formatInteger(totalTempMin / count),
+            formatInteger(totalUmidade / count),
+            formatInteger(accumulatedRainfall), // Using the new logic
+            formatInteger(totalVento / count),
             ''
         ];
 

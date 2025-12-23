@@ -3595,8 +3595,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!list) return;
                 list.innerHTML = '';
 
+                // Add Admin Tool for Data Correction
+                const adminToolsContainer = document.createElement('div');
+                adminToolsContainer.className = 'admin-tools-container';
+                adminToolsContainer.style.marginBottom = '20px';
+                adminToolsContainer.style.padding = '15px';
+                adminToolsContainer.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
+                adminToolsContainer.style.border = '1px solid red';
+                adminToolsContainer.style.borderRadius = '8px';
+
+                adminToolsContainer.innerHTML = `
+                    <h3><i class="fas fa-tools"></i> Ferramentas de Manutenção</h3>
+                    <p>Use com cuidado. Estas ações afetam o banco de dados diretamente.</p>
+                    <button id="btnFixDateFormats" class="btn btn-primary" style="background-color: #ff3366; border-color: #ff3366;">
+                        <i class="fas fa-calendar-check"></i> Corrigir Datas (Bug Importação)
+                    </button>
+                `;
+                list.appendChild(adminToolsContainer);
+
+                setTimeout(() => {
+                    const btnFix = document.getElementById('btnFixDateFormats');
+                    if (btnFix) {
+                        btnFix.addEventListener('click', async () => {
+                            if (!confirm("Tem certeza que deseja rodar a correção de datas? Isso irá verificar e corrigir datas mal formatadas (ex: 2020-1-1 -> 2020-01-01) na coleção 'clima'.")) return;
+
+                            App.ui.setLoading(true, "A corrigir datas no servidor...");
+                            try {
+                                const token = await auth.currentUser.getIdToken();
+                                const response = await fetch(`${App.config.backendUrl}/api/admin/fix-dates`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': `Bearer ${token}`,
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
+
+                                if (!response.ok) {
+                                    const errorText = await response.text();
+                                    let errorMsg = errorText;
+                                    try {
+                                        const errorJson = JSON.parse(errorText);
+                                        if (errorJson.message) errorMsg = errorJson.message;
+                                    } catch (e) {}
+                                    throw new Error(errorMsg);
+                                }
+
+                                const result = await response.json();
+                                App.ui.showAlert(result.message, "success");
+                            } catch (e) {
+                                App.ui.showAlert(`Erro: ${e.message}`, "error");
+                            } finally {
+                                App.ui.setLoading(false);
+                            }
+                        });
+                    }
+                }, 0);
+
                 if (!App.state.announcements || App.state.announcements.length === 0) {
-                    list.innerHTML = '<p>Nenhuma atualização publicada.</p>';
+                    list.innerHTML += '<p>Nenhuma atualização publicada.</p>';
                     return;
                 }
 
@@ -9112,12 +9168,24 @@ document.addEventListener('DOMContentLoaded', () => {
                             const talhaoNome = normalize(cols[1]);
                             let data = cols[2];
 
-                            // Normalize Date from DD/MM/YYYY to YYYY-MM-DD
+                            // Normalize Date from DD/MM/YYYY to YYYY-MM-DD (Robust)
                             if (data && data.includes('/')) {
                                 const parts = data.split('/');
                                 if (parts.length === 3) {
                                     // Assumes DD/MM/YYYY
-                                    data = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                                    const day = parts[0].padStart(2, '0');
+                                    const month = parts[1].padStart(2, '0');
+                                    const year = parts[2];
+                                    data = `${year}-${month}-${day}`;
+                                }
+                            } else if (data && data.includes('-')) {
+                                // Already has dashes, check padding
+                                const parts = data.split('-');
+                                if (parts.length === 3) {
+                                    const year = parts[0];
+                                    const month = parts[1].padStart(2, '0');
+                                    const day = parts[2].padStart(2, '0');
+                                    data = `${year}-${month}-${day}`;
                                 }
                             }
 
@@ -11480,6 +11548,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 const canvasId = isExpanded ? 'expandedChartCanvas' : id;
                 const ctx = document.getElementById(canvasId)?.getContext('2d');
                 if (!ctx) return;
+
+                // Adjust specific charts for Neon theme colors
+                if (['graficoAcumuloPluviosidade', 'graficoPrevisaoTempo', 'graficoHistoricoAnual'].includes(id)) {
+                    if (config.data.datasets) {
+                        config.data.datasets.forEach((ds, index) => {
+                            // Apply Neon Palette: Green #ccff00, Purple #b983ff, Blue #00e5ff
+                            if (id === 'graficoAcumuloPluviosidade') {
+                                if (ds.backgroundColor && Array.isArray(ds.backgroundColor)) {
+                                    ds.backgroundColor = ds.backgroundColor.map(c => {
+                                        if (c === '#B0BEC5') return '#b983ff'; // Past Month -> Purple
+                                        if (c === '#42A5F5') return '#00e5ff'; // Past Week -> Blue
+                                        if (c === '#1976D2') return '#ccff00'; // Today -> Green
+                                        return c;
+                                    });
+                                }
+                            } else if (id === 'graficoHistoricoAnual') {
+                                ds.backgroundColor = '#ccff00'; // Green
+                            } else if (id === 'graficoPrevisaoTempo') {
+                                if (ds.label.includes('Max')) { ds.borderColor = '#ff3366'; ds.backgroundColor = '#ff3366'; } // Red Neon
+                                else if (ds.label.includes('Min')) { ds.borderColor = '#00e5ff'; ds.backgroundColor = '#00e5ff'; } // Blue Neon
+                                else { ds.backgroundColor = '#ccff00'; } // Rain -> Green Neon
+                            }
+                        });
+                    }
+                }
+
+                // Adjust rotation for Precipitation Chart
+                if (id === 'graficoAcumuloPluviosidade') {
+                    if (!config.options.scales) config.options.scales = {};
+                    if (!config.options.scales.x) config.options.scales.x = {};
+                    if (!config.options.scales.x.ticks) config.options.scales.x.ticks = {};
+
+                    config.options.scales.x.ticks.minRotation = 20;
+                    config.options.scales.x.ticks.maxRotation = 20;
+                }
+
+                // Adjust layout for Forecast Chart to avoid legend overlap
+                if (id === 'graficoPrevisaoTempo') {
+                    if (!config.options.layout) config.options.layout = {};
+                    config.options.layout.padding = { top: 20 };
+                }
 
                 let chartInstance = isExpanded ? App.state.expandedChart : App.state.charts[id];
 
