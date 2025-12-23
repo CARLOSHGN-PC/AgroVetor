@@ -12040,8 +12040,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ...commonOptions.scales.x,
                                 ticks: {
                                     ...commonOptions.scales.x.ticks,
-                                    maxRotation: 45,
-                                    minRotation: 45,
+                                    maxRotation: 20,
+                                    minRotation: 20,
                                     autoSkip: false
                                 }
                             }
@@ -13038,16 +13038,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                 type: 'linear',
                                 display: true,
                                 position: 'left',
-                                title: { display: true, text: 'Temp (°C)' }
+                                title: { display: true, text: 'Temp (°C)' },
+                                grid: { display: false }
                             },
                             y1: {
                                 type: 'linear',
                                 display: true,
                                 position: 'right',
                                 title: { display: true, text: 'Chuva (mm)' },
-                                grid: {
-                                    drawOnChartArea: false,
-                                },
+                                grid: { display: false }
                             },
                             x: commonOptions.scales.x
                         },
@@ -13056,8 +13055,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             datalabels: {
                                 display: true,
                                 color: datalabelColor,
-                                anchor: 'end',
-                                align: 'top',
+                                anchor: (context) => context.dataset.type === 'bar' ? 'center' : 'end',
+                                align: (context) => context.dataset.type === 'bar' ? 'center' : 'top',
                                 font: { weight: 'bold', size: 11 },
                                 formatter: (value, context) => {
                                     if (context.dataset.label.includes('Chuva')) return value > 0 ? `${value}mm` : '';
