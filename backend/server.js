@@ -1461,6 +1461,75 @@ try {
 
     app.get('/reports/os/pdf', authMiddleware, (req, res) => generateOsPdf(req, res, db));
 
+    // --- ADMIN TOOLS ---
+    app.post('/api/admin/fix-dates', authMiddleware, async (req, res) => {
+        try {
+            // Verify Super Admin Role
+            const userDoc = await db.collection('users').doc(req.user.uid).get();
+            if (!userDoc.exists || userDoc.data().role !== 'super-admin') {
+                return res.status(403).json({ message: 'Acesso negado. Apenas Super Admins podem executar esta ação.' });
+            }
+
+            const batchLimit = 400; // Firestore batch limit is 500
+            let totalFixed = 0;
+            let lastDoc = null;
+            let hasMore = true;
+
+            console.log('Iniciando correção de datas na coleção clima...');
+
+            while (hasMore) {
+                let query = db.collection('clima').limit(batchLimit);
+                if (lastDoc) {
+                    query = query.startAfter(lastDoc);
+                }
+
+                const snapshot = await query.get();
+                if (snapshot.empty) {
+                    hasMore = false;
+                    break;
+                }
+
+                const batch = db.batch();
+                let batchCount = 0;
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.data && typeof data.data === 'string') {
+                        // Check for YYYY-M-D format (single digits)
+                        const parts = data.data.split('-');
+                        if (parts.length === 3) {
+                            const year = parts[0];
+                            let month = parts[1];
+                            let day = parts[2];
+
+                            if (month.length === 1 || day.length === 1) {
+                                const newMonth = month.padStart(2, '0');
+                                const newDay = day.padStart(2, '0');
+                                const newData = `${year}-${newMonth}-${newDay}`;
+
+                                batch.update(doc.ref, { data: newData });
+                                batchCount++;
+                                totalFixed++;
+                            }
+                        }
+                    }
+                    lastDoc = doc;
+                });
+
+                if (batchCount > 0) {
+                    await batch.commit();
+                    console.log(`Corrigidos ${batchCount} documentos neste lote.`);
+                }
+            }
+
+            res.status(200).json({ message: `Correção concluída. Total de registros atualizados: ${totalFixed}` });
+
+        } catch (error) {
+            console.error("Erro ao corrigir datas:", error);
+            res.status(500).json({ message: `Erro no servidor: ${error.message}` });
+        }
+    });
+
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
 }
