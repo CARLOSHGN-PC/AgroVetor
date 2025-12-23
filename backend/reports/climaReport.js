@@ -88,20 +88,28 @@ const generateClimaPdf = async (req, res, db) => {
         // Updated Headers: Fazenda, Data
         const headers = ['Fazenda', 'Data', 'Talhão', 'Temp. Máx (°C)', 'Temp. Mín (°C)', 'Umidade (%)', 'Pluviosidade (mm)', 'Vento (km/h)', 'Obs'];
 
-        let totalPluviosidade = 0;
         let totalTempMax = 0;
         let totalTempMin = 0;
         let totalUmidade = 0;
         let totalVento = 0;
         let count = 0;
 
+        // Logic for "Average of Farm Totals" for Rainfall
+        const farmRainfallTotals = {};
+
         const rows = data.map(item => {
-            totalPluviosidade += item.pluviosidade || 0;
+            const rain = item.pluviosidade || 0;
             totalTempMax += item.tempMax || 0;
             totalTempMin += item.tempMin || 0;
             totalUmidade += item.umidade || 0;
             totalVento += item.vento || 0;
             count++;
+
+            // Accumulate rainfall per farm
+            // Ensure we have a valid key. Fallback to name if ID is missing (though getClimaData fetches flat data)
+            const farmKey = item.fazendaId || item.fazendaNome || 'unknown';
+            if (!farmRainfallTotals[farmKey]) farmRainfallTotals[farmKey] = 0;
+            farmRainfallTotals[farmKey] += rain;
 
             return [
                 item.fazendaNome,
@@ -120,12 +128,18 @@ const generateClimaPdf = async (req, res, db) => {
 
         currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
+        // Calculate Average of Farm Totals for Rainfall
+        const uniqueFarms = Object.keys(farmRainfallTotals).length;
+        let sumOfFarmTotals = 0;
+        Object.values(farmRainfallTotals).forEach(val => sumOfFarmTotals += val);
+        const avgFarmTotalRainfall = uniqueFarms > 0 ? sumOfFarmTotals / uniqueFarms : 0;
+
         const summaryRow = [
             'MÉDIAS/TOTAIS', '', '',
             formatNumber(totalTempMax / count),
             formatNumber(totalTempMin / count),
             formatNumber(totalUmidade / count),
-            formatNumber(totalPluviosidade / count),
+            formatNumber(avgFarmTotalRainfall), // Uses specific calculation
             formatNumber(totalVento / count),
             ''
         ];
