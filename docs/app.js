@@ -12869,16 +12869,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     return dateStr;
                 };
 
-                // 1. Calculate Daily Totals (Sum and Count of all records per day)
-                const dailyStats = {};
+                // 1. Organize Data by Date -> Farm (to support aggregation logic)
+                const dailyFarmData = {}; // Structure: { "YYYY-MM-DD": { "farmId": totalRain } }
+
                 fullData.forEach(item => {
                     if (item.pluviosidade === undefined || item.pluviosidade === null) return;
                     const dateKey = normalizeDate(item.data);
                     if (!dateKey) return;
 
-                    if (!dailyStats[dateKey]) dailyStats[dateKey] = { sum: 0, count: 0 };
-                    dailyStats[dateKey].sum += Number(item.pluviosidade);
-                    dailyStats[dateKey].count++;
+                    if (!dailyFarmData[dateKey]) dailyFarmData[dateKey] = {};
+                    const farmId = item.fazendaId || 'unknown';
+
+                    if (!dailyFarmData[dateKey][farmId]) dailyFarmData[dateKey][farmId] = 0;
+                    dailyFarmData[dateKey][farmId] += Number(item.pluviosidade);
                 });
 
                 // 2. Setup Timeline
@@ -12896,13 +12899,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dataPoints = [];
                 const backgroundColors = [];
 
-                let currentBucket = { key: null, sum: 0, count: 0, type: '' };
+                let currentBucket = { key: null, type: '', farms: {} };
 
                 const pushBucket = () => {
                     if (currentBucket.key) {
                         labels.push(currentBucket.key);
-                        // Média de todos os lançamentos no período (Bucket)
-                        dataPoints.push(currentBucket.count > 0 ? currentBucket.sum / currentBucket.count : 0);
+
+                        // New Logic: Sum of Farm Totals in Bucket / Count of Unique Farms in Bucket
+                        const uniqueFarmCount = Object.keys(currentBucket.farms).length;
+                        let bucketTotal = 0;
+                        Object.values(currentBucket.farms).forEach(total => bucketTotal += total);
+
+                        dataPoints.push(uniqueFarmCount > 0 ? bucketTotal / uniqueFarmCount : 0);
 
                         if (currentBucket.type === 'month') backgroundColors.push('#B0BEC5'); // Grey for past months
                         else if (currentBucket.type === 'week') backgroundColors.push('#42A5F5'); // Light Blue for past weeks
@@ -12935,7 +12943,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const day = String(iterDate.getDate()).padStart(2, '0');
                     const dateKey = `${year}-${month}-${day}`;
 
-                    const dayStat = dailyStats[dateKey]; // { sum, count } for this day
+                    const dayData = dailyFarmData[dateKey]; // { "farmId": totalRain }
 
                     let bucketKey = '';
                     let bucketType = '';
@@ -12971,13 +12979,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     // If bucket changes, push previous and reset
                     if (bucketKey !== currentBucket.key) {
                         pushBucket();
-                        currentBucket = { key: bucketKey, sum: 0, count: 0, type: bucketType };
+                        currentBucket = { key: bucketKey, type: bucketType, farms: {} };
                     }
 
                     // Accumulate data for the current bucket
-                    if (dayStat) {
-                        currentBucket.sum += dayStat.sum;
-                        currentBucket.count += dayStat.count;
+                    if (dayData) {
+                        // Merge farm totals into the bucket accumulator
+                        Object.keys(dayData).forEach(farmId => {
+                            if (!currentBucket.farms[farmId]) currentBucket.farms[farmId] = 0;
+                            currentBucket.farms[farmId] += dayData[farmId];
+                        });
                     }
 
                     // Next Day
@@ -13037,8 +13048,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     return dateStr;
                 };
 
-                // 1. Agrupar por Mês e calcular Média Mensal dos lançamentos
-                const monthlyStats = {};
+                // 1. Group Data by Month -> Farm
+                // Structure: { "YYYY-MM": { "farmId1": totalRain, "farmId2": totalRain, ... } }
+                const monthlyFarmData = {};
 
                 fullData.forEach(item => {
                     if (item.pluviosidade === undefined || item.pluviosidade === null) return;
@@ -13050,22 +13062,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     const parts = normalizedDate.split('-');
                     if (parts.length < 2) return;
                     const monthKey = `${parts[0]}-${parts[1]}`; // YYYY-MM
+                    const farmId = item.fazendaId || 'unknown';
 
-                    if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { sum: 0, count: 0 };
-                    monthlyStats[monthKey].sum += Number(item.pluviosidade);
-                    monthlyStats[monthKey].count++;
+                    if (!monthlyFarmData[monthKey]) monthlyFarmData[monthKey] = {};
+                    if (!monthlyFarmData[monthKey][farmId]) monthlyFarmData[monthKey][farmId] = 0;
+
+                    monthlyFarmData[monthKey][farmId] += Number(item.pluviosidade);
                 });
 
-                // 2. Somar as médias mensais para obter o total anual (Requirement: Sum of all monthly averages)
+                // 2. Calculate Monthly Average of Farm Totals and Sum to Year
+                // Formula: For each month, Sum(FarmTotals) / Count(UniqueFarms). Then sum these monthly averages for the year.
                 const yearlyTotals = {};
 
-                Object.keys(monthlyStats).forEach(monthKey => {
+                Object.keys(monthlyFarmData).forEach(monthKey => {
                     const year = monthKey.split('-')[0];
-                    const stats = monthlyStats[monthKey];
-                    const monthlyAvg = stats.count > 0 ? stats.sum / stats.count : 0;
+                    const farmsInMonth = monthlyFarmData[monthKey];
+                    const uniqueFarmCount = Object.keys(farmsInMonth).length;
+
+                    let monthlySumOfFarmTotals = 0;
+                    Object.values(farmsInMonth).forEach(total => monthlySumOfFarmTotals += total);
+
+                    const monthlyAverage = uniqueFarmCount > 0 ? monthlySumOfFarmTotals / uniqueFarmCount : 0;
 
                     if (!yearlyTotals[year]) yearlyTotals[year] = 0;
-                    yearlyTotals[year] += monthlyAvg;
+                    yearlyTotals[year] += monthlyAverage;
                 });
 
                 const years = Object.keys(yearlyTotals).sort();
