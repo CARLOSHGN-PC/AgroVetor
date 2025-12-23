@@ -12765,32 +12765,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 const avgTempMax = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMax, 0) / data.length : 0;
                 const avgTempMin = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMin, 0) / data.length : 0;
 
-                // Cálculo de Pluviosidade: Soma das Médias Mensais
-                // 1. Agrupar por Mês
-                const pluviosidadeMonthlyStats = {};
+                // Cálculo de Pluviosidade: Média dos Totais por Fazenda (No período filtrado)
+                const farmRainfallTotals = {};
                 data.forEach(item => {
                     if (typeof item.pluviosidade === 'number') {
-                        const monthKey = item.data.substring(0, 7); // "YYYY-MM"
-                        if (!pluviosidadeMonthlyStats[monthKey]) pluviosidadeMonthlyStats[monthKey] = { sum: 0, count: 0 };
-                        pluviosidadeMonthlyStats[monthKey].sum += item.pluviosidade;
-                        pluviosidadeMonthlyStats[monthKey].count++;
+                        const farmKey = item.fazendaId || 'unknown';
+                        if (!farmRainfallTotals[farmKey]) farmRainfallTotals[farmKey] = 0;
+                        farmRainfallTotals[farmKey] += item.pluviosidade;
                     }
                 });
 
-                // 2. Calcular Média de Cada Mês e Somar
-                let acumuladoDasMedias = 0;
-                Object.values(pluviosidadeMonthlyStats).forEach(stat => {
-                    if (stat.count > 0) {
-                        acumuladoDasMedias += (stat.sum / stat.count);
-                    }
-                });
+                let sumOfFarmTotals = 0;
+                const uniqueFarmsCount = Object.keys(farmRainfallTotals).length;
+                Object.values(farmRainfallTotals).forEach(total => sumOfFarmTotals += total);
+
+                const avgFarmTotalRainfall = uniqueFarmsCount > 0 ? sumOfFarmTotals / uniqueFarmsCount : 0;
 
                 const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
                 const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
 
                 document.getElementById('kpi-clima-temp-max').textContent = `${avgTempMax.toFixed(1)}°C`;
                 document.getElementById('kpi-clima-temp-min').textContent = `${avgTempMin.toFixed(1)}°C`;
-                document.getElementById('kpi-clima-pluviosidade').textContent = `${acumuladoDasMedias.toFixed(1)} mm`;
+
+                // Formatação: Inteiro se for > 0, usando locale pt-BR para separadores
+                const pluviosidadeFormatted = avgFarmTotalRainfall.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                document.getElementById('kpi-clima-pluviosidade').textContent = `${pluviosidadeFormatted} mm`;
                 document.getElementById('kpi-clima-umidade').textContent = `${avgUmidade.toFixed(1)}%`;
                 document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
 
@@ -13015,13 +13014,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     options: {
                         ...commonOptions,
+                        scales: {
+                            ...commonOptions.scales,
+                            x: {
+                                ...commonOptions.scales.x,
+                                ticks: {
+                                    ...commonOptions.scales.x.ticks,
+                                    minRotation: -20,
+                                    maxRotation: -20
+                                }
+                            }
+                        },
                         plugins: {
                             ...commonOptions.plugins,
                             legend: { display: false },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
-                                        return `${context.parsed.y.toFixed(1)} mm`;
+                                        return `${context.parsed.y.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} mm`;
                                     }
                                 }
                             },
@@ -13030,7 +13040,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 align: 'top',
                                 color: textColor,
                                 font: { weight: 'bold' },
-                                formatter: (value) => value > 0 ? value.toFixed(1) : ''
+                                formatter: (value) => value > 0 ? value.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : ''
                             }
                         }
                     }
@@ -13162,6 +13172,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     options: {
                         ...commonOptions,
+                        layout: {
+                            padding: {
+                                top: 40 // Add padding to prevent label overlapping with legend
+                            }
+                        },
                         scales: {
                             y: {
                                 type: 'linear',
