@@ -12920,13 +12920,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 1. Load Data
                 const consolidatedData = await App.actions.getConsolidatedData('clima');
-                // IMPORTANTE: Para o gráfico de "Lançamentos por Fazenda", usamos a fonte de dados completa (não filtrada 'consolidatedData' pode estar sujeita a filtros em outras implementações, mas aqui é assumida como o dataset completo carregado.
-                // Se getConsolidatedData retornar dados já pré-filtrados no backend, esta lógica precisaria ser ajustada,
-                // mas dado que é Firebase client-side, geralmente retorna a coleção ou cache local inteiro.)
-                // No entanto, para garantir que temos o universo total de lançamentos para encontrar o "último dia global",
-                // idealmente usaríamos uma referência direta aos dados de estado se 'consolidatedData' for dependente de contexto.
-                // Assumindo que App.state.clima contém todos os dados carregados:
-                const allClimaData = App.state.clima || consolidatedData;
 
                 // 2. Fetch Forecast
                 const forecastData = await App.actions.getWeatherForecast();
@@ -12999,40 +12992,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAcumuloPluviosidadeChart(consolidatedData, startDateEl.value, endDateEl.value);
                 this.renderPrevisaoTempoChart(forecastData);
                 this.renderHistoricoAnualChart(consolidatedData);
-                this.renderFazendasLancadasChart(allClimaData);
+                this.renderFazendasLancadasChart(data);
                 this.renderVelocidadeVentoChart(data);
                 this.renderIndiceClimatologicoChart(data);
             },
 
-            renderFazendasLancadasChart(rawData) {
-                // Find latest date in the entire dataset (ignoring dashboard filters)
-                let latestDate = null;
-
-                // Helper to normalize dates (handles DD/MM/YYYY and YYYY-MM-DD) for robust comparison
-                const normalizeDate = (dateStr) => {
-                    if (!dateStr) return null;
-                    if (dateStr.includes('/')) {
-                        const parts = dateStr.split('/');
-                        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-                    }
-                    return dateStr;
-                };
-
-                rawData.forEach(item => {
-                    if (item.data) {
-                        const dateStr = normalizeDate(item.data);
-                        if (dateStr && (!latestDate || dateStr > latestDate)) {
-                            latestDate = dateStr;
-                        }
-                    }
-                });
-
-                if (!latestDate) return;
-
-                // Filter for latest date
-                const latestDayData = rawData.filter(item => normalizeDate(item.data) === latestDate);
-
-                const dataByFarm = latestDayData.reduce((acc, item) => {
+            renderFazendasLancadasChart(data) {
+                const dataByFarm = data.reduce((acc, item) => {
                     const fazenda = item.fazendaNome || 'N/A';
                     acc[fazenda] = (acc[fazenda] || 0) + 1;
                     return acc;
