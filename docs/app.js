@@ -13058,7 +13058,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         datasets: [{
                             label: 'Pluviosidade (mm)',
                             data: values,
-                            backgroundColor: '#2e7d32',
+                            backgroundColor: '#02f5c5',
                         }]
                     },
                     options: {
