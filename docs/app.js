@@ -13033,16 +13033,20 @@ document.addEventListener('DOMContentLoaded', () => {
             renderFazendasLancadasChart(data) {
                 const dataByFarm = data.reduce((acc, item) => {
                     const fazenda = item.fazendaNome || 'N/A';
-                    acc[fazenda] = (acc[fazenda] || 0) + 1;
+                    if (!acc[fazenda]) acc[fazenda] = { total: 0, count: 0 };
+
+                    const chuva = App.safeParseFloat(item.pluviosidade);
+                    acc[fazenda].total += chuva;
+                    acc[fazenda].count += 1;
                     return acc;
                 }, {});
 
                 const sortedFarms = Object.entries(dataByFarm)
-                    .map(([name, count]) => ({ name, count }))
-                    .sort((a, b) => b.count - a.count);
+                    .map(([name, val]) => ({ name, avg: val.count > 0 ? val.total / val.count : 0 }))
+                    .sort((a, b) => b.avg - a.avg);
 
                 const labels = sortedFarms.map(item => item.name);
-                const values = sortedFarms.map(item => item.count);
+                const values = sortedFarms.map(item => item.avg);
 
                 const commonOptions = this._getCommonChartOptions({ indexAxis: 'y', hasLongLabels: true });
                 const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
@@ -13052,7 +13056,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: {
                         labels,
                         datasets: [{
-                            label: 'Lançamentos',
+                            label: 'Pluviosidade (mm)',
                             data: values,
                             backgroundColor: '#2e7d32',
                         }]
@@ -13067,7 +13071,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 anchor: 'end',
                                 align: 'end',
                                 font: { weight: 'bold' },
-                                formatter: (value) => value
+                                formatter: (value) => `${value.toFixed(1)} mm`
                             }
                         }
                     }
