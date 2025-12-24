@@ -9300,10 +9300,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         const vento = cols[7] ? parseFloat(cols[7].replace(',', '.')) : null;
                         const obs = cols[8] ? cols[8].replace(/^"|"$/g, '') : '';
 
+                        // Enrich with Names for Reports and Dashboard
+                        const farmObj = App.state.fazendas.find(f => f.id === row.farmId);
+                        let talhaoNomeReal = '';
+                        if (farmObj && farmObj.talhoes) {
+                            const t = farmObj.talhoes.find(t => t.id === row.talhaoId);
+                            talhaoNomeReal = t ? t.name : '';
+                        }
+
                         const climaRecord = {
                             companyId: companyId,
                             fazendaId: row.farmId,
+                            fazendaNome: farmObj ? farmObj.name : '',
                             talhaoId: row.talhaoId,
+                            talhaoNome: talhaoNomeReal,
                             data: row.data,
                             tempMax: row.tempMax,
                             tempMin: row.tempMin,
@@ -12183,7 +12193,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             renderChuvaPorFazenda(data) {
                 const dataByFarm = data.reduce((acc, item) => {
-                    const farmName = item.farmName || 'N/A';
+                    // Use 'fazendaNome' consistent with other charts and data source
+                    const farmName = item.fazendaNome || 'N/A';
                     if (!acc[farmName]) {
                         acc[farmName] = { totalChuva: 0, count: 0 };
                     }

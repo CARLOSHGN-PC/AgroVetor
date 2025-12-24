@@ -57,17 +57,42 @@ const generateClimaPdf = async (req, res, db) => {
             return;
         }
 
-        // Fetch farms to ensure correct format CODE - NAME
+        // Fetch farms to ensure correct format CODE - NAME and enrich missing data
         const fazendasSnapshot = await db.collection('fazendas').where('companyId', '==', filters.companyId).get();
-        const fazendasMap = {};
+        const fazendasMap = {}; // Name -> Code (Legacy lookup)
+        const farmIdMap = {};   // ID -> { code, name, talhoes }
+
         fazendasSnapshot.forEach(doc => {
             const d = doc.data();
+            const farmData = { code: d.code, name: d.name, talhoes: {} };
+            if (d.talhoes && Array.isArray(d.talhoes)) {
+                d.talhoes.forEach(t => farmData.talhoes[t.id] = t.name);
+            }
+            farmIdMap[doc.id] = farmData;
             fazendasMap[d.name.toUpperCase()] = d.code;
         });
 
         data.forEach(r => {
+            // 1. Enrich from ID if Name is missing (Fix for imported data)
+            if (!r.fazendaNome && r.fazendaId && farmIdMap[r.fazendaId]) {
+                const farm = farmIdMap[r.fazendaId];
+                r.fazendaNome = farm.name;
+
+                // Also try to enrich talhaoNome
+                if (!r.talhaoNome && r.talhaoId && farm.talhoes[r.talhaoId]) {
+                    r.talhaoNome = farm.talhoes[r.talhaoId];
+                }
+            }
+
+            // 2. Format Name as "Code - Name"
             if (r.fazendaNome && !r.fazendaNome.includes(' - ')) {
-                const code = fazendasMap[r.fazendaNome.toUpperCase()] || '';
+                let code = fazendasMap[r.fazendaNome.toUpperCase()];
+
+                // Prefer looking up code via ID if available
+                if (!code && r.fazendaId && farmIdMap[r.fazendaId]) {
+                    code = farmIdMap[r.fazendaId].code;
+                }
+
                 if (code) {
                     r.fazendaNome = `${code} - ${r.fazendaNome}`;
                 }
