@@ -12992,7 +12992,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAcumuloPluviosidadeChart(consolidatedData, startDateEl.value, endDateEl.value);
                 this.renderPrevisaoTempoChart(forecastData);
                 this.renderHistoricoAnualChart(consolidatedData);
-                this.renderFazendasLancadasChart(data);
+
+                // Logic for "Lançamentos por Fazenda": show only data from the latest available date
+                let lastLaunchData = [];
+                if (consolidatedData.length > 0) {
+                    const normalizeDate = (dateStr) => {
+                        if (!dateStr) return null;
+                        if (dateStr.includes('/')) {
+                            const parts = dateStr.split('/');
+                            if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                        }
+                        return dateStr;
+                    };
+
+                    let latestDate = null;
+                    consolidatedData.forEach(item => {
+                        const dStr = normalizeDate(item.data);
+                        if (dStr) {
+                            const d = new Date(dStr + 'T00:00:00');
+                            if (!latestDate || d > latestDate) {
+                                latestDate = d;
+                            }
+                        }
+                    });
+
+                    if (latestDate) {
+                        const latestDateStr = latestDate.toISOString().split('T')[0];
+                        lastLaunchData = consolidatedData.filter(item => {
+                            const dStr = normalizeDate(item.data);
+                            return dStr === latestDateStr;
+                        });
+                    }
+                }
+
+                this.renderFazendasLancadasChart(lastLaunchData);
                 this.renderVelocidadeVentoChart(data);
                 this.renderIndiceClimatologicoChart(data);
             },
@@ -13021,7 +13054,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         datasets: [{
                             label: 'Lançamentos',
                             data: values,
-                            backgroundColor: this._getVibrantColors(labels.length),
+                            backgroundColor: '#2e7d32',
                         }]
                     },
                     options: {
