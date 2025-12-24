@@ -12992,60 +12992,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAcumuloPluviosidadeChart(consolidatedData, startDateEl.value, endDateEl.value);
                 this.renderPrevisaoTempoChart(forecastData);
                 this.renderHistoricoAnualChart(consolidatedData);
-                this.renderVariacaoTemperaturaChart(data);
+                this.renderFazendasLancadasChart(data);
                 this.renderVelocidadeVentoChart(data);
                 this.renderIndiceClimatologicoChart(data);
             },
 
-            renderVariacaoTemperaturaChart(data) {
-                const dataByDay = data.reduce((acc, item) => {
-                    acc[item.data] = acc[item.data] || { tempsMax: [], tempsMin: [] };
-                    acc[item.data].tempsMax.push(item.tempMax);
-                    acc[item.data].tempsMin.push(item.tempMin);
+            renderFazendasLancadasChart(data) {
+                const dataByFarm = data.reduce((acc, item) => {
+                    const fazenda = item.fazendaNome || 'N/A';
+                    acc[fazenda] = (acc[fazenda] || 0) + 1;
                     return acc;
                 }, {});
 
-                const sortedDays = Object.keys(dataByDay).sort();
-                const labels = sortedDays.map(date => new Date(date + 'T03:00:00Z').toLocaleDateString('pt-BR'));
-                const avgMaxTemps = sortedDays.map(date => dataByDay[date].tempsMax.reduce((a, b) => a + b, 0) / dataByDay[date].tempsMax.length);
-                const avgMinTemps = sortedDays.map(date => dataByDay[date].tempsMin.reduce((a, b) => a + b, 0) / dataByDay[date].tempsMin.length);
+                const sortedFarms = Object.entries(dataByFarm)
+                    .map(([name, count]) => ({ name, count }))
+                    .sort((a, b) => b.count - a.count);
 
-                const commonOptions = this._getCommonChartOptions();
-                this._createOrUpdateChart('graficoVariacaoTemperatura', {
-                    type: 'line',
+                const labels = sortedFarms.map(item => item.name);
+                const values = sortedFarms.map(item => item.count);
+
+                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y', hasLongLabels: true });
+                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
+
+                this._createOrUpdateChart('graficoFazendasLancadas', {
+                    type: 'bar',
                     data: {
                         labels,
                         datasets: [{
-                            label: 'Temp. Máxima (°C)',
-                            data: avgMaxTemps,
-                            borderColor: '#D32F2F',
-                            backgroundColor: 'rgba(211, 47, 47, 0.1)',
-                            fill: true,
-                            tension: 0.4
-                        }, {
-                            label: 'Temp. Mínima (°C)',
-                            data: avgMinTemps,
-                            borderColor: '#1976D2',
-                            backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                            fill: true,
-                            tension: 0.4
+                            label: 'Lançamentos',
+                            data: values,
+                            backgroundColor: this._getVibrantColors(labels.length),
                         }]
                     },
                     options: {
                         ...commonOptions,
                         plugins: {
                             ...commonOptions.plugins,
+                            legend: { display: false },
                             datalabels: {
-                                align: 'end',
+                                color: datalabelColor,
                                 anchor: 'end',
-                                backgroundColor: (context) => context.dataset.backgroundColor || 'rgba(0, 0, 0, 0.8)',
-                                borderRadius: 4,
-                                color: 'white',
-                                font: {
-                                    weight: 'bold'
-                                },
-                                formatter: (value) => `${value.toFixed(1)}°C`,
-                                padding: 6
+                                align: 'end',
+                                font: { weight: 'bold' },
+                                formatter: (value) => value
                             }
                         }
                     }
@@ -13865,7 +13854,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     // 1. Get chart instances from the dashboard
                     const chartIds = [
-                        'graficoVariacaoTemperatura',
+                        'graficoFazendasLancadas',
                         'graficoAcumuloPluviosidade',
                         'graficoMediaVentoFazenda',
                         'graficoIndiceClimatologico'
