@@ -1464,21 +1464,32 @@ try {
     // --- ADMIN TOOLS ---
     app.post('/api/admin/fix-dates', authMiddleware, async (req, res) => {
         try {
-            // Verify Super Admin Role
+            // Verify User is authenticated (Relaxed from Super Admin because regular admins need to fix their data too)
+            // But we should restrict to 'admin' role of the company or super-admin.
             const userDoc = await db.collection('users').doc(req.user.uid).get();
-            if (!userDoc.exists || userDoc.data().role !== 'super-admin') {
-                return res.status(403).json({ message: 'Acesso negado. Apenas Super Admins podem executar esta ação.' });
+            if (!userDoc.exists) {
+                return res.status(403).json({ message: 'Acesso negado.' });
+            }
+            const userData = userDoc.data();
+            const allowedRoles = ['super-admin', 'admin', 'supervisor'];
+            if (!allowedRoles.includes(userData.role)) {
+                return res.status(403).json({ message: 'Acesso negado. Apenas Administradores podem executar esta ação.' });
             }
 
-            const batchLimit = 400; // Firestore batch limit is 500
+            const companyId = req.body.companyId || userData.companyId;
+            if (!companyId) {
+                 return res.status(400).json({ message: 'Company ID is required.' });
+            }
+
+            const batchLimit = 400;
             let totalFixed = 0;
             let lastDoc = null;
             let hasMore = true;
 
-            console.log('Iniciando correção de datas na coleção clima...');
+            console.log(`Iniciando correção de datas na coleção clima para a empresa ${companyId}...`);
 
             while (hasMore) {
-                let query = db.collection('clima').limit(batchLimit);
+                let query = db.collection('clima').where('companyId', '==', companyId).limit(batchLimit);
                 if (lastDoc) {
                     query = query.startAfter(lastDoc);
                 }
@@ -1494,24 +1505,69 @@ try {
 
                 snapshot.forEach(doc => {
                     const data = doc.data();
+                    let needsUpdate = false;
+                    let updates = {};
+
                     if (data.data && typeof data.data === 'string') {
-                        // Check for YYYY-M-D format (single digits)
-                        const parts = data.data.split('-');
-                        if (parts.length === 3) {
-                            const year = parts[0];
-                            let month = parts[1];
-                            let day = parts[2];
-
-                            if (month.length === 1 || day.length === 1) {
-                                const newMonth = month.padStart(2, '0');
-                                const newDay = day.padStart(2, '0');
-                                const newData = `${year}-${newMonth}-${newDay}`;
-
-                                batch.update(doc.ref, { data: newData });
-                                batchCount++;
-                                totalFixed++;
-                            }
+                        // 1. Trim Whitespace
+                        let cleanDate = data.data.trim();
+                        if (cleanDate !== data.data) {
+                            needsUpdate = true;
                         }
+
+                        // 2. Normalize YYYY-M-D to YYYY-MM-DD
+                        if (cleanDate.includes('-')) {
+                            const parts = cleanDate.split('-');
+                            if (parts.length === 3) {
+                                const year = parts[0];
+                                let month = parts[1];
+                                let day = parts[2];
+
+                                if (month.length === 1 || day.length === 1) {
+                                    month = month.padStart(2, '0');
+                                    day = day.padStart(2, '0');
+                                    cleanDate = `${year}-${month}-${day}`;
+                                    needsUpdate = true;
+                                }
+                            }
+                        } else if (cleanDate.includes('/')) {
+                             // 3. Convert DD/MM/YYYY to YYYY-MM-DD (Legacy manual fix)
+                             const parts = cleanDate.split('/');
+                             if (parts.length === 3) {
+                                 const day = parts[0].padStart(2, '0');
+                                 const month = parts[1].padStart(2, '0');
+                                 const year = parts[2];
+                                 cleanDate = `${year}-${month}-${day}`;
+                                 needsUpdate = true;
+                             }
+                        }
+
+                        if (needsUpdate) {
+                            updates.data = cleanDate;
+                        }
+                    }
+
+                    // 4. Ensure numbers are numbers (Fix "10,5" strings)
+                    if (typeof data.pluviosidade === 'string') {
+                        const val = parseFloat(data.pluviosidade.replace(',', '.'));
+                        if (!isNaN(val)) {
+                            updates.pluviosidade = val;
+                            needsUpdate = true;
+                        }
+                    }
+                    if (typeof data.tempMax === 'string') {
+                        const val = parseFloat(data.tempMax.replace(',', '.'));
+                        if (!isNaN(val)) { updates.tempMax = val; needsUpdate = true; }
+                    }
+                    if (typeof data.tempMin === 'string') {
+                        const val = parseFloat(data.tempMin.replace(',', '.'));
+                        if (!isNaN(val)) { updates.tempMin = val; needsUpdate = true; }
+                    }
+
+                    if (Object.keys(updates).length > 0) {
+                        batch.update(doc.ref, updates);
+                        batchCount++;
+                        totalFixed++;
                     }
                     lastDoc = doc;
                 });

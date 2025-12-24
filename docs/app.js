@@ -419,6 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 climateInput: document.getElementById('climateCsvInput'),
                 btnDownloadClimateTemplate: document.getElementById('btnDownloadClimateTemplate'),
                 btnExportClimateData: document.getElementById('btnExportClimateData'),
+                btnFixClimateData: document.getElementById('btnFixClimateData'), // Novo botão para correção de dados
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -4043,6 +4044,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.btnDeleteHistoricalData) {
                     companyConfigEls.btnDeleteHistoricalData.addEventListener('click', () => App.actions.deleteHistoricalData());
                 }
+                if (companyConfigEls.btnFixClimateData) {
+                    companyConfigEls.btnFixClimateData.addEventListener('click', () => App.actions.fixClimateData());
+                }
 
                 // Event listeners for climate data import/export
                 if (companyConfigEls.btnDownloadClimateTemplate) {
@@ -5558,6 +5562,40 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+            async fixClimateData() {
+                App.ui.showConfirmationModal(
+                    "Esta ação irá corrigir datas e formatos inconsistentes em todos os registros de clima importados. Deseja continuar?",
+                    async () => {
+                        App.ui.setLoading(true, "A corrigir dados de clima...");
+                        try {
+                            const token = await auth.currentUser.getIdToken();
+                            const response = await fetch(`${App.config.backendUrl}/api/admin/fix-dates`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ companyId: App.state.currentUser.companyId })
+                            });
+
+                            const result = await response.json();
+                            if (response.ok) {
+                                App.ui.showAlert(`Correção concluída: ${result.message}`, "success");
+                                // Opcional: Recarregar dados
+                                window.location.reload();
+                            } else {
+                                throw new Error(result.message || "Falha na correção.");
+                            }
+                        } catch (error) {
+                            console.error("Erro ao corrigir dados:", error);
+                            App.ui.showAlert(`Erro: ${error.message}`, "error");
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    }
+                );
+            },
+
             async getWeatherForecast() {
                 try {
                     const fazendas = App.state.fazendas;
@@ -5688,7 +5726,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     return data;
                 }
                 return data.filter(item => {
-                    const itemDate = item.data || item.date; // Handle both 'data' and 'date' properties
+                    const rawDate = item.data || item.date; // Handle both 'data' and 'date' properties
+                    const itemDate = rawDate ? String(rawDate).trim() : '';
                     return itemDate >= startDate && itemDate <= endDate;
                 });
             },
@@ -9176,7 +9215,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const cols = line.split(';');
                             const fundoAgr = normalize(cols[0]);
                             const talhaoNome = normalize(cols[1]);
-                            let data = cols[2];
+                            let data = cols[2] ? cols[2].trim() : '';
 
                             // Normalize Date from DD/MM/YYYY to YYYY-MM-DD (Robust)
                             if (data && data.includes('/')) {
