@@ -240,6 +240,14 @@ self.addEventListener('fetch', event => {
     return; // Let the browser handle the request normally
   }
 
+  // ADDED: Explicitly ignore report generation and API endpoints
+  // This prevents the Service Worker from caching large dynamic Blobs (PDF/Excel)
+  // or interfering with critical API calls, which solves the "Failed to convert value to Response" error on Android.
+  if (url.pathname.includes('/reports/') || url.pathname.includes('/api/')) {
+    console.log(`Service worker ignoring API/Report request: ${url.pathname}, passing to network.`);
+    return;
+  }
+
   // Strategy for Mapbox tiles: IndexedDB first, then Network, while saving to IndexedDB in background
   if (url.hostname.includes('api.mapbox.com') && (url.pathname.includes('mapbox.satellite') || url.pathname.includes('mapbox.mapbox-streets-v8'))) {
     event.respondWith(
