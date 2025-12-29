@@ -1,8 +1,10 @@
 {
   "dependencies": {
+    "@capacitor-community/file-opener": "^7.0.1",
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
+    "@capacitor/filesystem": "^7.1.6",
     "@capacitor/geolocation": "^7.1.5",
     "@capacitor/network": "^7.0.2",
     "@capacitor/push-notifications": "^7.0.3",

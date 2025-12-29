@@ -13495,16 +13495,72 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.style.display = 'none';
-                        a.href = url;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                        a.remove();
-                        App.ui.showAlert('Relatório gerado com sucesso!');
+
+                        if (window.Capacitor && Capacitor.isNativePlatform()) {
+                            // ANDROID NATIVE PATH
+                            // Bypasses the blob URL limitation on WebView by saving to filesystem
+                            try {
+                                const reader = new FileReader();
+                                reader.readAsDataURL(blob);
+                                reader.onloadend = async () => {
+                                    const base64data = reader.result; // This includes the data:application/pdf;base64, prefix
+                                    // Strip the prefix to get pure base64 for the writeFile call
+                                    const base64Content = base64data.substring(base64data.indexOf(',') + 1);
+
+                                    const { Filesystem } = Capacitor.Plugins;
+                                    const { FileOpener } = Capacitor.Plugins;
+
+                                    try {
+                                        // Save file to the Documents directory
+                                        const savedFile = await Filesystem.writeFile({
+                                            path: filename,
+                                            data: base64Content,
+                                            directory: 'DOCUMENTS',
+                                            recursive: true
+                                        });
+
+                                        // Open the file with the default native viewer
+                                        // We need to guess the MIME type or map it from filename
+                                        let mimeType = 'application/pdf';
+                                        if (filename.endsWith('.xlsx')) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                                        if (filename.endsWith('.csv')) mimeType = 'text/csv';
+
+                                        // Use FileOpener if available (Community Plugin)
+                                        // Note: Accessing FileOpener via Plugins might require the plugin to be registered on the window object or Capacitor.Plugins
+                                        // If it's a standard community plugin, it should be on Capacitor.Plugins.FileOpener
+                                        if (FileOpener) {
+                                            await FileOpener.open({
+                                                filePath: savedFile.uri,
+                                                contentType: mimeType
+                                            });
+                                            App.ui.showAlert('Relatório salvo em Documentos e aberto.', 'success');
+                                        } else {
+                                            // Fallback if FileOpener is missing: Just notify user
+                                            App.ui.showAlert(`Relatório salvo em Documentos: ${filename}`, 'success');
+                                        }
+
+                                    } catch (fsError) {
+                                        console.error('Erro ao salvar arquivo no dispositivo:', fsError);
+                                        throw new Error(`Erro ao salvar arquivo: ${fsError.message}`);
+                                    }
+                                };
+                            } catch (nativeError) {
+                                throw new Error(`Falha no processamento nativo: ${nativeError.message}`);
+                            }
+
+                        } else {
+                            // WEB PWA PATH (Existing Logic)
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.style.display = 'none';
+                            a.href = url;
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            a.remove();
+                            App.ui.showAlert('Relatório gerado com sucesso!');
+                        }
 
                     } catch (error) {
                         console.error('Erro ao gerar relatório via API:', error);
