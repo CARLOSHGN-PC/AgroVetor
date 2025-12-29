@@ -1374,7 +1374,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'clima'];
+                // OTIMIZAÇÃO: Remove 'clima' da lista padrão para evitar carregamento massivo (20k+ registros)
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1390,6 +1391,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         App.state.unsubscribeListeners.push(unsubscribe);
                     });
+
+                    // Tratamento especial para Clima (Super Admin também não deve carregar tudo por padrão)
+                    // Carrega apenas os últimos 6 meses
+                    App.data.listenToRecentClima(null, true);
 
                     // Super Admin também ouve a coleção de empresas
                     const qCompanies = collection(db, 'companies');
@@ -1423,6 +1428,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         App.state.unsubscribeListeners.push(unsubscribe);
                     });
+
+                    // OTIMIZAÇÃO: Listener específico para Clima (Recent Data Only)
+                    App.data.listenToRecentClima(companyId);
 
                     // **NOVO**: Ouvir o documento da própria empresa para obter os módulos subscritos
                     const companyDocRef = doc(db, 'companies', companyId);
@@ -1495,6 +1503,32 @@ document.addEventListener('DOMContentLoaded', () => {
             async createUserData(uid, data) {
                 return this.setDocument('users', uid, data);
             },
+
+            // OTIMIZAÇÃO: Carrega apenas dados recentes de clima para cache offline
+            listenToRecentClima(companyId, isSuperAdmin = false) {
+                const sixMonthsAgo = new Date();
+                sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+                const dateStr = sixMonthsAgo.toISOString().split('T')[0];
+
+                let q;
+                if (isSuperAdmin) {
+                    q = query(collection(db, 'clima'), where("data", ">=", dateStr));
+                } else if (companyId) {
+                    q = query(collection(db, 'clima'), where("companyId", "==", companyId), where("data", ">=", dateStr));
+                } else {
+                    return;
+                }
+
+                const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                    const data = [];
+                    querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                    App.state.clima = data;
+                    // Notifica UI se necessário, mas o Dashboard usa API preferencialmente
+                }, (error) => {
+                    console.error("Erro ao ouvir dados recentes de clima: ", error);
+                });
+                App.state.unsubscribeListeners.push(unsubscribe);
+            }
         },
         
         ui: {
@@ -9105,6 +9139,29 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async exportClimateData() {
+                // OTIMIZAÇÃO: Usa o backend para exportar histórico completo (evita dependência do estado local limitado)
+                if (navigator.onLine) {
+                    try {
+                        App.ui.setLoading(true, "A exportar dados climatológicos...");
+                        // Usa a função de relatório existente, sem filtros de data para pegar tudo
+                        const filters = {
+                            inicio: '', // Buscar tudo
+                            fim: ''
+                        };
+                        await App.reports._fetchAndDownloadReport('clima/csv', filters, `historico_clima_${new Date().toISOString().split('T')[0]}.csv`);
+                    } catch (error) {
+                        console.error("Erro ao exportar via API:", error);
+                        App.ui.showAlert("Erro ao gerar exportação completa. Tente novamente.", "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                } else {
+                    App.ui.showAlert("A exportação completa requer conexão com a internet.", "warning");
+                }
+            },
+
+            // Função depreciada pelo uso da API, mantida apenas para referência ou fallback futuro se necessário
+            async _legacyExportClimateData() {
                 try {
                     App.ui.setLoading(true, "A exportar dados climatológicos...");
 
@@ -12918,24 +12975,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.actions.saveDashboardDates('clima', startDateEl.value, endDateEl.value);
 
-                // 1. Load Data
-                const consolidatedData = await App.actions.getConsolidatedData('clima');
+                // OTIMIZAÇÃO: Estratégia Híbrida
+                // Online -> Fetch da API (Cálculo no servidor, leve)
+                // Offline -> Cálculo local (Carga reduzida pelo listenToRecentClima)
 
-                // 2. Fetch Forecast
-                const forecastData = await App.actions.getWeatherForecast();
+                let stats = null;
+                const filters = {
+                    inicio: startDateEl.value,
+                    fim: endDateEl.value,
+                    fazendaId: fazendaEl.value,
+                    companyId: App.state.currentUser.companyId
+                };
 
-                // 3. Filter for KPIs and Standard Charts
-                let data = App.actions.filterDashboardData(consolidatedData, startDateEl.value, endDateEl.value);
-                const selectedFazenda = fazendaEl.value;
-                if (selectedFazenda) {
-                    data = data.filter(item => item.fazendaId === selectedFazenda);
+                try {
+                    if (navigator.onLine) {
+                        App.ui.setLoading(true, "A carregar dados climáticos...");
+                        const token = await auth.currentUser.getIdToken();
+                        const query = new URLSearchParams(filters).toString();
+                        const response = await fetch(`${App.config.backendUrl}/api/dashboard/clima?${query}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (!response.ok) throw new Error("Falha na API");
+                        stats = await response.json();
+                    } else {
+                        // Fallback Offline
+                        const consolidatedData = await App.actions.getConsolidatedData('clima');
+                        let data = App.actions.filterDashboardData(consolidatedData, filters.inicio, filters.fim);
+                        if (filters.fazendaId) {
+                            data = data.filter(item => item.fazendaId === filters.fazendaId);
+                        }
+                        stats = this._calculateLocalClimateStats(data, filters);
+                    }
+                } catch (error) {
+                    console.error("Erro ao carregar dashboard climático:", error);
+                    // Fallback em caso de erro da API
+                    const consolidatedData = await App.actions.getConsolidatedData('clima');
+                    let data = App.actions.filterDashboardData(consolidatedData, filters.inicio, filters.fim);
+                    stats = this._calculateLocalClimateStats(data, filters);
+                } finally {
+                    App.ui.setLoading(false);
                 }
 
-                // KPIs
-                const avgTempMax = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMax, 0) / data.length : 0;
-                const avgTempMin = data.length > 0 ? data.reduce((sum, item) => sum + item.tempMin, 0) / data.length : 0;
+                if (stats) {
+                    this._renderClimateDashboardFromStats(stats);
+                }
 
-                // Cálculo de Pluviosidade: Soma das Médias Mensais (Mesma lógica do Histórico Anual)
+                // Renderiza previsão do tempo (sempre client-side pois é externo)
+                const forecastData = await App.actions.getWeatherForecast();
+                this.renderPrevisaoTempoChart(forecastData);
+            },
+
+            // Lógica de cálculo local (Espelha a lógica do backend para funcionamento offline)
+            _calculateLocalClimateStats(data, filters) {
+                // Reuse existing helper logic adapted for local calc
                 const normalizeDate = (dateStr) => {
                     if (!dateStr) return null;
                     if (dateStr.includes('/')) {
@@ -12945,292 +13037,214 @@ document.addEventListener('DOMContentLoaded', () => {
                     return dateStr;
                 };
 
-                const monthlyFarmData = {};
+                // Aggregators
+                let sumTempMax = 0, countTempMax = 0;
+                let sumTempMin = 0, countTempMin = 0;
+                let sumUmidade = 0, countUmidade = 0;
+                let sumVento = 0, countVento = 0;
+                let totalTempSum = 0, totalTempCount = 0; // For radar
+
+                const monthlyFarmDataForKPI = {};
+                const dailyFarmDataForChart = {};
+                const yearlyTotals = {};
+                const farmWindData = {};
+                const farmRainData = {};
+                let latestDate = null;
+
                 data.forEach(item => {
-                    if (item.pluviosidade === undefined || item.pluviosidade === null) return;
-                    const normalizedDate = normalizeDate(item.data);
-                    if (!normalizedDate) return;
-
-                    const parts = normalizedDate.split('-');
-                    if (parts.length < 2) return;
-                    const monthKey = `${parts[0]}-${parts[1]}`; // YYYY-MM
-                    const farmId = item.fazendaId || 'unknown';
-
-                    if (!monthlyFarmData[monthKey]) monthlyFarmData[monthKey] = {};
-                    if (!monthlyFarmData[monthKey][farmId]) monthlyFarmData[monthKey][farmId] = 0;
-
-                    // Use safeParseFloat para lidar com números com vírgula (Ex: "10,5")
-                    monthlyFarmData[monthKey][farmId] += App.safeParseFloat(item.pluviosidade);
-                });
-
-                // Cálculo do card de Pluviosidade Acumulada:
-                // 1. Agrupa por mês.
-                // 2. Para cada mês: Calcula a média pluviométrica das fazendas (Soma dos totais de cada fazenda / Quantidade de fazendas com dados).
-                // 3. Soma as médias mensais para obter o acumulado total do período.
-                // Exemplo do usuário: Jan (média 100) + Fev (média 100) = Card (200).
-                let acumuladoDasMedias = 0;
-                Object.values(monthlyFarmData).forEach(farmsInMonth => {
-                    let monthlySumOfFarmTotals = 0;
-                    Object.values(farmsInMonth).forEach(total => monthlySumOfFarmTotals += total);
-                    const uniqueFarmCount = Object.keys(farmsInMonth).length; // Quantidade de fazendas com dados no mês
-
-                    if (uniqueFarmCount > 0) {
-                        acumuladoDasMedias += (monthlySumOfFarmTotals / uniqueFarmCount);
-                    }
-                });
-
-                const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
-                const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
-
-                document.getElementById('kpi-clima-temp-max').textContent = `${avgTempMax.toFixed(1)}°C`;
-                document.getElementById('kpi-clima-temp-min').textContent = `${avgTempMin.toFixed(1)}°C`;
-                document.getElementById('kpi-clima-pluviosidade').textContent = `${acumuladoDasMedias.toFixed(1)} mm`;
-                document.getElementById('kpi-clima-umidade').textContent = `${avgUmidade.toFixed(1)}%`;
-                document.getElementById('kpi-clima-vento').textContent = `${avgVento.toFixed(1)} km/h`;
-
-                // Render Charts
-                this.renderAcumuloPluviosidadeChart(consolidatedData, startDateEl.value, endDateEl.value);
-                this.renderPrevisaoTempoChart(forecastData);
-                this.renderHistoricoAnualChart(consolidatedData);
-
-                // Logic for "Lançamentos por Fazenda": show only data from the latest available date
-                let lastLaunchData = [];
-                if (consolidatedData.length > 0) {
-                    const normalizeDate = (dateStr) => {
-                        if (!dateStr) return null;
-                        if (dateStr.includes('/')) {
-                            const parts = dateStr.split('/');
-                            if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-                        }
-                        return dateStr;
-                    };
-
-                    let latestDate = null;
-                    consolidatedData.forEach(item => {
-                        const dStr = normalizeDate(item.data);
-                        if (dStr) {
-                            const d = new Date(dStr + 'T00:00:00');
-                            if (!latestDate || d > latestDate) {
-                                latestDate = d;
-                            }
-                        }
-                    });
-
-                    if (latestDate) {
-                        const latestDateStr = latestDate.toISOString().split('T')[0];
-                        lastLaunchData = consolidatedData.filter(item => {
-                            const dStr = normalizeDate(item.data);
-                            return dStr === latestDateStr;
-                        });
-                    }
-                }
-
-                this.renderFazendasLancadasChart(lastLaunchData);
-                this.renderVelocidadeVentoChart(data);
-                this.renderIndiceClimatologicoChart(data);
-            },
-
-            renderFazendasLancadasChart(data) {
-                const dataByFarm = data.reduce((acc, item) => {
-                    const fazenda = item.fazendaNome || 'N/A';
-                    if (!acc[fazenda]) acc[fazenda] = { total: 0, count: 0 };
-
-                    const chuva = App.safeParseFloat(item.pluviosidade);
-                    acc[fazenda].total += chuva;
-                    acc[fazenda].count += 1;
-                    return acc;
-                }, {});
-
-                const sortedFarms = Object.entries(dataByFarm)
-                    .map(([name, val]) => ({ name, avg: val.count > 0 ? val.total / val.count : 0 }))
-                    .sort((a, b) => b.avg - a.avg);
-
-                const labels = sortedFarms.map(item => item.name);
-                const values = sortedFarms.map(item => item.avg);
-
-                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y', hasLongLabels: true });
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
-
-                this._createOrUpdateChart('graficoFazendasLancadas', {
-                    type: 'bar',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Pluviosidade (mm)',
-                            data: values,
-                            backgroundColor: '#02f5c5',
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor,
-                                anchor: 'end',
-                                align: 'end',
-                                font: { weight: 'bold' },
-                                formatter: (value) => `${value.toFixed(1)} mm`
-                            }
-                        }
-                    }
-                });
-            },
-
-            renderAcumuloPluviosidadeChart(fullData, startDateStr, endDateStr) {
-                // Helper to normalize dates (handles DD/MM/YYYY and YYYY-MM-DD)
-                const normalizeDate = (dateStr) => {
-                    if (!dateStr) return null;
-                    if (dateStr.includes('/')) {
-                        const parts = dateStr.split('/'); // Assumes DD/MM/YYYY
-                        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-                    }
-                    return dateStr;
-                };
-
-                // 1. Organize Data by Date -> Farm (to support aggregation logic)
-                const dailyFarmData = {}; // Structure: { "YYYY-MM-DD": { "farmId": totalRain } }
-
-                fullData.forEach(item => {
-                    if (item.pluviosidade === undefined || item.pluviosidade === null) return;
                     const dateKey = normalizeDate(item.data);
                     if (!dateKey) return;
 
-                    if (!dailyFarmData[dateKey]) dailyFarmData[dateKey] = {};
-                    const farmId = item.fazendaId || 'unknown';
+                    const tMax = App.safeParseFloat(item.tempMax);
+                    if (tMax > 0) { sumTempMax += tMax; countTempMax++; }
 
-                    if (!dailyFarmData[dateKey][farmId]) dailyFarmData[dateKey][farmId] = 0;
-                    dailyFarmData[dateKey][farmId] += App.safeParseFloat(item.pluviosidade);
+                    const tMin = App.safeParseFloat(item.tempMin);
+                    if (tMin > 0) { sumTempMin += tMin; countTempMin++; }
+
+                    const hum = App.safeParseFloat(item.umidade);
+                    if (hum > 0) { sumUmidade += hum; countUmidade++; }
+
+                    const wind = App.safeParseFloat(item.vento);
+                    if (wind > 0) { sumVento += wind; countVento++; }
+
+                    if (tMax > 0 && tMin > 0) { totalTempSum += (tMax + tMin) / 2; totalTempCount++; }
+
+                    const rain = App.safeParseFloat(item.pluviosidade);
+                    const farmId = item.fazendaId || 'unknown';
+                    const farmName = item.fazendaNome || 'Desconhecida';
+
+                    if (rain >= 0) {
+                        const monthKey = dateKey.substring(0, 7);
+                        if (!monthlyFarmDataForKPI[monthKey]) monthlyFarmDataForKPI[monthKey] = {};
+                        if (!monthlyFarmDataForKPI[monthKey][farmId]) monthlyFarmDataForKPI[monthKey][farmId] = 0;
+                        monthlyFarmDataForKPI[monthKey][farmId] += rain;
+
+                        if (!dailyFarmDataForChart[dateKey]) dailyFarmDataForChart[dateKey] = {};
+                        if (!dailyFarmDataForChart[dateKey][farmId]) dailyFarmDataForChart[dateKey][farmId] = 0;
+                        dailyFarmDataForChart[dateKey][farmId] += rain;
+
+                        const d = new Date(dateKey + 'T00:00:00Z');
+                        if (!latestDate || d > latestDate) latestDate = d;
+                    }
+
+                    if (wind > 0) {
+                        if (!farmWindData[farmName]) farmWindData[farmName] = [];
+                        farmWindData[farmName].push(wind);
+                    }
                 });
 
-                // 2. Setup Timeline
+                const avgTempMax = countTempMax > 0 ? sumTempMax / countTempMax : 0;
+                const avgTempMin = countTempMin > 0 ? sumTempMin / countTempMin : 0;
+                const avgUmidade = countUmidade > 0 ? sumUmidade / countUmidade : 0;
+                const avgVento = countVento > 0 ? sumVento / countVento : 0;
+
+                let acumuladoDasMedias = 0;
+                Object.values(monthlyFarmDataForKPI).forEach(farmsInMonth => {
+                    let monthlySum = 0;
+                    Object.values(farmsInMonth).forEach(t => monthlySum += t);
+                    const count = Object.keys(farmsInMonth).length;
+                    if (count > 0) acumuladoDasMedias += (monthlySum / count);
+                });
+
+                // Chart 1: Accumulation
                 const today = new Date();
-
-                // Determine start and end dates for the chart axis
-                let start = startDateStr ? new Date(startDateStr + 'T00:00:00') : new Date(today.getFullYear(), 0, 1);
-                let end = endDateStr ? new Date(endDateStr + 'T00:00:00') : today;
-
-                // Validate dates
+                let start = filters.inicio ? new Date(filters.inicio + 'T00:00:00') : new Date(today.getFullYear(), 0, 1);
+                let end = filters.fim ? new Date(filters.fim + 'T00:00:00') : today;
                 if (isNaN(start.getTime())) start = new Date(today.getFullYear(), 0, 1);
                 if (isNaN(end.getTime())) end = today;
 
-                const labels = [];
-                const dataPoints = [];
-                const backgroundColors = [];
-
+                const accumLabels = [], accumData = [], accumColors = [];
                 let currentBucket = { key: null, type: '', farms: {} };
 
                 const pushBucket = () => {
                     if (currentBucket.key) {
-                        labels.push(currentBucket.key);
-
-                        // New Logic: Sum of Farm Totals in Bucket / Count of Unique Farms in Bucket
-                        const uniqueFarmCount = Object.keys(currentBucket.farms).length;
-                        let bucketTotal = 0;
-                        Object.values(currentBucket.farms).forEach(total => bucketTotal += total);
-
-                        dataPoints.push(uniqueFarmCount > 0 ? bucketTotal / uniqueFarmCount : 0);
-
-                        if (currentBucket.type === 'month') backgroundColors.push('#B0BEC5'); // Grey for past months
-                        else if (currentBucket.type === 'week') backgroundColors.push('#42A5F5'); // Light Blue for past weeks
-                        else if (currentBucket.type === 'day') backgroundColors.push('#1976D2'); // Dark Blue for today
+                        accumLabels.push(currentBucket.key);
+                        const count = Object.keys(currentBucket.farms).length;
+                        let total = 0;
+                        Object.values(currentBucket.farms).forEach(t => total += t);
+                        accumData.push(count > 0 ? total / count : 0);
+                        if (currentBucket.type === 'month') accumColors.push('#B0BEC5');
+                        else if (currentBucket.type === 'week') accumColors.push('#42A5F5');
+                        else accumColors.push('#1976D2');
                     }
                 };
 
-                // Helper to get Week Number
+                // Helper for Week Number
                 const getWeekNumber = (d) => {
-                    const firstDayOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-                    const dayOfWeekFirst = firstDayOfMonth.getDay();
-                    return Math.ceil((d.getDate() + dayOfWeekFirst) / 7);
+                    const first = new Date(d.getFullYear(), d.getMonth(), 1);
+                    return Math.ceil((d.getDate() + first.getDay()) / 7);
                 };
 
-                // Iterate from Start to End
                 const iterDate = new Date(start);
-
-                // Define what "Current Month" means relative to the selected range.
-                // We treat the month of the 'end' date as the "Current Month" for visualization purposes (detailed view),
-                // and previous months as "Past Months" (aggregated view).
                 const targetMonthYear = `${end.getFullYear()}-${end.getMonth()}`;
-
                 let safeCounter = 0;
-                while (iterDate <= end && safeCounter < 3000) { // Increased safety limit for multi-year
+
+                while (iterDate <= end && safeCounter < 3000) {
                     safeCounter++;
+                    const y = iterDate.getFullYear(), m = String(iterDate.getMonth()+1).padStart(2,'0'), d = String(iterDate.getDate()).padStart(2,'0');
+                    const dateKey = `${y}-${m}-${d}`;
+                    const dayData = dailyFarmDataForChart[dateKey];
+                    let bucketKey = '', bucketType = '';
+                    const iterMY = `${y}-${iterDate.getMonth()}`;
 
-                    // Safe Date Key Generation (Local)
-                    const year = iterDate.getFullYear();
-                    const month = String(iterDate.getMonth() + 1).padStart(2, '0');
-                    const day = String(iterDate.getDate()).padStart(2, '0');
-                    const dateKey = `${year}-${month}-${day}`;
-
-                    const dayData = dailyFarmData[dateKey]; // { "farmId": totalRain }
-
-                    let bucketKey = '';
-                    let bucketType = '';
-
-                    const iterMonthYear = `${year}-${iterDate.getMonth()}`;
-
-                    // Logic:
-                    // Months before the Target End Month -> Group by Month
-                    // Target End Month -> Group by Week
-                    // Specific Days (if range is very short) -> handled by week logic mostly, or we could refine.
-                    // For now, let's stick to the requested "Current Month" detail logic.
-
-                    if (iterMonthYear !== targetMonthYear) {
-                        // Past Month Logic
-                        const monthName = iterDate.toLocaleString('pt-BR', { month: 'short' }).replace('.', '');
-                        bucketKey = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                    if (iterMY !== targetMonthYear) {
+                        const mn = iterDate.toLocaleString('pt-BR', { month: 'short' }).replace('.', '');
+                        bucketKey = mn.charAt(0).toUpperCase() + mn.slice(1);
                         bucketType = 'month';
                     } else {
-                        // Target/Current Month Logic
-                        const isToday = iterDate.getDate() === end.getDate() &&
-                                      iterDate.getMonth() === end.getMonth() &&
-                                      iterDate.getFullYear() === end.getFullYear();
-
-                        if (isToday) {
-                            bucketKey = `Dia ${iterDate.getDate()}/${iterDate.getMonth() + 1}`;
-                            bucketType = 'day';
-                        } else {
-                            // Days of target month grouped into weeks
-                            bucketKey = `Sem ${getWeekNumber(iterDate)}`;
-                            bucketType = 'week';
-                        }
+                        const isToday = iterDate.getDate() === end.getDate() && iterDate.getMonth() === end.getMonth();
+                        if (isToday) { bucketKey = `Dia ${iterDate.getDate()}/${iterDate.getMonth()+1}`; bucketType = 'day'; }
+                        else { bucketKey = `Sem ${getWeekNumber(iterDate)}`; bucketType = 'week'; }
                     }
 
-                    // If bucket changes, push previous and reset
                     if (bucketKey !== currentBucket.key) {
                         pushBucket();
                         currentBucket = { key: bucketKey, type: bucketType, farms: {} };
                     }
-
-                    // Accumulate data for the current bucket
                     if (dayData) {
-                        // Merge farm totals into the bucket accumulator
-                        Object.keys(dayData).forEach(farmId => {
-                            if (!currentBucket.farms[farmId]) currentBucket.farms[farmId] = 0;
-                            currentBucket.farms[farmId] += dayData[farmId];
+                        Object.keys(dayData).forEach(fid => {
+                            if (!currentBucket.farms[fid]) currentBucket.farms[fid] = 0;
+                            currentBucket.farms[fid] += dayData[fid];
                         });
                     }
-
-                    // Next Day
                     iterDate.setDate(iterDate.getDate() + 1);
                 }
-
-                // Push the final bucket (Today)
                 pushBucket();
+
+                // Chart 2: History
+                Object.keys(monthlyFarmDataForKPI).forEach(mk => {
+                    const year = mk.split('-')[0];
+                    const farms = monthlyFarmDataForKPI[mk];
+                    const count = Object.keys(farms).length;
+                    let sum = 0;
+                    Object.values(farms).forEach(v => sum += v);
+                    const avg = count > 0 ? sum / count : 0;
+                    if (!yearlyTotals[year]) yearlyTotals[year] = 0;
+                    yearlyTotals[year] += avg;
+                });
+                const historyYears = Object.keys(yearlyTotals).sort();
+                const historyValues = historyYears.map(y => yearlyTotals[y]);
+
+                // Chart 3: Latest Launch
+                let latestLaunchLabels = [], latestLaunchValues = [];
+                if (latestDate) {
+                    const ldStr = latestDate.toISOString().split('T')[0];
+                    data.forEach(item => {
+                        if (normalizeDate(item.data) === ldStr) {
+                            const fn = item.fazendaNome || 'N/A';
+                            const r = App.safeParseFloat(item.pluviosidade);
+                            if (!farmRainData[fn]) farmRainData[fn] = { total: 0, count: 0 };
+                            farmRainData[fn].total += r; farmRainData[fn].count++;
+                        }
+                    });
+                    const sorted = Object.entries(farmRainData).map(([n,v]) => ({name:n, avg: v.count>0?v.total/v.count:0})).sort((a,b)=>b.avg-a.avg);
+                    latestLaunchLabels = sorted.map(i=>i.name);
+                    latestLaunchValues = sorted.map(i=>i.avg);
+                }
+
+                // Chart 4: Wind
+                const avgWind = Object.entries(farmWindData).map(([n,v]) => ({name:n, avg: v.reduce((a,b)=>a+b,0)/v.length})).sort((a,b)=>a.avg-b.avg);
+                const windLabels = avgWind.map(i=>i.name);
+                const windValues = avgWind.map(i=>i.avg);
+
+                // Chart 5: Radar
+                const avgT = totalTempCount > 0 ? totalTempSum / totalTempCount : 0;
+                const normT = (avgT / 50) * 100;
+
+                return {
+                    kpis: { tempMax: avgTempMax, tempMin: avgTempMin, pluviosidade: acumuladoDasMedias, umidade: avgUmidade, vento: avgVento },
+                    charts: {
+                        accumulation: { labels: accumLabels, data: accumData, colors: accumColors },
+                        history: { labels: historyYears, data: historyValues },
+                        latestLaunch: { labels: latestLaunchLabels, data: latestLaunchValues },
+                        wind: { labels: windLabels, data: windValues },
+                        radar: { labels: ['Temperatura', 'Umidade', 'Vento'], data: [normT, avgUmidade, (avgVento/60)*100] }
+                    }
+                };
+            },
+
+            _renderClimateDashboardFromStats(stats) {
+                // Update KPIs
+                document.getElementById('kpi-clima-temp-max').textContent = `${stats.kpis.tempMax.toFixed(1)}°C`;
+                document.getElementById('kpi-clima-temp-min').textContent = `${stats.kpis.tempMin.toFixed(1)}°C`;
+                document.getElementById('kpi-clima-pluviosidade').textContent = `${stats.kpis.pluviosidade.toFixed(1)} mm`;
+                document.getElementById('kpi-clima-umidade').textContent = `${stats.kpis.umidade.toFixed(1)}%`;
+                document.getElementById('kpi-clima-vento').textContent = `${stats.kpis.vento.toFixed(1)} km/h`;
 
                 const commonOptions = this._getCommonChartOptions();
                 const isDarkTheme = document.body.classList.contains('theme-dark');
                 const textColor = isDarkTheme ? '#FFFFFF' : '#333333';
+                const datalabelColor = textColor;
 
+                // Chart 1: Accumulation
                 this._createOrUpdateChart('graficoAcumuloPluviosidade', {
                     type: 'bar',
                     data: {
-                        labels,
+                        labels: stats.charts.accumulation.labels,
                         datasets: [{
                             label: 'Precipitação Média Diária (mm)',
-                            data: dataPoints,
-                            backgroundColor: backgroundColors,
+                            data: stats.charts.accumulation.data,
+                            backgroundColor: stats.charts.accumulation.colors,
                             barPercentage: 0.8,
                         }]
                     },
@@ -13239,87 +13253,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: {
                             ...commonOptions.plugins,
                             legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.parsed.y.toFixed(1)} mm`;
-                                    }
-                                }
-                            },
+                            tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y.toFixed(1)} mm` } },
                             datalabels: {
-                                anchor: 'end',
-                                align: 'top',
-                                color: textColor,
-                                font: { weight: 'bold' },
-                                formatter: (value) => value > 0 ? value.toFixed(1) : ''
+                                anchor: 'end', align: 'top', color: textColor, font: { weight: 'bold' },
+                                formatter: (v) => v > 0 ? v.toFixed(1) : ''
                             }
                         }
                     }
                 });
-            },
 
-            renderHistoricoAnualChart(fullData) {
-                // Helper to normalize dates (handles DD/MM/YYYY and YYYY-MM-DD)
-                const normalizeDate = (dateStr) => {
-                    if (!dateStr) return null;
-                    if (dateStr.includes('/')) {
-                        const parts = dateStr.split('/'); // Assumes DD/MM/YYYY
-                        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-                    }
-                    return dateStr;
-                };
-
-                // 1. Group Data by Month -> Farm
-                // Structure: { "YYYY-MM": { "farmId1": totalRain, "farmId2": totalRain, ... } }
-                const monthlyFarmData = {};
-
-                fullData.forEach(item => {
-                    if (item.pluviosidade === undefined || item.pluviosidade === null) return;
-
-                    const normalizedDate = normalizeDate(item.data);
-                    if (!normalizedDate) return;
-
-                    // Robust Year-Month extraction
-                    const parts = normalizedDate.split('-');
-                    if (parts.length < 2) return;
-                    const monthKey = `${parts[0]}-${parts[1]}`; // YYYY-MM
-                    const farmId = item.fazendaId || 'unknown';
-
-                    if (!monthlyFarmData[monthKey]) monthlyFarmData[monthKey] = {};
-                    if (!monthlyFarmData[monthKey][farmId]) monthlyFarmData[monthKey][farmId] = 0;
-
-                    monthlyFarmData[monthKey][farmId] += App.safeParseFloat(item.pluviosidade);
-                });
-
-                // 2. Calculate Monthly Average of Farm Totals and Sum to Year
-                // Formula: For each month, Sum(FarmTotals) / Count(UniqueFarms). Then sum these monthly averages for the year.
-                const yearlyTotals = {};
-
-                Object.keys(monthlyFarmData).forEach(monthKey => {
-                    const year = monthKey.split('-')[0];
-                    const farmsInMonth = monthlyFarmData[monthKey];
-                    const uniqueFarmCount = Object.keys(farmsInMonth).length;
-
-                    let monthlySumOfFarmTotals = 0;
-                    Object.values(farmsInMonth).forEach(total => monthlySumOfFarmTotals += total);
-
-                    const monthlyAverage = uniqueFarmCount > 0 ? monthlySumOfFarmTotals / uniqueFarmCount : 0;
-
-                    if (!yearlyTotals[year]) yearlyTotals[year] = 0;
-                    yearlyTotals[year] += monthlyAverage;
-                });
-
-                const years = Object.keys(yearlyTotals).sort();
-                const values = years.map(y => yearlyTotals[y]);
-
-                const commonOptions = this._getCommonChartOptions();
+                // Chart 2: History
                 this._createOrUpdateChart('graficoHistoricoAnual', {
                     type: 'bar',
                     data: {
-                        labels: years,
+                        labels: stats.charts.history.labels,
                         datasets: [{
                             label: 'Acumulado Anual (mm)',
-                            data: values,
+                            data: stats.charts.history.data,
                             backgroundColor: '#02f5c5',
                         }]
                     },
@@ -13329,11 +13279,97 @@ document.addEventListener('DOMContentLoaded', () => {
                             ...commonOptions.plugins,
                             legend: { display: false },
                             datalabels: {
-                                align: 'end',
-                                anchor: 'end',
-                                color: document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333',
-                                font: { weight: 'bold' },
-                                formatter: (value) => value.toFixed(0)
+                                align: 'end', anchor: 'end', color: datalabelColor, font: { weight: 'bold' },
+                                formatter: (v) => v.toFixed(0)
+                            }
+                        }
+                    }
+                });
+
+                // Chart 3: Latest Launch (Fazendas)
+                const commonOptionsY = this._getCommonChartOptions({ indexAxis: 'y', hasLongLabels: true });
+                this._createOrUpdateChart('graficoFazendasLancadas', {
+                    type: 'bar',
+                    data: {
+                        labels: stats.charts.latestLaunch.labels,
+                        datasets: [{
+                            label: 'Pluviosidade (mm)',
+                            data: stats.charts.latestLaunch.data,
+                            backgroundColor: '#02f5c5',
+                        }]
+                    },
+                    options: {
+                        ...commonOptionsY,
+                        plugins: {
+                            ...commonOptionsY.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                color: datalabelColor, anchor: 'end', align: 'end', font: { weight: 'bold' },
+                                formatter: (v) => `${v.toFixed(1)} mm`
+                            }
+                        }
+                    }
+                });
+
+                // Chart 4: Wind
+                this._createOrUpdateChart('graficoMediaVentoFazenda', {
+                    type: 'bar',
+                    data: {
+                        labels: stats.charts.wind.labels,
+                        datasets: [{
+                            label: 'Velocidade Média do Vento (km/h)',
+                            data: stats.charts.wind.data,
+                            backgroundColor: '#388E3C',
+                        }]
+                    },
+                    options: {
+                        ...commonOptionsY, plugins: {
+                            ...commonOptionsY.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                align: 'end', anchor: 'end', backgroundColor: 'rgba(56, 142, 60, 0.8)',
+                                borderRadius: 4, color: 'white', font: { weight: 'bold' },
+                                formatter: (v) => `${v.toFixed(1)} km/h`, padding: 6
+                            }
+                        }
+                    }
+                });
+
+                // Chart 5: Radar
+                this._createOrUpdateChart('graficoIndiceClimatologico', {
+                    type: 'radar',
+                    data: {
+                        labels: stats.charts.radar.labels,
+                        datasets: [{
+                            label: 'Índice Climatológico (Normalizado)',
+                            data: stats.charts.radar.data,
+                            fill: true,
+                            backgroundColor: 'rgba(245, 124, 0, 0.2)',
+                            borderColor: '#F57C00',
+                            pointBackgroundColor: '#F57C00',
+                        }]
+                    },
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            r: {
+                                beginAtZero: true, max: 100,
+                                grid: { color: commonOptions.scales.y.grid.color },
+                                angleLines: { color: commonOptions.scales.y.grid.color },
+                                pointLabels: { color: commonOptions.scales.y.ticks.color, font: { size: 14 } },
+                                ticks: { display: false, stepSize: 20 }
+                            }
+                        },
+                        plugins: {
+                            ...commonOptions.plugins,
+                            legend: { display: false },
+                            datalabels: {
+                                backgroundColor: 'rgba(245, 124, 0, 0.8)', borderRadius: 4, color: 'white', font: { weight: 'bold' },
+                                formatter: (value, context) => {
+                                    // Reverse normalization for display would require raw values, but user just wants visual
+                                    return value.toFixed(0);
+                                },
+                                padding: 6
                             }
                         }
                     }
@@ -13416,118 +13452,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                     if (context.dataset.label.includes('Chuva')) return value > 0 ? `${value}mm` : '';
                                     return `${value}°`;
                                 }
-                            }
-                        }
-                    }
-                });
-            },
-
-            renderVelocidadeVentoChart(data) {
-                const dataByFazenda = data.reduce((acc, item) => {
-                    const fazenda = item.fazendaNome || 'N/A';
-                    if (!acc[fazenda]) acc[fazenda] = [];
-                    acc[fazenda].push(item.vento);
-                    return acc;
-                }, {});
-
-                const avgByFazenda = Object.entries(dataByFazenda).map(([name, values]) => ({
-                    name,
-                    avg: values.reduce((a, b) => a + b, 0) / values.length
-                })).sort((a, b) => a.avg - b.avg);
-
-
-                const labels = avgByFazenda.map(item => item.name);
-                const chartData = avgByFazenda.map(item => item.avg);
-
-                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y', hasLongLabels: true });
-                this._createOrUpdateChart('graficoMediaVentoFazenda', {
-                    type: 'bar',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Velocidade Média do Vento (km/h)',
-                            data: chartData,
-                            backgroundColor: '#388E3C',
-                        }]
-                    },
-                    options: {
-                        ...commonOptions, plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                align: 'end',
-                                anchor: 'end',
-                                backgroundColor: 'rgba(56, 142, 60, 0.8)',
-                                borderRadius: 4,
-                                color: 'white',
-                                font: {
-                                    weight: 'bold'
-                                },
-                                formatter: (value) => `${value.toFixed(1)} km/h`,
-                                padding: 6
-                            }
-                        }
-                    }
-                });
-            },
-
-            renderIndiceClimatologicoChart(data) {
-                const avgTemp = data.length > 0 ? data.reduce((sum, item) => sum + (item.tempMax + item.tempMin) / 2, 0) / data.length : 0;
-                const avgUmidade = data.length > 0 ? data.reduce((sum, item) => sum + item.umidade, 0) / data.length : 0;
-                const avgVento = data.length > 0 ? data.reduce((sum, item) => sum + item.vento, 0) / data.length : 0;
-
-                // Normalize data for radar chart (0-100 scale)
-                const normalizedTemp = (avgTemp / 50) * 100; // Assuming max temp is 50
-                const normalizedUmidade = avgUmidade;
-                const normalizedVento = (avgVento / 60) * 100; // Assuming max wind is 60km/h
-
-                const commonOptions = this._getCommonChartOptions();
-
-                this._createOrUpdateChart('graficoIndiceClimatologico', {
-                    type: 'radar',
-                    data: {
-                        labels: ['Temperatura', 'Umidade', 'Vento'],
-                        datasets: [{
-                            label: 'Índice Climatológico (Normalizado)',
-                            data: [normalizedTemp, normalizedUmidade, normalizedVento],
-                            fill: true,
-                            backgroundColor: 'rgba(245, 124, 0, 0.2)',
-                            borderColor: '#F57C00',
-                            pointBackgroundColor: '#F57C00',
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        scales: {
-                            r: {
-                                beginAtZero: true,
-                                max: 100,
-                                grid: { color: commonOptions.scales.y.grid.color },
-                                angleLines: { color: commonOptions.scales.y.grid.color },
-                                pointLabels: { color: commonOptions.scales.y.ticks.color, font: { size: 14 } },
-                                ticks: {
-                                    display: false,
-                                    stepSize: 20
-                                }
-                            }
-                        },
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                backgroundColor: 'rgba(245, 124, 0, 0.8)',
-                                borderRadius: 4,
-                                color: 'white',
-                                font: {
-                                    weight: 'bold'
-                                },
-                                formatter: (value, context) => {
-                                    if (context.dataIndex === 0) return `${avgTemp.toFixed(1)}°C`;
-                                    if (context.dataIndex === 1) return `${avgUmidade.toFixed(1)}%`;
-                                    if (context.dataIndex === 2) return `${avgVento.toFixed(1)} km/h`;
-                                    return '';
-                                },
-                                padding: 6
                             }
                         }
                     }
