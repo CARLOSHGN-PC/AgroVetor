@@ -29,6 +29,7 @@ const { generateMonitoramentoPdf, generateArmadilhasPdf, generateArmadilhasAtiva
 const { generateColheitaPdf, generateColheitaMensalPdf } = require('./reports/colheitaReport');
 const { generateOsPdf } = require('./reports/osReport');
 const { generateRiskViewPdf, getRiskViewData } = require('./reports/riskViewReport');
+const { getClimateStats } = require('./reports/climaDashboard');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -1460,6 +1461,33 @@ try {
     });
 
     app.get('/reports/os/pdf', authMiddleware, (req, res) => generateOsPdf(req, res, db));
+
+    app.get('/api/dashboard/clima', authMiddleware, async (req, res) => {
+        try {
+            const filters = req.query;
+            // Ensure companyId from auth is used/validated if not super-admin (middleware already does some checks but let's be safe)
+            // Middleware attaches user to req.user.
+            // If user passed companyId query param, middleware validated it.
+            // If user didn't pass it, we should use their default companyId.
+
+            // Note: authMiddleware logic:
+            // if (requestCompanyId) { check if allowed }
+            // So if filters.companyId exists, it's valid.
+            // If it doesn't exist, we should default to user's companyId.
+
+            if (!filters.companyId && req.user.companyId) {
+                filters.companyId = req.user.companyId;
+            }
+            // If super-admin and no companyId passed, filters.companyId is undefined -> getClimaData handles empty companyId with error or empty array?
+            // getClimaData checks: if (!filters.companyId) return [];
+
+            const stats = await getClimateStats(db, filters);
+            res.status(200).json(stats);
+        } catch (error) {
+            console.error("Erro ao buscar dados do dashboard climático:", error);
+            res.status(500).json({ message: 'Erro ao processar dados.' });
+        }
+    });
 
     // --- ADMIN TOOLS ---
     app.post('/api/admin/fix-dates', authMiddleware, async (req, res) => {
