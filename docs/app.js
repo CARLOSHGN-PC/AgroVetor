@@ -13510,11 +13510,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                     const { FileOpener } = Capacitor.Plugins;
 
                                     try {
-                                        // Save file to the Documents directory
+                                        // Save file to the Cache directory to avoid permission issues (Android 11+)
                                         const savedFile = await Filesystem.writeFile({
                                             path: filename,
                                             data: base64Content,
-                                            directory: 'DOCUMENTS',
+                                            directory: 'CACHE',
                                             recursive: true
                                         });
 
@@ -13525,17 +13525,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                         if (filename.endsWith('.csv')) mimeType = 'text/csv';
 
                                         // Use FileOpener if available (Community Plugin)
-                                        // Note: Accessing FileOpener via Plugins might require the plugin to be registered on the window object or Capacitor.Plugins
-                                        // If it's a standard community plugin, it should be on Capacitor.Plugins.FileOpener
                                         if (FileOpener) {
                                             await FileOpener.open({
                                                 filePath: savedFile.uri,
                                                 contentType: mimeType
                                             });
-                                            App.ui.showAlert('Relatório salvo em Documentos e aberto.', 'success');
+                                            // App.ui.showAlert('Relatório gerado e aberto com sucesso.', 'success');
                                         } else {
-                                            // Fallback if FileOpener is missing: Just notify user
-                                            App.ui.showAlert(`Relatório salvo em Documentos: ${filename}`, 'success');
+                                            App.ui.showAlert(`Relatório salvo no Cache: ${filename}`, 'success');
                                         }
 
                                     } catch (fsError) {
