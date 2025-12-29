@@ -841,13 +841,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Importa o plugin StatusBar. A variável 'Capacitor' é injetada pelo Capacitor.
                     const { StatusBar } = Capacitor.Plugins;
 
-                    // Esta é a configuração chave.
-                    // `setOverlaysWebView({ overlay: false })` instrui o Capacitor a não deixar
-                    // a WebView (o conteúdo do seu app) sobrepor a barra de status.
-                    // Em vez disso, a barra de status vai empurrar o conteúdo para baixo.
-                    StatusBar.setOverlaysWebView({ overlay: false });
+                    // `setOverlaysWebView({ overlay: true })` permite que a WebView ocupe a tela inteira,
+                    // ficando "atrás" da barra de status. O CSS (env(safe-area-inset-top))
+                    // é usado para garantir que o conteúdo não seja sobreposto.
+                    StatusBar.setOverlaysWebView({ overlay: true });
 
-                    console.log("Status bar configurada para não sobrepor a webview.");
+                    console.log("Status bar configurada para sobrepor a webview (Edge-to-Edge).");
 
                 } catch (e) {
                     console.error("Erro ao configurar a StatusBar do Capacitor.", e);
