@@ -9762,6 +9762,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             _reprojectGeoJSON(geojson) {
                 if (!window.proj4) return;
+                if (!geojson || !geojson.features || !Array.isArray(geojson.features)) {
+                    console.warn("GeoJSON inválido ou vazio para reprojeção.");
+                    return;
+                }
+
                 const sourceProjection = "EPSG:31982"; // SIRGAS 2000 UTM Zone 22S
                 const destProjection = "WGS84";
 
@@ -9849,33 +9854,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = document.getElementById('map-container');
                 if (mapContainer) mapContainer.classList.add('loading');
                 try {
-                    const buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
+                    let buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
                     if (buffer) {
                         App.ui.showAlert("A carregar mapa do cache offline.", "info");
-                        let geojson = await shp(buffer);
+
+                        // Correção para Android 13/WebView: Converte Blob para ArrayBuffer se necessário
+                        if (buffer instanceof Blob) {
+                            console.log("Convertendo Blob do cache para ArrayBuffer...");
+                            buffer = await buffer.arrayBuffer();
+                        }
+
+                        let geojson;
+                        try {
+                            geojson = await shp(buffer);
+                        } catch (parseError) {
+                            console.error("Erro ao analisar o shapefile (shpjs):", parseError);
+                            throw new Error("O arquivo de mapa offline está corrompido ou inválido.");
+                        }
 
                         // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
                         this._reprojectGeoJSON(geojson);
 
                         // ETAPA DE NORMALIZAÇÃO (CACHE OFFLINE): Garante a consistência dos dados carregados do cache.
                         let featureIdCounter = 0;
-                        geojson.features.forEach(feature => {
-                            feature.id = featureIdCounter++; // Adiciona um ID numérico único
-                            const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
-                            feature.properties.AGV_FUNDO = String(fundo).trim();
+                        if (geojson && geojson.features) {
+                            geojson.features.forEach(feature => {
+                                feature.id = featureIdCounter++; // Adiciona um ID numérico único
+                                const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                                feature.properties.AGV_FUNDO = String(fundo).trim();
 
-                            const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
-                            feature.properties.AGV_TALHAO = String(talhao).trim();
-                        });
+                                const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
+                                feature.properties.AGV_TALHAO = String(talhao).trim();
+                            });
 
-                        App.state.geoJsonData = geojson;
-                        if (App.state.mapboxMap) {
-                            this.loadShapesOnMap();
+                            App.state.geoJsonData = geojson;
+                            if (App.state.mapboxMap) {
+                                this.loadShapesOnMap();
+                            }
+                        } else {
+                            console.warn("GeoJSON inválido ou sem features após carregamento offline.");
                         }
                     }
                 } catch (error) {
-                    console.error("Erro crítico ao carregar ou processar o mapa offline:", error);
-                    App.ui.showAlert("Falha ao carregar os desenhos do mapa offline. O mapa pode não ser exibido, mas o aplicativo continuará a funcionar.", "error", 6000);
+                    console.error("Erro ao carregar ou processar o mapa offline:", error);
+                    // Usa uma notificação menos alarmante do que "Erro Crítico"
+                    App.ui.showAlert("Não foi possível carregar os contornos do mapa offline. Algumas funcionalidades do mapa podem estar indisponíveis.", "warning", 8000);
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
