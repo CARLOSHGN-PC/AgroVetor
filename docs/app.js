@@ -512,6 +512,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 frente: document.getElementById('plantioFrente'),
                 provider: document.getElementById('plantioProvider'),
                 culture: document.getElementById('plantioCulture'),
+
+                // Novos campos Cana
+                canaFields: document.getElementById('plantioCanaFields'),
+                origemMuda: document.getElementById('plantioOrigemMuda'),
+                mudaFazenda: document.getElementById('plantioMudaFazenda'),
+                mudaTalhao: document.getElementById('plantioMudaTalhao'),
+                mudaArea: document.getElementById('plantioMudaArea'),
+
                 leaderId: document.getElementById('plantioLeaderId'),
                 leaderName: document.getElementById('plantioLeaderName'),
                 farmName: document.getElementById('plantioFarmName'),
@@ -716,6 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
             relatorioPlantio: {
                 frente: document.getElementById('plantioRelatorioFrente'),
                 cultura: document.getElementById('plantioRelatorioCultura'),
+                fazenda: document.getElementById('plantioRelatorioFazenda'),
                 inicio: document.getElementById('plantioRelatorioInicio'),
                 fim: document.getElementById('plantioRelatorioFim'),
                 tipo: document.getElementById('tipoRelatorioPlantio'),
@@ -2274,6 +2283,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.perda.codigo,
                     App.elements.cigarrinha.codigo,
                     App.elements.cigarrinhaAmostragem.codigo,
+                    App.elements.apontamentoPlantio.mudaFazenda,
+                    App.elements.relatorioPlantio.fazenda,
                     App.elements.cigarrinha.filtroFazenda,
                     App.elements.cigarrinhaAmostragem.filtroFazenda,
                     App.elements.relatorioMonitoramento.fazendaFiltro,
@@ -4427,6 +4438,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (apontamentoEls.btnSave) {
                     apontamentoEls.btnSave.addEventListener('click', () => App.actions.saveApontamentoPlantio());
                 }
+
+                // Logic for conditional Cane fields
+                if (apontamentoEls.culture) {
+                    apontamentoEls.culture.addEventListener('change', () => {
+                        if (apontamentoEls.culture.value === 'Cana-de-açúcar') {
+                            apontamentoEls.canaFields.style.display = 'block';
+                        } else {
+                            apontamentoEls.canaFields.style.display = 'none';
+                            // Clear fields when hidden
+                            apontamentoEls.origemMuda.value = '';
+                            apontamentoEls.mudaFazenda.value = '';
+                            apontamentoEls.mudaTalhao.innerHTML = '';
+                            apontamentoEls.mudaArea.value = '';
+                        }
+                    });
+                }
+
+                // Logic for populating Talhão de Origem
+                if (apontamentoEls.mudaFazenda) {
+                    apontamentoEls.mudaFazenda.addEventListener('change', () => {
+                        const farmId = apontamentoEls.mudaFazenda.value;
+                        const talhaoSelect = apontamentoEls.mudaTalhao;
+                        talhaoSelect.innerHTML = '<option value="">Selecione...</option>';
+
+                        if (farmId) {
+                            const farm = App.state.fazendas.find(f => f.id === farmId);
+                            if (farm && farm.talhoes) {
+                                farm.talhoes.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric: true})).forEach(t => {
+                                    talhaoSelect.innerHTML += `<option value="${t.name}">${t.name}</option>`;
+                                });
+                            }
+                        }
+                    });
+                }
                 if (apontamentoEls.recordsContainer) {
                     apontamentoEls.recordsContainer.addEventListener('click', e => {
                         const header = e.target.closest('.amostra-header');
@@ -6211,6 +6256,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                // Conditional Validation for Cane
+                if (els.culture.value === 'Cana-de-açúcar') {
+                    if (!els.origemMuda.value || !els.mudaFazenda.value || !els.mudaTalhao.value) {
+                         App.ui.showAlert("Para Cana-de-açúcar, preencha a Origem, Fazenda e Talhão da Muda.", "warning");
+                         return;
+                    }
+                }
+
                 const recordCards = els.recordsContainer.querySelectorAll('.amostra-card');
                 if (recordCards.length === 0) {
                     App.ui.showAlert("Adicione pelo menos um lançamento de plantio.", "error");
@@ -6265,6 +6318,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     usuario: App.state.currentUser.username,
                     companyId: App.state.currentUser.companyId
                 };
+
+                // Add conditional fields if applicable
+                if (els.culture.value === 'Cana-de-açúcar') {
+                    newEntry.origemMuda = els.origemMuda.value;
+                    newEntry.mudaFazendaId = els.mudaFazenda.value;
+                    newEntry.mudaFazendaNome = els.mudaFazenda.options[els.mudaFazenda.selectedIndex].text;
+                    newEntry.mudaTalhao = els.mudaTalhao.value;
+                    newEntry.mudaArea = els.mudaArea.value ? parseFloat(els.mudaArea.value) : 0;
+                }
 
                 const entryId = els.entryId.value;
                 const confirmationMessage = entryId ? "Tem a certeza que deseja atualizar este apontamento?" : "Tem a certeza que deseja guardar este apontamento?";
@@ -13809,64 +13871,72 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             generatePlantioFazendaPDF() {
-                const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
                 const culturaValue = cultura.value;
+                const fazendaId = fazenda ? fazenda.value : '';
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
                     cultura: culturaValue,
+                    fazendaId: fazendaId,
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/fazenda/pdf', filters, 'relatorio_plantio_fazenda.pdf');
             },
 
             generatePlantioFazendaExcel() {
-                const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
                 const culturaValue = cultura.value;
+                const fazendaId = fazenda ? fazenda.value : '';
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
                     cultura: culturaValue,
+                    fazendaId: fazendaId,
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/fazenda/csv', filters, 'relatorio_plantio_fazenda.csv');
             },
 
             generatePlantioTalhaoPDF() {
-                const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
                 const culturaValue = cultura.value;
+                const fazendaId = fazenda ? fazenda.value : '';
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
                     cultura: culturaValue,
+                    fazendaId: fazendaId,
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/talhao/pdf', filters, 'relatorio_plantio_talhao.pdf');
             },
 
             generatePlantioTalhaoExcel() {
-                const { inicio, fim, frente, cultura } = App.elements.relatorioPlantio;
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
                 if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
                 const frenteId = frente.value;
                 const culturaValue = cultura.value;
+                const fazendaId = fazenda ? fazenda.value : '';
                 const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
                 const filters = {
                     inicio: inicio.value,
                     fim: fim.value,
                     frenteId: frenteId,
                     cultura: culturaValue,
+                    fazendaId: fazendaId,
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');

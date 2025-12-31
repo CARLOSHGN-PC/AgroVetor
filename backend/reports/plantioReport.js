@@ -27,6 +27,17 @@ const getPlantioData = async (db, filters) => {
         data.push({ id: doc.id, ...doc.data() });
     });
 
+    // Filter by Fazenda ID if provided
+    if (filters.fazendaId) {
+        const farmDoc = await db.collection('fazendas').doc(filters.fazendaId).get();
+        if (farmDoc.exists) {
+            const farmCode = farmDoc.data().code;
+            data = data.filter(d => d.farmCode === farmCode);
+        } else {
+            return [];
+        }
+    }
+
     let farmCodesToFilter = null;
     if (filters.tipos) {
         const selectedTypes = filters.tipos.split(',').filter(t => t);
@@ -74,8 +85,15 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        // Updated Headers: Fazenda first, Data second
-        const headers = ['Fazenda', 'Data', 'Prestador', 'Matrícula Líder', 'Variedade', 'Talhão', 'Área (ha)', 'Chuva (mm)', 'Obs'];
+        // Check if we should use the Cane specific layout
+        const isCaneReport = filters.cultura === 'Cana-de-açúcar';
+
+        let headers;
+        if (isCaneReport) {
+            headers = ['Fazenda', 'Data', 'Prestador', 'Líder', 'Variedade', 'Talhão', 'Origem Muda', 'Fazenda Origem', 'Talhão Origem', 'Área (ha)', 'Muda (ha)'];
+        } else {
+            headers = ['Fazenda', 'Data', 'Prestador', 'Matrícula Líder', 'Variedade', 'Talhão', 'Área (ha)', 'Chuva (mm)', 'Obs'];
+        }
 
         // Group data by farm
         const dataByFarm = {};
@@ -104,17 +122,33 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
         farmKeys.forEach(farmKey => {
              const farmRecords = dataByFarm[farmKey];
              farmRecords.forEach(record => {
-                 allRows.push([
-                    farmKey,
-                    formatDate(record.date),
-                    record.provider,
-                    record.leaderId,
-                    record.variedade,
-                    record.talhao,
-                    formatNumber(record.area),
-                    record.chuva || '',
-                    record.obs || ''
-                 ]);
+                 if (isCaneReport) {
+                     allRows.push([
+                        farmKey,
+                        formatDate(record.date),
+                        record.provider,
+                        record.leaderId,
+                        record.variedade,
+                        record.talhao,
+                        record.origemMuda || '',
+                        record.mudaFazendaNome || '',
+                        record.mudaTalhao || '',
+                        formatNumber(record.area),
+                        formatNumber(record.mudaArea || 0)
+                     ]);
+                 } else {
+                     allRows.push([
+                        farmKey,
+                        formatDate(record.date),
+                        record.provider,
+                        record.leaderId,
+                        record.variedade,
+                        record.talhao,
+                        formatNumber(record.area),
+                        record.chuva || '',
+                        record.obs || ''
+                     ]);
+                 }
              });
         });
 
@@ -135,17 +169,33 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
             let farmTotalArea = 0;
             const rows = farmRecords.map(record => {
                 farmTotalArea += record.area;
-                return [
-                    farmKey,
-                    formatDate(record.date),
-                    record.provider,
-                    record.leaderId,
-                    record.variedade,
-                    record.talhao,
-                    formatNumber(record.area),
-                    record.chuva || '',
-                    record.obs || ''
-                ];
+                if (isCaneReport) {
+                    return [
+                        farmKey,
+                        formatDate(record.date),
+                        record.provider,
+                        record.leaderId,
+                        record.variedade,
+                        record.talhao,
+                        record.origemMuda || '',
+                        record.mudaFazendaNome || '',
+                        record.mudaTalhao || '',
+                        formatNumber(record.area),
+                        formatNumber(record.mudaArea || 0)
+                    ];
+                } else {
+                    return [
+                        farmKey,
+                        formatDate(record.date),
+                        record.provider,
+                        record.leaderId,
+                        record.variedade,
+                        record.talhao,
+                        formatNumber(record.area),
+                        record.chuva || '',
+                        record.obs || ''
+                    ];
+                }
             });
 
             if (currentY > doc.page.height - doc.page.margins.bottom - 40) {
@@ -156,14 +206,26 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
             // Pass global columnWidths to ensure table matches summary row
             currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
 
-            const subtotalRow = ['', '', '', '', '', 'SUB TOTAL', formatNumber(farmTotalArea), '', ''];
+            let subtotalRow;
+            if (isCaneReport) {
+                // Adjust index for 'SUB TOTAL' and 'Total Value'
+                // Headers: Fazenda(0), Data(1), Prestador(2), Líder(3), Variedade(4), Talhão(5), Origem(6), FazendaOrigem(7), TalhãoOrigem(8), Área(9), MudaArea(10)
+                subtotalRow = ['', '', '', '', '', '', '', '', 'SUB TOTAL', formatNumber(farmTotalArea), ''];
+            } else {
+                subtotalRow = ['', '', '', '', '', 'SUB TOTAL', formatNumber(farmTotalArea), '', ''];
+            }
             currentY = await drawSummaryRow(doc, subtotalRow, currentY, columnWidths, title, logoBase64);
             currentY += 10;
 
             totalAreaGeral += farmTotalArea;
         }
 
-        const totalRow = ['', '', '', '', '', 'TOTAL GERAL', formatNumber(totalAreaGeral), '', ''];
+        let totalRow;
+        if (isCaneReport) {
+             totalRow = ['', '', '', '', '', '', '', '', 'TOTAL GERAL', formatNumber(totalAreaGeral), ''];
+        } else {
+             totalRow = ['', '', '', '', '', 'TOTAL GERAL', formatNumber(totalAreaGeral), '', ''];
+        }
         await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
 
         generatePdfFooter(doc, filters.generatedBy);

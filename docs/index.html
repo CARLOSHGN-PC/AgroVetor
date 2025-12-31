@@ -3333,6 +3333,34 @@
                             </select>
                         </div>
                     </div>
+
+                    <div id="plantioCanaFields" style="display:none; margin-bottom: 15px; padding: 15px; background-color: var(--color-bg); border-radius: var(--border-radius); border: 1px solid var(--color-border);">
+                        <h4 style="margin-bottom: 10px; color: var(--color-primary);">Origem da Muda</h4>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="plantioOrigemMuda">Origem:</label>
+                                <select id="plantioOrigemMuda">
+                                    <option value="">Selecione...</option>
+                                    <option value="Propria">Própria</option>
+                                    <option value="Comprada">Comprada</option>
+                                    <option value="Viveiro">Viveiro</option>
+                                </select>
+                            </div>
+                            <div class="form-col">
+                                <label for="plantioMudaFazenda">Fazenda de Origem:</label>
+                                <select id="plantioMudaFazenda"></select>
+                            </div>
+                            <div class="form-col">
+                                <label for="plantioMudaTalhao">Talhão de Origem:</label>
+                                <select id="plantioMudaTalhao"></select>
+                            </div>
+                            <div class="form-col">
+                                <label for="plantioMudaArea">Área de Muda (ha):</label>
+                                <input type="number" id="plantioMudaArea" step="0.01" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="form-row">
                         <div class="form-col">
                             <label for="plantioLeaderId" class="required">Matrícula do Líder:</label>
@@ -3625,6 +3653,12 @@
                             <option value="supervisor">Supervisor</option>
                             <option value="tecnico">Técnico</option>
                             <option value="colaborador">Colaborador</option>
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label for="plantioRelatorioFazenda">Filtrar por Fazenda:</label>
+                        <select id="plantioRelatorioFazenda">
+                            <option value="">Todas</option>
                         </select>
                     </div>
                 </div>

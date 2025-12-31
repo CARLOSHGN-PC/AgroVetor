@@ -522,9 +522,28 @@ try {
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
 
             const filePath = path.join(os.tmpdir(), `plantio_fazenda_${Date.now()}.csv`);
-            const csvWriter = createObjectCsvWriter({
-                path: filePath,
-                header: [
+
+            const isCaneReport = filters.cultura === 'Cana-de-açúcar';
+            let headers;
+
+            if (isCaneReport) {
+                headers = [
+                    { id: 'farmName', title: 'Fazenda' },
+                    { id: 'date', title: 'Data' },
+                    { id: 'provider', title: 'Prestador' },
+                    { id: 'leaderId', title: 'Matrícula do Líder' },
+                    { id: 'variedade', title: 'Variedade Plantada' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'origemMuda', title: 'Origem Muda' },
+                    { id: 'mudaFazendaNome', title: 'Fazenda Origem' },
+                    { id: 'mudaTalhao', title: 'Talhão Origem' },
+                    { id: 'area', title: 'Área Plant. (ha)' },
+                    { id: 'mudaArea', title: 'Área Muda (ha)' },
+                    { id: 'chuva', title: 'Chuva (mm)' },
+                    { id: 'obs', title: 'Observações' }
+                ];
+            } else {
+                headers = [
                     { id: 'farmName', title: 'Fazenda' },
                     { id: 'date', title: 'Data' },
                     { id: 'provider', title: 'Prestador' },
@@ -534,13 +553,25 @@ try {
                     { id: 'area', title: 'Área Plant. (ha)' },
                     { id: 'chuva', title: 'Chuva (mm)' },
                     { id: 'obs', title: 'Observações' }
-                ]
+                ];
+            }
+
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: headers
             });
 
             const records = [];
             data.forEach(item => {
                 item.records.forEach(record => {
-                    records.push({ ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` });
+                    const rec = { ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` };
+                    if (isCaneReport) {
+                        rec.origemMuda = item.origemMuda || '';
+                        rec.mudaFazendaNome = item.mudaFazendaNome || '';
+                        rec.mudaTalhao = item.mudaTalhao || '';
+                        rec.mudaArea = item.mudaArea || '';
+                    }
+                    records.push(rec);
                 });
             });
 
@@ -625,9 +656,27 @@ try {
             if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
 
             const filePath = path.join(os.tmpdir(), `plantio_talhao_${Date.now()}.csv`);
-            const csvWriter = createObjectCsvWriter({
-                path: filePath,
-                header: [
+
+            const isCaneReport = filters.cultura === 'Cana-de-açúcar';
+            let headers;
+
+            if (isCaneReport) {
+                headers = [
+                    { id: 'farmName', title: 'Fazenda' },
+                    { id: 'date', title: 'Data' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'variedade', title: 'Variedade Plantada' },
+                    { id: 'provider', title: 'Prestador' },
+                    { id: 'origemMuda', title: 'Origem Muda' },
+                    { id: 'mudaFazendaNome', title: 'Fazenda Origem' },
+                    { id: 'mudaTalhao', title: 'Talhão Origem' },
+                    { id: 'area', title: 'Área Plant. (ha)' },
+                    { id: 'mudaArea', title: 'Área Muda (ha)' },
+                    { id: 'chuva', title: 'Chuva (mm)' },
+                    { id: 'obs', title: 'Observações' }
+                ];
+            } else {
+                headers = [
                     { id: 'farmName', title: 'Fazenda' },
                     { id: 'date', title: 'Data' },
                     { id: 'talhao', title: 'Talhão' },
@@ -636,13 +685,25 @@ try {
                     { id: 'area', title: 'Área Plant. (ha)' },
                     { id: 'chuva', title: 'Chuva (mm)' },
                     { id: 'obs', title: 'Observações' }
-                ]
+                ];
+            }
+
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: headers
             });
 
             const records = [];
             data.forEach(item => {
                 item.records.forEach(record => {
-                    records.push({ ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` });
+                    const rec = { ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` };
+                    if (isCaneReport) {
+                        rec.origemMuda = item.origemMuda || '';
+                        rec.mudaFazendaNome = item.mudaFazendaNome || '';
+                        rec.mudaTalhao = item.mudaTalhao || '';
+                        rec.mudaArea = item.mudaArea || '';
+                    }
+                    records.push(rec);
                 });
             });
 
