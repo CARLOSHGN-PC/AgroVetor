@@ -2819,11 +2819,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
                 let plantedAreaByOthers = 0;
+                const currentCulture = App.elements.apontamentoPlantio.culture.value;
+
                 App.state.apontamentosPlantio.forEach(apontamento => {
                     // If we are editing, and this is the entry we are currently editing, skip its records from the sum.
                     if (editingEntryId && apontamento.id === editingEntryId) {
                         return;
                     }
+
+                    // Only count area from the SAME culture
+                    if (apontamento.culture !== currentCulture) {
+                        return;
+                    }
+
                     apontamento.records.forEach(record => {
                         if (record.talhaoId === talhaoId) {
                             plantedAreaByOthers += record.area;
