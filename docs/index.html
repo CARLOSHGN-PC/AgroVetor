@@ -2989,6 +2989,138 @@
                 </div>
             </section>
 
+            <section id="gestaoFrota" class="tab-content card" aria-label="Gestão de Frota" tabindex="0" hidden>
+                <h2><i class="fas fa-bus"></i> Gestão de Frota</h2>
+                <div class="card" style="border-left-color: var(--color-info);">
+                    <h3><i class="fas fa-plus-circle"></i> Adicionar/Editar Veículo</h3>
+                    <input type="hidden" id="frotaId">
+                    <div class="form-row">
+                        <div class="form-col"><label for="frotaCodigo" class="required">Código/ID:</label><input type="text" id="frotaCodigo" placeholder="Ex: 1001"></div>
+                        <div class="form-col"><label for="frotaPlaca" class="required">Placa:</label><input type="text" id="frotaPlaca" placeholder="Ex: ABC-1234"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="frotaTipo" class="required">Tipo:</label>
+                            <select id="frotaTipo">
+                                <option value="Onibus">Ônibus</option>
+                                <option value="Micro">Micro-ônibus</option>
+                                <option value="Van">Van</option>
+                                <option value="Caminhao">Caminhão</option>
+                                <option value="Carro">Carro</option>
+                                <option value="Outro">Outro</option>
+                            </select>
+                        </div>
+                        <div class="form-col"><label for="frotaMarcaModelo">Marca/Modelo:</label><input type="text" id="frotaMarcaModelo" placeholder="Ex: Mercedes Benz OF-1721"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="frotaAno">Ano:</label><input type="number" id="frotaAno" placeholder="Ex: 2020"></div>
+                        <div class="form-col"><label for="frotaKmAtual">KM Atual:</label><input type="number" id="frotaKmAtual" placeholder="0"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="frotaStatus">Status:</label>
+                            <select id="frotaStatus">
+                                <option value="ativo">Ativo</option>
+                                <option value="inativo">Inativo</option>
+                                <option value="manutencao">Em Manutenção</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="btnSaveFrota" class="save" style="max-width: 250px;"><i class="fas fa-save"></i> Salvar Veículo</button>
+                </div>
+                <h3><i class="fas fa-list"></i> Veículos Cadastrados</h3>
+                <div id="frotaList" class="table-responsive"></div>
+            </section>
+
+            <section id="controleKM" class="tab-content card" aria-label="Controle de KM" tabindex="0" hidden>
+                <h2><i class="fas fa-tachometer-alt"></i> Controle de KM</h2>
+
+                <div class="dashboard-grid" style="margin-bottom: 20px;">
+                    <div class="dashboard-card" id="btnNovaSaidaKM" style="border-left: 5px solid var(--color-success); cursor: pointer;">
+                        <i class="icon fas fa-sign-out-alt" style="color: var(--color-success);"></i>
+                        <h3>Nova Saída</h3>
+                        <p>Registrar início de deslocamento.</p>
+                    </div>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-warning);">
+                    <h3><i class="fas fa-road"></i> Em Deslocamento</h3>
+                    <p>Selecione um registro para finalizar (Chegada).</p>
+                    <div id="kmActiveTripsList" class="table-responsive">
+                        <p style="text-align: center; color: var(--color-text-light);">Nenhum veículo em deslocamento no momento.</p>
+                    </div>
+                </div>
+
+                <h3><i class="fas fa-history"></i> Histórico Recente</h3>
+                <div id="kmHistoryList" class="table-responsive"></div>
+
+                <!-- Modals for this module -->
+                <div id="modalSaidaKM" class="modal-overlay">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>Registrar Saída</h2>
+                            <button id="btnCloseModalSaidaKM" class="modal-close-btn">&times;</button>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col"><label for="kmSaidaVeiculo" class="required">Veículo:</label><select id="kmSaidaVeiculo" required></select></div>
+                            <div class="form-col"><label for="kmSaidaMotorista" class="required">Motorista:</label><input type="text" id="kmSaidaMotorista" required></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col"><label for="kmSaidaDataHora" class="required">Data/Hora Saída:</label><input type="datetime-local" id="kmSaidaDataHora" required></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col"><label for="kmSaidaKmInicial" class="required">KM Inicial:</label><input type="number" id="kmSaidaKmInicial" required></div>
+                            <div class="form-col"><label for="kmSaidaOrigem" class="required">Origem:</label><input type="text" id="kmSaidaOrigem" required></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button id="btnCancelSaidaKM" class="btn-secondary">Cancelar</button>
+                            <button id="btnConfirmSaidaKM" class="save">Confirmar Saída</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="modalChegadaKM" class="modal-overlay">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>Registrar Chegada</h2>
+                            <button id="btnCloseModalChegadaKM" class="modal-close-btn">&times;</button>
+                        </div>
+                        <input type="hidden" id="kmChegadaTripId">
+                        <p><strong>Veículo:</strong> <span id="kmChegadaVeiculoTexto"></span></p>
+                        <div class="form-row">
+                            <div class="form-col"><label for="kmChegadaKmFinal" class="required">KM Final:</label><input type="number" id="kmChegadaKmFinal" required></div>
+                            <div class="form-col"><label for="kmChegadaDestino" class="required">Destino:</label><input type="text" id="kmChegadaDestino" required></div>
+                        </div>
+
+                        <div style="margin-top: 15px; padding: 10px; background: var(--color-bg); border-radius: var(--border-radius);">
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                <input type="checkbox" id="kmChegadaAbasteceu" style="width: auto; transform: scale(1.2);">
+                                <span>Houve Abastecimento?</span>
+                            </label>
+                            <div id="kmAbastecimentoFields" style="display: none; margin-top: 10px;">
+                                <div class="form-row">
+                                    <div class="form-col"><label for="kmAbastecimentoLitros">Litros:</label><input type="number" id="kmAbastecimentoLitros" step="0.1"></div>
+                                    <div class="form-col"><label for="kmAbastecimentoValor">Valor Total (R$):</label><input type="number" id="kmAbastecimentoValor" step="0.01"></div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-col"><label for="kmAbastecimentoTipo">Combustível:</label>
+                                        <select id="kmAbastecimentoTipo">
+                                            <option value="Diesel">Diesel</option>
+                                            <option value="Gasolina">Gasolina</option>
+                                            <option value="Etanol">Etanol</option>
+                                            <option value="Arla">Arla 32</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button id="btnCancelChegadaKM" class="btn-secondary">Cancelar</button>
+                            <button id="btnConfirmChegadaKM" class="save">Finalizar Viagem</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <section id="gerenciarUsuarios" class="tab-content card" aria-label="Gerir Utilizadores" tabindex="0" hidden>
                 <h2><i class="fas fa-users-cog"></i> Gerir Utilizadores</h2>
                 <div id="superAdminUserCreation" class="card" style="display: none; border-left-color: var(--color-purple); margin-bottom: 20px;">

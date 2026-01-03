@@ -5,6 +5,7 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
+import FleetModule from './js/fleet.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -163,6 +164,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     ]
                 },
                 {
+                    label: 'Frota', icon: 'fas fa-bus',
+                    submenu: [
+                        { label: 'Controle de KM', icon: 'fas fa-tachometer-alt', target: 'controleKM', permission: 'controleKM' },
+                        { label: 'Gestão de Frota', icon: 'fas fa-bus', target: 'gestaoFrota', permission: 'gestaoFrota' },
+                    ]
+                },
+                {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
                         { label: 'Frente de Plantio', icon: 'fas fa-tractor', target: 'frenteDePlantio', permission: 'frenteDePlantio' },
@@ -183,10 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, controleKM: true },
                 user: { dashboard: true }
             }
         },
@@ -249,8 +257,13 @@ document.addEventListener('DOMContentLoaded', () => {
             regAppSelectedPlots: new Map(), // Map<talhaoId, {area: number, direction: string, isPartial: boolean}>
             regAppDirectionTarget: null, // Stores talhaoId when selecting direction on map
             regAppStartPoint: null, // Temporary store for start point during direction selection
+            frota: [],
+            controleFrota: [],
+            abastecimentos: [],
         },
         
+        fleet: FleetModule,
+
         elements: {
             regApp: {
                 farmSelect: document.getElementById('regAppFarmSelect'),
@@ -1383,7 +1396,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
                 // OTIMIZAÇÃO: Remove 'clima' da lista padrão para evitar carregamento massivo (20k+ registros)
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio'];
+                // 'controleFrota' e 'abastecimentos' também são removidos para carregamento otimizado
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'frota'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1439,6 +1453,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // OTIMIZAÇÃO: Listener específico para Clima (Recent Data Only)
                     App.data.listenToRecentClima(companyId);
+
+                    // OTIMIZAÇÃO: Listener específico para Controle de Frota (Active Trips Only)
+                    App.data.listenToActiveTrips(companyId);
 
                     // **NOVO**: Ouvir o documento da própria empresa para obter os módulos subscritos
                     const companyDocRef = doc(db, 'companies', companyId);
@@ -1536,6 +1553,57 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Erro ao ouvir dados recentes de clima: ", error);
                 });
                 App.state.unsubscribeListeners.push(unsubscribe);
+            },
+
+            // OTIMIZAÇÃO: Carrega apenas viagens ativas e histórico recente (últimos 30 dias)
+            listenToActiveTrips(companyId) {
+                if (!companyId) return;
+
+                // 1. Viagens em Deslocamento (Prioridade)
+                const qActive = query(
+                    collection(db, 'controleFrota'),
+                    where("companyId", "==", companyId),
+                    where("status", "==", "EM_DESLOCAMENTO")
+                );
+
+                const unsubscribeActive = onSnapshot(qActive, (querySnapshot) => {
+                    const activeTrips = [];
+                    querySnapshot.forEach((doc) => activeTrips.push({ id: doc.id, ...doc.data() }));
+
+                    // Merge with existing state to preserve history while updating active ones
+                    const currentHistory = App.state.controleFrota.filter(t => t.status === 'FINALIZADO');
+                    App.state.controleFrota = [...activeTrips, ...currentHistory];
+
+                    App.ui.renderSpecificContent('controleFrota');
+                }, (error) => console.error("Erro ao ouvir viagens ativas: ", error));
+                App.state.unsubscribeListeners.push(unsubscribeActive);
+
+                // 2. Histórico Recente (Últimos 7 dias para evitar sobrecarga)
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                const dateStr = sevenDaysAgo.toISOString();
+
+                const qHistory = query(
+                    collection(db, 'controleFrota'),
+                    where("companyId", "==", companyId),
+                    where("status", "==", "FINALIZADO"),
+                    where("dataSaida", ">=", dateStr)
+                );
+
+                const unsubscribeHistory = onSnapshot(qHistory, (querySnapshot) => {
+                    const recentHistory = [];
+                    querySnapshot.forEach((doc) => recentHistory.push({ id: doc.id, ...doc.data() }));
+
+                    // Merge safely
+                    const currentActive = App.state.controleFrota.filter(t => t.status === 'EM_DESLOCAMENTO');
+
+                    // Deduplicate history in case of overlap logic changes, though separate queries handle it
+                    // Simple replacement of history part for now
+                    App.state.controleFrota = [...currentActive, ...recentHistory];
+
+                    App.ui.renderSpecificContent('controleFrota');
+                }, (error) => console.error("Erro ao ouvir histórico recente de frota: ", error));
+                App.state.unsubscribeListeners.push(unsubscribeHistory);
             }
         },
         
@@ -1663,6 +1731,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.populateHarvestPlanSelect();
                         if (activeTab === 'planejamentoColheita') {
                             this.showHarvestPlanList();
+                        }
+                        break;
+                    case 'frota':
+                        if (activeTab === 'gestaoFrota') {
+                            App.fleet.renderFleetList();
+                        }
+                        break;
+                    case 'controleFrota':
+                        if (activeTab === 'controleKM') {
+                            App.fleet.renderActiveTrips();
+                            App.fleet.renderHistory();
                         }
                         break;
                     case 'registros':
@@ -2045,6 +2124,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (id === 'registroAplicacao') {
                     App.regApp.init();
+                }
+                if (id === 'gestaoFrota') {
+                    App.fleet.init();
+                    App.fleet.renderFleetList();
+                }
+                if (id === 'controleKM') {
+                    App.fleet.init();
+                    App.fleet.renderActiveTrips();
+                    App.fleet.renderHistory();
                 }
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
