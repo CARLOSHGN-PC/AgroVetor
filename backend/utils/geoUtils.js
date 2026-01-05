@@ -7,6 +7,31 @@ const admin = require('firebase-admin');
 let cachedShapefiles = {};
 let lastFetchTimes = {};
 
+const getGeojsonFeatures = (geojsonData) => {
+    if (!geojsonData) {
+        return [];
+    }
+
+    if (Array.isArray(geojsonData)) {
+        return geojsonData.flatMap(layer => {
+            if (!layer) return [];
+            if (Array.isArray(layer.features)) return layer.features;
+            if (layer.type === 'FeatureCollection' && Array.isArray(layer.features)) return layer.features;
+            return [];
+        });
+    }
+
+    if (geojsonData.type === 'FeatureCollection' && Array.isArray(geojsonData.features)) {
+        return geojsonData.features;
+    }
+
+    if (Array.isArray(geojsonData.features)) {
+        return geojsonData.features;
+    }
+
+    return [];
+};
+
 const getShapefileData = async (db, companyId) => {
     if (!companyId) {
         throw new Error('O ID da empresa é obrigatório para obter dados do shapefile.');
@@ -33,16 +58,30 @@ const getShapefileData = async (db, companyId) => {
 };
 
 const findTalhaoForTrap = (trap, geojsonData) => {
-    const point = [trap.longitude, trap.latitude];
-    for (const feature of geojsonData.features) {
+    if (!trap || trap.longitude === undefined || trap.latitude === undefined) {
+        return null;
+    }
+    const longitude = parseFloat(trap.longitude);
+    const latitude = parseFloat(trap.latitude);
+    if (Number.isNaN(longitude) || Number.isNaN(latitude)) {
+        return null;
+    }
+
+    const point = [longitude, latitude];
+    const features = getGeojsonFeatures(geojsonData);
+    if (features.length === 0) {
+        return null;
+    }
+
+    for (const feature of features) {
         if (feature.geometry) {
             if (feature.geometry.type === 'Polygon') {
-                if (pointInPolygon(point, feature.geometry.coordinates[0])) {
+                if (feature.geometry.coordinates?.[0] && pointInPolygon(point, feature.geometry.coordinates[0])) {
                     return feature.properties;
                 }
             } else if (feature.geometry.type === 'MultiPolygon') {
                 for (const polygon of feature.geometry.coordinates) {
-                    if (pointInPolygon(point, polygon[0])) {
+                    if (polygon?.[0] && pointInPolygon(point, polygon[0])) {
                         return feature.properties;
                     }
                 }
