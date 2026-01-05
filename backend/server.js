@@ -131,7 +131,7 @@ try {
         console.log('Firebase Admin SDK inicializado com sucesso.');
     }
 
-    const geminiApiKey = "";
+    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
     let model;
     if (!geminiApiKey) {
         console.warn("A funcionalidade de IA está desativada. Nenhuma chave de API foi fornecida.");
@@ -174,7 +174,13 @@ try {
         }
 
         try {
-            const buffer = Buffer.from(fileBase64, 'base64');
+            const base64Payload = fileBase64.startsWith('data:')
+                ? (fileBase64.split(';base64,')[1] || '')
+                : fileBase64;
+            if (!base64Payload) {
+                return res.status(400).send({ message: 'Arquivo Base64 inválido.' });
+            }
+            const buffer = Buffer.from(base64Payload, 'base64');
             const filePath = `shapefiles/${companyId}/talhoes.zip`;
             const file = bucket.file(filePath);
 
@@ -238,6 +244,12 @@ try {
                 mapHeaders: ({ header }) => header.trim().toLowerCase()
             }))
             .on('data', (data) => records.push(data))
+            .on('error', (error) => {
+                console.error("Erro ao processar CSV do relatório histórico:", error);
+                if (!res.headersSent) {
+                    res.status(400).json({ message: 'Erro ao processar o arquivo CSV.' });
+                }
+            })
             .on('end', async () => {
                 if (records.length === 0) {
                     return res.status(400).json({ message: "O relatório parece estar vazio ou em um formato incorreto." });
