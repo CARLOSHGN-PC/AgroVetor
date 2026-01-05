@@ -3031,46 +3031,26 @@
             </section>
 
             <section id="controleKM" class="tab-content card" aria-label="Controle de KM" tabindex="0" hidden>
-                <!-- Header with FAB -->
-                <div class="card-header-actions">
-                    <h2 style="color: var(--color-primary); margin: 0;"><i class="fas fa-tachometer-alt"></i> Controle de KM</h2>
-                    <div class="button-group">
-                        <button id="btnNovaSaidaKM" class="save" style="background: var(--color-success); border-radius: 50px; padding: 10px 20px;">
-                            <i class="fas fa-plus"></i> Nova Saída
-                        </button>
+                <h2><i class="fas fa-tachometer-alt"></i> Controle de KM</h2>
+
+                <div class="dashboard-grid" style="margin-bottom: 20px;">
+                    <div class="dashboard-card" id="btnNovaSaidaKM" style="border-left: 5px solid var(--color-success); cursor: pointer;">
+                        <i class="icon fas fa-sign-out-alt" style="color: var(--color-success);"></i>
+                        <h3>Nova Saída</h3>
+                        <p>Registrar início de deslocamento.</p>
                     </div>
                 </div>
 
-                <div class="card" style="border-left-color: var(--color-warning); margin-top: 20px;">
-                    <h3 style="margin-top: 0; color: var(--color-warning);"><i class="fas fa-road"></i> Em Deslocamento</h3>
-                    <p style="color: var(--color-text-light); margin-bottom: 15px;">Selecione um veículo para registrar a chegada.</p>
-                    <div id="kmActiveTripsList" class="trip-list-container">
-                        <!-- Active Trips Injected Here -->
+                <div class="card" style="border-left-color: var(--color-warning);">
+                    <h3><i class="fas fa-road"></i> Em Deslocamento</h3>
+                    <p>Selecione um registro para finalizar (Chegada).</p>
+                    <div id="kmActiveTripsList" class="table-responsive">
+                        <p style="text-align: center; color: var(--color-text-light);">Nenhum veículo em deslocamento no momento.</p>
                     </div>
                 </div>
 
-                <div style="margin-top: 30px; display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="margin: 0;"><i class="fas fa-history"></i> Histórico de Viagens</h3>
-                </div>
-
-                <div id="kmHistoryList" class="trip-list-container" style="margin-top: 15px;">
-                    <!-- History Injected Here -->
-                </div>
-
-                <div style="text-align: center; margin-top: 20px;">
-                    <button id="btnLoadMoreHistory" class="btn-secondary" style="margin: 0 auto;">Carregar Mais</button>
-                </div>
-
-                <!-- Relatórios Section inside Module -->
-                <div class="card" style="border-left-color: var(--color-info); margin-top: 40px;">
-                    <h3><i class="fas fa-chart-line"></i> Relatórios de Frota</h3>
-                    <div class="form-row">
-                        <div class="form-col"><label for="relFleetStart">De:</label><input type="date" id="relFleetStart"></div>
-                        <div class="form-col"><label for="relFleetEnd">Até:</label><input type="date" id="relFleetEnd"></div>
-                        <div class="form-col"><label for="relFleetVehicle">Veículo:</label><select id="relFleetVehicle"><option value="">Todos</option></select></div>
-                    </div>
-                    <button id="btnGenerateFleetReport" class="save"><i class="fas fa-file-pdf"></i> Gerar Relatório</button>
-                </div>
+                <h3><i class="fas fa-history"></i> Histórico Recente</h3>
+                <div id="kmHistoryList" class="table-responsive"></div>
 
                 <!-- Modals for this module -->
                 <div id="modalSaidaKM" class="modal-overlay">
