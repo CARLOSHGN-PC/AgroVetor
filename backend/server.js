@@ -30,6 +30,7 @@ const { generateColheitaPdf, generateColheitaMensalPdf } = require('./reports/co
 const { generateOsPdf } = require('./reports/osReport');
 const { generateRiskViewPdf, getRiskViewData } = require('./reports/riskViewReport');
 const { getClimateStats } = require('./reports/climaDashboard');
+const { generateFleetPdf, getFleetData } = require('./reports/fleetReport');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -1463,6 +1464,45 @@ try {
 
         } catch (error) {
             console.error("Erro ao gerar CSV de Visualização de Risco:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/frota/pdf', authMiddleware, (req, res) => generateFleetPdf(req, res, db));
+
+    app.get('/reports/frota/csv', authMiddleware, async (req, res) => {
+        try {
+            const data = await getFleetData(db, req.query);
+            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `frota_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'dataSaida', title: 'Data Saída' },
+                    { id: 'dataChegada', title: 'Data Chegada' },
+                    { id: 'veiculoNome', title: 'Veículo' },
+                    { id: 'motorista', title: 'Motorista' },
+                    { id: 'origem', title: 'Origem' },
+                    { id: 'destino', title: 'Destino' },
+                    { id: 'kmRodado', title: 'KM Rodado' }
+                ]
+            });
+
+            const records = data.map(item => ({
+                dataSaida: new Date(item.dataSaida).toLocaleString('pt-BR'),
+                dataChegada: item.dataChegada ? new Date(item.dataChegada).toLocaleString('pt-BR') : 'Em Trânsito',
+                veiculoNome: item.veiculoNome || '',
+                motorista: item.motorista || '',
+                origem: item.origem || '',
+                destino: item.destino || '',
+                kmRodado: item.kmRodado || 0
+            }));
+
+            await csvWriter.writeRecords(records);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Frota:", error);
             res.status(500).send('Erro ao gerar relatório.');
         }
     });
