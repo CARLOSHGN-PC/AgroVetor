@@ -1,9 +1,12 @@
 const FleetModule = {
     historyPage: 0,
     itemsPerPage: 10,
+    isInitialized: false,
 
     init() {
+        if (this.isInitialized) return;
         this.setupEventListeners();
+        this.isInitialized = true;
     },
 
     onShow() {
