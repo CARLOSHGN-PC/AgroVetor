@@ -94,6 +94,33 @@ const FleetModule = {
 
         const btnExcel = document.getElementById('btnRelatorioFrotaExcel');
         if (btnExcel) btnExcel.addEventListener('click', () => this.generateReport('csv'));
+
+        // Driver ID Lookup
+        const driverIdInput = document.getElementById('kmSaidaMotorista');
+        if (driverIdInput) {
+            driverIdInput.addEventListener('input', (e) => this.lookupDriver(e.target.value));
+        }
+    },
+
+    lookupDriver(matricula) {
+        const display = document.getElementById('kmDriverName');
+        if (!display) return;
+
+        if (!matricula) {
+            display.textContent = '';
+            return;
+        }
+
+        const personnel = App.state.personnel || [];
+        const person = personnel.find(p => String(p.matricula) === String(matricula));
+
+        if (person) {
+            display.textContent = person.name;
+            display.style.color = 'var(--color-primary)';
+        } else {
+            display.textContent = 'Motorista não encontrado';
+            display.style.color = 'var(--color-danger)';
+        }
     },
 
     populateReportVehicleSelect() {
@@ -262,22 +289,28 @@ const FleetModule = {
 
     async startTrip() {
         const veiculoId = document.getElementById('kmSaidaVeiculo').value;
-        const motorista = document.getElementById('kmSaidaMotorista').value;
+        const motoristaMatricula = document.getElementById('kmSaidaMotorista').value;
         const kmInicial = parseFloat(document.getElementById('kmSaidaKmInicial').value);
         const origem = document.getElementById('kmSaidaOrigem').value;
         const dataHoraInput = document.getElementById('kmSaidaDataHora').value;
 
-        if (!veiculoId || !motorista || isNaN(kmInicial) || !origem || !dataHoraInput) {
+        if (!veiculoId || !motoristaMatricula || isNaN(kmInicial) || !origem || !dataHoraInput) {
             App.ui.showAlert("Preencha todos os campos.", "warning");
             return;
         }
 
         const vehicle = App.state.frota.find(v => v.id === veiculoId);
 
+        // Find driver name
+        const personnel = App.state.personnel || [];
+        const person = personnel.find(p => String(p.matricula) === String(motoristaMatricula));
+        const motoristaNome = person ? person.name : motoristaMatricula;
+
         const tripData = {
             veiculoId,
             veiculoNome: vehicle ? `${vehicle.codigo} - ${vehicle.placa}` : 'Desconhecido',
-            motorista,
+            motorista: motoristaNome, // Save Name for display
+            motoristaMatricula: motoristaMatricula, // Save ID for reference
             kmInicial,
             origem,
             dataSaida: new Date(dataHoraInput).toISOString(),
@@ -424,6 +457,9 @@ const FleetModule = {
     renderHistory() {
         const list = document.getElementById('kmHistoryList');
         if (!list) return;
+
+        // Ensure we clear the list first to avoid ghost elements from previous renders
+        list.innerHTML = '';
 
         const trips = App.state.historyTrips || [];
 
