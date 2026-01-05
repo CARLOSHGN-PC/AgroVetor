@@ -3031,17 +3031,14 @@
             </section>
 
             <section id="controleKM" class="tab-content card" aria-label="Controle de KM" tabindex="0" hidden>
-                <h2><i class="fas fa-tachometer-alt"></i> Controle de KM</h2>
-
-                <div class="dashboard-grid" style="margin-bottom: 20px;">
-                    <div class="dashboard-card" id="btnNovaSaidaKM" style="border-left: 5px solid var(--color-success); cursor: pointer;">
-                        <i class="icon fas fa-sign-out-alt" style="color: var(--color-success);"></i>
-                        <h3>Nova Saída</h3>
-                        <p>Registrar início de deslocamento.</p>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-primary); margin: 0;"><i class="fas fa-tachometer-alt"></i> Controle de KM</h2>
+                    <div class="button-group">
+                        <button id="btnNovaSaidaKM" class="save"><i class="fas fa-sign-out-alt"></i> Nova Saída</button>
                     </div>
                 </div>
 
-                <div class="card" style="border-left-color: var(--color-warning);">
+                <div class="card" style="border-left-color: var(--color-warning); margin-top: 20px;">
                     <h3><i class="fas fa-road"></i> Em Deslocamento</h3>
                     <p>Selecione um registro para finalizar (Chegada).</p>
                     <div id="kmActiveTripsList" class="table-responsive">
@@ -3051,6 +3048,12 @@
 
                 <h3><i class="fas fa-history"></i> Histórico Recente</h3>
                 <div id="kmHistoryList" class="table-responsive"></div>
+
+                <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 15px;">
+                    <button id="btnHistoryPrev" class="btn-secondary" style="width: auto; padding: 8px 16px;"><i class="fas fa-chevron-left"></i> Anterior</button>
+                    <span id="historyPageInfo" style="font-weight: 500; font-size: 14px;">Página 1</span>
+                    <button id="btnHistoryNext" class="btn-secondary" style="width: auto; padding: 8px 16px;">Próxima <i class="fas fa-chevron-right"></i></button>
+                </div>
 
                 <!-- Modals for this module -->
                 <div id="modalSaidaKM" class="modal-overlay">
@@ -3708,6 +3711,37 @@
                 <div class="botoes-relatorio">
                     <button id="btnPDFClima" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
                     <button id="btnExcelClima" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                </div>
+            </section>
+
+            <section id="relatorioFrota" class="tab-content card" aria-label="Relatório de Frota" tabindex="0" hidden>
+                <h2><i class="fas fa-bus"></i> Relatório de Frota e KM</h2>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="relatorioFrotaInicio" class="required">Data Início:</label>
+                        <input type="date" id="relatorioFrotaInicio" />
+                    </div>
+                    <div class="form-col">
+                        <label for="relatorioFrotaFim" class="required">Data Fim:</label>
+                        <input type="date" id="relatorioFrotaFim" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label for="relatorioFrotaVeiculo">Veículo:</label>
+                        <select id="relatorioFrotaVeiculo">
+                            <option value="">Todos</option>
+                            <!-- Populated via JS if needed, or user enters code -->
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label for="relatorioFrotaMotorista">Motorista:</label>
+                        <input type="text" id="relatorioFrotaMotorista" placeholder="Nome do motorista">
+                    </div>
+                </div>
+                <div class="botoes-relatorio">
+                    <button id="btnRelatorioFrotaPDF" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                    <button id="btnRelatorioFrotaExcel" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
                 </div>
             </section>
 

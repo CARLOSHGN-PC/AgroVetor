@@ -1,7 +1,21 @@
 const FleetModule = {
+    historyPage: 0,
+    itemsPerPage: 10,
+
     init() {
         this.setupEventListeners();
-        // Initial render checks are handled by the main App when tab shows
+    },
+
+    onShow() {
+        // Reset forms and state when entering the module
+        this.clearFleetForm();
+        this.clearTripForm();
+        this.historyPage = 0;
+
+        // Refresh lists
+        this.renderActiveTrips();
+        this.renderHistory();
+        this.updatePaginationControls();
     },
 
     setupEventListeners() {
@@ -63,6 +77,44 @@ const FleetModule = {
                 divAbastecimento.style.display = e.target.checked ? 'block' : 'none';
             });
         }
+
+        // Pagination Controls
+        const btnPrev = document.getElementById('btnHistoryPrev');
+        if (btnPrev) btnPrev.addEventListener('click', () => this.changePage(-1));
+
+        const btnNext = document.getElementById('btnHistoryNext');
+        if (btnNext) btnNext.addEventListener('click', () => this.changePage(1));
+
+        // Report Buttons
+        const btnPdf = document.getElementById('btnRelatorioFrotaPDF');
+        if (btnPdf) btnPdf.addEventListener('click', () => this.generateReport('pdf'));
+
+        const btnExcel = document.getElementById('btnRelatorioFrotaExcel');
+        if (btnExcel) btnExcel.addEventListener('click', () => this.generateReport('csv'));
+    },
+
+    populateReportVehicleSelect() {
+        const select = document.getElementById('relatorioFrotaVeiculo');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Todos</option>';
+        const vehicles = App.state.frota || [];
+
+        vehicles.sort((a,b) => (a.codigo || '').localeCompare(b.codigo || '', undefined, {numeric: true})).forEach(v => {
+            select.innerHTML += `<option value="${v.id}">${v.codigo} - ${v.placa}</option>`;
+        });
+    },
+
+    changePage(delta) {
+        const trips = App.state.historyTrips || [];
+        const total = trips.length;
+        const maxPage = Math.ceil(total / this.itemsPerPage) - 1;
+        const newPage = this.historyPage + delta;
+
+        if (newPage >= 0 && newPage <= maxPage) {
+            this.historyPage = newPage;
+            this.renderHistory();
+        }
     },
 
     // --- Fleet CRUD ---
@@ -94,7 +146,7 @@ const FleetModule = {
             }
             App.ui.showAlert("Veículo guardado com sucesso!");
             this.clearFleetForm();
-            // List will auto-update via listener
+            // Optimistic update handled by listener or immediate render if needed
         } catch (error) {
             console.error(error);
             App.ui.showAlert("Erro ao guardar veículo.", "error");
@@ -116,13 +168,23 @@ const FleetModule = {
     },
 
     clearFleetForm() {
-        document.getElementById('frotaId').value = '';
-        document.getElementById('frotaCodigo').value = '';
-        document.getElementById('frotaPlaca').value = '';
-        document.getElementById('frotaMarcaModelo').value = '';
-        document.getElementById('frotaAno').value = '';
-        document.getElementById('frotaKmAtual').value = '';
-        document.getElementById('frotaStatus').value = 'ativo';
+        const fields = ['frotaId', 'frotaCodigo', 'frotaPlaca', 'frotaMarcaModelo', 'frotaAno', 'frotaKmAtual'];
+        fields.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.value = '';
+        });
+        const statusEl = document.getElementById('frotaStatus');
+        if(statusEl) statusEl.value = 'ativo';
+    },
+
+    clearTripForm() {
+        const fields = ['kmSaidaVeiculo', 'kmSaidaMotorista', 'kmSaidaKmInicial', 'kmSaidaOrigem', 'kmChegadaKmFinal', 'kmChegadaDestino'];
+        fields.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.value = '';
+        });
+
+        // Also reset local state helpers if any
     },
 
     renderFleetList() {
@@ -192,9 +254,6 @@ const FleetModule = {
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust to local
         document.getElementById('kmSaidaDataHora').value = now.toISOString().slice(0, 16);
 
-        // Pre-fill driver if possible (optional)
-        // document.getElementById('kmSaidaMotorista').value = App.state.currentUser.username;
-
         document.getElementById('modalSaidaKM').classList.add('show');
     },
 
@@ -209,10 +268,6 @@ const FleetModule = {
             App.ui.showAlert("Preencha todos os campos.", "warning");
             return;
         }
-
-        // Check if vehicle already has an active trip? (Optional robustness)
-        // const hasActive = App.state.controleFrota.some(t => t.veiculoId === veiculoId && t.status === 'EM_DESLOCAMENTO');
-        // if (hasActive) { ... }
 
         const vehicle = App.state.frota.find(v => v.id === veiculoId);
 
@@ -233,7 +288,8 @@ const FleetModule = {
             await App.data.addDocument('controleFrota', tripData);
             document.getElementById('modalSaidaKM').classList.remove('show');
             App.ui.showAlert("Saída registada com sucesso!");
-            // Active trips list auto-updates
+
+            // UI Update is handled by listener on 'activeTrips'
         } catch (error) {
             console.error(error);
             App.ui.showAlert("Erro ao registar saída.", "error");
@@ -250,7 +306,6 @@ const FleetModule = {
         document.getElementById('kmChegadaAbasteceu').checked = false;
         document.getElementById('kmAbastecimentoFields').style.display = 'none';
 
-        // Auto-focus logic or defaults
         document.getElementById('modalChegadaKM').classList.add('show');
     },
 
@@ -265,8 +320,12 @@ const FleetModule = {
             return;
         }
 
-        const trip = App.state.controleFrota.find(t => t.id === tripId);
-        if (!trip) return;
+        // Find the trip in activeTrips state
+        const trip = App.state.activeTrips.find(t => t.id === tripId);
+        if (!trip) {
+             App.ui.showAlert("Viagem não encontrada.", "error");
+             return;
+        }
 
         if (kmFinal < trip.kmInicial) {
             App.ui.showAlert("KM Final não pode ser menor que o Inicial.", "error");
@@ -275,7 +334,6 @@ const FleetModule = {
 
         const kmRodado = kmFinal - trip.kmInicial;
 
-        // Batch update recommended for consistency
         App.ui.setLoading(true, "A finalizar viagem...");
         try {
             // 1. Update Trip
@@ -328,7 +386,8 @@ const FleetModule = {
         const list = document.getElementById('kmActiveTripsList');
         if (!list) return;
 
-        const trips = (App.state.controleFrota || []).filter(t => t.status === 'EM_DESLOCAMENTO');
+        // Use the segregated state
+        const trips = App.state.activeTrips || [];
 
         if (trips.length === 0) {
             list.innerHTML = '<p style="text-align: center; color: var(--color-text-light);">Nenhum veículo em deslocamento.</p>';
@@ -340,7 +399,7 @@ const FleetModule = {
             const date = new Date(t.dataSaida).toLocaleString('pt-BR');
             html += `
                 <div class="card" style="padding: 15px; margin-bottom: 10px; border-left-color: var(--color-warning); cursor: pointer;"
-                     onclick="App.fleet.openEndTripModal(App.state.controleFrota.find(x => x.id === '${t.id}'))">
+                     onclick="App.fleet.openEndTripModal(App.state.activeTrips.find(x => x.id === '${t.id}'))">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div>
                             <h4 style="margin: 0; color: var(--color-primary-dark);">${t.veiculoNome}</h4>
@@ -363,16 +422,20 @@ const FleetModule = {
         const list = document.getElementById('kmHistoryList');
         if (!list) return;
 
-        // Show last 20 finished trips
-        const trips = (App.state.controleFrota || [])
-            .filter(t => t.status === 'FINALIZADO')
-            .sort((a,b) => new Date(b.dataChegada) - new Date(a.dataChegada))
-            .slice(0, 20);
+        const trips = App.state.historyTrips || [];
+
+        // Ensure trips are sorted descending by arrival date
+        trips.sort((a,b) => new Date(b.dataChegada) - new Date(a.dataChegada));
 
         if (trips.length === 0) {
             list.innerHTML = '<p style="text-align: center; color: var(--color-text-light);">Nenhum histórico recente.</p>';
+            this.updatePaginationControls(); // Disable buttons
             return;
         }
+
+        const start = this.historyPage * this.itemsPerPage;
+        const end = start + this.itemsPerPage;
+        const pageTrips = trips.slice(start, end);
 
         let html = `
             <table style="width:100%; border-collapse: collapse; font-size: 14px;">
@@ -388,7 +451,7 @@ const FleetModule = {
                 <tbody>
         `;
 
-        trips.forEach(t => {
+        pageTrips.forEach(t => {
             const date = new Date(t.dataChegada).toLocaleDateString('pt-BR');
             html += `
                 <tr style="border-bottom: 1px solid var(--color-border);">
@@ -403,6 +466,60 @@ const FleetModule = {
 
         html += '</tbody></table>';
         list.innerHTML = html;
+
+        this.updatePaginationControls();
+    },
+
+    updatePaginationControls() {
+        const total = (App.state.historyTrips || []).length;
+        const maxPage = Math.ceil(total / this.itemsPerPage) - 1;
+
+        const btnPrev = document.getElementById('btnHistoryPrev');
+        const btnNext = document.getElementById('btnHistoryNext');
+        const pageInfo = document.getElementById('historyPageInfo');
+
+        if (btnPrev) {
+            btnPrev.disabled = this.historyPage <= 0;
+            btnPrev.style.opacity = this.historyPage <= 0 ? '0.5' : '1';
+        }
+
+        if (btnNext) {
+            const isLastPage = this.historyPage >= maxPage;
+            btnNext.disabled = isLastPage || total === 0;
+            btnNext.style.opacity = (isLastPage || total === 0) ? '0.5' : '1';
+        }
+
+        if (pageInfo) {
+            pageInfo.textContent = total > 0
+                ? `Página ${this.historyPage + 1} de ${maxPage + 1}`
+                : 'Página 0 de 0';
+        }
+    },
+
+    generateReport(type) {
+        const inicio = document.getElementById('relatorioFrotaInicio').value;
+        const fim = document.getElementById('relatorioFrotaFim').value;
+        const veiculo = document.getElementById('relatorioFrotaVeiculo').value;
+        const motorista = document.getElementById('relatorioFrotaMotorista').value;
+
+        if (!inicio || !fim) {
+            App.ui.showAlert("Selecione data de início e fim.", "warning");
+            return;
+        }
+
+        const filters = {
+            inicio,
+            fim,
+            veiculoId: veiculo,
+            motorista,
+            companyId: App.state.currentUser.companyId
+        };
+
+        // Use the shared report generation logic which handles auth and download
+        const endpoint = type === 'pdf' ? 'frota/pdf' : 'frota/csv';
+        const filename = `relatorio_frota_${inicio}_${fim}.${type === 'pdf' ? 'pdf' : 'csv'}`;
+
+        App.reports._fetchAndDownloadReport(endpoint, filters, filename);
     }
 };
 
