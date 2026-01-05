@@ -1962,19 +1962,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showTab(id) {
                 const { currentUser, companies } = App.state;
 
-                // Lifecycle Hook for Fleet Module
-                if (App.fleet && App.fleet.onTabEnter) {
-                    if (id === 'gestaoFrota' || id === 'controleKM') {
-                        App.fleet.onTabEnter(id);
-                    } else {
-                        // If leaving fleet tabs, trigger cleanup
-                        const currentTab = document.querySelector('.tab-content.active');
-                        if (currentTab && (currentTab.id === 'gestaoFrota' || currentTab.id === 'controleKM')) {
-                            App.fleet.onTabLeave();
-                        }
-                    }
-                }
-
                 // Encontrar o item de menu correspondente para obter a permissão necessária
                 let requiredPermission = null;
                 App.config.menuConfig.forEach(item => {
