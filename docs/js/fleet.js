@@ -1,9 +1,43 @@
+// Import Firebase specific functions for pagination
+import { getFirestore, collection, query, where, orderBy, limit, startAfter, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
 const FleetModule = {
+    // --- State Management ---
+    state: {
+        activeTrips: [], // Real-time from listener
+        history: [],     // Pagination loaded
+        vehicles: [],    // Real-time from listener
+        lastVisibleHistory: null, // For pagination cursor
+        historyLimit: 10,
+        isLoadingHistory: false,
+        hasMoreHistory: true
+    },
+
     init() {
         this.setupEventListeners();
         // Initial render checks are handled by the main App when tab shows
     },
 
+    // --- Lifecycle Hooks ---
+    onTabEnter(tabId) {
+        if (tabId === 'gestaoFrota') {
+            this.clearFleetForm();
+            this.renderFleetList();
+        } else if (tabId === 'controleKM') {
+            this.state.history = [];
+            this.state.lastVisibleHistory = null;
+            this.state.hasMoreHistory = true;
+            this.renderActiveTrips();
+            this.loadHistory(); // Load first page
+        }
+    },
+
+    onTabLeave() {
+        this.clearFleetForm();
+        this.clearKMForms();
+    },
+
+    // --- Event Listeners ---
     setupEventListeners() {
         // Fleet CRUD
         const btnSaveFrota = document.getElementById('btnSaveFrota');
@@ -11,49 +45,20 @@ const FleetModule = {
             btnSaveFrota.addEventListener('click', () => this.saveVehicle());
         }
 
-        // Trip Management
-        const btnNovaSaidaKM = document.getElementById('btnNovaSaidaKM');
+        // Trip Management UI
+        const btnNovaSaidaKM = document.getElementById('btnNovaSaidaKM'); // FAB
         if (btnNovaSaidaKM) {
             btnNovaSaidaKM.addEventListener('click', () => this.openStartTripModal());
         }
 
-        const btnConfirmSaidaKM = document.getElementById('btnConfirmSaidaKM');
-        if (btnConfirmSaidaKM) {
-            btnConfirmSaidaKM.addEventListener('click', () => this.startTrip());
-        }
+        // Modal Actions
+        document.getElementById('btnConfirmSaidaKM')?.addEventListener('click', () => this.startTrip());
+        document.getElementById('btnCancelSaidaKM')?.addEventListener('click', () => this.closeModal('modalSaidaKM'));
+        document.getElementById('btnCloseModalSaidaKM')?.addEventListener('click', () => this.closeModal('modalSaidaKM'));
 
-        const btnCancelSaidaKM = document.getElementById('btnCancelSaidaKM');
-        if (btnCancelSaidaKM) {
-            btnCancelSaidaKM.addEventListener('click', () => {
-                document.getElementById('modalSaidaKM').classList.remove('show');
-            });
-        }
-
-        const btnCloseModalSaidaKM = document.getElementById('btnCloseModalSaidaKM');
-        if (btnCloseModalSaidaKM) {
-            btnCloseModalSaidaKM.addEventListener('click', () => {
-                document.getElementById('modalSaidaKM').classList.remove('show');
-            });
-        }
-
-        const btnConfirmChegadaKM = document.getElementById('btnConfirmChegadaKM');
-        if (btnConfirmChegadaKM) {
-            btnConfirmChegadaKM.addEventListener('click', () => this.endTrip());
-        }
-
-        const btnCancelChegadaKM = document.getElementById('btnCancelChegadaKM');
-        if (btnCancelChegadaKM) {
-            btnCancelChegadaKM.addEventListener('click', () => {
-                document.getElementById('modalChegadaKM').classList.remove('show');
-            });
-        }
-
-        const btnCloseModalChegadaKM = document.getElementById('btnCloseModalChegadaKM');
-        if (btnCloseModalChegadaKM) {
-            btnCloseModalChegadaKM.addEventListener('click', () => {
-                document.getElementById('modalChegadaKM').classList.remove('show');
-            });
-        }
+        document.getElementById('btnConfirmChegadaKM')?.addEventListener('click', () => this.endTrip());
+        document.getElementById('btnCancelChegadaKM')?.addEventListener('click', () => this.closeModal('modalChegadaKM'));
+        document.getElementById('btnCloseModalChegadaKM')?.addEventListener('click', () => this.closeModal('modalChegadaKM'));
 
         // Toggle Abastecimento fields
         const checkAbasteceu = document.getElementById('kmChegadaAbasteceu');
@@ -62,6 +67,71 @@ const FleetModule = {
             checkAbasteceu.addEventListener('change', (e) => {
                 divAbastecimento.style.display = e.target.checked ? 'block' : 'none';
             });
+        }
+
+        // Pagination
+        const btnLoadMore = document.getElementById('btnLoadMoreHistory');
+        if (btnLoadMore) {
+            btnLoadMore.addEventListener('click', () => this.loadHistory());
+        }
+
+        // Reports
+        document.getElementById('btnGenerateFleetReport')?.addEventListener('click', () => this.generateReport());
+    },
+
+    closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('show');
+        this.clearKMForms(); // Clear inputs on close
+    },
+
+    // --- Data Logic: Pagination ---
+
+    async loadHistory() {
+        if (this.state.isLoadingHistory || !this.state.hasMoreHistory) return;
+
+        this.state.isLoadingHistory = true;
+        const btn = document.getElementById('btnLoadMoreHistory');
+        if(btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
+
+        try {
+            const db = getFirestore();
+            const companyId = App.state.currentUser.companyId;
+            const collectionRef = collection(db, 'controleFrota');
+
+            let q = query(
+                collectionRef,
+                where("companyId", "==", companyId),
+                where("status", "==", "FINALIZADO"),
+                orderBy("dataChegada", "desc"),
+                limit(this.state.historyLimit)
+            );
+
+            if (this.state.lastVisibleHistory) {
+                q = query(q, startAfter(this.state.lastVisibleHistory));
+            }
+
+            const snapshot = await getDocs(q);
+
+            if (snapshot.empty) {
+                this.state.hasMoreHistory = false;
+                if(btn) btn.style.display = 'none';
+            } else {
+                this.state.lastVisibleHistory = snapshot.docs[snapshot.docs.length - 1];
+                const newItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                this.state.history = [...this.state.history, ...newItems];
+                this.renderHistory();
+
+                if (snapshot.docs.length < this.state.historyLimit) {
+                    this.state.hasMoreHistory = false;
+                    if(btn) btn.style.display = 'none';
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao carregar histórico:", error);
+            App.ui.showAlert("Erro ao carregar histórico.", "error");
+        } finally {
+            this.state.isLoadingHistory = false;
+            if(btn && this.state.hasMoreHistory) btn.innerHTML = 'Carregar Mais';
         }
     },
 
@@ -94,7 +164,6 @@ const FleetModule = {
             }
             App.ui.showAlert("Veículo guardado com sucesso!");
             this.clearFleetForm();
-            // List will auto-update via listener
         } catch (error) {
             console.error(error);
             App.ui.showAlert("Erro ao guardar veículo.", "error");
@@ -125,47 +194,55 @@ const FleetModule = {
         document.getElementById('frotaStatus').value = 'ativo';
     },
 
+    clearKMForms() {
+        document.getElementById('kmSaidaVeiculo').value = '';
+        document.getElementById('kmSaidaMotorista').value = '';
+        document.getElementById('kmSaidaKmInicial').value = '';
+        document.getElementById('kmSaidaOrigem').value = '';
+
+        document.getElementById('kmChegadaTripId').value = '';
+        document.getElementById('kmChegadaKmFinal').value = '';
+        document.getElementById('kmChegadaDestino').value = '';
+        document.getElementById('kmChegadaAbasteceu').checked = false;
+        document.getElementById('kmAbastecimentoFields').style.display = 'none';
+        document.getElementById('kmAbastecimentoLitros').value = '';
+        document.getElementById('kmAbastecimentoValor').value = '';
+    },
+
     renderFleetList() {
         const list = document.getElementById('frotaList');
         if (!list) return;
 
         const vehicles = App.state.frota || [];
         if (vehicles.length === 0) {
-            list.innerHTML = '<p class="text-center">Nenhum veículo cadastrado.</p>';
+            list.innerHTML = '<div class="empty-state"><i class="fas fa-bus"></i><p>Nenhum veículo cadastrado.</p></div>';
             return;
         }
 
-        let html = `
-            <table style="width:100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="background: var(--color-bg); text-align: left;">
-                        <th style="padding: 10px;">Cód.</th>
-                        <th style="padding: 10px;">Placa</th>
-                        <th style="padding: 10px;">Modelo</th>
-                        <th style="padding: 10px;">KM Atual</th>
-                        <th style="padding: 10px;">Status</th>
-                        <th style="padding: 10px;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
+        let html = '<div class="fleet-grid">';
 
         vehicles.sort((a,b) => (a.codigo || '').localeCompare(b.codigo || '', undefined, {numeric: true})).forEach(v => {
             html += `
-                <tr style="border-bottom: 1px solid var(--color-border);">
-                    <td style="padding: 10px;">${v.codigo}</td>
-                    <td style="padding: 10px;">${v.placa}</td>
-                    <td style="padding: 10px;">${v.marcaModelo || '-'}</td>
-                    <td style="padding: 10px;">${v.kmAtual}</td>
-                    <td style="padding: 10px;">${v.status}</td>
-                    <td style="padding: 10px;">
-                        <button class="action-btn" onclick="App.fleet.editVehicle(App.state.frota.find(f => f.id === '${v.id}'))"><i class="fas fa-edit"></i></button>
-                    </td>
-                </tr>
+                <div class="fleet-card">
+                    <div class="fleet-card-header">
+                        <span class="fleet-code">${v.codigo}</span>
+                        <span class="fleet-status ${v.status}">${v.status}</span>
+                    </div>
+                    <div class="fleet-card-body">
+                        <h4>${v.placa}</h4>
+                        <p>${v.marcaModelo || 'Modelo não inf.'}</p>
+                        <p class="fleet-km"><i class="fas fa-tachometer-alt"></i> ${v.kmAtual} km</p>
+                    </div>
+                    <div class="fleet-card-actions">
+                        <button onclick="App.fleet.editVehicle(App.state.frota.find(f => f.id === '${v.id}'))">
+                            <i class="fas fa-edit"></i> Editar
+                        </button>
+                    </div>
+                </div>
             `;
         });
 
-        html += '</tbody></table>';
+        html += '</div>';
         list.innerHTML = html;
     },
 
@@ -187,13 +264,9 @@ const FleetModule = {
             }
         };
 
-        // Pre-fill date with current local ISO string
         const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust to local
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         document.getElementById('kmSaidaDataHora').value = now.toISOString().slice(0, 16);
-
-        // Pre-fill driver if possible (optional)
-        // document.getElementById('kmSaidaMotorista').value = App.state.currentUser.username;
 
         document.getElementById('modalSaidaKM').classList.add('show');
     },
@@ -210,10 +283,6 @@ const FleetModule = {
             return;
         }
 
-        // Check if vehicle already has an active trip? (Optional robustness)
-        // const hasActive = App.state.controleFrota.some(t => t.veiculoId === veiculoId && t.status === 'EM_DESLOCAMENTO');
-        // if (hasActive) { ... }
-
         const vehicle = App.state.frota.find(v => v.id === veiculoId);
 
         const tripData = {
@@ -228,17 +297,21 @@ const FleetModule = {
             criadoPor: App.state.currentUser.email
         };
 
-        App.ui.setLoading(true, "A registar saída...");
+        // 1. Optimistic UI Update (Immediate)
+        const tempId = 'temp_' + Date.now();
+        const optimisticTrip = { ...tripData, id: tempId };
+
+        App.state.controleFrota = [optimisticTrip, ...App.state.controleFrota];
+        this.renderActiveTrips();
+
+        this.closeModal('modalSaidaKM');
+
         try {
             await App.data.addDocument('controleFrota', tripData);
-            document.getElementById('modalSaidaKM').classList.remove('show');
-            App.ui.showAlert("Saída registada com sucesso!");
-            // Active trips list auto-updates
+            App.ui.showAlert("Saída registada!", "success");
         } catch (error) {
             console.error(error);
-            App.ui.showAlert("Erro ao registar saída.", "error");
-        } finally {
-            App.ui.setLoading(false);
+            App.ui.showAlert("Erro ao registar saída (Offline?). Será sincronizado.", "info");
         }
     },
 
@@ -247,10 +320,7 @@ const FleetModule = {
         document.getElementById('kmChegadaVeiculoTexto').textContent = trip.veiculoNome;
         document.getElementById('kmChegadaKmFinal').value = '';
         document.getElementById('kmChegadaDestino').value = '';
-        document.getElementById('kmChegadaAbasteceu').checked = false;
-        document.getElementById('kmAbastecimentoFields').style.display = 'none';
 
-        // Auto-focus logic or defaults
         document.getElementById('modalChegadaKM').classList.add('show');
     },
 
@@ -265,7 +335,9 @@ const FleetModule = {
             return;
         }
 
-        const trip = App.state.controleFrota.find(t => t.id === tripId);
+        const tripIndex = App.state.controleFrota.findIndex(t => t.id === tripId);
+        const trip = App.state.controleFrota[tripIndex];
+
         if (!trip) return;
 
         if (kmFinal < trip.kmInicial) {
@@ -274,25 +346,33 @@ const FleetModule = {
         }
 
         const kmRodado = kmFinal - trip.kmInicial;
+        const dataChegada = new Date().toISOString();
 
-        // Batch update recommended for consistency
-        App.ui.setLoading(true, "A finalizar viagem...");
+        // 1. Optimistic Update
+        if (tripIndex > -1) {
+            App.state.controleFrota.splice(tripIndex, 1);
+            this.renderActiveTrips();
+        }
+        const finishedTrip = { ...trip, kmFinal, destino, kmRodado, dataChegada, status: 'FINALIZADO' };
+        this.state.history.unshift(finishedTrip);
+        this.renderHistory();
+
+        this.closeModal('modalChegadaKM');
+
         try {
-            // 1. Update Trip
+            // 2. Persistent Update
             await App.data.updateDocument('controleFrota', tripId, {
                 kmFinal,
                 destino,
                 kmRodado,
-                dataChegada: new Date().toISOString(),
+                dataChegada,
                 status: 'FINALIZADO'
             });
 
-            // 2. Update Vehicle Current KM
             await App.data.updateDocument('frota', trip.veiculoId, {
                 kmAtual: kmFinal
             });
 
-            // 3. Save Abastecimento (if any)
             if (abasteceu) {
                 const litros = parseFloat(document.getElementById('kmAbastecimentoLitros').value);
                 const valor = parseFloat(document.getElementById('kmAbastecimentoValor').value);
@@ -302,7 +382,7 @@ const FleetModule = {
                     await App.data.addDocument('abastecimentos', {
                         tripId,
                         veiculoId: trip.veiculoId,
-                        data: new Date().toISOString(),
+                        data: dataChegada,
                         km: kmFinal,
                         litros,
                         valor: valor || 0,
@@ -312,15 +392,11 @@ const FleetModule = {
                     });
                 }
             }
-
-            document.getElementById('modalChegadaKM').classList.remove('show');
-            App.ui.showAlert(`Viagem finalizada! KM Rodado: ${kmRodado.toFixed(1)} km`);
+            App.ui.showAlert(`Viagem finalizada!`, "success");
 
         } catch (error) {
             console.error(error);
-            App.ui.showAlert("Erro ao finalizar viagem.", "error");
-        } finally {
-            App.ui.setLoading(false);
+            App.ui.showAlert("Salvo offline. Sincronizará quando online.", "info");
         }
     },
 
@@ -328,34 +404,33 @@ const FleetModule = {
         const list = document.getElementById('kmActiveTripsList');
         if (!list) return;
 
+        // Filter only active trips to avoid showing history here
         const trips = (App.state.controleFrota || []).filter(t => t.status === 'EM_DESLOCAMENTO');
 
         if (trips.length === 0) {
-            list.innerHTML = '<p style="text-align: center; color: var(--color-text-light);">Nenhum veículo em deslocamento.</p>';
+            list.innerHTML = '<div class="empty-state"><i class="fas fa-road"></i><p>Nenhum veículo em deslocamento.</p></div>';
             return;
         }
 
-        let html = '';
+        let html = '<div class="trip-list">';
         trips.forEach(t => {
             const date = new Date(t.dataSaida).toLocaleString('pt-BR');
             html += `
-                <div class="card" style="padding: 15px; margin-bottom: 10px; border-left-color: var(--color-warning); cursor: pointer;"
-                     onclick="App.fleet.openEndTripModal(App.state.controleFrota.find(x => x.id === '${t.id}'))">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div>
-                            <h4 style="margin: 0; color: var(--color-primary-dark);">${t.veiculoNome}</h4>
-                            <p style="margin: 5px 0 0; font-size: 13px; color: var(--color-text-light);"><i class="fas fa-user"></i> ${t.motorista}</p>
-                            <p style="margin: 5px 0 0; font-size: 13px;"><i class="fas fa-map-marker-alt"></i> Origem: ${t.origem}</p>
-                        </div>
-                        <div style="text-align: right;">
-                            <span style="background: var(--color-warning); color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">EM TRÂNSITO</span>
-                            <p style="margin: 5px 0 0; font-size: 12px;">${date}</p>
-                            <p style="margin: 5px 0 0; font-weight: bold;">KM Saída: ${t.kmInicial}</p>
-                        </div>
+                <div class="trip-card active" onclick="App.fleet.openEndTripModal(App.state.controleFrota.find(x => x.id === '${t.id}'))">
+                    <div class="trip-icon"><i class="fas fa-bus"></i></div>
+                    <div class="trip-info">
+                        <h4>${t.veiculoNome}</h4>
+                        <p><i class="fas fa-user"></i> ${t.motorista}</p>
+                        <p><i class="fas fa-map-marker-alt"></i> ${t.origem} <i class="fas fa-arrow-right"></i> ...</p>
+                    </div>
+                    <div class="trip-meta">
+                        <span class="badge warning">EM TRÂNSITO</span>
+                        <small>${date}</small>
                     </div>
                 </div>
             `;
         });
+        html += '</div>';
         list.innerHTML = html;
     },
 
@@ -363,46 +438,113 @@ const FleetModule = {
         const list = document.getElementById('kmHistoryList');
         if (!list) return;
 
-        // Show last 20 finished trips
-        const trips = (App.state.controleFrota || [])
-            .filter(t => t.status === 'FINALIZADO')
-            .sort((a,b) => new Date(b.dataChegada) - new Date(a.dataChegada))
-            .slice(0, 20);
+        const trips = this.state.history || [];
 
         if (trips.length === 0) {
-            list.innerHTML = '<p style="text-align: center; color: var(--color-text-light);">Nenhum histórico recente.</p>';
+            list.innerHTML = '<p style="text-align: center; color: var(--color-text-light);">Nenhum histórico carregado.</p>';
             return;
         }
 
-        let html = `
-            <table style="width:100%; border-collapse: collapse; font-size: 14px;">
-                <thead>
-                    <tr style="background: var(--color-bg); text-align: left;">
-                        <th style="padding: 8px;">Data</th>
-                        <th style="padding: 8px;">Veículo</th>
-                        <th style="padding: 8px;">Motorista</th>
-                        <th style="padding: 8px;">Origem -> Destino</th>
-                        <th style="padding: 8px;">KM Rodado</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
+        let html = '<div class="trip-list">';
         trips.forEach(t => {
             const date = new Date(t.dataChegada).toLocaleDateString('pt-BR');
             html += `
-                <tr style="border-bottom: 1px solid var(--color-border);">
-                    <td style="padding: 8px;">${date}</td>
-                    <td style="padding: 8px;">${t.veiculoNome}</td>
-                    <td style="padding: 8px;">${t.motorista}</td>
-                    <td style="padding: 8px;">${t.origem} -> ${t.destino}</td>
-                    <td style="padding: 8px; font-weight: bold;">${t.kmRodado.toFixed(1)} km</td>
-                </tr>
+                <div class="trip-card history">
+                    <div class="trip-info">
+                        <h4>${t.veiculoNome}</h4>
+                        <p class="route">${t.origem} <i class="fas fa-arrow-right"></i> ${t.destino}</p>
+                        <p class="driver"><i class="fas fa-user"></i> ${t.motorista}</p>
+                    </div>
+                    <div class="trip-stats">
+                        <span class="km-badge">${t.kmRodado.toFixed(1)} km</span>
+                        <small>${date}</small>
+                    </div>
+                </div>
             `;
         });
-
-        html += '</tbody></table>';
+        html += '</div>';
         list.innerHTML = html;
+    },
+
+    async generateReport() {
+        const start = document.getElementById('relFleetStart').value;
+        const end = document.getElementById('relFleetEnd').value;
+        const vehicleFilter = document.getElementById('relFleetVehicle').value; // Assuming select ID from UI plan
+
+        if (!start || !end) {
+            App.ui.showAlert("Selecione o período.", "warning");
+            return;
+        }
+
+        App.ui.setLoading(true, "A gerar relatório...");
+
+        try {
+            // Fetch data for the period (can be large, but filtered)
+            const db = getFirestore();
+            const collectionRef = collection(db, 'controleFrota');
+            const companyId = App.state.currentUser.companyId;
+
+            // Simple date range query
+            const q = query(
+                collectionRef,
+                where("companyId", "==", companyId),
+                where("status", "==", "FINALIZADO"),
+                where("dataChegada", ">=", new Date(start).toISOString()),
+                where("dataChegada", "<=", new Date(end + "T23:59:59").toISOString())
+            );
+
+            const snapshot = await getDocs(q);
+            let trips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            if (vehicleFilter) {
+                trips = trips.filter(t => t.veiculoId === vehicleFilter);
+            }
+
+            if (trips.length === 0) {
+                App.ui.showAlert("Nenhum dado encontrado para o período.", "info");
+                return;
+            }
+
+            // Metrics
+            const totalTrips = trips.length;
+            const totalKm = trips.reduce((sum, t) => sum + (t.kmRodado || 0), 0);
+
+            // Generate PDF using jsPDF (assuming library is loaded globally as jspdf)
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFontSize(18);
+            doc.text("Relatório de Frota - Controle de KM", 14, 20);
+
+            doc.setFontSize(12);
+            doc.text(`Período: ${new Date(start).toLocaleDateString()} a ${new Date(end).toLocaleDateString()}`, 14, 30);
+            doc.text(`Total de Viagens: ${totalTrips}`, 14, 40);
+            doc.text(`KM Total Rodado: ${totalKm.toFixed(1)} km`, 14, 48);
+
+            const tableData = trips.map(t => [
+                new Date(t.dataSaida).toLocaleDateString(),
+                t.veiculoNome,
+                t.motorista,
+                t.origem,
+                t.destino,
+                t.kmRodado.toFixed(1)
+            ]);
+
+            doc.autoTable({
+                startY: 55,
+                head: [['Data', 'Veículo', 'Motorista', 'Origem', 'Destino', 'KM']],
+                body: tableData,
+            });
+
+            doc.save(`relatorio_frota_${start}_${end}.pdf`);
+            App.ui.showAlert("Relatório gerado com sucesso!", "success");
+
+        } catch (error) {
+            console.error("Erro ao gerar relatório:", error);
+            App.ui.showAlert("Erro ao gerar relatório.", "error");
+        } finally {
+            App.ui.setLoading(false);
+        }
     }
 };
 
