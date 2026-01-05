@@ -161,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Relatório de Risco', icon: 'fas fa-shield-alt', target: 'relatorioRisco', permission: 'relatorioRisco' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
                         { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
+                        { label: 'Relatório de Frota', icon: 'fas fa-bus', target: 'relatorioFrota', permission: 'gestaoFrota' },
                     ]
                 },
                 {
@@ -258,7 +259,9 @@ document.addEventListener('DOMContentLoaded', () => {
             regAppDirectionTarget: null, // Stores talhaoId when selecting direction on map
             regAppStartPoint: null, // Temporary store for start point during direction selection
             frota: [],
-            controleFrota: [],
+            controleFrota: [], // Mantido para compatibilidade se necessário, mas preferir activeTrips/historyTrips
+            activeTrips: [],
+            historyTrips: [],
             abastecimentos: [],
         },
         
@@ -1570,15 +1573,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const activeTrips = [];
                     querySnapshot.forEach((doc) => activeTrips.push({ id: doc.id, ...doc.data() }));
 
-                    // Merge with existing state to preserve history while updating active ones
-                    const currentHistory = App.state.controleFrota.filter(t => t.status === 'FINALIZADO');
-                    App.state.controleFrota = [...activeTrips, ...currentHistory];
-
+                    App.state.activeTrips = activeTrips;
                     App.ui.renderSpecificContent('controleFrota');
                 }, (error) => console.error("Erro ao ouvir viagens ativas: ", error));
                 App.state.unsubscribeListeners.push(unsubscribeActive);
 
                 // 2. Histórico Recente (Últimos 7 dias para evitar sobrecarga)
+                // Usando orderBy para garantir que pegamos os mais recentes
                 const sevenDaysAgo = new Date();
                 sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
                 const dateStr = sevenDaysAgo.toISOString();
@@ -1587,20 +1588,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     collection(db, 'controleFrota'),
                     where("companyId", "==", companyId),
                     where("status", "==", "FINALIZADO"),
-                    where("dataSaida", ">=", dateStr)
+                    where("dataSaida", ">=", dateStr),
+                    orderBy("dataSaida", "desc")
                 );
 
                 const unsubscribeHistory = onSnapshot(qHistory, (querySnapshot) => {
                     const recentHistory = [];
                     querySnapshot.forEach((doc) => recentHistory.push({ id: doc.id, ...doc.data() }));
 
-                    // Merge safely
-                    const currentActive = App.state.controleFrota.filter(t => t.status === 'EM_DESLOCAMENTO');
-
-                    // Deduplicate history in case of overlap logic changes, though separate queries handle it
-                    // Simple replacement of history part for now
-                    App.state.controleFrota = [...currentActive, ...recentHistory];
-
+                    App.state.historyTrips = recentHistory;
                     App.ui.renderSpecificContent('controleFrota');
                 }, (error) => console.error("Erro ao ouvir histórico recente de frota: ", error));
                 App.state.unsubscribeListeners.push(unsubscribeHistory);
@@ -2127,12 +2123,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (id === 'gestaoFrota') {
                     App.fleet.init();
+                    App.fleet.clearFleetForm();
                     App.fleet.renderFleetList();
                 }
                 if (id === 'controleKM') {
                     App.fleet.init();
-                    App.fleet.renderActiveTrips();
-                    App.fleet.renderHistory();
+                    App.fleet.onShow(); // Ensures clear forms and fresh pagination
+                }
+                if (id === 'relatorioFrota') {
+                    App.fleet.init();
+                    App.fleet.populateReportVehicleSelect();
                 }
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
