@@ -66,8 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 6 for the new offline-credentials store
-            this.dbPromise = openDB('agrovetor-offline-storage', 6, {
+            // Version 7 for KM local cache and future extensions
+            this.dbPromise = openDB('agrovetor-offline-storage', 7, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -86,6 +86,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (oldVersion < 6) {
                         db.createObjectStore('offline-credentials', { keyPath: 'email' });
+                    }
+                    if (oldVersion < 7) {
+                        const kmStore = db.createObjectStore('km_records', { keyPath: 'id' });
+                        kmStore.createIndex('companyId', 'companyId', { unique: false });
+                        kmStore.createIndex('syncStatus', 'syncStatus', { unique: false });
+                        kmStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+                        kmStore.createIndex('companyId_status_dataSaida', ['companyId', 'status', 'dataSaida'], { unique: false });
+                        kmStore.createIndex('companyId_status_dataChegada', ['companyId', 'status', 'dataChegada'], { unique: false });
                     }
                 },
             });
@@ -109,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     const App = {
+        offlineDB: OfflineDB,
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
@@ -1574,6 +1583,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     querySnapshot.forEach((doc) => activeTrips.push({ id: doc.id, ...doc.data() }));
 
                     App.state.activeTrips = activeTrips;
+                    if (App.fleet?.ingestRemoteTrips) {
+                        App.fleet.ingestRemoteTrips(activeTrips, []);
+                    }
                     App.ui.renderSpecificContent('controleFrota');
                 }, (error) => console.error("Erro ao ouvir viagens ativas: ", error));
                 App.state.unsubscribeListeners.push(unsubscribeActive);
@@ -1597,6 +1609,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     querySnapshot.forEach((doc) => recentHistory.push({ id: doc.id, ...doc.data() }));
 
                     App.state.historyTrips = recentHistory;
+                    if (App.fleet?.ingestRemoteTrips) {
+                        App.fleet.ingestRemoteTrips([], recentHistory);
+                    }
                     App.ui.renderSpecificContent('controleFrota');
                 }, (error) => console.error("Erro ao ouvir histórico recente de frota: ", error));
                 App.state.unsubscribeListeners.push(unsubscribeHistory);
@@ -2034,6 +2049,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (els.entryId) els.entryId.value = ''; // Garante que sai do modo de edição
                         App.ui.setDefaultDatesForEntryForms();
                         App.state.apontamentoPlantioFormIsDirty = false;
+                    }
+                    if (currentActiveTab.id === 'controleKM') {
+                        App.fleet.onHide();
                     }
                 }
 
@@ -8310,6 +8328,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 throw new Error('Item de sincronização offline malformado ou inválido.');
                             }
 
+                            // Backoff simples: respeita o próximo retry (se existir)
+                            if (write.nextRetry && Date.now() < write.nextRetry) {
+                                continue;
+                            }
+
                             let dataToSync = write.data;
                             // Handle trap installation date conversion
                             if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
@@ -8320,7 +8343,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 dataToSync = { ...dataToSync, dataColeta: Timestamp.fromDate(new Date(write.data.dataColeta)) };
                             }
 
-                            if (write.type === 'update' && write.docId) {
+                            if (write.type === 'delete' && write.docId) {
+                                await App.data.deleteDocument(write.collection, write.docId);
+                            } else if (write.type === 'update' && write.docId) {
                                 await App.data.updateDocument(write.collection, write.docId, dataToSync);
                             } else {
                                 await App.data.setDocument(write.collection, write.id, dataToSync);
@@ -8331,6 +8356,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                             successfulWrites++;
                             successfulKeys.push(key);
+
+                            if (write.collection === 'controleFrota') {
+                                const recordId = write.docId || write.id;
+                                if (write.type === 'delete') {
+                                    await OfflineDB.delete('km_records', recordId);
+                                } else {
+                                    const kmRecord = await OfflineDB.get('km_records', recordId);
+                                    if (kmRecord) {
+                                        await OfflineDB.set('km_records', {
+                                            ...kmRecord,
+                                            syncStatus: 'synced',
+                                            lastSyncedAt: new Date().toISOString()
+                                        });
+                                    }
+                                }
+                            }
 
                         } catch (error) {
                             if (error.message === 'Item de sincronização offline malformado ou inválido.') {
@@ -8352,6 +8393,27 @@ document.addEventListener('DOMContentLoaded', () => {
                                     error: error.message || 'Erro desconhecido'
                                 });
                                 failedWrites++; // Erro recuperável
+
+                                const retryCount = (write.retryCount || 0) + 1;
+                                const backoffDelay = Math.pow(2, retryCount) * 1000;
+                                await db.put('offline-writes', {
+                                    ...write,
+                                    retryCount,
+                                    nextRetry: Date.now() + backoffDelay,
+                                    lastError: error.message || 'Erro desconhecido'
+                                }, key);
+
+                                if (write.collection === 'controleFrota') {
+                                    const recordId = write.docId || write.id;
+                                    const kmRecord = await OfflineDB.get('km_records', recordId);
+                                    if (kmRecord) {
+                                        await OfflineDB.set('km_records', {
+                                            ...kmRecord,
+                                            syncStatus: 'failed',
+                                            lastSyncError: error.message || 'Erro desconhecido'
+                                        });
+                                    }
+                                }
                             }
                         }
                     }
@@ -14223,5 +14285,3 @@ document.addEventListener('DOMContentLoaded', () => {
     App.init();
     window.App = App; // Expor para testes e depuração
 });
-
-
