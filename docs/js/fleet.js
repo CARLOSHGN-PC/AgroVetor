@@ -1,24 +1,49 @@
+import { createKMRepository } from './repositories/KMRepository.js';
+
 const FleetModule = {
     historyPage: 0,
     itemsPerPage: 10,
     isInitialized: false,
+    kmRepository: null,
+    activeTrips: [],
+    historyTrips: [],
+    historyTotal: 0,
 
     init() {
         if (this.isInitialized) return;
+        this.ensureRepository();
         this.setupEventListeners();
         this.isInitialized = true;
     },
 
+    ensureRepository() {
+        if (!this.kmRepository) {
+            App.offlineDB.init();
+            this.kmRepository = createKMRepository(App.offlineDB, {
+                companyIdProvider: () => App.state.currentUser?.companyId
+            });
+        }
+    },
+
     onShow() {
         // Reset forms and state when entering the module
+        this.ensureRepository();
         this.clearFleetForm();
         this.clearTripForm();
         this.historyPage = 0;
 
         // Refresh lists
-        this.renderActiveTrips();
-        this.renderHistory();
-        this.updatePaginationControls();
+        this.loadActiveTrips();
+        this.loadHistoryPage();
+    },
+
+    onHide() {
+        this.clearFleetForm();
+        this.clearTripForm();
+        this.activeTrips = [];
+        this.historyTrips = [];
+        this.historyTotal = 0;
+        this.historyPage = 0;
     },
 
     setupEventListeners() {
@@ -136,14 +161,13 @@ const FleetModule = {
     },
 
     changePage(delta) {
-        const trips = App.state.historyTrips || [];
-        const total = trips.length;
+        const total = this.historyTotal || 0;
         const maxPage = Math.ceil(total / this.itemsPerPage) - 1;
         const newPage = this.historyPage + delta;
 
         if (newPage >= 0 && newPage <= maxPage) {
             this.historyPage = newPage;
-            this.renderHistory();
+            this.loadHistoryPage();
         }
     },
 
@@ -321,11 +345,14 @@ const FleetModule = {
 
         App.ui.setLoading(true, "A registar saída...");
         try {
-            await App.data.addDocument('controleFrota', tripData);
+            await this.kmRepository.createKM(tripData);
             document.getElementById('modalSaidaKM').classList.remove('show');
             App.ui.showAlert("Saída registada com sucesso!");
-
-            // UI Update is handled by listener on 'activeTrips'
+            this.clearTripForm();
+            await this.loadActiveTrips();
+            if (navigator.onLine) {
+                App.actions.syncOfflineWrites();
+            }
         } catch (error) {
             console.error(error);
             App.ui.showAlert("Erro ao registar saída.", "error");
@@ -345,6 +372,15 @@ const FleetModule = {
         document.getElementById('modalChegadaKM').classList.add('show');
     },
 
+    openEndTripModalById(tripId) {
+        const trip = this.activeTrips.find(item => item.id === tripId);
+        if (trip) {
+            this.openEndTripModal(trip);
+        } else {
+            App.ui.showAlert("Viagem não encontrada.", "error");
+        }
+    },
+
     async endTrip() {
         const tripId = document.getElementById('kmChegadaTripId').value;
         const kmFinal = parseFloat(document.getElementById('kmChegadaKmFinal').value);
@@ -357,10 +393,10 @@ const FleetModule = {
         }
 
         // Find the trip in activeTrips state
-        const trip = App.state.activeTrips.find(t => t.id === tripId);
+        const trip = this.activeTrips.find(t => t.id === tripId) || await this.kmRepository.getKM(tripId);
         if (!trip) {
-             App.ui.showAlert("Viagem não encontrada.", "error");
-             return;
+            App.ui.showAlert("Viagem não encontrada.", "error");
+            return;
         }
 
         if (kmFinal < trip.kmInicial) {
@@ -373,7 +409,7 @@ const FleetModule = {
         App.ui.setLoading(true, "A finalizar viagem...");
         try {
             // 1. Update Trip
-            await App.data.updateDocument('controleFrota', tripId, {
+            await this.kmRepository.updateKM(tripId, {
                 kmFinal,
                 destino,
                 kmRodado,
@@ -382,9 +418,13 @@ const FleetModule = {
             });
 
             // 2. Update Vehicle Current KM
-            await App.data.updateDocument('frota', trip.veiculoId, {
+            await this.queueOfflineWrite('update', 'frota', {
                 kmAtual: kmFinal
-            });
+            }, trip.veiculoId);
+            const vehicle = (App.state.frota || []).find(v => v.id === trip.veiculoId);
+            if (vehicle) {
+                vehicle.kmAtual = kmFinal;
+            }
 
             // 3. Save Abastecimento (if any)
             if (abasteceu) {
@@ -393,7 +433,7 @@ const FleetModule = {
                 const tipo = document.getElementById('kmAbastecimentoTipo').value;
 
                 if (litros > 0) {
-                    await App.data.addDocument('abastecimentos', {
+                    await this.queueOfflineWrite('create', 'abastecimentos', {
                         tripId,
                         veiculoId: trip.veiculoId,
                         data: new Date().toISOString(),
@@ -409,6 +449,12 @@ const FleetModule = {
 
             document.getElementById('modalChegadaKM').classList.remove('show');
             App.ui.showAlert(`Viagem finalizada! KM Rodado: ${kmRodado.toFixed(1)} km`);
+            this.clearTripForm();
+            await this.loadActiveTrips();
+            await this.loadHistoryPage();
+            if (navigator.onLine) {
+                App.actions.syncOfflineWrites();
+            }
 
         } catch (error) {
             console.error(error);
@@ -418,12 +464,26 @@ const FleetModule = {
         }
     },
 
+    async loadActiveTrips() {
+        const result = await this.kmRepository.listKM({
+            page: 0,
+            pageSize: 50,
+            filters: {
+                status: 'EM_DESLOCAMENTO',
+                orderBy: 'dataSaida',
+                direction: 'desc'
+            }
+        });
+        this.activeTrips = result.items;
+        this.renderActiveTrips();
+    },
+
     renderActiveTrips() {
         const list = document.getElementById('kmActiveTripsList');
         if (!list) return;
 
         // Use the segregated state
-        const trips = App.state.activeTrips || [];
+        const trips = this.activeTrips || [];
 
         if (trips.length === 0) {
             list.innerHTML = '<p style="text-align: center; color: var(--color-text-light);">Nenhum veículo em deslocamento.</p>';
@@ -435,7 +495,7 @@ const FleetModule = {
             const date = new Date(t.dataSaida).toLocaleString('pt-BR');
             html += `
                 <div class="card" style="padding: 15px; margin-bottom: 10px; border-left-color: var(--color-warning); cursor: pointer;"
-                     onclick="App.fleet.openEndTripModal(App.state.activeTrips.find(x => x.id === '${t.id}'))">
+                     onclick="App.fleet.openEndTripModalById('${t.id}')">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div>
                             <h4 style="margin: 0; color: var(--color-primary-dark);">${t.veiculoNome}</h4>
@@ -454,6 +514,26 @@ const FleetModule = {
         list.innerHTML = html;
     },
 
+    async loadHistoryPage() {
+        const result = await this.kmRepository.listKM({
+            page: this.historyPage,
+            pageSize: this.itemsPerPage,
+            filters: {
+                status: 'FINALIZADO',
+                orderBy: 'dataChegada',
+                direction: 'desc'
+            }
+        });
+        const maxPage = Math.max(0, Math.ceil(result.total / this.itemsPerPage) - 1);
+        if (this.historyPage > maxPage) {
+            this.historyPage = maxPage;
+            return this.loadHistoryPage();
+        }
+        this.historyTrips = result.items;
+        this.historyTotal = result.total;
+        this.renderHistory();
+    },
+
     renderHistory() {
         const list = document.getElementById('kmHistoryList');
         if (!list) return;
@@ -461,20 +541,13 @@ const FleetModule = {
         // Ensure we clear the list first to avoid ghost elements from previous renders
         list.innerHTML = '';
 
-        const trips = App.state.historyTrips || [];
-
-        // Ensure trips are sorted descending by arrival date
-        trips.sort((a,b) => new Date(b.dataChegada) - new Date(a.dataChegada));
+        const trips = this.historyTrips || [];
 
         if (trips.length === 0) {
             list.innerHTML = '<p style="text-align: center; color: var(--color-text-light);">Nenhum histórico recente.</p>';
             this.updatePaginationControls(); // Disable buttons
             return;
         }
-
-        const start = this.historyPage * this.itemsPerPage;
-        const end = start + this.itemsPerPage;
-        const pageTrips = trips.slice(start, end);
 
         let html = `
             <table style="width:100%; border-collapse: collapse; font-size: 14px;">
@@ -490,7 +563,7 @@ const FleetModule = {
                 <tbody>
         `;
 
-        pageTrips.forEach(t => {
+        trips.forEach(t => {
             const date = new Date(t.dataChegada).toLocaleDateString('pt-BR');
             html += `
                 <tr style="border-bottom: 1px solid var(--color-border);">
@@ -498,7 +571,7 @@ const FleetModule = {
                     <td style="padding: 8px;">${t.veiculoNome}</td>
                     <td style="padding: 8px;">${t.motorista}</td>
                     <td style="padding: 8px;">${t.origem} -> ${t.destino}</td>
-                    <td style="padding: 8px; font-weight: bold;">${t.kmRodado.toFixed(1)} km</td>
+                    <td style="padding: 8px; font-weight: bold;">${(t.kmRodado || 0).toFixed(1)} km</td>
                 </tr>
             `;
         });
@@ -510,7 +583,7 @@ const FleetModule = {
     },
 
     updatePaginationControls() {
-        const total = (App.state.historyTrips || []).length;
+        const total = this.historyTotal || 0;
         const maxPage = Math.ceil(total / this.itemsPerPage) - 1;
 
         const btnPrev = document.getElementById('btnHistoryPrev');
@@ -532,6 +605,39 @@ const FleetModule = {
             pageInfo.textContent = total > 0
                 ? `Página ${this.historyPage + 1} de ${maxPage + 1}`
                 : 'Página 0 de 0';
+        }
+    },
+
+    async queueOfflineWrite(type, collection, data, docId = null) {
+        const payload = {
+            id: type === 'create' ? this.generateUUID() : docId,
+            type,
+            collection,
+            data,
+            retryCount: 0,
+            nextRetry: 0
+        };
+        if (docId) payload.docId = docId;
+        await App.offlineDB.add('offline-writes', payload);
+    },
+
+    generateUUID() {
+        if (crypto?.randomUUID) {
+            return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    },
+
+    async ingestRemoteTrips(activeTrips = [], historyTrips = []) {
+        this.ensureRepository();
+        await this.kmRepository.upsertFromRemote([...activeTrips, ...historyTrips]);
+        if (document.querySelector('.tab-content.active')?.id === 'controleKM') {
+            await this.loadActiveTrips();
+            await this.loadHistoryPage();
         }
     },
 
