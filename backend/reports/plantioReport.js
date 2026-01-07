@@ -1,5 +1,53 @@
 const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable, formatNumber, calculateColumnWidths, drawSummaryRow, formatDate } = require('../utils/pdfGenerator');
 
+const normalizeText = (value) => String(value || '').trim();
+
+const getDateValue = (value) => {
+    if (!value) return 0;
+    if (value && typeof value.toDate === 'function') value = value.toDate();
+    if (value instanceof Date) return value.getTime();
+    const parsed = new Date(value);
+    const timestamp = parsed.getTime();
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const sortEntriesByFarmDate = (a, b) => {
+    const farmA = normalizeText(a.farmName).toLocaleLowerCase('pt-BR');
+    const farmB = normalizeText(b.farmName).toLocaleLowerCase('pt-BR');
+    const farmCompare = farmA.localeCompare(farmB, 'pt-BR', { sensitivity: 'base' });
+    if (farmCompare !== 0) return farmCompare;
+    const dateA = getDateValue(a.date);
+    const dateB = getDateValue(b.date);
+    if (dateA !== dateB) return dateB - dateA;
+    const createdA = getDateValue(a.createdAt);
+    const createdB = getDateValue(b.createdAt);
+    if (createdA !== createdB) return createdB - createdA;
+    return normalizeText(a.id).localeCompare(normalizeText(b.id), 'pt-BR', { sensitivity: 'base' });
+};
+
+const sortRowsByFarmDate = (rows, farmKey = 'farmNameSort', dateKey = 'dataSort', tieKey = 'tieBreaker') => {
+    return rows.sort((a, b) => {
+        const farmA = normalizeText(a[farmKey]).toLocaleLowerCase('pt-BR');
+        const farmB = normalizeText(b[farmKey]).toLocaleLowerCase('pt-BR');
+        const farmCompare = farmA.localeCompare(farmB, 'pt-BR', { sensitivity: 'base' });
+        if (farmCompare !== 0) return farmCompare;
+        const dateA = getDateValue(a[dateKey]);
+        const dateB = getDateValue(b[dateKey]);
+        if (dateA !== dateB) return dateB - dateA;
+        return normalizeText(a[tieKey]).localeCompare(normalizeText(b[tieKey]), 'pt-BR', { sensitivity: 'base' });
+    });
+};
+
+const parseNumericValue = (value) => {
+    if (value === '' || value === null || value === undefined) return 0;
+    if (typeof value === 'number') return value;
+    const normalized = String(value).replace(/\./g, '').replace(',', '.');
+    const parsed = Number(normalized);
+    return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const isCanaCulture = (filters) => normalizeText(filters?.cultura) === 'Cana-de-açúcar';
+
 const getPlantioData = async (db, filters) => {
     if (!filters.companyId) {
         console.error("Attempt to access getPlantioData without companyId.");
@@ -60,7 +108,7 @@ const getPlantioData = async (db, filters) => {
         data = data.filter(d => farmCodesToFilter.includes(d.farmCode));
     }
 
-    return data.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return data.sort(sortEntriesByFarmDate);
 };
 
 const formatFazendaLabel = (entry) => `${entry.farmCode} - ${entry.farmName}`;
@@ -86,12 +134,17 @@ const buildResumoRows = (data) => {
                 plantioTalhao: record.talhao || '',
                 plantioVariedade: record.variedade || '',
                 data: formatDate(entry.date),
+                dataSort: entry.date,
+                farmNameSort: entry.farmName || '',
+                tieBreaker: `${entry.id || ''}-${record.talhao || ''}-${record.variedade || ''}`,
                 areaMuda: formatNumber(entry.mudaArea || 0),
-                areaPlantio: formatNumber(record.area || 0)
+                areaPlantio: formatNumber(record.area || 0),
+                areaMudaValue: parseNumericValue(entry.mudaArea || 0),
+                areaPlantioValue: parseNumericValue(record.area || 0)
             });
         });
     });
-    return rows;
+    return sortRowsByFarmDate(rows);
 };
 
 const buildTalhaoRows = (data) => {
@@ -109,11 +162,16 @@ const buildTalhaoRows = (data) => {
                 variedadeOrigem: record.variedade || '',
                 tipoPlantio: entry.tipoPlantio || '',
                 recurso: entry.tipoPlantio === 'Manual' ? (entry.quantidadePessoas || '') : (entry.frotaLabel || ''),
-                os: entry.ordemServico || ''
+                os: entry.ordemServico || '',
+                dataSort: entry.date,
+                farmNameSort: entry.farmName || '',
+                tieBreaker: `${entry.id || ''}-${record.talhao || ''}-${record.variedade || ''}`,
+                areaTotalValue: parseNumericValue(entry.totalArea || 0),
+                areaTalhaoValue: parseNumericValue(record.area || 0)
             });
         });
     });
-    return rows;
+    return sortRowsByFarmDate(rows);
 };
 
 const buildInsumosRows = (data) => {
@@ -129,14 +187,20 @@ const buildInsumosRows = (data) => {
                 produto: insumo.produto || '',
                 dose: formatNumber(insumo.dose || 0),
                 totalCalculado: formatNumber(totalCalculado),
-                unidade: insumo.unidade || ''
+                unidade: insumo.unidade || '',
+                dataSort: entry.date,
+                farmNameSort: entry.farmName || '',
+                tieBreaker: `${entry.id || ''}-${insumo.produto || ''}`,
+                areaTotalValue: parseNumericValue(entry.totalArea || 0),
+                doseValue: parseNumericValue(insumo.dose || 0),
+                totalCalculadoValue: parseNumericValue(totalCalculado)
             });
         });
     });
-    return rows;
+    return sortRowsByFarmDate(rows);
 };
 
-const buildOperacionalRows = (data) => data.map(entry => ({
+const buildOperacionalRows = (data) => sortRowsByFarmDate(data.map(entry => ({
     fazendaPlantada: formatFazendaLabel(entry),
     data: formatDate(entry.date),
     variedadePlantada: getVariedadeResumo(entry),
@@ -144,8 +208,12 @@ const buildOperacionalRows = (data) => data.map(entry => ({
     tipoPlantio: entry.tipoPlantio || '',
     recurso: entry.tipoPlantio === 'Manual' ? (entry.quantidadePessoas || '') : (entry.frotaLabel || ''),
     talhoes: getTalhoesAtendidos(entry),
-    os: entry.ordemServico || ''
-}));
+    os: entry.ordemServico || '',
+    dataSort: entry.date,
+    farmNameSort: entry.farmName || '',
+    tieBreaker: entry.id || '',
+    areaTotalValue: parseNumericValue(entry.totalArea || 0)
+})));
 
 const formatOptionalNumber = (value) => {
     if (value === '' || value === null || value === undefined) return '';
@@ -154,22 +222,11 @@ const formatOptionalNumber = (value) => {
     return formatNumber(parsed);
 };
 
-const sortByFarmDateTalhao = (a, b) => {
-    const codeA = parseInt(a.farmCode, 10) || 0;
-    const codeB = parseInt(b.farmCode, 10) || 0;
-    if (codeA !== codeB) return codeA - codeB;
-    const dateA = new Date(a.dataSort);
-    const dateB = new Date(b.dataSort);
-    if (dateA - dateB !== 0) return dateA - dateB;
-    const talhaoA = String(a.talhao || '');
-    const talhaoB = String(b.talhao || '');
-    return talhaoA.localeCompare(talhaoB, undefined, { numeric: true });
-};
-
 const buildLegacyGeralRows = (data) => {
     const rows = [];
     data.forEach(entry => {
         (entry.records || []).forEach(record => {
+            const chuvaValue = parseNumericValue(entry.chuva || 0);
             rows.push({
                 farmCode: entry.farmCode || '',
                 fazenda: formatFazendaLabel(entry),
@@ -181,11 +238,15 @@ const buildLegacyGeralRows = (data) => {
                 talhao: record.talhao || '',
                 area: formatNumber(record.area || 0),
                 chuva: formatOptionalNumber(entry.chuva),
-                obs: entry.obs || ''
+                obs: entry.obs || '',
+                farmNameSort: entry.farmName || '',
+                tieBreaker: `${entry.id || ''}-${record.talhao || ''}`,
+                areaValue: parseNumericValue(record.area || 0),
+                chuvaValue
             });
         });
     });
-    return rows;
+    return sortRowsByFarmDate(rows);
 };
 
 const buildLegacyFazendaRows = (data) => {
@@ -204,17 +265,22 @@ const buildLegacyFazendaRows = (data) => {
                 origemFazenda: entry.mudaFazendaNome || '',
                 origemTalhao: entry.mudaTalhao || '',
                 area: formatNumber(record.area || 0),
-                mudaArea: formatNumber(entry.mudaArea || 0)
+                mudaArea: formatNumber(entry.mudaArea || 0),
+                farmNameSort: entry.farmName || '',
+                tieBreaker: `${entry.id || ''}-${record.talhao || ''}`,
+                areaValue: parseNumericValue(record.area || 0),
+                mudaAreaValue: parseNumericValue(entry.mudaArea || 0)
             });
         });
     });
-    return rows.sort(sortByFarmDateTalhao);
+    return sortRowsByFarmDate(rows);
 };
 
 const buildLegacyTalhaoRows = (data) => {
     const rows = [];
     data.forEach(entry => {
         (entry.records || []).forEach(record => {
+            const chuvaValue = parseNumericValue(entry.chuva || 0);
             rows.push({
                 farmCode: entry.farmCode || '',
                 fazenda: formatFazendaLabel(entry),
@@ -225,11 +291,44 @@ const buildLegacyTalhaoRows = (data) => {
                 prestador: entry.provider || '',
                 area: formatNumber(record.area || 0),
                 chuva: formatOptionalNumber(entry.chuva),
-                obs: entry.obs || ''
+                obs: entry.obs || '',
+                farmNameSort: entry.farmName || '',
+                tieBreaker: `${entry.id || ''}-${record.talhao || ''}`,
+                areaValue: parseNumericValue(record.area || 0),
+                chuvaValue
             });
         });
     });
-    return rows.sort(sortByFarmDateTalhao);
+    return sortRowsByFarmDate(rows);
+};
+
+const sumRows = (rows, key) => rows.reduce((total, row) => total + (row[key] || 0), 0);
+
+const getPlantioFazendaColumns = (isCana) => {
+    if (isCana) {
+        return [
+            { id: 'fazenda', title: 'Fazenda' },
+            { id: 'data', title: 'Data' },
+            { id: 'prestador', title: 'Prestador' },
+            { id: 'leaderId', title: 'Líder' },
+            { id: 'variedade', title: 'Variedade', align: 'center' },
+            { id: 'talhao', title: 'Talhão', align: 'center' },
+            { id: 'origemFazenda', title: 'Fazenda Origem' },
+            { id: 'origemTalhao', title: 'Talhão Origem', align: 'center' },
+            { id: 'area', title: 'Área (ha)' },
+            { id: 'mudaArea', title: 'Muda (ha)' }
+        ];
+    }
+
+    return [
+        { id: 'fazenda', title: 'Fazenda' },
+        { id: 'data', title: 'Data' },
+        { id: 'prestador', title: 'Prestador' },
+        { id: 'leaderId', title: 'Líder' },
+        { id: 'variedade', title: 'Variedade', align: 'center' },
+        { id: 'talhao', title: 'Talhão', align: 'center' },
+        { id: 'area', title: 'Área (ha)' }
+    ];
 };
 
 const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64, startY) => {
@@ -238,7 +337,7 @@ const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64,
     const tableWidth = pageWidth - margins.left - margins.right;
     const rowHeight = 18;
     const textPadding = 5;
-    const centeredColumns = new Set([0, 1, 2, 3, 4, 5]);
+    const centeredColumns = new Set([1, 2, 4, 5]);
 
     const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
     const numericColumns = headers.map((_, index) => {
@@ -365,7 +464,13 @@ const generatePlantioResumoPdf = async (req, res, db) => {
             r.areaPlantio
         ]);
 
+        const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
         currentY = await drawResumoComparativoTable(doc, headers, rows, title, logoBase64, currentY);
+
+        const totalMuda = sumRows(rowsData, 'areaMudaValue');
+        const totalPlantio = sumRows(rowsData, 'areaPlantioValue');
+        const totalRow = ['', '', '', '', '', '', 'TOTAL GERAL', formatNumber(totalMuda), formatNumber(totalPlantio)];
+        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -423,7 +528,16 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             r.os
         ]);
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
+        const columnAlignments = [];
+        columnAlignments[2] = 'center';
+        columnAlignments[4] = 'center';
+        columnAlignments[7] = 'center';
+        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+
+        const totalAreaTotal = sumRows(rowsData, 'areaTotalValue');
+        const totalAreaTalhao = sumRows(rowsData, 'areaTalhaoValue');
+        const totalRow = ['', '', 'TOTAL GERAL', formatNumber(totalAreaTotal), '', formatNumber(totalAreaTalhao), '', '', '', '', ''];
+        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -475,7 +589,15 @@ const generatePlantioInsumosPdf = async (req, res, db) => {
             r.unidade
         ]);
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
+        const columnAlignments = [];
+        columnAlignments[2] = 'center';
+        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+
+        const totalArea = sumRows(rowsData, 'areaTotalValue');
+        const totalDose = sumRows(rowsData, 'doseValue');
+        const totalCalculado = sumRows(rowsData, 'totalCalculadoValue');
+        const totalRow = ['', '', 'TOTAL GERAL', formatNumber(totalArea), '', formatNumber(totalDose), formatNumber(totalCalculado), ''];
+        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -515,7 +637,8 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
             'Talhões',
             'O.S'
         ];
-        const rows = buildOperacionalRows(data).map(r => [
+        const rowsData = buildOperacionalRows(data);
+        const rows = rowsData.map(r => [
             r.fazendaPlantada,
             r.data,
             r.variedadePlantada,
@@ -526,7 +649,14 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
             r.os
         ]);
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
+        const columnAlignments = [];
+        columnAlignments[2] = 'center';
+        columnAlignments[6] = 'center';
+        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+
+        const totalArea = sumRows(rowsData, 'areaTotalValue');
+        const totalRow = ['', '', 'TOTAL GERAL', formatNumber(totalArea), '', '', '', ''];
+        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -580,7 +710,15 @@ const generatePlantioGeralPdf = async (req, res, db) => {
             r.obs
         ]);
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
+        const columnAlignments = [];
+        columnAlignments[4] = 'center';
+        columnAlignments[5] = 'center';
+        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+
+        const totalArea = sumRows(rowsData, 'areaValue');
+        const totalChuva = sumRows(rowsData, 'chuvaValue');
+        const totalRow = ['', '', '', '', '', 'TOTAL GERAL', formatNumber(totalArea), formatNumber(totalChuva), ''];
+        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -601,6 +739,7 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
         const title = 'Relatório de Plantio - Por Fazenda';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
         const rowsData = buildLegacyFazendaRows(data);
+        const isCana = isCanaCulture(filters);
 
         if (rowsData.length === 0) {
             await generatePdfHeader(doc, title, logoBase64);
@@ -611,32 +750,58 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
         }
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
-        const headers = [
-            'Fazenda',
-            'Data',
-            'Prestador',
-            'Líder',
-            'Variedade',
-            'Talhão',
-            'Fazenda Origem',
-            'Talhão Origem',
-            'Área (ha)',
-            'Muda (ha)'
-        ];
-        const rows = rowsData.map(r => [
-            r.fazenda,
-            r.data,
-            r.prestador,
-            r.leaderId,
-            r.variedade,
-            r.talhao,
-            r.origemFazenda,
-            r.origemTalhao,
-            r.area,
-            r.mudaArea
-        ]);
+        const columns = getPlantioFazendaColumns(isCana);
+        const headers = columns.map(col => col.title);
+        const rows = rowsData.map(row => columns.map(col => row[col.id]));
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
+        const columnAlignments = [];
+        columns.forEach((col, index) => {
+            if (col.align) columnAlignments[index] = col.align;
+        });
+
+        if (!isCana) {
+            const grouped = rowsData.reduce((acc, row) => {
+                const key = row.fazenda || '';
+                if (!acc[key]) acc[key] = { farmNameSort: row.farmNameSort, rows: [] };
+                acc[key].rows.push(row);
+                return acc;
+            }, {});
+
+            const sortedFarms = Object.entries(grouped)
+                .sort(([, a], [, b]) => normalizeText(a.farmNameSort).localeCompare(normalizeText(b.farmNameSort), 'pt-BR', { sensitivity: 'base' }));
+
+            let grandTotalArea = 0;
+            const combinedRows = [];
+
+            for (const [farmLabel, farmGroup] of sortedFarms) {
+                farmGroup.rows.sort((a, b) => getDateValue(b.dataSort) - getDateValue(a.dataSort));
+                combinedRows.push(...farmGroup.rows.map(row => columns.map(col => row[col.id])));
+
+                const subtotalArea = sumRows(farmGroup.rows, 'areaValue');
+                const subtotalRow = new Array(headers.length).fill('');
+                subtotalRow[0] = `SUBTOTAL - ${farmLabel}`;
+                subtotalRow[6] = formatNumber(subtotalArea);
+                combinedRows.push(subtotalRow);
+
+                grandTotalArea += subtotalArea;
+            }
+
+            currentY = await drawTable(doc, headers, combinedRows, title, logoBase64, currentY, columnWidths, columnAlignments);
+            const totalRow = new Array(headers.length).fill('');
+            totalRow[0] = 'TOTAL GERAL';
+            totalRow[6] = formatNumber(grandTotalArea);
+            await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        } else {
+            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+            const totalArea = sumRows(rowsData, 'areaValue');
+            const totalMuda = sumRows(rowsData, 'mudaAreaValue');
+            const totalRow = new Array(headers.length).fill('');
+            totalRow[5] = 'TOTAL GERAL';
+            totalRow[8] = formatNumber(totalArea);
+            totalRow[9] = formatNumber(totalMuda);
+            await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        }
+
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -688,7 +853,15 @@ const generatePlantioTalhaoLegacyPdf = async (req, res, db) => {
             r.obs
         ]);
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
+        const columnAlignments = [];
+        columnAlignments[2] = 'center';
+        columnAlignments[3] = 'center';
+        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+
+        const totalArea = sumRows(rowsData, 'areaValue');
+        const totalChuva = sumRows(rowsData, 'chuvaValue');
+        const totalRow = ['', '', '', '', 'TOTAL GERAL', formatNumber(totalArea), formatNumber(totalChuva), ''];
+        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -706,6 +879,7 @@ module.exports = {
     buildLegacyGeralRows,
     buildLegacyFazendaRows,
     buildLegacyTalhaoRows,
+    getPlantioFazendaColumns,
     generatePlantioResumoPdf,
     generatePlantioTalhaoPdf,
     generatePlantioInsumosPdf,

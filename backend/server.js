@@ -35,7 +35,8 @@ const {
     buildOperacionalRows,
     buildLegacyGeralRows,
     buildLegacyFazendaRows,
-    buildLegacyTalhaoRows
+    buildLegacyTalhaoRows,
+    getPlantioFazendaColumns
 } = require('./reports/plantioReport');
 const { generateClimaPdf, getClimaData } = require('./reports/climaReport');
 const { generateBrocaPdf } = require('./reports/brocaReport');
@@ -618,20 +619,11 @@ try {
             if (rows.length === 0) return res.status(404).send('Nenhum dado encontrado.');
 
             const filePath = path.join(os.tmpdir(), `plantio_fazenda_${Date.now()}.csv`);
+            const isCana = filters.cultura === 'Cana-de-açúcar';
+            const columns = getPlantioFazendaColumns(isCana);
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
-                header: [
-                    { id: 'fazenda', title: 'Fazenda' },
-                    { id: 'data', title: 'Data' },
-                    { id: 'prestador', title: 'Prestador' },
-                    { id: 'leaderId', title: 'Líder' },
-                    { id: 'variedade', title: 'Variedade' },
-                    { id: 'talhao', title: 'Talhão' },
-                    { id: 'origemFazenda', title: 'Fazenda Origem' },
-                    { id: 'origemTalhao', title: 'Talhão Origem' },
-                    { id: 'area', title: 'Área (ha)' },
-                    { id: 'mudaArea', title: 'Muda (ha)' }
-                ]
+                header: columns.map(col => ({ id: col.id, title: col.title }))
             });
 
             await csvWriter.writeRecords(rows);
