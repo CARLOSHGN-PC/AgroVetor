@@ -30,8 +30,29 @@ const getFleetData = async (db, filters) => {
         data = data.filter(item => (item.motorista || '').toLowerCase().includes(term));
     }
 
-    // Sort by Date Descending
-    return data.sort((a, b) => new Date(b.dataSaida) - new Date(a.dataSaida));
+    const resolveTimestamp = (value) => {
+        const timestamp = value ? Date.parse(value) : NaN;
+        return Number.isNaN(timestamp) ? 0 : timestamp;
+    };
+
+    const resolveTieBreaker = (item) => {
+        return resolveTimestamp(item.createdAt || item.localCreatedAt || item.updatedAt);
+    };
+
+    // Sort by Date Ascending with deterministic tie-breaker
+    return data.sort((a, b) => {
+        const saidaA = resolveTimestamp(a.dataSaida);
+        const saidaB = resolveTimestamp(b.dataSaida);
+        if (saidaA !== saidaB) {
+            return saidaA - saidaB;
+        }
+        const tieA = resolveTieBreaker(a);
+        const tieB = resolveTieBreaker(b);
+        if (tieA !== tieB) {
+            return tieA - tieB;
+        }
+        return String(a.id || '').localeCompare(String(b.id || ''));
+    });
 };
 
 const generateFleetPdf = async (req, res, db) => {
@@ -56,7 +77,7 @@ const generateFleetPdf = async (req, res, db) => {
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Data Saída', 'Data Chegada', 'Veículo', 'Motorista', 'Origem', 'Destino', 'KM Rodado'];
+        const headers = ['Data Saída', 'Data Chegada', 'Veículo', 'Motorista', 'Origem', 'Destino', 'KM Inicial', 'KM Final', 'KM Rodado'];
 
         const rows = data.map(item => {
             const saida = new Date(item.dataSaida).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -69,6 +90,8 @@ const generateFleetPdf = async (req, res, db) => {
                 item.motorista || 'N/A',
                 item.origem || '',
                 item.destino || '',
+                Number.isFinite(item.kmInicial) ? `${item.kmInicial.toFixed(1)} km` : '-',
+                Number.isFinite(item.kmFinal) ? `${item.kmFinal.toFixed(1)} km` : '-',
                 item.kmRodado ? `${item.kmRodado.toFixed(1)} km` : '-'
             ];
         });

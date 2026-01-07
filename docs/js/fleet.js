@@ -8,6 +8,9 @@ const FleetModule = {
     activeTrips: [],
     historyTrips: [],
     historyTotal: 0,
+    kmInicialOriginal: null,
+    lastKmRequestId: 0,
+    kmJustificativaToastShown: false,
 
     init() {
         if (this.isInitialized) return;
@@ -125,6 +128,11 @@ const FleetModule = {
         if (driverIdInput) {
             driverIdInput.addEventListener('input', (e) => this.lookupDriver(e.target.value));
         }
+
+        const kmInicialInput = document.getElementById('kmSaidaKmInicial');
+        if (kmInicialInput) {
+            kmInicialInput.addEventListener('input', () => this.updateKmInicialJustificativa());
+        }
     },
 
     lookupDriver(matricula) {
@@ -232,13 +240,15 @@ const FleetModule = {
     },
 
     clearTripForm() {
-        const fields = ['kmSaidaVeiculo', 'kmSaidaMotorista', 'kmSaidaKmInicial', 'kmSaidaOrigem', 'kmChegadaKmFinal', 'kmChegadaDestino'];
+        const fields = ['kmSaidaVeiculo', 'kmSaidaMotorista', 'kmSaidaKmInicial', 'kmSaidaOrigem', 'kmSaidaJustificativa', 'kmChegadaKmFinal', 'kmChegadaDestino'];
         fields.forEach(id => {
             const el = document.getElementById(id);
             if(el) el.value = '';
         });
 
-        // Also reset local state helpers if any
+        this.kmInicialOriginal = null;
+        this.kmJustificativaToastShown = false;
+        this.updateKmInicialJustificativa();
     },
 
     renderFleetList() {
@@ -296,12 +306,39 @@ const FleetModule = {
             select.innerHTML += `<option value="${v.id}" data-km="${v.kmAtual}">${v.codigo} - ${v.placa} (${v.marcaModelo})</option>`;
         });
 
-        select.onchange = () => {
+        select.onchange = async () => {
             const opt = select.options[select.selectedIndex];
-            if (opt.value) {
-                document.getElementById('kmSaidaKmInicial').value = opt.dataset.km;
+            if (!opt.value) {
+                this.kmInicialOriginal = null;
+                document.getElementById('kmSaidaKmInicial').value = '';
+                this.updateKmInicialJustificativa();
+                return;
             }
+
+            const requestId = ++this.lastKmRequestId;
+            const vehicleId = opt.value;
+            const lastKm = await this.kmRepository.getLastKmForVehicle(vehicleId, {
+                companyId: App.state.currentUser?.companyId
+            });
+            if (requestId !== this.lastKmRequestId) return;
+            const fallbackKm = parseFloat(opt.dataset.km);
+            const resolvedKm = Number.isFinite(lastKm) ? lastKm : (Number.isFinite(fallbackKm) ? fallbackKm : '');
+            document.getElementById('kmSaidaKmInicial').value = resolvedKm;
+            this.kmInicialOriginal = resolvedKm === '' ? null : Number(resolvedKm);
+            this.updateKmInicialJustificativa();
         };
+
+        this.kmInicialOriginal = null;
+        this.kmJustificativaToastShown = false;
+        const justificativaRow = document.getElementById('kmSaidaJustificativaRow');
+        if (justificativaRow) {
+            justificativaRow.style.display = 'none';
+        }
+        const justificativaInput = document.getElementById('kmSaidaJustificativa');
+        if (justificativaInput) {
+            justificativaInput.value = '';
+            justificativaInput.required = false;
+        }
 
         // Pre-fill date with current local ISO string
         const now = new Date();
@@ -311,15 +348,46 @@ const FleetModule = {
         document.getElementById('modalSaidaKM').classList.add('show');
     },
 
+    updateKmInicialJustificativa() {
+        const justificativaRow = document.getElementById('kmSaidaJustificativaRow');
+        const justificativaInput = document.getElementById('kmSaidaJustificativa');
+        const kmInicialInput = document.getElementById('kmSaidaKmInicial');
+        if (!justificativaRow || !justificativaInput || !kmInicialInput) return;
+
+        const currentValue = parseFloat(kmInicialInput.value);
+        const hasOriginal = Number.isFinite(this.kmInicialOriginal);
+        const hasChange = hasOriginal && Number.isFinite(currentValue) && currentValue !== this.kmInicialOriginal;
+
+        justificativaRow.style.display = hasChange ? 'block' : 'none';
+        justificativaInput.required = hasChange;
+        if (hasChange && !this.kmJustificativaToastShown) {
+            App.ui.showAlert("Você alterou o KM inicial. Informe a justificativa para continuar.", "warning");
+            this.kmJustificativaToastShown = true;
+        }
+        if (!hasChange) {
+            justificativaInput.value = '';
+            this.kmJustificativaToastShown = false;
+        }
+    },
+
     async startTrip() {
         const veiculoId = document.getElementById('kmSaidaVeiculo').value;
         const motoristaMatricula = document.getElementById('kmSaidaMotorista').value;
         const kmInicial = parseFloat(document.getElementById('kmSaidaKmInicial').value);
         const origem = document.getElementById('kmSaidaOrigem').value;
         const dataHoraInput = document.getElementById('kmSaidaDataHora').value;
+        const justificativaInput = document.getElementById('kmSaidaJustificativa');
+        const justificativa = justificativaInput ? justificativaInput.value.trim() : '';
 
         if (!veiculoId || !motoristaMatricula || isNaN(kmInicial) || !origem || !dataHoraInput) {
             App.ui.showAlert("Preencha todos os campos.", "warning");
+            return;
+        }
+
+        const kmInicialOriginal = Number.isFinite(this.kmInicialOriginal) ? this.kmInicialOriginal : kmInicial;
+        const kmInicialAlterado = Number.isFinite(kmInicialOriginal) && kmInicial !== kmInicialOriginal;
+        if (kmInicialAlterado && justificativa.length < 10) {
+            App.ui.showAlert("Você alterou o KM inicial. Informe a justificativa para continuar.", "warning");
             return;
         }
 
@@ -336,12 +404,16 @@ const FleetModule = {
             motorista: motoristaNome, // Save Name for display
             motoristaMatricula: motoristaMatricula, // Save ID for reference
             kmInicial,
+            kmInicialOriginal,
             origem,
             dataSaida: new Date(dataHoraInput).toISOString(),
             status: 'EM_DESLOCAMENTO',
             companyId: App.state.currentUser.companyId,
             criadoPor: App.state.currentUser.email
         };
+        if (kmInicialAlterado) {
+            tripData.justificativaKmInicial = justificativa;
+        }
 
         App.ui.setLoading(true, "A registar saída...");
         try {
