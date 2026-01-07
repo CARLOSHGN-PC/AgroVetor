@@ -164,7 +164,7 @@ const calculateColumnWidths = (doc, headers, data, pageWidth, margins) => {
     return analyzeColumns(doc, headers, data, pageWidth, margins).columnWidths;
 };
 
-const drawTable = async (doc, headers, data, title, logoBase64, startY, customColumnWidths = null) => {
+const drawTable = async (doc, headers, data, title, logoBase64, startY, customColumnWidths = null, columnAlignments = null) => {
     const margins = doc.page.margins;
     const pageWidth = doc.page.width;
 
@@ -217,7 +217,7 @@ const drawTable = async (doc, headers, data, title, logoBase64, startY, customCo
             }
 
             // Alignment: Center if column is numeric, otherwise Left
-            const align = isNumericCol[i] ? 'center' : 'left';
+            const align = (columnAlignments && columnAlignments[i]) ? columnAlignments[i] : (isNumericCol[i] ? 'center' : 'left');
 
             doc.text(cellText, currentX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
                 width: maxTextWidth,
