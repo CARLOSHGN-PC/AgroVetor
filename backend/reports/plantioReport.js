@@ -958,11 +958,11 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             columnAlignments[0] = 'left';
             columnAlignments[1] = 'center';
             columnAlignments[2] = 'right';
-            columnAlignments[3] = 'left';
+            columnAlignments[3] = 'center';
             columnAlignments[4] = 'center';
             columnAlignments[5] = 'right';
             columnAlignments[6] = 'left';
-            columnAlignments[7] = 'left';
+            columnAlignments[7] = 'center';
             columnAlignments[8] = 'center';
             columnAlignments[9] = 'left';
             columnAlignments[10] = 'left';
@@ -1071,9 +1071,9 @@ const generatePlantioInsumosPdf = async (req, res, db) => {
             let index = 0;
             columnAlignments[index++] = 'left';
             if (hasTalhao) {
-                columnAlignments[index++] = 'left';
+                columnAlignments[index++] = 'center';
             }
-            columnAlignments[index++] = 'left';
+            columnAlignments[index++] = 'center';
             columnAlignments[index++] = 'center';
             columnAlignments[index++] = 'right';
             columnAlignments[index++] = 'left';
@@ -1181,8 +1181,8 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
         const columnAlignments = [];
         if (isCana) {
             columnAlignments[0] = 'left';
-            columnAlignments[1] = 'left';
-            columnAlignments[2] = 'left';
+            columnAlignments[1] = 'center';
+            columnAlignments[2] = 'center';
             columnAlignments[3] = 'center';
             columnAlignments[4] = 'right';
             columnAlignments[5] = 'center';
