@@ -8,6 +8,7 @@ const FleetModule = {
     activeTrips: [],
     historyTrips: [],
     historyTotal: 0,
+    autoFilledKm: null, // Store the auto-filled value for "Last Exit"
 
     init() {
         if (this.isInitialized) return;
@@ -57,6 +58,11 @@ const FleetModule = {
         const btnNovaSaidaKM = document.getElementById('btnNovaSaidaKM');
         if (btnNovaSaidaKM) {
             btnNovaSaidaKM.addEventListener('click', () => this.openStartTripModal());
+        }
+
+        const btnUltimaSaidaKM = document.getElementById('btnUltimaSaidaKM');
+        if (btnUltimaSaidaKM) {
+            btnUltimaSaidaKM.addEventListener('click', () => this.openStartTripModal({ useLastKm: true }));
         }
 
         const btnConfirmSaidaKM = document.getElementById('btnConfirmSaidaKM');
@@ -124,6 +130,27 @@ const FleetModule = {
         const driverIdInput = document.getElementById('kmSaidaMotorista');
         if (driverIdInput) {
             driverIdInput.addEventListener('input', (e) => this.lookupDriver(e.target.value));
+        }
+
+        // Justification Logic
+        const kmInicialInput = document.getElementById('kmSaidaKmInicial');
+        if (kmInicialInput) {
+            kmInicialInput.addEventListener('input', (e) => this.checkKmJustification(parseFloat(e.target.value)));
+        }
+    },
+
+    checkKmJustification(currentValue) {
+        const container = document.getElementById('kmSaidaJustificativaContainer');
+        if (!container || this.autoFilledKm === null) {
+            if (container) container.style.display = 'none';
+            return;
+        }
+
+        if (currentValue !== this.autoFilledKm) {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+            document.getElementById('kmSaidaJustificativa').value = ''; // Clear if reverted
         }
     },
 
@@ -232,13 +259,15 @@ const FleetModule = {
     },
 
     clearTripForm() {
-        const fields = ['kmSaidaVeiculo', 'kmSaidaMotorista', 'kmSaidaKmInicial', 'kmSaidaOrigem', 'kmChegadaKmFinal', 'kmChegadaDestino'];
+        const fields = ['kmSaidaVeiculo', 'kmSaidaMotorista', 'kmSaidaKmInicial', 'kmSaidaOrigem', 'kmChegadaKmFinal', 'kmChegadaDestino', 'kmSaidaJustificativa'];
         fields.forEach(id => {
             const el = document.getElementById(id);
             if(el) el.value = '';
         });
 
-        // Also reset local state helpers if any
+        const justContainer = document.getElementById('kmSaidaJustificativaContainer');
+        if (justContainer) justContainer.style.display = 'none';
+        this.autoFilledKm = null;
     },
 
     renderFleetList() {
@@ -287,7 +316,8 @@ const FleetModule = {
 
     // --- KM Control Logic ---
 
-    openStartTripModal() {
+    openStartTripModal(options = {}) {
+        const { useLastKm = false } = options;
         const select = document.getElementById('kmSaidaVeiculo');
         select.innerHTML = '<option value="">Selecione...</option>';
 
@@ -296,10 +326,32 @@ const FleetModule = {
             select.innerHTML += `<option value="${v.id}" data-km="${v.kmAtual}">${v.codigo} - ${v.placa} (${v.marcaModelo})</option>`;
         });
 
+        // Reset state for new modal opening
+        this.autoFilledKm = null;
+        document.getElementById('kmSaidaJustificativaContainer').style.display = 'none';
+        document.getElementById('kmSaidaKmInicial').value = '';
+
         select.onchange = () => {
             const opt = select.options[select.selectedIndex];
             if (opt.value) {
-                document.getElementById('kmSaidaKmInicial').value = opt.dataset.km;
+                let initialKm = parseFloat(opt.dataset.km);
+
+                // If "Última Saída" mode, we force the last known KM
+                // Note: The select already has data-km populated from App.state.frota which is updated on endTrip.
+                // So opt.dataset.km IS effectively the last KM.
+                // However, standard flow allows editing without justification.
+                // "Última Saída" flow enforces justification if changed.
+
+                document.getElementById('kmSaidaKmInicial').value = initialKm;
+
+                if (useLastKm) {
+                    this.autoFilledKm = initialKm;
+                    // Trigger check immediately in case the field was pre-filled differently (unlikely here but safe)
+                    this.checkKmJustification(initialKm);
+                } else {
+                    this.autoFilledKm = null; // Standard mode doesn't track change
+                    document.getElementById('kmSaidaJustificativaContainer').style.display = 'none';
+                }
             }
         };
 
@@ -318,8 +370,17 @@ const FleetModule = {
         const origem = document.getElementById('kmSaidaOrigem').value;
         const dataHoraInput = document.getElementById('kmSaidaDataHora').value;
 
+        // Justification Logic
+        const justification = document.getElementById('kmSaidaJustificativa').value.trim();
+        const isJustificationVisible = document.getElementById('kmSaidaJustificativaContainer').style.display !== 'none';
+
         if (!veiculoId || !motoristaMatricula || isNaN(kmInicial) || !origem || !dataHoraInput) {
             App.ui.showAlert("Preencha todos os campos.", "warning");
+            return;
+        }
+
+        if (isJustificationVisible && justification.length < 10) {
+            App.ui.showAlert("A justificativa deve ter pelo menos 10 caracteres.", "warning");
             return;
         }
 
@@ -340,7 +401,10 @@ const FleetModule = {
             dataSaida: new Date(dataHoraInput).toISOString(),
             status: 'EM_DESLOCAMENTO',
             companyId: App.state.currentUser.companyId,
-            criadoPor: App.state.currentUser.email
+            criadoPor: App.state.currentUser.email,
+            // New fields for traceability
+            kmInicialOriginal: this.autoFilledKm,
+            justificativaKmInicial: isJustificationVisible ? justification : null
         };
 
         App.ui.setLoading(true, "A registar saída...");
