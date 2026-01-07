@@ -9,8 +9,6 @@ const FleetModule = {
     historyTrips: [],
     historyTotal: 0,
     kmInicialOriginal: null,
-    kmInicialJustificativaRequired: false,
-    kmInicialJustificativaNotified: false,
     lastKmRequestId: 0,
 
     init() {
@@ -248,8 +246,6 @@ const FleetModule = {
         });
 
         this.kmInicialOriginal = null;
-        this.kmInicialJustificativaRequired = false;
-        this.kmInicialJustificativaNotified = false;
         this.updateKmInicialJustificativa();
     },
 
@@ -358,29 +354,12 @@ const FleetModule = {
         const currentValue = parseFloat(kmInicialInput.value);
         const hasOriginal = Number.isFinite(this.kmInicialOriginal);
         const hasChange = hasOriginal && Number.isFinite(currentValue) && currentValue !== this.kmInicialOriginal;
-        const wasRequired = this.kmInicialJustificativaRequired;
-        this.kmInicialJustificativaRequired = hasChange;
 
         justificativaRow.style.display = hasChange ? 'block' : 'none';
         justificativaInput.required = hasChange;
-        if (hasChange && !wasRequired) {
-            this.showKmInicialJustificativaNotice();
-        }
         if (!hasChange) {
             justificativaInput.value = '';
-            this.kmInicialJustificativaNotified = false;
         }
-    },
-
-    showKmInicialJustificativaNotice(force = false) {
-        if (!force && this.kmInicialJustificativaNotified) return;
-
-        const message = "Você alterou o KM inicial. Informe a justificativa para continuar.";
-        App.ui.showAlert(message, "warning");
-        if (App.ui.showSystemNotification) {
-            App.ui.showSystemNotification("Justificativa obrigatória", message, "warning");
-        }
-        this.kmInicialJustificativaNotified = true;
     },
 
     async startTrip() {
@@ -400,7 +379,7 @@ const FleetModule = {
         const kmInicialOriginal = Number.isFinite(this.kmInicialOriginal) ? this.kmInicialOriginal : kmInicial;
         const kmInicialAlterado = Number.isFinite(kmInicialOriginal) && kmInicial !== kmInicialOriginal;
         if (kmInicialAlterado && justificativa.length < 10) {
-            this.showKmInicialJustificativaNotice(true);
+            App.ui.showAlert("Informe uma justificativa com pelo menos 10 caracteres para alterar o KM Inicial.", "warning");
             return;
         }
 
