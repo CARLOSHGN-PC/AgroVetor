@@ -272,6 +272,8 @@ document.addEventListener('DOMContentLoaded', () => {
             activeTrips: [],
             historyTrips: [],
             abastecimentos: [],
+            plantioTotalArea: 0,
+            plantioVariedadeWarningShown: false,
         },
         
         fleet: FleetModule,
@@ -540,6 +542,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Novos campos Cana
                 canaFields: document.getElementById('plantioCanaFields'),
+                tipoPlantio: document.getElementById('plantioTipo'),
+                os: document.getElementById('plantioOS'),
+                mecanizadoFields: document.getElementById('plantioMecanizadoFields'),
+                manualFields: document.getElementById('plantioManualFields'),
+                frota: document.getElementById('plantioFrota'),
+                pessoas: document.getElementById('plantioPessoas'),
                 origemMuda: document.getElementById('plantioOrigemMuda'),
                 mudaFazenda: document.getElementById('plantioMudaFazenda'),
                 mudaTalhao: document.getElementById('plantioMudaTalhao'),
@@ -556,6 +564,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 chuva: document.getElementById('plantioChuva'),
                 obs: document.getElementById('plantioObs'),
                 info: document.getElementById('plantioInfo'),
+                insumosSection: document.getElementById('plantioInsumosSection'),
+                insumosContainer: document.getElementById('plantioInsumosContainer'),
+                addInsumoBtn: document.getElementById('btnAddPlantioInsumo'),
             },
             cadastros: {
                 farmCode: document.getElementById('farmCode'),
@@ -1748,6 +1759,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (activeTab === 'gestaoFrota') {
                             App.fleet.renderFleetList();
                         }
+                        this.populatePlantioFrotaSelect();
                         break;
                     case 'controleFrota':
                         if (activeTab === 'controleKM') {
@@ -1793,6 +1805,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('renderPersonnelList', () => this.renderPersonnelList());
                 renderWithCatch('renderFrenteDePlantioList', () => this.renderFrenteDePlantioList());
                 renderWithCatch('populateFrenteDePlantioSelect', () => this.populateFrenteDePlantioSelect());
+                renderWithCatch('populatePlantioFrotaSelect', () => this.populatePlantioFrotaSelect());
                 renderWithCatch('renderLogoPreview', () => this.renderLogoPreview());
                 renderWithCatch('renderPlanejamento', () => this.renderPlanejamento());
                 renderWithCatch('showHarvestPlanList', () => this.showHarvestPlanList());
@@ -2833,6 +2846,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            populatePlantioFrotaSelect() {
+                const select = App.elements.apontamentoPlantio.frota;
+                if (!select) return;
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Selecione...</option>';
+                (App.state.frota || [])
+                    .sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '', undefined, { numeric: true }))
+                    .forEach(vehicle => {
+                        const label = `${vehicle.codigo || ''} ${vehicle.placa ? `- ${vehicle.placa}` : ''}`.trim();
+                        select.innerHTML += `<option value="${vehicle.id}">${label || vehicle.id}</option>`;
+                    });
+                select.value = currentValue;
+            },
+
             addPlantioRecordCard() {
                 const container = App.elements.apontamentoPlantio.recordsContainer;
                 if (!container) return;
@@ -2876,7 +2903,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.populateTalhaoSelect(card);
 
                 const talhaoSelect = card.querySelector('.plantio-talhao-select');
-                talhaoSelect.addEventListener('change', () => this.updateTalhaoInfo(card));
+                talhaoSelect.addEventListener('change', () => {
+                    this.updateTalhaoInfo(card);
+                    this.syncPlantioVariedadeFromTalhoes();
+                });
+
+                const variedadeInput = card.querySelector('input[id^="plantioVariedade-"]');
+                if (variedadeInput) {
+                    variedadeInput.addEventListener('input', () => {
+                        variedadeInput.dataset.manual = 'true';
+                        variedadeInput.dataset.override = 'true';
+                    });
+                }
             },
 
             populateTalhaoSelect(card) {
@@ -2899,6 +2937,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.populateTalhaoSelect(card);
                     this.updateTalhaoInfo(card);
                 });
+                this.syncPlantioVariedadeFromTalhoes();
             },
 
             async updateTalhaoInfo(card) {
@@ -2948,6 +2987,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const remainingArea = talhao.area - plantedAreaByOthers;
                 infoDiv.textContent = `Área: ${talhao.area.toFixed(2)}ha | Plantado (outros): ${plantedAreaByOthers.toFixed(2)}ha | Restante: ${remainingArea.toFixed(2)}ha`;
                 card.querySelector('.plantio-area-input').max = remainingArea;
+                const talhaoVariedade = talhao.variedade || '';
+                this.applyPlantioVariedade(card, talhaoVariedade);
             },
 
             calculateTotalPlantedArea() {
@@ -2961,6 +3002,195 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 totalAreaEl.textContent = `Total de Área Plantada: ${totalArea.toFixed(2).replace('.', ',')} ha`;
+                App.state.plantioTotalArea = totalArea;
+                this.updatePlantioInsumoSection(totalArea);
+                return totalArea;
+            },
+
+            getPlantioInsumoCatalog() {
+                const catalog = new Set();
+                (App.state.apontamentosPlantio || []).forEach(entry => {
+                    (entry.insumos || []).forEach(insumo => {
+                        if (insumo.produto) {
+                            catalog.add(insumo.produto);
+                        }
+                    });
+                });
+                return Array.from(catalog).sort((a, b) => a.localeCompare(b));
+            },
+
+            updatePlantioInsumoSection(totalArea = 0) {
+                const els = App.elements.apontamentoPlantio;
+                if (!els.insumosSection || !els.insumosContainer) return;
+                const shouldShow = totalArea > 0 && els.culture.value === 'Cana-de-açúcar';
+                els.insumosSection.style.display = shouldShow ? 'block' : 'none';
+                if (!shouldShow) return;
+                els.insumosContainer.querySelectorAll('.plantio-insumo-row').forEach(row => {
+                    this.updatePlantioInsumoTotal(row, totalArea);
+                });
+            },
+
+            updatePlantioInsumoTotal(row, totalArea) {
+                const doseInput = row.querySelector('.plantio-insumo-dose');
+                const totalInput = row.querySelector('.plantio-insumo-total');
+                if (!doseInput || !totalInput) return;
+                const dose = App.safeParseFloat(doseInput.value);
+                const total = totalArea * (dose || 0);
+                totalInput.value = total > 0 ? total.toFixed(2).replace('.', ',') : '0,00';
+            },
+
+            addPlantioInsumoRow(initialData = {}) {
+                const els = App.elements.apontamentoPlantio;
+                if (!els.insumosContainer) return;
+                const row = document.createElement('div');
+                row.className = 'plantio-insumo-row';
+                row.dataset.id = `insumo_${Date.now()}`;
+
+                row.innerHTML = `
+                    <div class="form-row" style="align-items: flex-end;">
+                        <div class="form-col">
+                            <label class="required">Produto / Insumo:</label>
+                            <select class="plantio-insumo-produto" required></select>
+                            <input type="text" class="plantio-insumo-produto-custom" placeholder="Informe o produto" style="display: none; margin-top: 8px;">
+                        </div>
+                        <div class="form-col">
+                            <label class="required">Dose:</label>
+                            <input type="number" class="plantio-insumo-dose" min="0" step="0.01" placeholder="0,00" required>
+                        </div>
+                        <div class="form-col">
+                            <label>Total gasto:</label>
+                            <input type="text" class="plantio-insumo-total" readonly>
+                        </div>
+                        <div class="form-col" style="max-width: 60px;">
+                            <button type="button" class="btn-remover-amostra" title="Remover Insumo">&times;</button>
+                        </div>
+                    </div>
+                `;
+
+                const select = row.querySelector('.plantio-insumo-produto');
+                const customInput = row.querySelector('.plantio-insumo-produto-custom');
+                const doseInput = row.querySelector('.plantio-insumo-dose');
+                const catalog = this.getPlantioInsumoCatalog();
+
+                select.innerHTML = '<option value="">Selecione...</option>';
+                catalog.forEach(item => {
+                    select.innerHTML += `<option value="${item}">${item}</option>`;
+                });
+                select.innerHTML += '<option value="__custom__">Outro (digitar)</option>';
+
+                select.addEventListener('change', () => {
+                    const isCustom = select.value === '__custom__';
+                    customInput.style.display = isCustom ? 'block' : 'none';
+                    if (!isCustom) {
+                        customInput.value = '';
+                    }
+                });
+
+                doseInput.addEventListener('input', () => {
+                    const totalArea = App.state.plantioTotalArea || 0;
+                    this.updatePlantioInsumoTotal(row, totalArea);
+                });
+
+                row.querySelector('.btn-remover-amostra').addEventListener('click', () => {
+                    row.remove();
+                });
+
+                if (initialData.produto) {
+                    if (catalog.includes(initialData.produto)) {
+                        select.value = initialData.produto;
+                    } else {
+                        select.value = '__custom__';
+                        customInput.style.display = 'block';
+                        customInput.value = initialData.produto;
+                    }
+                }
+                if (initialData.dose != null) {
+                    doseInput.value = initialData.dose;
+                }
+
+                els.insumosContainer.appendChild(row);
+                const totalArea = App.state.plantioTotalArea || this.calculateTotalPlantedArea() || 0;
+                this.updatePlantioInsumoTotal(row, totalArea);
+                return row;
+            },
+
+            getPlantioVariedadeFromTalhao(card) {
+                const talhaoId = card.querySelector('.plantio-talhao-select')?.value;
+                if (!talhaoId) return '';
+                const farmId = App.elements.apontamentoPlantio.farmName.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                const talhao = farm?.talhoes?.find(t => t.id == talhaoId);
+                return talhao?.variedade || '';
+            },
+
+            syncPlantioVariedadeFromTalhoes() {
+                const cards = App.elements.apontamentoPlantio.recordsContainer.querySelectorAll('.amostra-card');
+                const varieties = new Set();
+                cards.forEach(card => {
+                    const talhaoVariedade = this.getPlantioVariedadeFromTalhao(card);
+                    if (talhaoVariedade) varieties.add(talhaoVariedade);
+                    this.applyPlantioVariedade(card, talhaoVariedade);
+                });
+                if (varieties.size > 1 && !App.state.plantioVariedadeWarningShown) {
+                    App.ui.showAlert("Foram encontradas variedades diferentes entre os talhões. Verifique se a variedade plantada está correta.", "warning");
+                    App.state.plantioVariedadeWarningShown = true;
+                }
+            },
+
+            applyPlantioVariedade(card, autoVariedade) {
+                const variedadeInput = card.querySelector('input[id^="plantioVariedade-"]');
+                if (!variedadeInput) return;
+                const manual = variedadeInput.dataset.manual === 'true';
+                if (!manual) {
+                    variedadeInput.value = autoVariedade || '';
+                    variedadeInput.dataset.autoVariedade = autoVariedade || '';
+                    variedadeInput.dataset.override = 'false';
+                    return;
+                }
+                const auto = variedadeInput.dataset.autoVariedade || '';
+                if (autoVariedade && autoVariedade !== auto) {
+                    variedadeInput.dataset.autoVariedade = autoVariedade;
+                }
+                if (autoVariedade && variedadeInput.value && variedadeInput.value !== autoVariedade) {
+                    variedadeInput.dataset.override = 'true';
+                }
+            },
+
+            updatePlantioTipoFields() {
+                const els = App.elements.apontamentoPlantio;
+                if (!els.tipoPlantio || !els.mecanizadoFields || !els.manualFields) return;
+                const tipo = els.tipoPlantio.value;
+                if (tipo === 'Mecanizado') {
+                    els.mecanizadoFields.style.display = 'flex';
+                    els.manualFields.style.display = 'none';
+                    if (els.pessoas) els.pessoas.value = '';
+                } else if (tipo === 'Manual') {
+                    els.mecanizadoFields.style.display = 'none';
+                    els.manualFields.style.display = 'flex';
+                    if (els.frota) els.frota.value = '';
+                } else {
+                    els.mecanizadoFields.style.display = 'none';
+                    els.manualFields.style.display = 'none';
+                    if (els.frota) els.frota.value = '';
+                    if (els.pessoas) els.pessoas.value = '';
+                }
+            },
+
+            resetPlantioCanaFields() {
+                const els = App.elements.apontamentoPlantio;
+                if (!els) return;
+                els.tipoPlantio.value = '';
+                els.os.value = '';
+                els.origemMuda.value = '';
+                els.mudaFazenda.value = '';
+                els.mudaTalhao.innerHTML = '';
+                els.mudaArea.value = '';
+                if (els.frota) els.frota.value = '';
+                if (els.pessoas) els.pessoas.value = '';
+                if (els.insumosContainer) els.insumosContainer.innerHTML = '';
+                if (els.insumosSection) els.insumosSection.style.display = 'none';
+                App.state.plantioVariedadeWarningShown = false;
+                this.updatePlantioTipoFields();
             },
 
             renderPersonnelList() {
@@ -4558,15 +4788,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     apontamentoEls.culture.addEventListener('change', () => {
                         if (apontamentoEls.culture.value === 'Cana-de-açúcar') {
                             apontamentoEls.canaFields.style.display = 'block';
+                            App.ui.updatePlantioTipoFields();
+                            App.ui.updatePlantioInsumoSection(App.state.plantioTotalArea || 0);
                         } else {
                             apontamentoEls.canaFields.style.display = 'none';
                             // Clear fields when hidden
-                            apontamentoEls.origemMuda.value = '';
-                            apontamentoEls.mudaFazenda.value = '';
-                            apontamentoEls.mudaTalhao.innerHTML = '';
-                            apontamentoEls.mudaArea.value = '';
+                            App.ui.resetPlantioCanaFields();
                         }
                     });
+                    if (apontamentoEls.culture.value === 'Cana-de-açúcar') {
+                        apontamentoEls.canaFields.style.display = 'block';
+                        App.ui.updatePlantioTipoFields();
+                    }
                 }
 
                 // Logic for populating Talhão de Origem
@@ -4584,6 +4817,23 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                             }
                         }
+                        App.state.plantioVariedadeWarningShown = false;
+                        App.ui.syncPlantioVariedadeFromTalhoes();
+                    });
+                }
+                if (apontamentoEls.mudaTalhao) {
+                    apontamentoEls.mudaTalhao.addEventListener('change', () => {
+                        App.state.plantioVariedadeWarningShown = false;
+                        App.ui.syncPlantioVariedadeFromTalhoes();
+                    });
+                }
+                if (apontamentoEls.tipoPlantio) {
+                    apontamentoEls.tipoPlantio.addEventListener('change', () => App.ui.updatePlantioTipoFields());
+                }
+                if (apontamentoEls.addInsumoBtn) {
+                    apontamentoEls.addInsumoBtn.addEventListener('click', () => {
+                        App.ui.addPlantioInsumoRow();
+                        App.ui.updatePlantioInsumoSection(App.state.plantioTotalArea || 0);
                     });
                 }
                 if (apontamentoEls.recordsContainer) {
@@ -4658,19 +4908,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const relatorioPlantioEls = App.elements.relatorioPlantio;
                 if (relatorioPlantioEls.btnPDF) relatorioPlantioEls.btnPDF.addEventListener('click', () => {
                     const reportType = relatorioPlantioEls.tipo.value;
-                    if (reportType === 'fazenda') {
-                        App.reports.generatePlantioFazendaPDF();
-                    } else {
-                        App.reports.generatePlantioTalhaoPDF();
-                    }
+                    if (reportType === 'resumo') App.reports.generatePlantioResumoPDF();
+                    if (reportType === 'talhao') App.reports.generatePlantioTalhaoPDF();
+                    if (reportType === 'insumos') App.reports.generatePlantioInsumosPDF();
+                    if (reportType === 'operacional') App.reports.generatePlantioOperacionalPDF();
                 });
                 if (relatorioPlantioEls.btnExcel) relatorioPlantioEls.btnExcel.addEventListener('click', () => {
                     const reportType = relatorioPlantioEls.tipo.value;
-                    if (reportType === 'fazenda') {
-                        App.reports.generatePlantioFazendaExcel();
-                    } else {
-                        App.reports.generatePlantioTalhaoExcel();
-                    }
+                    if (reportType === 'resumo') App.reports.generatePlantioResumoExcel();
+                    if (reportType === 'talhao') App.reports.generatePlantioTalhaoExcel();
+                    if (reportType === 'insumos') App.reports.generatePlantioInsumosExcel();
+                    if (reportType === 'operacional') App.reports.generatePlantioOperacionalExcel();
                 });
 
                 const relatorioClimaEls = App.elements.relatorioClima;
@@ -6372,6 +6620,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Conditional Validation for Cane
                 if (els.culture.value === 'Cana-de-açúcar') {
+                    if (!els.tipoPlantio.value) {
+                        App.ui.showAlert("Para Cana-de-açúcar, selecione o tipo de plantio.", "warning");
+                        return;
+                    }
+                    if (els.tipoPlantio.value === 'Mecanizado' && !els.frota.value) {
+                        App.ui.showAlert("Para plantio mecanizado, selecione a frota.", "warning");
+                        return;
+                    }
+                    if (els.tipoPlantio.value === 'Manual') {
+                        const pessoas = parseInt(els.pessoas.value, 10);
+                        if (!pessoas || pessoas < 1) {
+                            App.ui.showAlert("Para plantio manual, informe a quantidade de pessoas (mínimo 1).", "warning");
+                            return;
+                        }
+                    }
                     if (!els.origemMuda.value || !els.mudaFazenda.value || !els.mudaTalhao.value) {
                          App.ui.showAlert("Para Cana-de-açúcar, preencha a Origem, Fazenda e Talhão da Muda.", "warning");
                          return;
@@ -6409,12 +6672,45 @@ document.addEventListener('DOMContentLoaded', () => {
                         talhaoId: talhaoSelect.value,
                         talhao: talhaoSelect.options[talhaoSelect.selectedIndex].text,
                         variedade: variedadeInput.value,
+                        variedadeAuto: variedadeInput.dataset.autoVariedade || '',
+                        variedadeOverride: variedadeInput.dataset.override === 'true',
                         area: area
                     });
                 }
 
                 const frente = App.state.frentesDePlantio.find(f => f.id === els.frente.value);
                 const farm = App.state.fazendas.find(f => f.id === els.farmName.value);
+                const totalArea = recordsData.reduce((sum, rec) => sum + rec.area, 0);
+                const insumosData = [];
+
+                if (totalArea > 0 && els.insumosContainer && els.insumosContainer.children.length > 0) {
+                    const insumoRows = els.insumosContainer.querySelectorAll('.plantio-insumo-row');
+                    for (const row of insumoRows) {
+                        const produtoSelect = row.querySelector('.plantio-insumo-produto');
+                        const produtoCustom = row.querySelector('.plantio-insumo-produto-custom');
+                        const doseInput = row.querySelector('.plantio-insumo-dose');
+                        const produtoValue = produtoSelect.value === '__custom__' ? produtoCustom.value.trim() : produtoSelect.value;
+                        const dose = App.safeParseFloat(doseInput.value);
+
+                        if (!produtoValue) {
+                            App.ui.showAlert("Selecione o produto do insumo ou informe um nome.", "warning");
+                            produtoSelect.focus();
+                            return;
+                        }
+                        if (!dose || dose <= 0) {
+                            App.ui.showAlert("Informe uma dose válida para todos os insumos.", "warning");
+                            doseInput.focus();
+                            return;
+                        }
+
+                        insumosData.push({
+                            produto: produtoValue,
+                            dose: dose,
+                            areaTotal: totalArea,
+                            totalGasto: parseFloat((totalArea * dose).toFixed(2))
+                        });
+                    }
+                }
 
                 const newEntry = {
                     frenteDePlantioId: frente.id,
@@ -6428,18 +6724,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     chuva: els.chuva ? els.chuva.value : '',
                     obs: els.obs ? els.obs.value : '',
                     records: recordsData,
-                    totalArea: recordsData.reduce((sum, rec) => sum + rec.area, 0),
+                    totalArea: totalArea,
+                    insumos: insumosData,
                     usuario: App.state.currentUser.username,
                     companyId: App.state.currentUser.companyId
                 };
 
                 // Add conditional fields if applicable
                 if (els.culture.value === 'Cana-de-açúcar') {
+                    const frotaSelecionada = App.state.frota.find(f => f.id === els.frota.value);
                     newEntry.origemMuda = els.origemMuda.value;
                     newEntry.mudaFazendaId = els.mudaFazenda.value;
                     newEntry.mudaFazendaNome = els.mudaFazenda.options[els.mudaFazenda.selectedIndex].text;
                     newEntry.mudaTalhao = els.mudaTalhao.value;
                     newEntry.mudaArea = els.mudaArea.value ? parseFloat(els.mudaArea.value) : 0;
+                    newEntry.tipoPlantio = els.tipoPlantio.value;
+                    newEntry.ordemServico = els.os.value.trim();
+                    newEntry.frotaId = els.frota.value || '';
+                    newEntry.frotaLabel = frotaSelecionada ? `${frotaSelecionada.codigo || ''}${frotaSelecionada.placa ? ` - ${frotaSelecionada.placa}` : ''}`.trim() : '';
+                    newEntry.quantidadePessoas = els.pessoas.value ? parseInt(els.pessoas.value, 10) : 0;
                 }
 
                 const entryId = els.entryId.value;
@@ -6466,10 +6769,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         App.ui.clearForm(els.form);
                         els.recordsContainer.innerHTML = '';
+                        if (els.insumosContainer) els.insumosContainer.innerHTML = '';
                         App.ui.setDefaultDatesForEntryForms();
                         App.ui.calculateTotalPlantedArea();
                         els.entryId.value = '';
                         App.state.apontamentoPlantioFormIsDirty = false;
+                        App.state.plantioVariedadeWarningShown = false;
+                        App.state.plantioTotalArea = 0;
+                        if (els.canaFields) {
+                            els.canaFields.style.display = 'none';
+                        }
+                        App.ui.updatePlantioTipoFields();
+                        App.ui.updatePlantioInsumoSection(0);
 
                     } catch (error) {
                         App.ui.showAlert(`Erro ao guardar: ${error.message}.`, "error");
@@ -7603,12 +7914,36 @@ document.addEventListener('DOMContentLoaded', () => {
                         els.entryId.value = id;
                         els.frente.value = entry.frenteDePlantioId;
                         els.provider.value = entry.provider;
+                        els.culture.value = entry.culture || '';
                         els.leaderId.value = entry.leaderId;
                         els.farmName.value = App.state.fazendas.find(f => f.code === entry.farmCode).id;
                         els.date.value = entry.date;
                         els.chuva.value = entry.chuva;
                         els.obs.value = entry.obs;
+                        if (entry.culture === 'Cana-de-açúcar') {
+                            App.ui.populatePlantioFrotaSelect();
+                            els.canaFields.style.display = 'block';
+                            els.tipoPlantio.value = entry.tipoPlantio || '';
+                            els.os.value = entry.ordemServico || '';
+                            App.ui.updatePlantioTipoFields();
+                            els.frota.value = entry.frotaId || '';
+                            els.pessoas.value = entry.quantidadePessoas || '';
+                            els.origemMuda.value = entry.origemMuda || '';
+                            els.mudaFazenda.value = entry.mudaFazendaId || '';
+                            const originFarm = App.state.fazendas.find(f => f.id === entry.mudaFazendaId);
+                            els.mudaTalhao.innerHTML = '<option value="">Selecione...</option>';
+                            if (originFarm?.talhoes) {
+                                originFarm.talhoes.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric: true})).forEach(t => {
+                                    els.mudaTalhao.innerHTML += `<option value="${t.name}">${t.name}</option>`;
+                                });
+                            }
+                            els.mudaTalhao.value = entry.mudaTalhao || '';
+                            els.mudaArea.value = entry.mudaArea || '';
+                        } else {
+                            els.canaFields.style.display = 'none';
+                        }
                         els.recordsContainer.innerHTML = '';
+                        if (els.insumosContainer) els.insumosContainer.innerHTML = '';
                         entry.records.forEach(record => {
                             App.ui.addPlantioRecordCard();
                             const card = els.recordsContainer.lastChild;
@@ -7617,10 +7952,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             const areaInput = card.querySelector('input[id^="plantioArea-"]');
                             talhaoSelect.value = record.talhaoId;
                             variedadeInput.value = record.variedade;
+                            variedadeInput.dataset.autoVariedade = record.variedadeAuto || '';
+                            variedadeInput.dataset.override = record.variedadeOverride ? 'true' : 'false';
+                            variedadeInput.dataset.manual = record.variedadeOverride ? 'true' : 'false';
                             areaInput.value = record.area;
                             App.ui.updateTalhaoInfo(card);
                         });
+                        if (entry.insumos && entry.insumos.length > 0 && els.insumosContainer) {
+                            entry.insumos.forEach(insumo => App.ui.addPlantioInsumoRow(insumo));
+                        }
                         App.ui.calculateTotalPlantedArea();
+                        App.state.plantioVariedadeWarningShown = false;
                     }
                 }
             },
@@ -14043,7 +14385,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaId: fazendaId,
                     tipos: selectedTypes.join(','),
                 };
-                this._fetchAndDownloadReport('plantio/fazenda/pdf', filters, 'relatorio_plantio_fazenda.pdf');
+                this._fetchAndDownloadReport('plantio/resumo/pdf', filters, 'relatorio_plantio_resumo.pdf');
             },
 
             generatePlantioFazendaExcel() {
@@ -14061,7 +14403,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaId: fazendaId,
                     tipos: selectedTypes.join(','),
                 };
-                this._fetchAndDownloadReport('plantio/fazenda/csv', filters, 'relatorio_plantio_fazenda.csv');
+                this._fetchAndDownloadReport('plantio/resumo/csv', filters, 'relatorio_plantio_resumo.csv');
             },
 
             generatePlantioTalhaoPDF() {
@@ -14098,6 +14440,96 @@ document.addEventListener('DOMContentLoaded', () => {
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');
+            },
+
+            generatePlantioResumoPDF() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/resumo/pdf', filters, 'relatorio_plantio_resumo.pdf');
+            },
+
+            generatePlantioResumoExcel() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/resumo/csv', filters, 'relatorio_plantio_resumo.csv');
+            },
+
+            generatePlantioInsumosPDF() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/insumos/pdf', filters, 'relatorio_plantio_insumos.pdf');
+            },
+
+            generatePlantioInsumosExcel() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/insumos/csv', filters, 'relatorio_plantio_insumos.csv');
+            },
+
+            generatePlantioOperacionalPDF() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/operacional/pdf', filters, 'relatorio_plantio_operacional.pdf');
+            },
+
+            generatePlantioOperacionalExcel() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/operacional/csv', filters, 'relatorio_plantio_operacional.csv');
             },
 
             async generateClimaPDF() {
