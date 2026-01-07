@@ -759,56 +759,60 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
             if (col.align) columnAlignments[index] = col.align;
         });
 
-        if (!isCana) {
-            const grouped = rowsData.reduce((acc, row) => {
-                const key = row.fazenda || '';
-                if (!acc[key]) acc[key] = { farmNameSort: row.farmNameSort, rows: [] };
-                acc[key].rows.push(row);
-                return acc;
-            }, {});
+        const grouped = rowsData.reduce((acc, row) => {
+            const key = row.fazenda || '';
+            if (!acc[key]) acc[key] = { farmNameSort: row.farmNameSort, rows: [] };
+            acc[key].rows.push(row);
+            return acc;
+        }, {});
 
-            const sortedFarms = Object.entries(grouped)
-                .sort(([, a], [, b]) => normalizeText(a.farmNameSort).localeCompare(normalizeText(b.farmNameSort), 'pt-BR', { sensitivity: 'base' }));
+        const sortedFarms = Object.entries(grouped)
+            .sort(([, a], [, b]) => normalizeText(a.farmNameSort).localeCompare(normalizeText(b.farmNameSort), 'pt-BR', { sensitivity: 'base' }));
 
-            let grandTotalArea = 0;
+        const fazendaColumnIndex = columns.findIndex(col => col.id === 'fazenda');
+        const areaColumnIndex = columns.findIndex(col => col.id === 'area');
+        const mudaAreaColumnIndex = columns.findIndex(col => col.id === 'mudaArea');
+        const rowsWithSubtotals = [];
+        let grandTotalArea = 0;
+        let grandTotalMuda = 0;
 
-            for (const [farmLabel, farmGroup] of sortedFarms) {
-                if (currentY > doc.page.height - doc.page.margins.bottom - 40) {
-                    doc.addPage();
-                    currentY = await generatePdfHeader(doc, title, logoBase64);
-                }
+        for (const [farmLabel, farmGroup] of sortedFarms) {
+            farmGroup.rows.sort((a, b) => getDateValue(b.dataSort) - getDateValue(a.dataSort));
+            farmGroup.rows.forEach(row => {
+                rowsWithSubtotals.push(columns.map(col => row[col.id]));
+            });
 
-                doc.fontSize(12).font('Helvetica-Bold').text(farmLabel, doc.page.margins.left, currentY);
-                currentY = doc.y + 5;
-
-                farmGroup.rows.sort((a, b) => getDateValue(b.dataSort) - getDateValue(a.dataSort));
-                const groupRows = farmGroup.rows.map(row => columns.map(col => row[col.id]));
-                currentY = await drawTable(doc, headers, groupRows, title, logoBase64, currentY, columnWidths, columnAlignments);
-
-                const subtotalArea = sumRows(farmGroup.rows, 'areaValue');
-                const subtotalRow = new Array(headers.length).fill('');
-                subtotalRow[5] = 'SUBTOTAL';
-                subtotalRow[6] = formatNumber(subtotalArea);
-                currentY = await drawSummaryRow(doc, subtotalRow, currentY, columnWidths, title, logoBase64);
-                currentY += 10;
-
-                grandTotalArea += subtotalArea;
+            const subtotalArea = sumRows(farmGroup.rows, 'areaValue');
+            const subtotalMuda = sumRows(farmGroup.rows, 'mudaAreaValue');
+            const subtotalRow = new Array(headers.length).fill('');
+            if (fazendaColumnIndex !== -1) {
+                subtotalRow[fazendaColumnIndex] = `SUBTOTAL – ${farmLabel}`;
             }
+            if (areaColumnIndex !== -1) {
+                subtotalRow[areaColumnIndex] = formatNumber(subtotalArea);
+            }
+            if (isCana && mudaAreaColumnIndex !== -1) {
+                subtotalRow[mudaAreaColumnIndex] = formatNumber(subtotalMuda);
+            }
+            rowsWithSubtotals.push(subtotalRow);
 
-            const totalRow = new Array(headers.length).fill('');
-            totalRow[5] = 'TOTAL GERAL';
-            totalRow[6] = formatNumber(grandTotalArea);
-            await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
-        } else {
-            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
-            const totalArea = sumRows(rowsData, 'areaValue');
-            const totalMuda = sumRows(rowsData, 'mudaAreaValue');
-            const totalRow = new Array(headers.length).fill('');
-            totalRow[5] = 'TOTAL GERAL';
-            totalRow[8] = formatNumber(totalArea);
-            totalRow[9] = formatNumber(totalMuda);
-            await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+            grandTotalArea += subtotalArea;
+            grandTotalMuda += subtotalMuda;
         }
+
+        currentY = await drawTable(doc, headers, rowsWithSubtotals, title, logoBase64, currentY, columnWidths, columnAlignments);
+
+        const totalRow = new Array(headers.length).fill('');
+        if (fazendaColumnIndex !== -1) {
+            totalRow[fazendaColumnIndex] = 'TOTAL GERAL';
+        }
+        if (areaColumnIndex !== -1) {
+            totalRow[areaColumnIndex] = formatNumber(grandTotalArea);
+        }
+        if (isCana && mudaAreaColumnIndex !== -1) {
+            totalRow[mudaAreaColumnIndex] = formatNumber(grandTotalMuda);
+        }
+        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
 
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
