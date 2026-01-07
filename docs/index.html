@@ -3035,7 +3035,6 @@
                     <h2 style="color: var(--color-primary); margin: 0;"><i class="fas fa-tachometer-alt"></i> Controle de KM</h2>
                     <div class="button-group">
                         <button id="btnNovaSaidaKM" class="save"><i class="fas fa-sign-out-alt"></i> Nova Saída</button>
-                        <button id="btnUltimaSaidaKM" class="save" style="background: var(--color-info);"><i class="fas fa-history"></i> Última Saída</button>
                     </div>
                 </div>
 
@@ -3077,12 +3076,6 @@
                         <div class="form-row">
                             <div class="form-col"><label for="kmSaidaKmInicial" class="required">KM Inicial:</label><input type="number" id="kmSaidaKmInicial" required></div>
                             <div class="form-col"><label for="kmSaidaOrigem" class="required">Origem:</label><input type="text" id="kmSaidaOrigem" required></div>
-                        </div>
-                        <div id="kmSaidaJustificativaContainer" class="form-row" style="display: none;">
-                            <div class="form-col">
-                                <label for="kmSaidaJustificativa" class="required" style="color: var(--color-warning);">Justificativa (KM alterado):</label>
-                                <textarea id="kmSaidaJustificativa" placeholder="Explique por que o KM Inicial é diferente do último registrado... (Mín. 10 caracteres)" style="border-color: var(--color-warning);"></textarea>
-                            </div>
                         </div>
                         <div class="modal-footer">
                             <button id="btnCancelSaidaKM" class="btn-secondary">Cancelar</button>
