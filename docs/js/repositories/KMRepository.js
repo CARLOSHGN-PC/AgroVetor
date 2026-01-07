@@ -15,6 +15,7 @@ export class KMRepository {
     constructor(offlineDB, { companyIdProvider } = {}) {
         this.offlineDB = offlineDB;
         this.companyIdProvider = companyIdProvider;
+        this.lastKmCache = new Map();
     }
 
     async _getStore(mode = 'readonly') {
@@ -64,6 +65,69 @@ export class KMRepository {
         return payload;
     }
 
+    _getEffectiveTimestamp(record) {
+        const raw = record?.dataChegada || record?.dataSaida || record?.createdAt || record?.localCreatedAt || record?.updatedAt;
+        const timestamp = raw ? Date.parse(raw) : NaN;
+        return Number.isNaN(timestamp) ? 0 : timestamp;
+    }
+
+    _resolveLastKm(record) {
+        if (!record) return null;
+        const km = record.kmFinal ?? record.kmInicial;
+        return Number.isFinite(km) ? km : null;
+    }
+
+    _updateLastKmCache(record) {
+        if (!record?.veiculoId || record.status === 'DELETED') return;
+        const km = this._resolveLastKm(record);
+        if (km === null) return;
+        const current = this.lastKmCache.get(record.veiculoId);
+        const timestamp = this._getEffectiveTimestamp(record);
+        if (!current || timestamp >= current.timestamp) {
+            this.lastKmCache.set(record.veiculoId, {
+                km,
+                timestamp,
+                recordId: record.id || null
+            });
+        }
+    }
+
+    async getLastKmForVehicle(veiculoId, { companyId } = {}) {
+        if (!veiculoId) return null;
+        const cached = this.lastKmCache.get(veiculoId);
+        if (cached && Number.isFinite(cached.km)) {
+            return cached.km;
+        }
+
+        const effectiveCompanyId = companyId || this._companyId();
+        const { tx, store } = await this._getStore('readonly');
+        const source = effectiveCompanyId ? store.index('companyId') : store;
+        const range = effectiveCompanyId ? IDBKeyRange.only(effectiveCompanyId) : null;
+        let cursor = range ? await source.openCursor(range) : await source.openCursor();
+        let latestRecord = null;
+        let latestTimestamp = -1;
+
+        while (cursor) {
+            const record = cursor.value;
+            if (record?.veiculoId === veiculoId && record.status !== 'DELETED') {
+                const timestamp = this._getEffectiveTimestamp(record);
+                if (timestamp > latestTimestamp) {
+                    latestTimestamp = timestamp;
+                    latestRecord = record;
+                } else if (timestamp === latestTimestamp && latestRecord?.updatedAt && record.updatedAt) {
+                    if (Date.parse(record.updatedAt) > Date.parse(latestRecord.updatedAt)) {
+                        latestRecord = record;
+                    }
+                }
+            }
+            cursor = await cursor.continue();
+        }
+
+        await tx.done;
+        this._updateLastKmCache(latestRecord);
+        return this.lastKmCache.get(veiculoId)?.km ?? null;
+    }
+
     async createKM(data) {
         const id = generateUUID();
         const now = new Date().toISOString();
@@ -72,6 +136,8 @@ export class KMRepository {
         const { tx, store } = await this._getStore('readwrite');
         await store.put(record);
         await tx.done;
+
+        this._updateLastKmCache(record);
 
         const payload = {
             ...this._sanitizePayload(record),
@@ -109,6 +175,8 @@ export class KMRepository {
 
         await store.put(record);
         await tx.done;
+
+        this._updateLastKmCache(record);
 
         const payload = {
             ...this._sanitizePayload(record),
@@ -209,6 +277,7 @@ export class KMRepository {
                 syncStatus: 'synced'
             };
             await store.put(merged);
+            this._updateLastKmCache(merged);
         }
         await tx.done;
     }
