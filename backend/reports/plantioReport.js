@@ -47,7 +47,7 @@ const parseNumericValue = (value) => {
 };
 
 const isCanaCulture = (filters) => normalizeText(filters?.cultura) === 'Cana-de-açúcar';
-const CANA_FARM_NAME_MAX_LENGTH = 34;
+const CANA_FARM_NAME_MAX_LENGTH = 28;
 
 const normalizeWordForShortening = (word) => {
     if (!word) return '';
@@ -356,7 +356,7 @@ const buildTalhaoRows = (data, options = {}) => {
                 areaTotal: formatNumber(entry.totalArea || 0),
                 talhao: record.talhao || '',
                 areaTalhao: formatNumber(record.area || 0),
-                origemMudaFazenda: entry.mudaFazendaNome || '',
+                origemMudaFazenda: isCana ? shortenCanaFarmName(entry.mudaFazendaNome || '') : (entry.mudaFazendaNome || ''),
                 variedadeOrigem: record.variedade || '',
                 tipoPlantio: getTipoPlantioDisplay(entry.tipoPlantio, isCana),
                 recurso: entry.tipoPlantio === 'Manual' ? (entry.quantidadePessoas || '') : (entry.frotaLabel || ''),
@@ -565,7 +565,7 @@ const getPlantioFazendaColumns = (isCana) => {
 };
 
 const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64, startY, options = {}) => {
-    const { columnAlignments = [], headerRenderer = null } = options;
+    const { columnAlignments = [], headerRenderer = null, ellipsis = false } = options;
     const margins = doc.page.margins;
     const pageWidth = doc.page.width;
     const tableWidth = pageWidth - margins.left - margins.right;
@@ -631,7 +631,8 @@ const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64,
             doc.text(cellText, currentX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
                 width: maxTextWidth,
                 align,
-                lineBreak: false
+                lineBreak: false,
+                ellipsis
             });
 
             currentX += colWidth;
@@ -691,7 +692,8 @@ const drawCanaTable = async (doc, headers, rows, title, logoBase64, startY, colu
             doc.text(cellText, currentX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
                 width: maxTextWidth,
                 align,
-                lineBreak: false
+                lineBreak: false,
+                ellipsis: true
             });
 
             currentX += colWidth;
@@ -853,7 +855,8 @@ const generatePlantioResumoPdf = async (req, res, db) => {
 
         currentY = await drawResumoComparativoTable(doc, headers, rows, title, logoBase64, currentY, {
             columnAlignments,
-            headerRenderer
+            headerRenderer,
+            ellipsis: isCana
         });
 
         const totalMuda = sumRows(rowsData, 'areaMudaValue');
