@@ -2860,6 +2860,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = currentValue;
             },
 
+            updatePlantioReportOptions() {
+                const { cultura, tipo } = App.elements.relatorioPlantio;
+                if (!tipo) return;
+                const isCana = cultura && cultura.value === 'Cana-de-açúcar';
+                const options = isCana
+                    ? [
+                        { value: 'resumo', label: 'Modelo A — Resumo Comparativo (Origem da muda × Plantio)' },
+                        { value: 'talhao', label: 'Modelo B — Detalhamento por Talhão' },
+                        { value: 'insumos', label: 'Modelo C — Consumo de Insumos' },
+                        { value: 'operacional', label: 'Modelo D — Operacional' }
+                    ]
+                    : [
+                        { value: 'geral', label: 'Relatório Geral' },
+                        { value: 'fazenda', label: 'Relatório por Fazenda' },
+                        { value: 'talhao_legacy', label: 'Relatório por Talhão' }
+                    ];
+
+                const currentValue = tipo.value;
+                tipo.innerHTML = options.map(option => `<option value="${option.value}">${option.label}</option>`).join('');
+                const optionValues = options.map(option => option.value);
+                tipo.value = optionValues.includes(currentValue) ? currentValue : options[0].value;
+            },
+
             addPlantioRecordCard() {
                 const container = App.elements.apontamentoPlantio.recordsContainer;
                 if (!container) return;
@@ -4906,12 +4929,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#lancamentoClima');
 
                 const relatorioPlantioEls = App.elements.relatorioPlantio;
+                if (relatorioPlantioEls.cultura) {
+                    relatorioPlantioEls.cultura.addEventListener('change', () => App.ui.updatePlantioReportOptions());
+                    App.ui.updatePlantioReportOptions();
+                }
                 if (relatorioPlantioEls.btnPDF) relatorioPlantioEls.btnPDF.addEventListener('click', () => {
                     const reportType = relatorioPlantioEls.tipo.value;
                     if (reportType === 'resumo') App.reports.generatePlantioResumoPDF();
                     if (reportType === 'talhao') App.reports.generatePlantioTalhaoPDF();
                     if (reportType === 'insumos') App.reports.generatePlantioInsumosPDF();
                     if (reportType === 'operacional') App.reports.generatePlantioOperacionalPDF();
+                    if (reportType === 'geral') App.reports.generatePlantioGeralPDF();
+                    if (reportType === 'fazenda') App.reports.generatePlantioFazendaPDF();
+                    if (reportType === 'talhao_legacy') App.reports.generatePlantioTalhaoLegacyPDF();
                 });
                 if (relatorioPlantioEls.btnExcel) relatorioPlantioEls.btnExcel.addEventListener('click', () => {
                     const reportType = relatorioPlantioEls.tipo.value;
@@ -4919,6 +4949,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (reportType === 'talhao') App.reports.generatePlantioTalhaoExcel();
                     if (reportType === 'insumos') App.reports.generatePlantioInsumosExcel();
                     if (reportType === 'operacional') App.reports.generatePlantioOperacionalExcel();
+                    if (reportType === 'geral') App.reports.generatePlantioGeralExcel();
+                    if (reportType === 'fazenda') App.reports.generatePlantioFazendaExcel();
+                    if (reportType === 'talhao_legacy') App.reports.generatePlantioTalhaoLegacyExcel();
                 });
 
                 const relatorioClimaEls = App.elements.relatorioClima;
@@ -14385,7 +14418,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaId: fazendaId,
                     tipos: selectedTypes.join(','),
                 };
-                this._fetchAndDownloadReport('plantio/resumo/pdf', filters, 'relatorio_plantio_resumo.pdf');
+                this._fetchAndDownloadReport('plantio/fazenda/pdf', filters, 'relatorio_plantio_fazenda.pdf');
             },
 
             generatePlantioFazendaExcel() {
@@ -14403,7 +14436,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     fazendaId: fazendaId,
                     tipos: selectedTypes.join(','),
                 };
-                this._fetchAndDownloadReport('plantio/resumo/csv', filters, 'relatorio_plantio_resumo.csv');
+                this._fetchAndDownloadReport('plantio/fazenda/csv', filters, 'relatorio_plantio_fazenda.csv');
+            },
+
+            generatePlantioGeralPDF() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/geral/pdf', filters, 'relatorio_plantio_geral.pdf');
+            },
+
+            generatePlantioGeralExcel() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/geral/csv', filters, 'relatorio_plantio_geral.csv');
             },
 
             generatePlantioTalhaoPDF() {
@@ -14440,6 +14503,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     tipos: selectedTypes.join(','),
                 };
                 this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');
+            },
+
+            generatePlantioTalhaoLegacyPDF() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/talhao-legacy/pdf', filters, 'relatorio_plantio_talhao.pdf');
+            },
+
+            generatePlantioTalhaoLegacyExcel() {
+                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
+                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
+                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
+                const filters = {
+                    inicio: inicio.value,
+                    fim: fim.value,
+                    frenteId: frente.value,
+                    cultura: cultura.value,
+                    fazendaId: fazenda ? fazenda.value : '',
+                    tipos: selectedTypes.join(','),
+                };
+                this._fetchAndDownloadReport('plantio/talhao-legacy/csv', filters, 'relatorio_plantio_talhao.csv');
             },
 
             generatePlantioResumoPDF() {
