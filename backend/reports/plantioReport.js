@@ -47,6 +47,63 @@ const parseNumericValue = (value) => {
 };
 
 const isCanaCulture = (filters) => normalizeText(filters?.cultura) === 'Cana-de-açúcar';
+const CANA_FARM_NAME_MAX_LENGTH = 34;
+
+const normalizeWordForShortening = (word) => {
+    if (!word) return '';
+    return String(word)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase();
+};
+
+const shortenCanaFarmName = (originalName, maxLength = CANA_FARM_NAME_MAX_LENGTH) => {
+    if (!originalName) return '';
+    const rawName = String(originalName || '').trim();
+    if (!rawName) return '';
+    const limit = Number.isFinite(maxLength) && maxLength > 0 ? maxLength : CANA_FARM_NAME_MAX_LENGTH;
+    const divider = ' - ';
+    const dividerIndex = rawName.indexOf(divider);
+    const prefix = dividerIndex >= 0 ? rawName.slice(0, dividerIndex).trim() : '';
+    const rest = dividerIndex >= 0 ? rawName.slice(dividerIndex + divider.length).trim() : rawName;
+
+    const abbreviations = {
+        FAZENDA: 'FAZ.',
+        SANTA: 'STA',
+        SANTO: 'STO',
+        SAO: 'S.',
+        COMERCIO: 'COM.',
+        INDUSTRIA: 'IND.',
+        AGRICOLA: 'AGR.'
+    };
+
+    const restWords = rest.split(/\s+/).filter(Boolean);
+    const abbreviatedWords = restWords.map(word => {
+        const normalized = normalizeWordForShortening(word);
+        return abbreviations[normalized] || word;
+    });
+
+    const buildFullName = (restValue) => {
+        if (prefix && restValue) return `${prefix} - ${restValue}`.trim();
+        if (prefix) return prefix;
+        return restValue;
+    };
+
+    let restAbbreviated = abbreviatedWords.join(' ').replace(/\s+/g, ' ').trim();
+    let fullName = buildFullName(restAbbreviated);
+
+    if (fullName.length > limit) {
+        const fillerWords = new Set(['DE', 'DA', 'DO']);
+        const filteredWords = abbreviatedWords.filter(word => !fillerWords.has(normalizeWordForShortening(word)));
+        restAbbreviated = filteredWords.join(' ').replace(/\s+/g, ' ').trim();
+        fullName = buildFullName(restAbbreviated);
+    }
+
+    if (fullName.length <= limit) return fullName;
+
+    const sliceLength = Math.max(0, limit - 3);
+    return `${fullName.slice(0, sliceLength).trimEnd()}...`;
+};
 
 const getCompanyName = async (db, companyId) => {
     if (!companyId) return '';
@@ -262,11 +319,13 @@ const buildResumoRows = (data, options = {}) => {
     const rows = [];
     data.forEach(entry => {
         (entry.records || []).forEach(record => {
+            const origemFazenda = entry.mudaFazendaNome || '';
+            const plantioFazenda = formatFazendaLabel(entry);
             rows.push({
-                origemFazenda: entry.mudaFazendaNome || '',
+                origemFazenda: isCana ? shortenCanaFarmName(origemFazenda) : origemFazenda,
                 origemTalhao: entry.mudaTalhao || '',
                 origemVariedade: record.variedade || '',
-                plantioFazenda: formatFazendaLabel(entry),
+                plantioFazenda: isCana ? shortenCanaFarmName(plantioFazenda) : plantioFazenda,
                 plantioTalhao: record.talhao || '',
                 plantioVariedade: record.variedade || '',
                 tipoPlantio: getTipoPlantioDisplay(entry.tipoPlantio, isCana),
@@ -289,8 +348,9 @@ const buildTalhaoRows = (data, options = {}) => {
     const rows = [];
     data.forEach(entry => {
         (entry.records || []).forEach(record => {
+            const fazendaPlantada = formatFazendaLabel(entry);
             rows.push({
-                fazendaPlantada: formatFazendaLabel(entry),
+                fazendaPlantada: isCana ? shortenCanaFarmName(fazendaPlantada) : fazendaPlantada,
                 data: formatDate(entry.date),
                 variedadePlantada: record.variedade || '',
                 areaTotal: formatNumber(entry.totalArea || 0),
@@ -312,13 +372,15 @@ const buildTalhaoRows = (data, options = {}) => {
     return sortRowsByFarmDate(rows);
 };
 
-const buildInsumosRows = (data) => {
+const buildInsumosRows = (data, options = {}) => {
+    const { isCana = false } = options;
     const rows = [];
     data.forEach(entry => {
         (entry.insumos || []).forEach(insumo => {
             const totalCalculado = (entry.totalArea || 0) * (insumo.dose || 0);
+            const fazendaPlantada = formatFazendaLabel(entry);
             rows.push({
-                fazendaPlantada: formatFazendaLabel(entry),
+                fazendaPlantada: isCana ? shortenCanaFarmName(fazendaPlantada) : fazendaPlantada,
                 talhao: getTalhoesAtendidos(entry),
                 data: formatDate(entry.date),
                 variedadePlantada: getVariedadeResumo(entry),
@@ -363,10 +425,11 @@ const buildOperacionalRows = (data, options = {}) => {
     data.forEach(entry => {
         const talhoesList = getTalhoesList(entry);
         const talhoes = talhoesList.length > 0 ? talhoesList : [''];
+        const fazendaPlantada = formatFazendaLabel(entry);
 
         talhoes.forEach((talhao, index) => {
             rows.push({
-                fazendaPlantada: formatFazendaLabel(entry),
+                fazendaPlantada: shortenCanaFarmName(fazendaPlantada),
                 data: formatDate(entry.date),
                 variedadePlantada: getVariedadeResumo(entry),
                 areaTotal: formatNumber(entry.totalArea || 0),
@@ -941,11 +1004,11 @@ const generatePlantioInsumosPdf = async (req, res, db) => {
 
     try {
         const filters = req.query;
+        const isCana = isCanaCulture(filters);
         const data = await getPlantioData(db, filters);
-        const rowsData = buildInsumosRows(data);
+        const rowsData = buildInsumosRows(data, { isCana });
         const title = 'Relatório de Plantio - Modelo C (Consumo de Insumos)';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
-        const isCana = isCanaCulture(filters);
         const headerRenderer = isCana ? await createCanaHeaderRenderer(doc, title, logoBase64, filters, db) : null;
 
         if (rowsData.length === 0) {
