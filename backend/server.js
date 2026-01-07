@@ -1497,6 +1497,8 @@ try {
                     { id: 'motorista', title: 'Motorista' },
                     { id: 'origem', title: 'Origem' },
                     { id: 'destino', title: 'Destino' },
+                    { id: 'kmInicial', title: 'KM Inicial' },
+                    { id: 'kmFinal', title: 'KM Final' },
                     { id: 'kmRodado', title: 'KM Rodado' }
                 ]
             });
@@ -1508,6 +1510,8 @@ try {
                 motorista: item.motorista || '',
                 origem: item.origem || '',
                 destino: item.destino || '',
+                kmInicial: Number.isFinite(item.kmInicial) ? item.kmInicial : '',
+                kmFinal: Number.isFinite(item.kmFinal) ? item.kmFinal : '',
                 kmRodado: item.kmRodado || 0
             }));
 
