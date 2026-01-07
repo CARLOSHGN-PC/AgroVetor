@@ -74,35 +74,42 @@ const getVariedadeResumo = (entry) => {
 
 const getTalhoesAtendidos = (entry) => (entry.records || []).map(r => r.talhao).filter(Boolean).join(', ');
 
-const formatOrigemMuda = (entry) => {
-    const parts = [];
-    if (entry.origemMuda) parts.push(entry.origemMuda);
-    if (entry.mudaFazendaNome) parts.push(entry.mudaFazendaNome);
-    if (entry.mudaTalhao) parts.push(entry.mudaTalhao);
-    return parts.join(' / ');
+const buildResumoRows = (data) => {
+    const rows = [];
+    data.forEach(entry => {
+        (entry.records || []).forEach(record => {
+            rows.push({
+                origemFazenda: entry.mudaFazendaNome || '',
+                origemTalhao: entry.mudaTalhao || '',
+                origemVariedade: record.variedade || '',
+                plantioFazenda: formatFazendaLabel(entry),
+                plantioTalhao: record.talhao || '',
+                plantioVariedade: record.variedade || '',
+                data: formatDate(entry.date),
+                areaMuda: formatNumber(entry.mudaArea || 0),
+                areaPlantio: formatNumber(record.area || 0)
+            });
+        });
+    });
+    return rows;
 };
-
-const buildResumoRows = (data) => data.map(entry => ({
-    data: formatDate(entry.date),
-    cultura: entry.culture || '',
-    tipoPlantio: entry.tipoPlantio || '',
-    areaTotal: formatNumber(entry.totalArea || 0),
-    os: entry.ordemServico || '',
-    fazenda: formatFazendaLabel(entry),
-    variedade: getVariedadeResumo(entry),
-    recurso: entry.tipoPlantio === 'Manual' ? (entry.quantidadePessoas || '') : (entry.frotaLabel || '')
-}));
 
 const buildTalhaoRows = (data) => {
     const rows = [];
     data.forEach(entry => {
         (entry.records || []).forEach(record => {
             rows.push({
+                fazendaPlantada: formatFazendaLabel(entry),
+                data: formatDate(entry.date),
+                variedadePlantada: record.variedade || '',
+                areaTotal: formatNumber(entry.totalArea || 0),
                 talhao: record.talhao || '',
-                area: formatNumber(record.area || 0),
-                variedade: record.variedade || '',
-                origem: formatOrigemMuda(entry),
-                data: formatDate(entry.date)
+                areaTalhao: formatNumber(record.area || 0),
+                origemMudaFazenda: entry.mudaFazendaNome || '',
+                variedadeOrigem: record.variedade || '',
+                tipoPlantio: entry.tipoPlantio || '',
+                recurso: entry.tipoPlantio === 'Manual' ? (entry.quantidadePessoas || '') : (entry.frotaLabel || ''),
+                os: entry.ordemServico || ''
             });
         });
     });
@@ -113,13 +120,16 @@ const buildInsumosRows = (data) => {
     const rows = [];
     data.forEach(entry => {
         (entry.insumos || []).forEach(insumo => {
+            const totalCalculado = (entry.totalArea || 0) * (insumo.dose || 0);
             rows.push({
+                fazendaPlantada: formatFazendaLabel(entry),
+                data: formatDate(entry.date),
+                variedadePlantada: getVariedadeResumo(entry),
+                areaTotal: formatNumber(entry.totalArea || 0),
                 produto: insumo.produto || '',
                 dose: formatNumber(insumo.dose || 0),
-                areaTotal: formatNumber(insumo.areaTotal || entry.totalArea || 0),
-                totalGasto: formatNumber(insumo.totalGasto || 0),
-                data: formatDate(entry.date),
-                fazenda: formatFazendaLabel(entry)
+                totalCalculado: formatNumber(totalCalculado),
+                unidade: insumo.unidade || ''
             });
         });
     });
@@ -127,13 +137,111 @@ const buildInsumosRows = (data) => {
 };
 
 const buildOperacionalRows = (data) => data.map(entry => ({
+    fazendaPlantada: formatFazendaLabel(entry),
+    data: formatDate(entry.date),
+    variedadePlantada: getVariedadeResumo(entry),
+    areaTotal: formatNumber(entry.totalArea || 0),
     tipoPlantio: entry.tipoPlantio || '',
     recurso: entry.tipoPlantio === 'Manual' ? (entry.quantidadePessoas || '') : (entry.frotaLabel || ''),
     talhoes: getTalhoesAtendidos(entry),
-    areaTotal: formatNumber(entry.totalArea || 0),
-    data: formatDate(entry.date),
     os: entry.ordemServico || ''
 }));
+
+const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64, startY) => {
+    const margins = doc.page.margins;
+    const pageWidth = doc.page.width;
+    const tableWidth = pageWidth - margins.left - margins.right;
+    const rowHeight = 18;
+    const textPadding = 5;
+
+    const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
+    const numericColumns = headers.map((_, index) => {
+        return rows.every(row => {
+            const cell = row[index];
+            if (cell === '' || cell === null || cell === undefined) return true;
+            const cellText = String(cell).trim();
+            return /^[0-9,.]+([%])?$/.test(cellText);
+        });
+    });
+
+    const drawGroupedHeader = (y) => {
+        const startX = margins.left;
+        doc.font('Helvetica-Bold').fontSize(8);
+        doc.rect(startX, y, tableWidth, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+        doc.fillColor('black');
+
+        const origemWidth = columnWidths.slice(0, 3).reduce((sum, w) => sum + w, 0);
+        const plantioWidth = columnWidths.slice(3, 6).reduce((sum, w) => sum + w, 0);
+
+        doc.text('Origem da muda', startX, y + (rowHeight - doc.currentLineHeight()) / 2, {
+            width: origemWidth,
+            align: 'center',
+            lineBreak: false
+        });
+        doc.text('Plantio', startX + origemWidth, y + (rowHeight - doc.currentLineHeight()) / 2, {
+            width: plantioWidth,
+            align: 'center',
+            lineBreak: false
+        });
+
+        doc.moveTo(startX, y + rowHeight - 2).lineTo(startX + origemWidth, y + rowHeight - 2).strokeColor('#000').stroke();
+        doc.moveTo(startX + origemWidth, y + rowHeight - 2).lineTo(startX + origemWidth + plantioWidth, y + rowHeight - 2).strokeColor('#000').stroke();
+
+        return y + rowHeight;
+    };
+
+    const drawRow = (rowData, y, isHeader = false) => {
+        const startX = margins.left;
+        if (isHeader) {
+            doc.font('Helvetica-Bold').fontSize(8);
+            doc.rect(startX, y, tableWidth, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            doc.fillColor('black');
+        } else {
+            doc.font('Helvetica').fontSize(8);
+            doc.fillColor('black');
+        }
+
+        let currentX = startX;
+        rowData.forEach((cell, i) => {
+            const colWidth = columnWidths[i];
+            const maxTextWidth = colWidth - (textPadding * 2);
+            let cellText = String(cell);
+
+            let fontSize = 8;
+            doc.fontSize(fontSize);
+            while (doc.widthOfString(cellText) > maxTextWidth && fontSize > 5) {
+                fontSize -= 0.5;
+                doc.fontSize(fontSize);
+            }
+
+            const align = numericColumns[i] ? 'center' : 'left';
+            doc.text(cellText, currentX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
+                width: maxTextWidth,
+                align,
+                lineBreak: false
+            });
+
+            currentX += colWidth;
+        });
+
+        return y + rowHeight;
+    };
+
+    let currentY = drawGroupedHeader(startY);
+    currentY = drawRow(headers, currentY, true);
+
+    for (const row of rows) {
+        if (currentY > doc.page.height - margins.bottom - rowHeight) {
+            doc.addPage();
+            currentY = await generatePdfHeader(doc, title, logoBase64);
+            currentY = drawGroupedHeader(currentY);
+            currentY = drawRow(headers, currentY, true);
+        }
+        currentY = drawRow(row, currentY, false);
+    }
+
+    return currentY;
+};
 
 const generatePlantioResumoPdf = async (req, res, db) => {
     const doc = setupDoc();
@@ -144,10 +252,11 @@ const generatePlantioResumoPdf = async (req, res, db) => {
     try {
         const filters = req.query;
         const data = await getPlantioData(db, filters);
-        const title = 'Relatório de Plantio - Resumo';
+        const title = 'Relatório de Plantio - Modelo A (Resumo Comparativo)';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
+        const rowsData = buildResumoRows(data);
 
-        if (data.length === 0) {
+        if (rowsData.length === 0) {
             await generatePdfHeader(doc, title, logoBase64);
             doc.text('Nenhum dado encontrado para os filtros selecionados.');
             generatePdfFooter(doc, filters.generatedBy);
@@ -156,20 +265,20 @@ const generatePlantioResumoPdf = async (req, res, db) => {
         }
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
-        const headers = ['Data', 'Cultura', 'Tipo', 'Área Total', 'O.S', 'Fazenda', 'Variedade', 'Frota/Pessoas'];
-        const rows = buildResumoRows(data).map(r => [
+        const headers = ['Fazenda', 'Talhão', 'Variedade', 'Fazenda', 'Talhão', 'Variedade', 'Data', 'Área de muda', 'Área de plantio'];
+        const rows = rowsData.map(r => [
+            r.origemFazenda,
+            r.origemTalhao,
+            r.origemVariedade,
+            r.plantioFazenda,
+            r.plantioTalhao,
+            r.plantioVariedade,
             r.data,
-            r.cultura,
-            r.tipoPlantio,
-            r.areaTotal,
-            r.os,
-            r.fazenda,
-            r.variedade,
-            r.recurso
+            r.areaMuda,
+            r.areaPlantio
         ]);
 
-        const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
+        currentY = await drawResumoComparativoTable(doc, headers, rows, title, logoBase64, currentY);
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -187,10 +296,11 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
     try {
         const filters = req.query;
         const data = await getPlantioData(db, filters);
-        const title = 'Relatório de Plantio - Detalhamento por Talhão';
+        const title = 'Relatório de Plantio - Modelo B (Detalhamento por Talhão)';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
+        const rowsData = buildTalhaoRows(data);
 
-        if (data.length === 0) {
+        if (rowsData.length === 0) {
             await generatePdfHeader(doc, title, logoBase64);
             doc.text('Nenhum dado encontrado para os filtros selecionados.');
             generatePdfFooter(doc, filters.generatedBy);
@@ -199,8 +309,32 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
         }
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
-        const headers = ['Talhão', 'Área', 'Variedade', 'Origem da Muda', 'Data'];
-        const rows = buildTalhaoRows(data).map(r => [r.talhao, r.area, r.variedade, r.origem, r.data]);
+        const headers = [
+            'Fazenda plantada',
+            'Data',
+            'Variedade plantada',
+            'Área total',
+            'Talhão',
+            'Área do talhão',
+            'Origem da muda (fazenda)',
+            'Variedade origem',
+            'Tipo de plantio',
+            'Frota/Pessoas',
+            'O.S'
+        ];
+        const rows = rowsData.map(r => [
+            r.fazendaPlantada,
+            r.data,
+            r.variedadePlantada,
+            r.areaTotal,
+            r.talhao,
+            r.areaTalhao,
+            r.origemMudaFazenda,
+            r.variedadeOrigem,
+            r.tipoPlantio,
+            r.recurso,
+            r.os
+        ]);
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
         currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
         generatePdfFooter(doc, filters.generatedBy);
@@ -221,7 +355,7 @@ const generatePlantioInsumosPdf = async (req, res, db) => {
         const filters = req.query;
         const data = await getPlantioData(db, filters);
         const rowsData = buildInsumosRows(data);
-        const title = 'Relatório de Plantio - Consumo de Insumos';
+        const title = 'Relatório de Plantio - Modelo C (Consumo de Insumos)';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
 
         if (rowsData.length === 0) {
@@ -233,8 +367,26 @@ const generatePlantioInsumosPdf = async (req, res, db) => {
         }
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
-        const headers = ['Produto', 'Dose', 'Área Total', 'Total Consumido', 'Data', 'Fazenda'];
-        const rows = rowsData.map(r => [r.produto, r.dose, r.areaTotal, r.totalGasto, r.data, r.fazenda]);
+        const headers = [
+            'Fazenda plantada',
+            'Data',
+            'Variedade plantada',
+            'Área total',
+            'Produto/Insumo',
+            'Dose',
+            'Total calculado',
+            'Unidade'
+        ];
+        const rows = rowsData.map(r => [
+            r.fazendaPlantada,
+            r.data,
+            r.variedadePlantada,
+            r.areaTotal,
+            r.produto,
+            r.dose,
+            r.totalCalculado,
+            r.unidade
+        ]);
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
         currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
         generatePdfFooter(doc, filters.generatedBy);
@@ -254,7 +406,7 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
     try {
         const filters = req.query;
         const data = await getPlantioData(db, filters);
-        const title = 'Relatório de Plantio - Operacional';
+        const title = 'Relatório de Plantio - Modelo D (Operacional)';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
 
         if (data.length === 0) {
@@ -266,8 +418,26 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
         }
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
-        const headers = ['Tipo de Plantio', 'Frota/Pessoas', 'Talhões', 'Área Total', 'Data', 'O.S'];
-        const rows = buildOperacionalRows(data).map(r => [r.tipoPlantio, r.recurso, r.talhoes, r.areaTotal, r.data, r.os]);
+        const headers = [
+            'Fazenda plantada',
+            'Data',
+            'Variedade plantada',
+            'Área total',
+            'Tipo de plantio',
+            'Frota/Pessoas',
+            'Talhões',
+            'O.S'
+        ];
+        const rows = buildOperacionalRows(data).map(r => [
+            r.fazendaPlantada,
+            r.data,
+            r.variedadePlantada,
+            r.areaTotal,
+            r.tipoPlantio,
+            r.recurso,
+            r.talhoes,
+            r.os
+        ]);
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
         currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths);
         generatePdfFooter(doc, filters.generatedBy);
