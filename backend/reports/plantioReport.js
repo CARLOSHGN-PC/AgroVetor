@@ -350,7 +350,7 @@ const buildTalhaoRows = (data, options = {}) => {
         (entry.records || []).forEach(record => {
             const fazendaPlantada = formatFazendaLabel(entry);
             rows.push({
-                fazendaPlantada: isCana ? shortenCanaFarmName(fazendaPlantada) : fazendaPlantada,
+                fazendaPlantada,
                 data: formatDate(entry.date),
                 variedadePlantada: record.variedade || '',
                 areaTotal: formatNumber(entry.totalArea || 0),
@@ -936,7 +936,7 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             r.variedadePlantada,
             r.data,
             r.areaTotal,
-            r.origemMudaFazenda,
+            shortenCanaFarmName(r.origemMudaFazenda),
             r.variedadeOrigem,
             r.tipoPlantio,
             r.recurso,
@@ -968,7 +968,7 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             columnAlignments[7] = 'center';
             columnAlignments[8] = 'center';
             columnAlignments[9] = 'left';
-            columnAlignments[10] = 'left';
+            columnAlignments[10] = 'center';
         } else {
             columnAlignments[2] = 'center';
             columnAlignments[4] = 'center';
