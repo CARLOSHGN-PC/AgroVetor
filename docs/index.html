@@ -3445,8 +3445,10 @@
                     <div class="form-col">
                         <label for="tipoRelatorioPlantio">Tipo de Relatório:</label>
                         <select id="tipoRelatorioPlantio">
-                            <option value="fazenda">Por Fazenda</option>
-                            <option value="talhao">Geral</option>
+                            <option value="resumo">Modelo A — Resumo de Plantio</option>
+                            <option value="talhao">Modelo B — Detalhamento por Talhão</option>
+                            <option value="insumos">Modelo C — Consumo de Insumos</option>
+                            <option value="operacional">Modelo D — Operacional</option>
                         </select>
                     </div>
                 </div>
@@ -3480,7 +3482,35 @@
                     </div>
 
                     <div id="plantioCanaFields" style="display:none; margin-bottom: 15px; padding: 15px; background-color: var(--color-bg); border-radius: var(--border-radius); border: 1px solid var(--color-border);">
-                        <h4 style="margin-bottom: 10px; color: var(--color-primary);">Origem da Muda</h4>
+                        <h4 style="margin-bottom: 10px; color: var(--color-primary);">Configurações do Plantio</h4>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="plantioTipo" class="required">Tipo de Plantio:</label>
+                                <select id="plantioTipo" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="Mecanizado">Mecanizado</option>
+                                    <option value="Manual">Manual</option>
+                                </select>
+                            </div>
+                            <div class="form-col">
+                                <label for="plantioOS">O.S (Ordem de Serviço):</label>
+                                <input type="text" id="plantioOS" placeholder="Ex: OS-2024-001">
+                            </div>
+                        </div>
+                        <div class="form-row" id="plantioMecanizadoFields" style="display: none;">
+                            <div class="form-col">
+                                <label for="plantioFrota" class="required">Equipamento / Frota:</label>
+                                <select id="plantioFrota"></select>
+                            </div>
+                        </div>
+                        <div class="form-row" id="plantioManualFields" style="display: none;">
+                            <div class="form-col">
+                                <label for="plantioPessoas" class="required">Quantidade de pessoas:</label>
+                                <input type="number" id="plantioPessoas" min="1" step="1" placeholder="1">
+                            </div>
+                        </div>
+
+                        <h4 style="margin: 15px 0 10px; color: var(--color-primary);">Origem da Muda</h4>
                         <div class="form-row">
                             <div class="form-col">
                                 <label for="plantioOrigemMuda">Origem:</label>
@@ -3543,6 +3573,13 @@
                     </div>
 
                     <div class="resultado" id="totalPlantedArea" style="margin-top: 20px;"></div>
+                    <div id="plantioInsumosSection" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid var(--color-border); border-radius: var(--border-radius); background-color: var(--color-bg);">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0;"><i class="fas fa-flask"></i> Insumos do Plantio</h3>
+                            <button type="button" id="btnAddPlantioInsumo" class="save" style="max-width: 220px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Insumo</button>
+                        </div>
+                        <div id="plantioInsumosContainer" style="margin-top: 15px;"></div>
+                    </div>
                     <button type="button" id="btnSaveApontamentoPlantio" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Apontamento</button>
                 </form>
             </section>

@@ -20,7 +20,7 @@ const { formatNumber } = require('./utils/pdfGenerator');
 const { getFilteredData } = require('./utils/dataUtils');
 
 // Import new report modules
-const { generatePlantioFazendaPdf, generatePlantioTalhaoPdf, getPlantioData } = require('./reports/plantioReport');
+const { generatePlantioResumoPdf, generatePlantioTalhaoPdf, generatePlantioInsumosPdf, generatePlantioOperacionalPdf, getPlantioData, buildResumoRows, buildTalhaoRows, buildInsumosRows, buildOperacionalRows } = require('./reports/plantioReport');
 const { generateClimaPdf, getClimaData } = require('./reports/climaReport');
 const { generateBrocaPdf } = require('./reports/brocaReport');
 const { generatePerdaPdf } = require('./reports/perdaReport');
@@ -526,79 +526,34 @@ try {
 
     // --- REPORT ROUTES ---
 
-    app.get('/reports/plantio/fazenda/pdf', authMiddleware, (req, res) => generatePlantioFazendaPdf(req, res, db));
+    app.get('/reports/plantio/resumo/pdf', authMiddleware, (req, res) => generatePlantioResumoPdf(req, res, db));
 
-    app.get('/reports/plantio/fazenda/csv', authMiddleware, async (req, res) => {
+    app.get('/reports/plantio/resumo/csv', authMiddleware, async (req, res) => {
         try {
             const filters = req.query;
             const data = await getPlantioData(db, filters);
-            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+            const rows = buildResumoRows(data);
+            if (rows.length === 0) return res.status(404).send('Nenhum dado encontrado.');
 
-            const filePath = path.join(os.tmpdir(), `plantio_fazenda_${Date.now()}.csv`);
-
-            const isCaneReport = filters.cultura === 'Cana-de-açúcar';
-            let headers;
-
-            if (isCaneReport) {
-                headers = [
-                    { id: 'farmName', title: 'Fazenda' },
-                    { id: 'date', title: 'Data' },
-                    { id: 'provider', title: 'Prestador' },
-                    { id: 'leaderId', title: 'Matrícula do Líder' },
-                    { id: 'variedade', title: 'Variedade Plantada' },
-                    { id: 'talhao', title: 'Talhão' },
-                    { id: 'origemMuda', title: 'Origem Muda' },
-                    { id: 'mudaFazendaNome', title: 'Fazenda Origem' },
-                    { id: 'mudaTalhao', title: 'Talhão Origem' },
-                    { id: 'area', title: 'Área Plant. (ha)' },
-                    { id: 'mudaArea', title: 'Área Muda (ha)' },
-                    { id: 'chuva', title: 'Chuva (mm)' },
-                    { id: 'obs', title: 'Observações' }
-                ];
-            } else {
-                headers = [
-                    { id: 'farmName', title: 'Fazenda' },
-                    { id: 'date', title: 'Data' },
-                    { id: 'provider', title: 'Prestador' },
-                    { id: 'leaderId', title: 'Matrícula do Líder' },
-                    { id: 'variedade', title: 'Variedade Plantada' },
-                    { id: 'talhao', title: 'Talhão' },
-                    { id: 'area', title: 'Área Plant. (ha)' },
-                    { id: 'chuva', title: 'Chuva (mm)' },
-                    { id: 'obs', title: 'Observações' }
-                ];
-            }
-
+            const filePath = path.join(os.tmpdir(), `plantio_resumo_${Date.now()}.csv`);
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
-                header: headers
+                header: [
+                    { id: 'data', title: 'Data' },
+                    { id: 'cultura', title: 'Cultura' },
+                    { id: 'tipoPlantio', title: 'Tipo de Plantio' },
+                    { id: 'areaTotal', title: 'Área Total (ha)' },
+                    { id: 'os', title: 'O.S' },
+                    { id: 'fazenda', title: 'Fazenda' },
+                    { id: 'variedade', title: 'Variedade Plantada' },
+                    { id: 'recurso', title: 'Frota/Pessoas' }
+                ]
             });
 
-            const records = [];
-            data.forEach(item => {
-                item.records.forEach(record => {
-                    const rec = { ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` };
-                    if (isCaneReport) {
-                        rec.origemMuda = item.origemMuda || '';
-                        rec.mudaFazendaNome = item.mudaFazendaNome || '';
-                        rec.mudaTalhao = item.mudaTalhao || '';
-                        rec.mudaArea = item.mudaArea || '';
-                    }
-                    records.push(rec);
-                });
-            });
-
-            records.sort((a, b) => {
-                const farmA = parseInt(a.farmCode) || 0;
-                const farmB = parseInt(b.farmCode) || 0;
-                if (farmA !== farmB) return farmA - farmB;
-                return new Date(a.date) - new Date(b.date);
-            });
-
-            await csvWriter.writeRecords(records);
+            await csvWriter.writeRecords(rows);
             res.download(filePath);
         } catch (error) {
-            console.error("Erro ao gerar CSV de Plantio por Fazenda:", error);
+            console.error("Erro ao gerar CSV Resumo de Plantio:", error);
             res.status(500).send('Erro ao gerar relatório.');
         }
     });
@@ -666,78 +621,85 @@ try {
         try {
             const filters = req.query;
             const data = await getPlantioData(db, filters);
-            if (data.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+            const rows = buildTalhaoRows(data);
+            if (rows.length === 0) return res.status(404).send('Nenhum dado encontrado.');
 
             const filePath = path.join(os.tmpdir(), `plantio_talhao_${Date.now()}.csv`);
-
-            const isCaneReport = filters.cultura === 'Cana-de-açúcar';
-            let headers;
-
-            if (isCaneReport) {
-                headers = [
-                    { id: 'farmName', title: 'Fazenda' },
-                    { id: 'date', title: 'Data' },
-                    { id: 'talhao', title: 'Talhão' },
-                    { id: 'variedade', title: 'Variedade Plantada' },
-                    { id: 'provider', title: 'Prestador' },
-                    { id: 'origemMuda', title: 'Origem Muda' },
-                    { id: 'mudaFazendaNome', title: 'Fazenda Origem' },
-                    { id: 'mudaTalhao', title: 'Talhão Origem' },
-                    { id: 'area', title: 'Área Plant. (ha)' },
-                    { id: 'mudaArea', title: 'Área Muda (ha)' },
-                    { id: 'chuva', title: 'Chuva (mm)' },
-                    { id: 'obs', title: 'Observações' }
-                ];
-            } else {
-                headers = [
-                    { id: 'farmName', title: 'Fazenda' },
-                    { id: 'date', title: 'Data' },
-                    { id: 'talhao', title: 'Talhão' },
-                    { id: 'variedade', title: 'Variedade Plantada' },
-                    { id: 'provider', title: 'Prestador' },
-                    { id: 'area', title: 'Área Plant. (ha)' },
-                    { id: 'chuva', title: 'Chuva (mm)' },
-                    { id: 'obs', title: 'Observações' }
-                ];
-            }
-
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
-                header: headers
+                header: [
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'area', title: 'Área (ha)' },
+                    { id: 'variedade', title: 'Variedade' },
+                    { id: 'origem', title: 'Origem da Muda' },
+                    { id: 'data', title: 'Data' }
+                ]
             });
 
-            const records = [];
-            data.forEach(item => {
-                item.records.forEach(record => {
-                    const rec = { ...item, ...record, farmName: `${item.farmCode} - ${item.farmName}` };
-                    if (isCaneReport) {
-                        rec.origemMuda = item.origemMuda || '';
-                        rec.mudaFazendaNome = item.mudaFazendaNome || '';
-                        rec.mudaTalhao = item.mudaTalhao || '';
-                        rec.mudaArea = item.mudaArea || '';
-                    }
-                    records.push(rec);
-                });
-            });
-
-            records.sort((a, b) => {
-                const farmCodeA = parseInt(a.farmCode, 10) || 0;
-                const farmCodeB = parseInt(b.farmCode, 10) || 0;
-                if (farmCodeA !== farmCodeB) return farmCodeA - farmCodeB;
-
-                const dateA = new Date(a.date);
-                const dateB = new Date(b.date);
-                if (dateA - dateB !== 0) return dateA - dateB;
-
-                const tA = String(a.talhao||'');
-                const tB = String(b.talhao||'');
-                return tA.localeCompare(tB, undefined, {numeric: true});
-            });
-
-            await csvWriter.writeRecords(records);
+            await csvWriter.writeRecords(rows);
             res.download(filePath);
         } catch (error) {
             console.error("Erro ao gerar CSV de Plantio por Talhão:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/plantio/insumos/pdf', authMiddleware, (req, res) => generatePlantioInsumosPdf(req, res, db));
+
+    app.get('/reports/plantio/insumos/csv', authMiddleware, async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getPlantioData(db, filters);
+            const rows = buildInsumosRows(data);
+            if (rows.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `plantio_insumos_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'produto', title: 'Produto' },
+                    { id: 'dose', title: 'Dose' },
+                    { id: 'areaTotal', title: 'Área Total Usada (ha)' },
+                    { id: 'totalGasto', title: 'Total Consumido' },
+                    { id: 'data', title: 'Data' },
+                    { id: 'fazenda', title: 'Fazenda' }
+                ]
+            });
+
+            await csvWriter.writeRecords(rows);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV de Insumos Plantio:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/plantio/operacional/pdf', authMiddleware, (req, res) => generatePlantioOperacionalPdf(req, res, db));
+
+    app.get('/reports/plantio/operacional/csv', authMiddleware, async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getPlantioData(db, filters);
+            const rows = buildOperacionalRows(data);
+            if (rows.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `plantio_operacional_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'tipoPlantio', title: 'Tipo de Plantio' },
+                    { id: 'recurso', title: 'Frota/Pessoas' },
+                    { id: 'talhoes', title: 'Talhões Atendidos' },
+                    { id: 'areaTotal', title: 'Área Total (ha)' },
+                    { id: 'data', title: 'Data' },
+                    { id: 'os', title: 'O.S' }
+                ]
+            });
+
+            await csvWriter.writeRecords(rows);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV Operacional Plantio:", error);
             res.status(500).send('Erro ao gerar relatório.');
         }
     });
