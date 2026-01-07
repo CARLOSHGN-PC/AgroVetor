@@ -786,7 +786,7 @@ const generatePlantioFazendaPdf = async (req, res, db) => {
             const subtotalMuda = sumRows(farmGroup.rows, 'mudaAreaValue');
             const subtotalRow = new Array(headers.length).fill('');
             if (fazendaColumnIndex !== -1) {
-                subtotalRow[fazendaColumnIndex] = `SUBTOTAL – ${farmLabel}`;
+                subtotalRow[fazendaColumnIndex] = 'SUBTOTAL';
             }
             if (areaColumnIndex !== -1) {
                 subtotalRow[areaColumnIndex] = formatNumber(subtotalArea);

@@ -239,7 +239,8 @@ const drawTable = async (doc, headers, data, title, logoBase64, startY, customCo
             currentY = await generatePdfHeader(doc, title, logoBase64);
             currentY = drawRowContent(headers, currentY, true);
         }
-        currentY = drawRowContent(row, currentY);
+        const isSubtotalRow = row.some(cell => typeof cell === 'string' && cell.trim().toUpperCase() === 'SUBTOTAL');
+        currentY = drawRowContent(row, currentY, isSubtotalRow);
     }
 
     return currentY;
