@@ -539,14 +539,15 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
+                    { id: 'origemFazenda', title: 'Origem da muda - Fazenda' },
+                    { id: 'origemTalhao', title: 'Origem da muda - Talhão' },
+                    { id: 'origemVariedade', title: 'Origem da muda - Variedade' },
+                    { id: 'plantioFazenda', title: 'Plantio - Fazenda' },
+                    { id: 'plantioTalhao', title: 'Plantio - Talhão' },
+                    { id: 'plantioVariedade', title: 'Plantio - Variedade' },
                     { id: 'data', title: 'Data' },
-                    { id: 'cultura', title: 'Cultura' },
-                    { id: 'tipoPlantio', title: 'Tipo de Plantio' },
-                    { id: 'areaTotal', title: 'Área Total (ha)' },
-                    { id: 'os', title: 'O.S' },
-                    { id: 'fazenda', title: 'Fazenda' },
-                    { id: 'variedade', title: 'Variedade Plantada' },
-                    { id: 'recurso', title: 'Frota/Pessoas' }
+                    { id: 'areaMuda', title: 'Área de muda (ha)' },
+                    { id: 'areaPlantio', title: 'Área de plantio (ha)' }
                 ]
             });
 
@@ -628,11 +629,17 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
+                    { id: 'fazendaPlantada', title: 'Fazenda plantada' },
+                    { id: 'data', title: 'Data' },
+                    { id: 'variedadePlantada', title: 'Variedade plantada' },
+                    { id: 'areaTotal', title: 'Área total (ha)' },
                     { id: 'talhao', title: 'Talhão' },
-                    { id: 'area', title: 'Área (ha)' },
-                    { id: 'variedade', title: 'Variedade' },
-                    { id: 'origem', title: 'Origem da Muda' },
-                    { id: 'data', title: 'Data' }
+                    { id: 'areaTalhao', title: 'Área do talhão (ha)' },
+                    { id: 'origemMudaFazenda', title: 'Origem da muda (fazenda)' },
+                    { id: 'variedadeOrigem', title: 'Variedade origem' },
+                    { id: 'tipoPlantio', title: 'Tipo de plantio' },
+                    { id: 'recurso', title: 'Frota/Pessoas' },
+                    { id: 'os', title: 'O.S' }
                 ]
             });
 
@@ -657,12 +664,14 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'produto', title: 'Produto' },
-                    { id: 'dose', title: 'Dose' },
-                    { id: 'areaTotal', title: 'Área Total Usada (ha)' },
-                    { id: 'totalGasto', title: 'Total Consumido' },
+                    { id: 'fazendaPlantada', title: 'Fazenda plantada' },
                     { id: 'data', title: 'Data' },
-                    { id: 'fazenda', title: 'Fazenda' }
+                    { id: 'variedadePlantada', title: 'Variedade plantada' },
+                    { id: 'areaTotal', title: 'Área total (ha)' },
+                    { id: 'produto', title: 'Produto/Insumo' },
+                    { id: 'dose', title: 'Dose' },
+                    { id: 'totalCalculado', title: 'Total calculado' },
+                    { id: 'unidade', title: 'Unidade' }
                 ]
             });
 
@@ -687,11 +696,13 @@ try {
             const csvWriter = createObjectCsvWriter({
                 path: filePath,
                 header: [
-                    { id: 'tipoPlantio', title: 'Tipo de Plantio' },
-                    { id: 'recurso', title: 'Frota/Pessoas' },
-                    { id: 'talhoes', title: 'Talhões Atendidos' },
-                    { id: 'areaTotal', title: 'Área Total (ha)' },
+                    { id: 'fazendaPlantada', title: 'Fazenda plantada' },
                     { id: 'data', title: 'Data' },
+                    { id: 'variedadePlantada', title: 'Variedade plantada' },
+                    { id: 'areaTotal', title: 'Área total (ha)' },
+                    { id: 'tipoPlantio', title: 'Tipo de plantio' },
+                    { id: 'recurso', title: 'Frota/Pessoas' },
+                    { id: 'talhoes', title: 'Talhões' },
                     { id: 'os', title: 'O.S' }
                 ]
             });
