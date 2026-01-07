@@ -20,7 +20,23 @@ const { formatNumber } = require('./utils/pdfGenerator');
 const { getFilteredData } = require('./utils/dataUtils');
 
 // Import new report modules
-const { generatePlantioResumoPdf, generatePlantioTalhaoPdf, generatePlantioInsumosPdf, generatePlantioOperacionalPdf, getPlantioData, buildResumoRows, buildTalhaoRows, buildInsumosRows, buildOperacionalRows } = require('./reports/plantioReport');
+const {
+    generatePlantioResumoPdf,
+    generatePlantioTalhaoPdf,
+    generatePlantioInsumosPdf,
+    generatePlantioOperacionalPdf,
+    generatePlantioGeralPdf,
+    generatePlantioFazendaPdf,
+    generatePlantioTalhaoLegacyPdf,
+    getPlantioData,
+    buildResumoRows,
+    buildTalhaoRows,
+    buildInsumosRows,
+    buildOperacionalRows,
+    buildLegacyGeralRows,
+    buildLegacyFazendaRows,
+    buildLegacyTalhaoRows
+} = require('./reports/plantioReport');
 const { generateClimaPdf, getClimaData } = require('./reports/climaReport');
 const { generateBrocaPdf } = require('./reports/brocaReport');
 const { generatePerdaPdf } = require('./reports/perdaReport');
@@ -559,6 +575,105 @@ try {
         }
     });
 
+    app.get('/reports/plantio/geral/pdf', authMiddleware, (req, res) => generatePlantioGeralPdf(req, res, db));
+
+    app.get('/reports/plantio/geral/csv', authMiddleware, async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getPlantioData(db, filters);
+            const rows = buildLegacyGeralRows(data);
+            if (rows.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `plantio_geral_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'fazenda', title: 'Fazenda' },
+                    { id: 'data', title: 'Data' },
+                    { id: 'prestador', title: 'Prestador' },
+                    { id: 'leaderId', title: 'Matrícula Líder' },
+                    { id: 'variedade', title: 'Variedade' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'area', title: 'Área (ha)' },
+                    { id: 'chuva', title: 'Chuva (mm)' },
+                    { id: 'obs', title: 'Obs' }
+                ]
+            });
+
+            await csvWriter.writeRecords(rows);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV Geral de Plantio:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/plantio/fazenda/pdf', authMiddleware, (req, res) => generatePlantioFazendaPdf(req, res, db));
+
+    app.get('/reports/plantio/fazenda/csv', authMiddleware, async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getPlantioData(db, filters);
+            const rows = buildLegacyFazendaRows(data);
+            if (rows.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `plantio_fazenda_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'fazenda', title: 'Fazenda' },
+                    { id: 'data', title: 'Data' },
+                    { id: 'prestador', title: 'Prestador' },
+                    { id: 'leaderId', title: 'Líder' },
+                    { id: 'variedade', title: 'Variedade' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'origemFazenda', title: 'Fazenda Origem' },
+                    { id: 'origemTalhao', title: 'Talhão Origem' },
+                    { id: 'area', title: 'Área (ha)' },
+                    { id: 'mudaArea', title: 'Muda (ha)' }
+                ]
+            });
+
+            await csvWriter.writeRecords(rows);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV Plantio por Fazenda:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
+    app.get('/reports/plantio/talhao-legacy/pdf', authMiddleware, (req, res) => generatePlantioTalhaoLegacyPdf(req, res, db));
+
+    app.get('/reports/plantio/talhao-legacy/csv', authMiddleware, async (req, res) => {
+        try {
+            const filters = req.query;
+            const data = await getPlantioData(db, filters);
+            const rows = buildLegacyTalhaoRows(data);
+            if (rows.length === 0) return res.status(404).send('Nenhum dado encontrado.');
+
+            const filePath = path.join(os.tmpdir(), `plantio_talhao_${Date.now()}.csv`);
+            const csvWriter = createObjectCsvWriter({
+                path: filePath,
+                header: [
+                    { id: 'fazenda', title: 'Fazenda' },
+                    { id: 'data', title: 'Data' },
+                    { id: 'talhao', title: 'Talhão' },
+                    { id: 'variedade', title: 'Variedade' },
+                    { id: 'prestador', title: 'Prestador' },
+                    { id: 'area', title: 'Área (ha)' },
+                    { id: 'chuva', title: 'Chuva (mm)' },
+                    { id: 'obs', title: 'Obs' }
+                ]
+            });
+
+            await csvWriter.writeRecords(rows);
+            res.download(filePath);
+        } catch (error) {
+            console.error("Erro ao gerar CSV Plantio por Talhão:", error);
+            res.status(500).send('Erro ao gerar relatório.');
+        }
+    });
+
     app.get('/reports/clima/pdf', authMiddleware, (req, res) => generateClimaPdf(req, res, db));
 
     app.get('/reports/clima/csv', authMiddleware, async (req, res) => {
@@ -638,7 +753,7 @@ try {
                     { id: 'origemMudaFazenda', title: 'Origem da muda (fazenda)' },
                     { id: 'variedadeOrigem', title: 'Variedade origem' },
                     { id: 'tipoPlantio', title: 'Tipo de plantio' },
-                    { id: 'recurso', title: 'Frota/Pessoas' },
+                    { id: 'recurso', title: 'Frota (mecanizado) ou Pessoas (manual)' },
                     { id: 'os', title: 'O.S' }
                 ]
             });
@@ -668,7 +783,7 @@ try {
                     { id: 'data', title: 'Data' },
                     { id: 'variedadePlantada', title: 'Variedade plantada' },
                     { id: 'areaTotal', title: 'Área total (ha)' },
-                    { id: 'produto', title: 'Produto/Insumo' },
+                    { id: 'produto', title: 'Produto / Insumo' },
                     { id: 'dose', title: 'Dose' },
                     { id: 'totalCalculado', title: 'Total calculado' },
                     { id: 'unidade', title: 'Unidade' }
@@ -701,7 +816,7 @@ try {
                     { id: 'variedadePlantada', title: 'Variedade plantada' },
                     { id: 'areaTotal', title: 'Área total (ha)' },
                     { id: 'tipoPlantio', title: 'Tipo de plantio' },
-                    { id: 'recurso', title: 'Frota/Pessoas' },
+                    { id: 'recurso', title: 'Frota (mecanizado) ou Pessoas (manual)' },
                     { id: 'talhoes', title: 'Talhões' },
                     { id: 'os', title: 'O.S' }
                 ]
