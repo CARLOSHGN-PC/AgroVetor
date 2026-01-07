@@ -48,6 +48,111 @@ const parseNumericValue = (value) => {
 
 const isCanaCulture = (filters) => normalizeText(filters?.cultura) === 'Cana-de-açúcar';
 
+const getCompanyName = async (db, companyId) => {
+    if (!companyId) return '';
+    try {
+        const companyDoc = await db.collection('companies').doc(companyId).get();
+        if (!companyDoc.exists) return '';
+        const data = companyDoc.data() || {};
+        return data.name || data.companyName || '';
+    } catch (error) {
+        console.warn('Não foi possível obter o nome da empresa:', error.message);
+        return '';
+    }
+};
+
+const formatDateTime = (date) => {
+    if (!(date instanceof Date)) return '';
+    const formatted = date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    return formatted.replace(',', '');
+};
+
+const getTipoPlantioAbreviado = (tipoPlantio) => {
+    const normalized = normalizeText(tipoPlantio).toLowerCase();
+    if (!normalized) return '-';
+    if (normalized.includes('mec')) return 'Mec';
+    if (normalized.includes('man')) return 'Man';
+    return '-';
+};
+
+const getTipoPlantioDisplay = (tipoPlantio, isCana) => {
+    if (isCana) return getTipoPlantioAbreviado(tipoPlantio);
+    return tipoPlantio || '';
+};
+
+const createCanaHeaderRenderer = async (doc, title, logoBase64, filters, db) => {
+    const companyName = await getCompanyName(db, filters.companyId);
+    const generatedAt = new Date();
+    const periodo = `${formatDate(filters.inicio) || '-'} a ${formatDate(filters.fim) || '-'}`;
+    let pageNumber = 0;
+
+    return async () => {
+        pageNumber += 1;
+        return drawCanaPlantioHeader(doc, {
+            title,
+            logoBase64,
+            companyName,
+            generatedAt,
+            periodo,
+            pageNumber
+        });
+    };
+};
+
+const drawCanaPlantioHeader = (doc, { title, logoBase64, companyName, generatedAt, periodo, pageNumber }) => {
+    const margins = doc.page.margins;
+    const pageWidth = doc.page.width;
+    const availableWidth = pageWidth - margins.left - margins.right;
+    const blockWidth = availableWidth / 3;
+    const headerTop = 15;
+    const lineHeight = 12;
+    const logoOffset = logoBase64 ? 50 : 0;
+
+    if (logoBase64) {
+        try {
+            if ((typeof logoBase64 === 'string' && logoBase64.startsWith('data:image')) || Buffer.isBuffer(logoBase64)) {
+                doc.image(logoBase64, margins.left, headerTop, { width: 40 });
+            }
+        } catch (e) {
+            console.warn('Failed to render logo image:', e.message);
+        }
+    }
+
+    const leftX = margins.left;
+    const centerX = margins.left + blockWidth;
+    const rightX = margins.left + (blockWidth * 2);
+    const leftTextX = leftX + logoOffset;
+    const leftTextWidth = blockWidth - logoOffset;
+
+    doc.font('Helvetica-Bold').fontSize(9)
+        .text(companyName || '', leftTextX, headerTop, { width: leftTextWidth, align: 'left' });
+    doc.font('Helvetica').fontSize(9)
+        .text(title, leftTextX, headerTop + lineHeight, { width: leftTextWidth, align: 'left' });
+    doc.font('Helvetica').fontSize(9)
+        .text('Cultura: Cana-de-açúcar', leftTextX, headerTop + (lineHeight * 2), { width: leftTextWidth, align: 'left' });
+
+    doc.font('Helvetica-Bold').fontSize(11)
+        .text(title, centerX, headerTop + lineHeight, { width: blockWidth, align: 'center' });
+
+    doc.font('Helvetica').fontSize(9)
+        .text(`Data/Hora: ${formatDateTime(generatedAt)}`, rightX, headerTop, { width: blockWidth, align: 'right' });
+    doc.font('Helvetica').fontSize(9)
+        .text(`Período: ${periodo}`, rightX, headerTop + lineHeight, { width: blockWidth, align: 'right' });
+    doc.font('Helvetica').fontSize(9)
+        .text(`Página: ${pageNumber}`, rightX, headerTop + (lineHeight * 2), { width: blockWidth, align: 'right' });
+
+    doc.moveDown(2);
+    doc.y = headerTop + (lineHeight * 3) + 10;
+    return doc.y;
+};
+
 const getPlantioData = async (db, filters) => {
     if (!filters.companyId) {
         console.error("Attempt to access getPlantioData without companyId.");
@@ -122,7 +227,8 @@ const getVariedadeResumo = (entry) => {
 
 const getTalhoesAtendidos = (entry) => (entry.records || []).map(r => r.talhao).filter(Boolean).join(', ');
 
-const buildResumoRows = (data) => {
+const buildResumoRows = (data, options = {}) => {
+    const { isCana = false } = options;
     const rows = [];
     data.forEach(entry => {
         (entry.records || []).forEach(record => {
@@ -133,6 +239,7 @@ const buildResumoRows = (data) => {
                 plantioFazenda: formatFazendaLabel(entry),
                 plantioTalhao: record.talhao || '',
                 plantioVariedade: record.variedade || '',
+                tipoPlantio: getTipoPlantioDisplay(entry.tipoPlantio, isCana),
                 data: formatDate(entry.date),
                 dataSort: entry.date,
                 farmNameSort: entry.farmName || '',
@@ -147,7 +254,8 @@ const buildResumoRows = (data) => {
     return sortRowsByFarmDate(rows);
 };
 
-const buildTalhaoRows = (data) => {
+const buildTalhaoRows = (data, options = {}) => {
+    const { isCana = false } = options;
     const rows = [];
     data.forEach(entry => {
         (entry.records || []).forEach(record => {
@@ -160,7 +268,7 @@ const buildTalhaoRows = (data) => {
                 areaTalhao: formatNumber(record.area || 0),
                 origemMudaFazenda: entry.mudaFazendaNome || '',
                 variedadeOrigem: record.variedade || '',
-                tipoPlantio: entry.tipoPlantio || '',
+                tipoPlantio: getTipoPlantioDisplay(entry.tipoPlantio, isCana),
                 recurso: entry.tipoPlantio === 'Manual' ? (entry.quantidadePessoas || '') : (entry.frotaLabel || ''),
                 os: entry.ordemServico || '',
                 dataSort: entry.date,
@@ -181,6 +289,7 @@ const buildInsumosRows = (data) => {
             const totalCalculado = (entry.totalArea || 0) * (insumo.dose || 0);
             rows.push({
                 fazendaPlantada: formatFazendaLabel(entry),
+                talhao: getTalhoesAtendidos(entry),
                 data: formatDate(entry.date),
                 variedadePlantada: getVariedadeResumo(entry),
                 areaTotal: formatNumber(entry.totalArea || 0),
@@ -200,12 +309,14 @@ const buildInsumosRows = (data) => {
     return sortRowsByFarmDate(rows);
 };
 
-const buildOperacionalRows = (data) => sortRowsByFarmDate(data.map(entry => ({
+const buildOperacionalRows = (data, options = {}) => {
+    const { isCana = false } = options;
+    return sortRowsByFarmDate(data.map(entry => ({
     fazendaPlantada: formatFazendaLabel(entry),
     data: formatDate(entry.date),
     variedadePlantada: getVariedadeResumo(entry),
     areaTotal: formatNumber(entry.totalArea || 0),
-    tipoPlantio: entry.tipoPlantio || '',
+    tipoPlantio: getTipoPlantioDisplay(entry.tipoPlantio, isCana),
     recurso: entry.tipoPlantio === 'Manual' ? (entry.quantidadePessoas || '') : (entry.frotaLabel || ''),
     talhoes: getTalhoesAtendidos(entry),
     os: entry.ordemServico || '',
@@ -213,7 +324,8 @@ const buildOperacionalRows = (data) => sortRowsByFarmDate(data.map(entry => ({
     farmNameSort: entry.farmName || '',
     tieBreaker: entry.id || '',
     areaTotalValue: parseNumericValue(entry.totalArea || 0)
-})));
+    })));
+};
 
 const formatOptionalNumber = (value) => {
     if (value === '' || value === null || value === undefined) return '';
@@ -331,7 +443,8 @@ const getPlantioFazendaColumns = (isCana) => {
     ];
 };
 
-const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64, startY) => {
+const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64, startY, options = {}) => {
+    const { columnAlignments = [], headerRenderer = null } = options;
     const margins = doc.page.margins;
     const pageWidth = doc.page.width;
     const tableWidth = pageWidth - margins.left - margins.right;
@@ -400,7 +513,7 @@ const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64,
                 doc.fontSize(fontSize);
             }
 
-            const align = isHeader ? 'center' : (centeredColumns.has(i) || numericColumns[i] ? 'center' : 'left');
+            const align = isHeader ? 'center' : (columnAlignments[i] || (centeredColumns.has(i) || numericColumns[i] ? 'center' : 'left'));
             doc.text(cellText, currentX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
                 width: maxTextWidth,
                 align,
@@ -419,7 +532,7 @@ const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64,
     for (const row of rows) {
         if (currentY > doc.page.height - margins.bottom - rowHeight) {
             doc.addPage();
-            currentY = await generatePdfHeader(doc, title, logoBase64);
+            currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
             currentY = drawGroupedHeader(currentY);
             currentY = drawRow(headers, currentY, true);
         }
@@ -427,6 +540,140 @@ const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64,
     }
 
     return currentY;
+};
+
+const drawCanaTable = async (doc, headers, rows, title, logoBase64, startY, columnWidths, columnAlignments, headerRenderer) => {
+    const margins = doc.page.margins;
+    const pageWidth = doc.page.width;
+    const rowHeight = 18;
+    const textPadding = 5;
+    let currentY = startY;
+
+    const drawRowContent = (rowData, y, isHeader = false, isSummary = false) => {
+        const startX = margins.left;
+
+        if (isHeader) {
+            doc.font('Helvetica-Bold').fontSize(8);
+            doc.rect(startX, y, pageWidth - margins.left - margins.right, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            doc.fillColor('black');
+        } else if (isSummary) {
+            doc.font('Helvetica-Bold').fontSize(8);
+            doc.rect(startX, y, pageWidth - margins.left - margins.right, rowHeight).fillAndStroke('#f0f0f0', '#f0f0f0');
+            doc.fillColor('black');
+        } else {
+            doc.font('Helvetica').fontSize(8);
+            doc.fillColor('black');
+        }
+
+        let currentX = startX;
+
+        rowData.forEach((cell, i) => {
+            if (i >= columnWidths.length) return;
+            const colWidth = columnWidths[i];
+            const maxTextWidth = colWidth - (textPadding * 2);
+            const cellText = String(cell);
+
+            let fontSize = 8;
+            doc.fontSize(fontSize);
+            while (doc.widthOfString(cellText) > maxTextWidth && fontSize > 5) {
+                fontSize -= 0.5;
+                doc.fontSize(fontSize);
+            }
+
+            const align = (columnAlignments && columnAlignments[i]) ? columnAlignments[i] : 'left';
+            doc.text(cellText, currentX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
+                width: maxTextWidth,
+                align,
+                lineBreak: false
+            });
+
+            currentX += colWidth;
+        });
+
+        return y + rowHeight;
+    };
+
+    currentY = drawRowContent(headers, currentY, true);
+
+    for (const row of rows) {
+        if (currentY > doc.page.height - margins.bottom - rowHeight) {
+            doc.addPage();
+            currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
+            currentY = drawRowContent(headers, currentY, true);
+        }
+        const isSubtotalRow = row.some(cell => typeof cell === 'string' && cell.trim().toUpperCase() === 'SUBTOTAL');
+        currentY = drawRowContent(row, currentY, isSubtotalRow);
+    }
+
+    return currentY;
+};
+
+const drawCanaSummaryRow = async (doc, rowData, currentY, columnWidths, title, logoBase64, headerRenderer) => {
+    const margins = doc.page.margins;
+    const rowHeight = 18;
+    const textPadding = 5;
+
+    if (currentY > doc.page.height - margins.bottom - rowHeight) {
+        doc.addPage();
+        currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
+    }
+
+    const startX = margins.left;
+    doc.font('Helvetica-Bold').fontSize(8);
+    doc.rect(startX, currentY, doc.page.width - margins.left - margins.right, rowHeight).fillAndStroke('#f0f0f0', '#f0f0f0');
+    doc.fillColor('black');
+
+    let currentX = startX;
+
+    for (let i = 0; i < rowData.length; i++) {
+        if (i >= columnWidths.length) break;
+
+        const cell = rowData[i];
+        const cellText = String(cell);
+        const isNumber = (typeof cell === 'number' || (typeof cell === 'string' && /^[0-9,.]+([%])?$/.test(cell.trim())));
+
+        let drawX = currentX;
+        let drawWidth = columnWidths[i];
+        let align = isNumber ? 'right' : 'left';
+
+        if (cellText && !isNumber) {
+            let mergeStartIndex = i;
+            let extraWidth = 0;
+
+            for (let j = i - 1; j >= 0; j--) {
+                if (!rowData[j] || rowData[j] === '') {
+                    extraWidth += columnWidths[j];
+                    mergeStartIndex = j;
+                } else {
+                    break;
+                }
+            }
+
+            if (extraWidth > 0) {
+                let tempX = startX;
+                for (let k = 0; k < mergeStartIndex; k++) tempX += columnWidths[k];
+
+                drawX = tempX;
+                drawWidth = extraWidth + columnWidths[i];
+                align = 'right';
+            }
+        }
+
+        if (cellText) {
+            const maxTextWidth = drawWidth - (textPadding * 2);
+            doc.fontSize(8);
+            doc.text(cellText, drawX + textPadding, currentY + (rowHeight - doc.currentLineHeight()) / 2, {
+                width: maxTextWidth,
+                align,
+                lineBreak: false,
+                ellipsis: true
+            });
+        }
+
+        currentX += columnWidths[i];
+    }
+
+    return currentY + rowHeight;
 };
 
 const generatePlantioResumoPdf = async (req, res, db) => {
@@ -440,19 +687,38 @@ const generatePlantioResumoPdf = async (req, res, db) => {
         const data = await getPlantioData(db, filters);
         const title = 'Relatório de Plantio - Modelo A (Resumo Comparativo)';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
-        const rowsData = buildResumoRows(data);
+        const isCana = isCanaCulture(filters);
+        const rowsData = buildResumoRows(data, { isCana });
+        const headerRenderer = isCana ? await createCanaHeaderRenderer(doc, title, logoBase64, filters, db) : null;
 
         if (rowsData.length === 0) {
-            await generatePdfHeader(doc, title, logoBase64);
+            if (headerRenderer) {
+                await headerRenderer();
+            } else {
+                await generatePdfHeader(doc, title, logoBase64);
+            }
             doc.text('Nenhum dado encontrado para os filtros selecionados.');
             generatePdfFooter(doc, filters.generatedBy);
             doc.end();
             return;
         }
 
-        let currentY = await generatePdfHeader(doc, title, logoBase64);
-        const headers = ['Fazenda', 'Talhão', 'Variedade', 'Fazenda', 'Talhão', 'Variedade', 'Data', 'Área de muda', 'Área de plantio'];
-        const rows = rowsData.map(r => [
+        let currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
+        const headers = isCana
+            ? ['Faz Orig.', 'Talh Orig.', 'Var Orig.', 'Faz Plant.', 'Talh Plant.', 'Var Plant.', 'Tp Plant.', 'Data', 'Área Mda (ha)', 'Área Plt (ha)']
+            : ['Fazenda', 'Talhão', 'Variedade', 'Fazenda', 'Talhão', 'Variedade', 'Data', 'Área de muda', 'Área de plantio'];
+        const rows = rowsData.map(r => (isCana ? [
+            r.origemFazenda,
+            r.origemTalhao,
+            r.origemVariedade,
+            r.plantioFazenda,
+            r.plantioTalhao,
+            r.plantioVariedade,
+            r.tipoPlantio,
+            r.data,
+            r.areaMuda,
+            r.areaPlantio
+        ] : [
             r.origemFazenda,
             r.origemTalhao,
             r.origemVariedade,
@@ -462,15 +728,38 @@ const generatePlantioResumoPdf = async (req, res, db) => {
             r.data,
             r.areaMuda,
             r.areaPlantio
-        ]);
+        ]));
 
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-        currentY = await drawResumoComparativoTable(doc, headers, rows, title, logoBase64, currentY);
+        const columnAlignments = [];
+        if (isCana) {
+            columnAlignments[0] = 'left';
+            columnAlignments[1] = 'center';
+            columnAlignments[2] = 'center';
+            columnAlignments[3] = 'left';
+            columnAlignments[4] = 'center';
+            columnAlignments[5] = 'center';
+            columnAlignments[6] = 'center';
+            columnAlignments[7] = 'center';
+            columnAlignments[8] = 'right';
+            columnAlignments[9] = 'right';
+        }
+
+        currentY = await drawResumoComparativoTable(doc, headers, rows, title, logoBase64, currentY, {
+            columnAlignments,
+            headerRenderer
+        });
 
         const totalMuda = sumRows(rowsData, 'areaMudaValue');
         const totalPlantio = sumRows(rowsData, 'areaPlantioValue');
-        const totalRow = ['', '', '', '', '', '', 'TOTAL GERAL', formatNumber(totalMuda), formatNumber(totalPlantio)];
-        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        const totalRow = isCana
+            ? ['', '', '', '', '', '', '', 'TOTAL GERAL', formatNumber(totalMuda), formatNumber(totalPlantio)]
+            : ['', '', '', '', '', '', 'TOTAL GERAL', formatNumber(totalMuda), formatNumber(totalPlantio)];
+        if (headerRenderer) {
+            await drawCanaSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64, headerRenderer);
+        } else {
+            await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        }
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -490,18 +779,36 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
         const data = await getPlantioData(db, filters);
         const title = 'Relatório de Plantio - Modelo B (Detalhamento por Talhão)';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
-        const rowsData = buildTalhaoRows(data);
+        const isCana = isCanaCulture(filters);
+        const rowsData = buildTalhaoRows(data, { isCana });
+        const headerRenderer = isCana ? await createCanaHeaderRenderer(doc, title, logoBase64, filters, db) : null;
 
         if (rowsData.length === 0) {
-            await generatePdfHeader(doc, title, logoBase64);
+            if (headerRenderer) {
+                await headerRenderer();
+            } else {
+                await generatePdfHeader(doc, title, logoBase64);
+            }
             doc.text('Nenhum dado encontrado para os filtros selecionados.');
             generatePdfFooter(doc, filters.generatedBy);
             doc.end();
             return;
         }
 
-        let currentY = await generatePdfHeader(doc, title, logoBase64);
-        const headers = [
+        let currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
+        const headers = isCana ? [
+            'Faz.',
+            'Talh.',
+            'Área Talh. (ha)',
+            'Var. Plant.',
+            'Data',
+            'Área Tot. (ha)',
+            'Origem Muda',
+            'Var. Orig.',
+            'Tp Plant.',
+            'Recurso',
+            'O.S.'
+        ] : [
             'Fazenda plantada',
             'Data',
             'Variedade plantada',
@@ -514,7 +821,19 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             'Frota (mecanizado) ou Pessoas (manual)',
             'O.S'
         ];
-        const rows = rowsData.map(r => [
+        const rows = rowsData.map(r => (isCana ? [
+            r.fazendaPlantada,
+            r.talhao,
+            r.areaTalhao,
+            r.variedadePlantada,
+            r.data,
+            r.areaTotal,
+            r.origemMudaFazenda,
+            r.variedadeOrigem,
+            r.tipoPlantio,
+            r.recurso,
+            r.os
+        ] : [
             r.fazendaPlantada,
             r.data,
             r.variedadePlantada,
@@ -526,18 +845,43 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             r.tipoPlantio,
             r.recurso,
             r.os
-        ]);
+        ]));
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
         const columnAlignments = [];
-        columnAlignments[2] = 'center';
-        columnAlignments[4] = 'center';
-        columnAlignments[7] = 'center';
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+        if (isCana) {
+            columnAlignments[0] = 'left';
+            columnAlignments[1] = 'center';
+            columnAlignments[2] = 'right';
+            columnAlignments[3] = 'left';
+            columnAlignments[4] = 'center';
+            columnAlignments[5] = 'right';
+            columnAlignments[6] = 'left';
+            columnAlignments[7] = 'left';
+            columnAlignments[8] = 'center';
+            columnAlignments[9] = 'left';
+            columnAlignments[10] = 'left';
+        } else {
+            columnAlignments[2] = 'center';
+            columnAlignments[4] = 'center';
+            columnAlignments[7] = 'center';
+        }
+
+        if (headerRenderer) {
+            currentY = await drawCanaTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments, headerRenderer);
+        } else {
+            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+        }
 
         const totalAreaTotal = sumRows(rowsData, 'areaTotalValue');
         const totalAreaTalhao = sumRows(rowsData, 'areaTalhaoValue');
-        const totalRow = ['', '', 'TOTAL GERAL', formatNumber(totalAreaTotal), '', formatNumber(totalAreaTalhao), '', '', '', '', ''];
-        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        const totalRow = isCana
+            ? ['', '', formatNumber(totalAreaTalhao), '', 'TOTAL GERAL', formatNumber(totalAreaTotal), '', '', '', '', '']
+            : ['', '', 'TOTAL GERAL', formatNumber(totalAreaTotal), '', formatNumber(totalAreaTalhao), '', '', '', '', ''];
+        if (headerRenderer) {
+            await drawCanaSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64, headerRenderer);
+        } else {
+            await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        }
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -558,17 +902,34 @@ const generatePlantioInsumosPdf = async (req, res, db) => {
         const rowsData = buildInsumosRows(data);
         const title = 'Relatório de Plantio - Modelo C (Consumo de Insumos)';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
+        const isCana = isCanaCulture(filters);
+        const headerRenderer = isCana ? await createCanaHeaderRenderer(doc, title, logoBase64, filters, db) : null;
 
         if (rowsData.length === 0) {
-            await generatePdfHeader(doc, title, logoBase64);
+            if (headerRenderer) {
+                await headerRenderer();
+            } else {
+                await generatePdfHeader(doc, title, logoBase64);
+            }
             doc.text('Nenhum dado encontrado para os filtros selecionados.');
             generatePdfFooter(doc, filters.generatedBy);
             doc.end();
             return;
         }
 
-        let currentY = await generatePdfHeader(doc, title, logoBase64);
-        const headers = [
+        let currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
+        const hasTalhao = isCana && rowsData.some(row => normalizeText(row.talhao));
+        const headers = isCana ? [
+            'Faz.',
+            ...(hasTalhao ? ['Talh.'] : []),
+            'Var. Plant.',
+            'Data',
+            'Área Tot. (ha)',
+            'Produto / Insumo',
+            'Dose',
+            'Total Calc.',
+            'Unid.'
+        ] : [
             'Fazenda plantada',
             'Data',
             'Variedade plantada',
@@ -578,7 +939,17 @@ const generatePlantioInsumosPdf = async (req, res, db) => {
             'Total calculado',
             'Unidade'
         ];
-        const rows = rowsData.map(r => [
+        const rows = rowsData.map(r => (isCana ? [
+            r.fazendaPlantada,
+            ...(hasTalhao ? [r.talhao] : []),
+            r.variedadePlantada,
+            r.data,
+            r.areaTotal,
+            r.produto,
+            r.dose,
+            r.totalCalculado,
+            r.unidade
+        ] : [
             r.fazendaPlantada,
             r.data,
             r.variedadePlantada,
@@ -587,17 +958,45 @@ const generatePlantioInsumosPdf = async (req, res, db) => {
             r.dose,
             r.totalCalculado,
             r.unidade
-        ]);
+        ]));
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
         const columnAlignments = [];
-        columnAlignments[2] = 'center';
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+        if (isCana) {
+            let index = 0;
+            columnAlignments[index++] = 'left';
+            if (hasTalhao) {
+                columnAlignments[index++] = 'left';
+            }
+            columnAlignments[index++] = 'left';
+            columnAlignments[index++] = 'center';
+            columnAlignments[index++] = 'right';
+            columnAlignments[index++] = 'left';
+            columnAlignments[index++] = 'right';
+            columnAlignments[index++] = 'right';
+            columnAlignments[index++] = 'left';
+        } else {
+            columnAlignments[2] = 'center';
+        }
+
+        if (headerRenderer) {
+            currentY = await drawCanaTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments, headerRenderer);
+        } else {
+            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+        }
 
         const totalArea = sumRows(rowsData, 'areaTotalValue');
         const totalDose = sumRows(rowsData, 'doseValue');
         const totalCalculado = sumRows(rowsData, 'totalCalculadoValue');
-        const totalRow = ['', '', 'TOTAL GERAL', formatNumber(totalArea), '', formatNumber(totalDose), formatNumber(totalCalculado), ''];
-        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        const totalRow = isCana
+            ? hasTalhao
+                ? ['', '', '', 'TOTAL GERAL', formatNumber(totalArea), '', formatNumber(totalDose), formatNumber(totalCalculado), '']
+                : ['', '', 'TOTAL GERAL', formatNumber(totalArea), '', formatNumber(totalDose), formatNumber(totalCalculado), '']
+            : ['', '', 'TOTAL GERAL', formatNumber(totalArea), '', formatNumber(totalDose), formatNumber(totalCalculado), ''];
+        if (headerRenderer) {
+            await drawCanaSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64, headerRenderer);
+        } else {
+            await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        }
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
@@ -617,17 +1016,32 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
         const data = await getPlantioData(db, filters);
         const title = 'Relatório de Plantio - Modelo D (Operacional)';
         const logoBase64 = await getLogoBase64(db, filters.companyId);
+        const isCana = isCanaCulture(filters);
+        const headerRenderer = isCana ? await createCanaHeaderRenderer(doc, title, logoBase64, filters, db) : null;
 
         if (data.length === 0) {
-            await generatePdfHeader(doc, title, logoBase64);
+            if (headerRenderer) {
+                await headerRenderer();
+            } else {
+                await generatePdfHeader(doc, title, logoBase64);
+            }
             doc.text('Nenhum dado encontrado para os filtros selecionados.');
             generatePdfFooter(doc, filters.generatedBy);
             doc.end();
             return;
         }
 
-        let currentY = await generatePdfHeader(doc, title, logoBase64);
-        const headers = [
+        let currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
+        const headers = isCana ? [
+            'Faz.',
+            'Talhões',
+            'Var. Plant.',
+            'Data',
+            'Área Tot. (ha)',
+            'Tp Plant.',
+            'Recurso',
+            'O.S.'
+        ] : [
             'Fazenda plantada',
             'Data',
             'Variedade plantada',
@@ -637,8 +1051,17 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
             'Talhões',
             'O.S'
         ];
-        const rowsData = buildOperacionalRows(data);
-        const rows = rowsData.map(r => [
+        const rowsData = buildOperacionalRows(data, { isCana });
+        const rows = rowsData.map(r => (isCana ? [
+            r.fazendaPlantada,
+            r.talhoes,
+            r.variedadePlantada,
+            r.data,
+            r.areaTotal,
+            r.tipoPlantio,
+            r.recurso,
+            r.os
+        ] : [
             r.fazendaPlantada,
             r.data,
             r.variedadePlantada,
@@ -647,16 +1070,37 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
             r.recurso,
             r.talhoes,
             r.os
-        ]);
+        ]));
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
         const columnAlignments = [];
-        columnAlignments[2] = 'center';
-        columnAlignments[6] = 'center';
-        currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+        if (isCana) {
+            columnAlignments[0] = 'left';
+            columnAlignments[1] = 'left';
+            columnAlignments[2] = 'left';
+            columnAlignments[3] = 'center';
+            columnAlignments[4] = 'right';
+            columnAlignments[5] = 'center';
+            columnAlignments[6] = 'left';
+            columnAlignments[7] = 'left';
+        } else {
+            columnAlignments[2] = 'center';
+            columnAlignments[6] = 'center';
+        }
+        if (headerRenderer) {
+            currentY = await drawCanaTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments, headerRenderer);
+        } else {
+            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+        }
 
         const totalArea = sumRows(rowsData, 'areaTotalValue');
-        const totalRow = ['', '', 'TOTAL GERAL', formatNumber(totalArea), '', '', '', ''];
-        await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        const totalRow = isCana
+            ? ['', '', '', 'TOTAL GERAL', formatNumber(totalArea), '', '', '']
+            : ['', '', 'TOTAL GERAL', formatNumber(totalArea), '', '', '', ''];
+        if (headerRenderer) {
+            await drawCanaSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64, headerRenderer);
+        } else {
+            await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
+        }
         generatePdfFooter(doc, filters.generatedBy);
         doc.end();
     } catch (error) {
