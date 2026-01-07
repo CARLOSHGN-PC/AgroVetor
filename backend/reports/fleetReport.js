@@ -56,7 +56,7 @@ const generateFleetPdf = async (req, res, db) => {
 
         let currentY = await generatePdfHeader(doc, title, logoBase64);
 
-        const headers = ['Data Saída', 'Data Chegada', 'Veículo', 'Motorista', 'Origem', 'Destino', 'KM Rodado'];
+        const headers = ['Data Saída', 'Data Chegada', 'Veículo', 'Motorista', 'Origem', 'Destino', 'KM Inicial', 'KM Final', 'KM Rodado'];
 
         const rows = data.map(item => {
             const saida = new Date(item.dataSaida).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -69,6 +69,8 @@ const generateFleetPdf = async (req, res, db) => {
                 item.motorista || 'N/A',
                 item.origem || '',
                 item.destino || '',
+                item.kmInicial ? item.kmInicial.toFixed(1) : '-',
+                item.kmFinal ? item.kmFinal.toFixed(1) : '-',
                 item.kmRodado ? `${item.kmRodado.toFixed(1)} km` : '-'
             ];
         });
