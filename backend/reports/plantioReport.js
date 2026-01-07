@@ -927,8 +927,10 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             'Frota (mecanizado) ou Pessoas (manual)',
             'O.S'
         ];
+        const sanitizeCanaCell = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+        const canaHeaders = isCana ? headers.map(sanitizeCanaCell) : headers;
         const rows = rowsData.map(r => (isCana ? [
-            r.fazendaPlantada,
+            shortenCanaFarmName(r.fazendaPlantada),
             r.talhao,
             r.areaTalhao,
             r.variedadePlantada,
@@ -939,7 +941,7 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             r.tipoPlantio,
             r.recurso,
             r.os
-        ] : [
+        ].map(sanitizeCanaCell) : [
             r.fazendaPlantada,
             r.data,
             r.variedadePlantada,
@@ -952,7 +954,8 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
             r.recurso,
             r.os
         ]));
-        const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
+        const renderedHeaders = isCana ? canaHeaders : headers;
+        const columnWidths = calculateColumnWidths(doc, renderedHeaders, rows, doc.page.width, doc.page.margins);
         const columnAlignments = [];
         if (isCana) {
             columnAlignments[0] = 'left';
@@ -973,9 +976,9 @@ const generatePlantioTalhaoPdf = async (req, res, db) => {
         }
 
         if (headerRenderer) {
-            currentY = await drawCanaTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments, headerRenderer);
+            currentY = await drawCanaTable(doc, renderedHeaders, rows, title, logoBase64, currentY, columnWidths, columnAlignments, headerRenderer);
         } else {
-            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+            currentY = await drawTable(doc, renderedHeaders, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
         }
 
         const totalAreaTotal = sumRows(rowsData, 'areaTotalValue');
