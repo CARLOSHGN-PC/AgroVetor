@@ -321,6 +321,7 @@ const buildResumoRows = (data, options = {}) => {
         (entry.records || []).forEach(record => {
             const origemFazenda = entry.mudaFazendaNome || '';
             const plantioFazenda = formatFazendaLabel(entry);
+            const mudaAreaRaw = record.areaMudaHa ?? record.areaMuda ?? entry.mudaArea ?? 0;
             rows.push({
                 origemFazenda: isCana ? shortenCanaFarmName(origemFazenda) : origemFazenda,
                 origemTalhao: entry.mudaTalhao || '',
@@ -333,9 +334,9 @@ const buildResumoRows = (data, options = {}) => {
                 dataSort: entry.date,
                 farmNameSort: entry.farmName || '',
                 tieBreaker: `${entry.id || ''}-${record.talhao || ''}-${record.variedade || ''}`,
-                areaMuda: formatNumber(entry.mudaArea || 0),
+                areaMuda: formatNumber(mudaAreaRaw),
                 areaPlantio: formatNumber(record.area || 0),
-                areaMudaValue: parseNumericValue(entry.mudaArea || 0),
+                areaMudaValue: parseNumericValue(mudaAreaRaw),
                 areaPlantioValue: parseNumericValue(record.area || 0)
             });
         });
