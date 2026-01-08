@@ -220,6 +220,7 @@
       label.required::after { content: " *"; color: var(--color-danger); }
       input, select, textarea { width: 100%; padding: 12px 14px; margin-top: 8px; border-radius: var(--border-radius); border: 1px solid var(--color-border); font-size: 16px; transition: var(--transition); background-color: var(--color-bg); box-shadow: var(--shadow-sm); font-family: var(--font-family); color: var(--color-text); }
       textarea { resize: vertical; min-height: 80px; }
+      .plantio-variedade-diferente { border-color: var(--color-warning); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-warning) 25%, transparent); }
       input:focus, select:focus, textarea:focus {
         border-color: var(--color-accent);
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent), var(--shadow-md);
@@ -3527,6 +3528,16 @@
                             <div class="form-col">
                                 <label for="plantioMudaArea">Área de Muda (ha):</label>
                                 <input type="number" id="plantioMudaArea" step="0.01" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="plantioMudaTalhaoVariedade">Variedade do Talhão de Origem:</label>
+                                <input type="text" id="plantioMudaTalhaoVariedade" readonly placeholder="Selecionar talhão de origem">
+                            </div>
+                            <div class="form-col">
+                                <label for="plantioMudaTalhaoArea">Área do Talhão de Origem (ha):</label>
+                                <input type="text" id="plantioMudaTalhaoArea" readonly placeholder="Selecionar talhão de origem">
                             </div>
                         </div>
                     </div>
