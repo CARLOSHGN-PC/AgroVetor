@@ -343,6 +343,92 @@ const buildResumoRows = (data, options = {}) => {
     return sortRowsByFarmDate(rows);
 };
 
+const getCanaResumoHeaders = () => ([
+    'Faz Orig.',
+    'Talh Orig.',
+    'Var Orig.',
+    'Faz Plant.',
+    'Talh Plant.',
+    'Var Plant.',
+    'Tp Plant.',
+    'Data',
+    'Área Mda (ha)',
+    'Área Plt (ha)'
+]);
+
+const getCanaResumoRow = (row) => ([
+    row.origemFazenda,
+    row.origemTalhao,
+    row.origemVariedade,
+    row.plantioFazenda,
+    row.plantioTalhao,
+    row.plantioVariedade,
+    row.tipoPlantio,
+    row.data,
+    row.areaMuda,
+    row.areaPlantio
+]);
+
+const getCanaResumoColumnAlignments = () => {
+    const columnAlignments = [];
+    columnAlignments[0] = 'left';
+    columnAlignments[1] = 'center';
+    columnAlignments[2] = 'center';
+    columnAlignments[3] = 'left';
+    columnAlignments[4] = 'center';
+    columnAlignments[5] = 'center';
+    columnAlignments[6] = 'center';
+    columnAlignments[7] = 'center';
+    columnAlignments[8] = 'right';
+    columnAlignments[9] = 'right';
+    return columnAlignments;
+};
+
+const buildCanaResumoTotalRow = (label, totalMuda, totalPlantio) => ([
+    label,
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    formatNumber(totalMuda),
+    formatNumber(totalPlantio)
+]);
+
+const groupResumoRowsByPlantioFarm = (rows) => {
+    const sortedRows = sortRowsByFarmDate([...rows], 'plantioFazenda', 'dataSort', 'tieBreaker');
+    const sections = [];
+    let currentFarmKey = null;
+    let currentFarmLabel = '';
+    let currentRows = [];
+
+    sortedRows.forEach(row => {
+        const farmLabel = row.plantioFazenda || '';
+        const farmKey = normalizeText(farmLabel).toLocaleLowerCase('pt-BR');
+        if (currentFarmKey === null) {
+            currentFarmKey = farmKey;
+            currentFarmLabel = farmLabel;
+        }
+
+        if (farmKey !== currentFarmKey) {
+            sections.push({ farmName: currentFarmLabel, rows: currentRows });
+            currentFarmKey = farmKey;
+            currentFarmLabel = farmLabel;
+            currentRows = [];
+        }
+
+        currentRows.push(row);
+    });
+
+    if (currentFarmKey !== null) {
+        sections.push({ farmName: currentFarmLabel, rows: currentRows });
+    }
+
+    return sections;
+};
+
 const buildTalhaoRows = (data, options = {}) => {
     const { isCana = false } = options;
     const rows = [];
@@ -656,6 +742,148 @@ const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64,
     return currentY;
 };
 
+const drawResumoComparativoGroupedTable = async (doc, headers, sections, title, logoBase64, startY, options = {}) => {
+    const { columnAlignments = [], headerRenderer = null, columnWidths = null } = options;
+    const margins = doc.page.margins;
+    const pageWidth = doc.page.width;
+    const tableWidth = pageWidth - margins.left - margins.right;
+    const rowHeight = 18;
+    const textPadding = 5;
+    const centeredColumns = new Set([1, 2, 4, 5]);
+
+    const allRows = sections.flatMap(section => {
+        const mappedRows = section.rows.map(getCanaResumoRow);
+        if (section.subtotalRow) mappedRows.push(section.subtotalRow);
+        return mappedRows;
+    });
+    const resolvedColumnWidths = columnWidths || calculateColumnWidths(doc, headers, allRows, doc.page.width, doc.page.margins);
+    const numericColumns = headers.map((_, index) => {
+        return allRows.every(row => {
+            const cell = row[index];
+            if (cell === '' || cell === null || cell === undefined) return true;
+            const cellText = String(cell).trim();
+            return /^[0-9,.]+([%])?$/.test(cellText);
+        });
+    });
+
+    const drawGroupedHeader = (y) => {
+        const startX = margins.left;
+        doc.font('Helvetica-Bold').fontSize(8);
+        doc.rect(startX, y, tableWidth, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+        doc.fillColor('black');
+
+        const origemWidth = resolvedColumnWidths.slice(0, 3).reduce((sum, w) => sum + w, 0);
+        const plantioWidth = resolvedColumnWidths.slice(3, 6).reduce((sum, w) => sum + w, 0);
+
+        doc.text('Origem da muda', startX, y + (rowHeight - doc.currentLineHeight()) / 2, {
+            width: origemWidth,
+            align: 'center',
+            lineBreak: false
+        });
+        doc.text('Plantio', startX + origemWidth, y + (rowHeight - doc.currentLineHeight()) / 2, {
+            width: plantioWidth,
+            align: 'center',
+            lineBreak: false
+        });
+
+        const cutSize = 4;
+        doc.moveTo(startX, y + rowHeight - 2).lineTo(startX + origemWidth - cutSize, y + rowHeight - 2).strokeColor('#000').stroke();
+        doc.moveTo(startX + origemWidth + cutSize, y + rowHeight - 2).lineTo(startX + origemWidth + plantioWidth, y + rowHeight - 2).strokeColor('#000').stroke();
+
+        return y + rowHeight;
+    };
+
+    const drawRow = (rowData, y, { isHeader = false, isSummary = false, isGroupTitle = false } = {}) => {
+        const startX = margins.left;
+        if (isHeader || isSummary) {
+            doc.font('Helvetica-Bold').fontSize(8);
+            doc.rect(startX, y, tableWidth, rowHeight).fillAndStroke('#E8E8E8', '#E8E8E8');
+            doc.fillColor('black');
+        } else if (isGroupTitle) {
+            doc.font('Helvetica-Bold').fontSize(8);
+            doc.fillColor('black');
+        } else {
+            doc.font('Helvetica').fontSize(8);
+            doc.fillColor('black');
+        }
+
+        if (isGroupTitle) {
+            const label = rowData[0] || '';
+            doc.text(label, startX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
+                width: tableWidth - (textPadding * 2),
+                align: 'left',
+                lineBreak: false
+            });
+            return y + rowHeight;
+        }
+
+        let currentX = startX;
+        rowData.forEach((cell, i) => {
+            const colWidth = resolvedColumnWidths[i];
+            const maxTextWidth = colWidth - (textPadding * 2);
+            const cellText = String(cell);
+
+            let align;
+            if (isHeader) {
+                align = 'center';
+            } else if (isSummary) {
+                const isNumber = (typeof cell === 'number' || (typeof cell === 'string' && /^[0-9,.]+([%])?$/.test(cell.trim())));
+                align = isNumber ? 'right' : 'left';
+            } else {
+                align = columnAlignments[i] || (centeredColumns.has(i) || numericColumns[i] ? 'center' : 'left');
+            }
+
+            doc.text(cellText, currentX + textPadding, y + (rowHeight - doc.currentLineHeight()) / 2, {
+                width: maxTextWidth,
+                align,
+                lineBreak: false
+            });
+
+            currentX += colWidth;
+        });
+
+        return y + rowHeight;
+    };
+
+    let currentY = drawGroupedHeader(startY);
+    currentY = drawRow(headers, currentY, { isHeader: true });
+
+    for (const section of sections) {
+        if (currentY > doc.page.height - margins.bottom - rowHeight) {
+            doc.addPage();
+            currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
+            currentY = drawGroupedHeader(currentY);
+            currentY = drawRow(headers, currentY, { isHeader: true });
+        }
+        const farmLabel = section.farmName || '-';
+        currentY = drawRow([`Fazenda: ${farmLabel}`], currentY, { isGroupTitle: true });
+
+        for (const row of section.rows) {
+            if (currentY > doc.page.height - margins.bottom - rowHeight) {
+                doc.addPage();
+                currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
+                currentY = drawGroupedHeader(currentY);
+                currentY = drawRow(headers, currentY, { isHeader: true });
+                currentY = drawRow([`Fazenda: ${farmLabel}`], currentY, { isGroupTitle: true });
+            }
+            currentY = drawRow(getCanaResumoRow(row), currentY);
+        }
+
+        if (section.subtotalRow) {
+            if (currentY > doc.page.height - margins.bottom - rowHeight) {
+                doc.addPage();
+                currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
+                currentY = drawGroupedHeader(currentY);
+                currentY = drawRow(headers, currentY, { isHeader: true });
+                currentY = drawRow([`Fazenda: ${farmLabel}`], currentY, { isGroupTitle: true });
+            }
+            currentY = drawRow(section.subtotalRow, currentY, { isSummary: true });
+        }
+    }
+
+    return currentY;
+};
+
 const drawCanaTable = async (doc, headers, rows, title, logoBase64, startY, columnWidths, columnAlignments, headerRenderer) => {
     const margins = doc.page.margins;
     const pageWidth = doc.page.width;
@@ -811,20 +1039,9 @@ const generatePlantioResumoPdf = async (req, res, db) => {
 
         let currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
         const headers = isCana
-            ? ['Faz Orig.', 'Talh Orig.', 'Var Orig.', 'Faz Plant.', 'Talh Plant.', 'Var Plant.', 'Tp Plant.', 'Data', 'Área Mda (ha)', 'Área Plt (ha)']
+            ? getCanaResumoHeaders()
             : ['Fazenda', 'Talhão', 'Variedade', 'Fazenda', 'Talhão', 'Variedade', 'Data', 'Área de muda', 'Área de plantio'];
-        const rows = rowsData.map(r => (isCana ? [
-            r.origemFazenda,
-            r.origemTalhao,
-            r.origemVariedade,
-            r.plantioFazenda,
-            r.plantioTalhao,
-            r.plantioVariedade,
-            r.tipoPlantio,
-            r.data,
-            r.areaMuda,
-            r.areaPlantio
-        ] : [
+        const rows = rowsData.map(r => (isCana ? getCanaResumoRow(r) : [
             r.origemFazenda,
             r.origemTalhao,
             r.origemVariedade,
@@ -838,18 +1055,8 @@ const generatePlantioResumoPdf = async (req, res, db) => {
 
         const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
         const columnAlignments = [];
-        if (isCana) {
-            columnAlignments[0] = 'left';
-            columnAlignments[1] = 'center';
-            columnAlignments[2] = 'center';
-            columnAlignments[3] = 'left';
-            columnAlignments[4] = 'center';
-            columnAlignments[5] = 'center';
-            columnAlignments[6] = 'center';
-            columnAlignments[7] = 'center';
-            columnAlignments[8] = 'right';
-            columnAlignments[9] = 'right';
-        }
+        const canaColumnAlignments = getCanaResumoColumnAlignments();
+        if (isCana) columnAlignments.push(...canaColumnAlignments);
 
         currentY = await drawResumoComparativoTable(doc, headers, rows, title, logoBase64, currentY, {
             columnAlignments,
@@ -859,7 +1066,7 @@ const generatePlantioResumoPdf = async (req, res, db) => {
         const totalMuda = sumRows(rowsData, 'areaMudaValue');
         const totalPlantio = sumRows(rowsData, 'areaPlantioValue');
         const totalRow = isCana
-            ? ['TOTAL GERAL', '', '', '', '', '', '', '', formatNumber(totalMuda), formatNumber(totalPlantio)]
+            ? buildCanaResumoTotalRow('TOTAL GERAL', totalMuda, totalPlantio)
             : ['', '', '', '', '', '', 'TOTAL GERAL', formatNumber(totalMuda), formatNumber(totalPlantio)];
         if (headerRenderer) {
             await drawCanaSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64, headerRenderer);
@@ -1128,7 +1335,9 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
         const isCana = isCanaCulture(filters);
         const headerRenderer = isCana ? await createCanaHeaderRenderer(doc, title, logoBase64, filters, db) : null;
 
-        if (data.length === 0) {
+        const rowsData = isCana ? buildResumoRows(data, { isCana }) : buildOperacionalRows(data, { isCana });
+
+        if (rowsData.length === 0) {
             if (headerRenderer) {
                 await headerRenderer();
             } else {
@@ -1141,73 +1350,65 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
         }
 
         let currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
-        const headers = isCana ? [
-            'Faz.',
-            'Talhões',
-            'Var. Plant.',
-            'Data',
-            'Área Tot. (ha)',
-            'Tp Plant.',
-            'Recurso',
-            'O.S.'
-        ] : [
-            'Fazenda plantada',
-            'Data',
-            'Variedade plantada',
-            'Área total',
-            'Tipo de plantio',
-            'Frota (mecanizado) ou Pessoas (manual)',
-            'Talhões',
-            'O.S'
-        ];
-        const rowsData = buildOperacionalRows(data, { isCana });
-        const rows = rowsData.map(r => (isCana ? [
-            r.fazendaPlantada,
-            r.talhao,
-            r.variedadePlantada,
-            r.data,
-            r.areaTotal,
-            r.tipoPlantio,
-            r.recurso,
-            r.os
-        ] : [
-            r.fazendaPlantada,
-            r.data,
-            r.variedadePlantada,
-            r.areaTotal,
-            r.tipoPlantio,
-            r.recurso,
-            r.talhao,
-            r.os
-        ]));
-        const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
-        const columnAlignments = [];
-        if (isCana) {
-            columnAlignments[0] = 'left';
-            columnAlignments[1] = 'center';
-            columnAlignments[2] = 'center';
-            columnAlignments[3] = 'center';
-            columnAlignments[4] = 'right';
-            columnAlignments[5] = 'center';
-            columnAlignments[6] = 'left';
-            columnAlignments[7] = 'left';
-        } else {
-            columnAlignments[2] = 'center';
-            columnAlignments[6] = 'center';
-        }
-        if (headerRenderer) {
-            currentY = await drawCanaTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments, headerRenderer);
-        } else {
-            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
-        }
 
-        const totalArea = sumRows(rowsData, 'areaTotalValue');
-        const totalRow = isCana
-            ? ['TOTAL GERAL', '', '', '', formatNumber(totalArea), '', '', '']
-            : ['', '', 'TOTAL GERAL', formatNumber(totalArea), '', '', '', ''];
-        if (headerRenderer) {
+        if (isCana) {
+            const headers = getCanaResumoHeaders();
+            const columnAlignments = getCanaResumoColumnAlignments();
+            const sections = groupResumoRowsByPlantioFarm(rowsData).map(section => {
+                const subtotalMuda = sumRows(section.rows, 'areaMudaValue');
+                const subtotalPlantio = sumRows(section.rows, 'areaPlantioValue');
+                return {
+                    farmName: section.farmName,
+                    rows: section.rows,
+                    subtotalRow: buildCanaResumoTotalRow('SUBTOTAL', subtotalMuda, subtotalPlantio)
+                };
+            });
+            const widthRows = sections.flatMap(section => {
+                const mapped = section.rows.map(getCanaResumoRow);
+                if (section.subtotalRow) mapped.push(section.subtotalRow);
+                return mapped;
+            });
+            const columnWidths = calculateColumnWidths(doc, headers, widthRows, doc.page.width, doc.page.margins);
+
+            currentY = await drawResumoComparativoGroupedTable(doc, headers, sections, title, logoBase64, currentY, {
+                columnAlignments,
+                headerRenderer,
+                columnWidths
+            });
+
+            const totalMuda = sumRows(rowsData, 'areaMudaValue');
+            const totalPlantio = sumRows(rowsData, 'areaPlantioValue');
+            const totalRow = buildCanaResumoTotalRow('TOTAL GERAL', totalMuda, totalPlantio);
             await drawCanaSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64, headerRenderer);
         } else {
+            const headers = [
+                'Fazenda plantada',
+                'Data',
+                'Variedade plantada',
+                'Área total',
+                'Tipo de plantio',
+                'Frota (mecanizado) ou Pessoas (manual)',
+                'Talhões',
+                'O.S'
+            ];
+            const rows = rowsData.map(r => ([
+                r.fazendaPlantada,
+                r.data,
+                r.variedadePlantada,
+                r.areaTotal,
+                r.tipoPlantio,
+                r.recurso,
+                r.talhao,
+                r.os
+            ]));
+            const columnWidths = calculateColumnWidths(doc, headers, rows, doc.page.width, doc.page.margins);
+            const columnAlignments = [];
+            columnAlignments[2] = 'center';
+            columnAlignments[6] = 'center';
+            currentY = await drawTable(doc, headers, rows, title, logoBase64, currentY, columnWidths, columnAlignments);
+
+            const totalArea = sumRows(rowsData, 'areaTotalValue');
+            const totalRow = ['', '', 'TOTAL GERAL', formatNumber(totalArea), '', '', '', ''];
             await drawSummaryRow(doc, totalRow, currentY, columnWidths, title, logoBase64);
         }
         generatePdfFooter(doc, filters.generatedBy);
