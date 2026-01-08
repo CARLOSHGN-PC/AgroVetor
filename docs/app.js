@@ -274,6 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
             abastecimentos: [],
             plantioTotalArea: 0,
             plantioVariedadeWarningShown: false,
+            plantioLegacyMudaArea: null,
         },
         
         fleet: FleetModule,
@@ -551,7 +552,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 origemMuda: document.getElementById('plantioOrigemMuda'),
                 mudaFazenda: document.getElementById('plantioMudaFazenda'),
                 mudaTalhao: document.getElementById('plantioMudaTalhao'),
-                mudaArea: document.getElementById('plantioMudaArea'),
                 mudaTalhaoVariedade: document.getElementById('plantioMudaTalhaoVariedade'),
                 mudaTalhaoArea: document.getElementById('plantioMudaTalhaoArea'),
 
@@ -2919,6 +2919,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <label for="plantioArea-${recordId}" class="required">Área Plantada (ha):</label>
                                 <input type="number" id="plantioArea-${recordId}" class="plantio-record-input plantio-area-input" required>
                             </div>
+                            <div class="form-col">
+                                <label for="plantioMudaArea-${recordId}">Área de Muda (ha):</label>
+                                <input type="number" id="plantioMudaArea-${recordId}" class="plantio-record-input plantio-muda-area-input" step="0.01" placeholder="0.00">
+                            </div>
                         </div>
                     </div>
                 `;
@@ -3262,7 +3266,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.origemMuda.value = '';
                 els.mudaFazenda.value = '';
                 els.mudaTalhao.innerHTML = '';
-                els.mudaArea.value = '';
                 this.clearPlantioOrigemTalhaoInfo();
                 this.clearPlantioVariedadeRecords();
                 if (els.frota) els.frota.value = '';
@@ -3270,6 +3273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (els.insumosContainer) els.insumosContainer.innerHTML = '';
                 if (els.insumosSection) els.insumosSection.style.display = 'none';
                 App.state.plantioVariedadeWarningShown = false;
+                App.state.plantioLegacyMudaArea = null;
                 this.updatePlantioTipoFields();
             },
 
@@ -6747,10 +6751,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const talhaoSelect = card.querySelector('.plantio-talhao-select');
                     const variedadeInput = card.querySelector('input[id^="plantioVariedade-"]');
                     const areaInput = card.querySelector('input[id^="plantioArea-"]');
+                    const mudaAreaInput = card.querySelector('input[id^="plantioMudaArea-"]');
                     const area = parseFloat(areaInput.value) || 0;
                     const maxArea = parseFloat(areaInput.max);
                     const variedadeValue = variedadeInput.value.toUpperCase();
                     const autoVariedade = (variedadeInput.dataset.autoVariedade || '').toUpperCase();
+                    const mudaArea = mudaAreaInput && mudaAreaInput.value !== '' ? parseFloat(mudaAreaInput.value) : null;
 
                     if (!talhaoSelect.value || !variedadeValue || !areaInput.value) {
                         App.ui.showAlert("Preencha todos os campos em todos os lançamentos (Talhão, Variedade, Área).", "error");
@@ -6771,7 +6777,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         variedadeAuto: autoVariedade,
                         variedadeOverride: variedadeInput.dataset.override === 'true',
                         variedadeDiferenteDaOrigem: Boolean(autoVariedade && variedadeValue && variedadeValue !== autoVariedade),
-                        area: area
+                        area: area,
+                        areaMudaHa: mudaArea
                     });
                 }
 
@@ -6836,12 +6843,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     newEntry.mudaFazendaId = els.mudaFazenda.value;
                     newEntry.mudaFazendaNome = els.mudaFazenda.options[els.mudaFazenda.selectedIndex].text;
                     newEntry.mudaTalhao = els.mudaTalhao.value;
-                    newEntry.mudaArea = els.mudaArea.value ? parseFloat(els.mudaArea.value) : 0;
                     newEntry.tipoPlantio = els.tipoPlantio.value;
                     newEntry.ordemServico = els.os.value.trim();
                     newEntry.frotaId = els.frota.value || '';
                     newEntry.frotaLabel = frotaSelecionada ? `${frotaSelecionada.codigo || ''}${frotaSelecionada.placa ? ` - ${frotaSelecionada.placa}` : ''}`.trim() : '';
                     newEntry.quantidadePessoas = els.pessoas.value ? parseInt(els.pessoas.value, 10) : 0;
+                    if (App.state.plantioLegacyMudaArea !== null && App.state.plantioLegacyMudaArea !== undefined && App.state.plantioLegacyMudaArea !== '') {
+                        newEntry.mudaArea = App.state.plantioLegacyMudaArea;
+                    }
                 }
 
                 const entryId = els.entryId.value;
@@ -6875,6 +6884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.apontamentoPlantioFormIsDirty = false;
                         App.state.plantioVariedadeWarningShown = false;
                         App.state.plantioTotalArea = 0;
+                        App.state.plantioLegacyMudaArea = null;
                         if (els.canaFields) {
                             els.canaFields.style.display = 'none';
                         }
@@ -8029,6 +8039,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             els.pessoas.value = entry.quantidadePessoas || '';
                             els.origemMuda.value = entry.origemMuda || '';
                             els.mudaFazenda.value = entry.mudaFazendaId || '';
+                            App.state.plantioLegacyMudaArea = entry.mudaArea ?? null;
                             const originFarm = App.state.fazendas.find(f => f.id === entry.mudaFazendaId);
                             els.mudaTalhao.innerHTML = '<option value="">Selecione...</option>';
                             if (originFarm?.talhoes) {
@@ -8037,10 +8048,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                             }
                             els.mudaTalhao.value = entry.mudaTalhao || '';
-                            els.mudaArea.value = entry.mudaArea || '';
                             App.ui.updatePlantioOrigemTalhaoInfo();
                         } else {
                             els.canaFields.style.display = 'none';
+                            App.state.plantioLegacyMudaArea = null;
                         }
                         els.recordsContainer.innerHTML = '';
                         if (els.insumosContainer) els.insumosContainer.innerHTML = '';
@@ -8051,6 +8062,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const talhaoSelect = card.querySelector('.plantio-talhao-select');
                             const variedadeInput = card.querySelector('input[id^="plantioVariedade-"]');
                             const areaInput = card.querySelector('input[id^="plantioArea-"]');
+                            const mudaAreaInput = card.querySelector('input[id^="plantioMudaArea-"]');
                             talhaoSelect.value = record.talhaoId;
                             variedadeInput.value = (record.variedade || '').toUpperCase();
                             variedadeInput.dataset.autoVariedade = origemVariedade;
@@ -8059,6 +8071,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             variedadeInput.dataset.manual = isOverride ? 'true' : 'false';
                             App.ui.updatePlantioVariedadeOverrideState(variedadeInput);
                             areaInput.value = record.area;
+                            if (mudaAreaInput) {
+                                const recordMudaArea = record.areaMudaHa ?? null;
+                                mudaAreaInput.value = recordMudaArea !== null && recordMudaArea !== undefined ? recordMudaArea : '';
+                            }
                             App.ui.updateTalhaoInfo(card);
                         });
                         if (entry.insumos && entry.insumos.length > 0 && els.insumosContainer) {
