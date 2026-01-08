@@ -743,7 +743,7 @@ const drawResumoComparativoTable = async (doc, headers, rows, title, logoBase64,
 };
 
 const drawResumoComparativoGroupedTable = async (doc, headers, sections, title, logoBase64, startY, options = {}) => {
-    const { columnAlignments = [], headerRenderer = null, columnWidths = null } = options;
+    const { columnAlignments = [], headerRenderer = null, columnWidths = null, showGroupTitle = true } = options;
     const margins = doc.page.margins;
     const pageWidth = doc.page.width;
     const tableWidth = pageWidth - margins.left - margins.right;
@@ -856,7 +856,9 @@ const drawResumoComparativoGroupedTable = async (doc, headers, sections, title, 
             currentY = drawRow(headers, currentY, { isHeader: true });
         }
         const farmLabel = section.farmName || '-';
-        currentY = drawRow([`Fazenda: ${farmLabel}`], currentY, { isGroupTitle: true });
+        if (showGroupTitle) {
+            currentY = drawRow([`Fazenda: ${farmLabel}`], currentY, { isGroupTitle: true });
+        }
 
         for (const row of section.rows) {
             if (currentY > doc.page.height - margins.bottom - rowHeight) {
@@ -864,7 +866,9 @@ const drawResumoComparativoGroupedTable = async (doc, headers, sections, title, 
                 currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
                 currentY = drawGroupedHeader(currentY);
                 currentY = drawRow(headers, currentY, { isHeader: true });
-                currentY = drawRow([`Fazenda: ${farmLabel}`], currentY, { isGroupTitle: true });
+                if (showGroupTitle) {
+                    currentY = drawRow([`Fazenda: ${farmLabel}`], currentY, { isGroupTitle: true });
+                }
             }
             currentY = drawRow(getCanaResumoRow(row), currentY);
         }
@@ -875,7 +879,9 @@ const drawResumoComparativoGroupedTable = async (doc, headers, sections, title, 
                 currentY = headerRenderer ? await headerRenderer() : await generatePdfHeader(doc, title, logoBase64);
                 currentY = drawGroupedHeader(currentY);
                 currentY = drawRow(headers, currentY, { isHeader: true });
-                currentY = drawRow([`Fazenda: ${farmLabel}`], currentY, { isGroupTitle: true });
+                if (showGroupTitle) {
+                    currentY = drawRow([`Fazenda: ${farmLabel}`], currentY, { isGroupTitle: true });
+                }
             }
             currentY = drawRow(section.subtotalRow, currentY, { isSummary: true });
         }
@@ -1373,7 +1379,8 @@ const generatePlantioOperacionalPdf = async (req, res, db) => {
             currentY = await drawResumoComparativoGroupedTable(doc, headers, sections, title, logoBase64, currentY, {
                 columnAlignments,
                 headerRenderer,
-                columnWidths
+                columnWidths,
+                showGroupTitle: false
             });
 
             const totalMuda = sumRows(rowsData, 'areaMudaValue');
