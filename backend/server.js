@@ -162,10 +162,6 @@ try {
         res.status(200).send('Servidor de relatórios AgroVetor está online e conectado ao Firebase!');
     });
 
-    app.get('/health', (req, res) => {
-        res.status(200).json({ ok: true, ts: Date.now() });
-    });
-
     // ROTA PARA UPLOAD DO LOGO
     app.post('/upload-logo', authMiddleware, async (req, res) => {
         const { logoBase64, companyId } = req.body;
