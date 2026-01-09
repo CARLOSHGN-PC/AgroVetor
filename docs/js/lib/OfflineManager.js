@@ -7,7 +7,7 @@
 export class OfflineManager {
     constructor() {
         this.dbName = 'agrovetor-offline-storage';
-        this.dbVersion = 8; // Incremented for new architecture
+        this.dbVersion = 7; // Incremented for new architecture
         this.dbPromise = null;
     }
 
@@ -186,15 +186,6 @@ export class OfflineManager {
     async getPendingOperations() {
         const db = await this.init();
         return db.getAll('sync_queue');
-    }
-
-    async getPendingOperationCount() {
-        const db = await this.init();
-        if (typeof db.count === 'function') {
-            return db.count('sync_queue');
-        }
-        const pending = await db.getAll('sync_queue');
-        return pending.length;
     }
 
     async removeOperation(id) {
