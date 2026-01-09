@@ -414,7 +414,7 @@ const FleetModule = {
             App.ui.showAlert("Saída registada com sucesso!");
             this.clearTripForm();
             await this.loadActiveTrips();
-            if (App.network?.isOnline?.()) {
+            if (navigator.onLine) {
                 App.actions.syncOfflineWrites();
             }
         } catch (error) {
@@ -516,7 +516,7 @@ const FleetModule = {
             this.clearTripForm();
             await this.loadActiveTrips();
             await this.loadHistoryPage();
-            if (App.network?.isOnline?.()) {
+            if (navigator.onLine) {
                 App.actions.syncOfflineWrites();
             }
 
