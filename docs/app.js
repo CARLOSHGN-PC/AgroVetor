@@ -6,7 +6,6 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
-import ConnectivityService from './js/services/connectivity.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -119,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const App = {
         offlineDB: OfflineDB,
-        connectivity: ConnectivityService,
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
@@ -845,25 +843,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         init() {
             OfflineDB.init();
-            ConnectivityService.init(); // Initialize the unified connectivity service
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
-
-            // Listen to unified connectivity changes
-            ConnectivityService.addListener((isOnline) => {
-                App.ui.updateConnectionStatus(isOnline);
-                if (isOnline) {
-                    App.actions.onConnectivityRestored();
-                } else {
-                    console.log("App entrou em modo offline.");
-                }
-            });
-
-            // Initial status update
-            this.ui.updateConnectionStatus(ConnectivityService.isOnline);
         },
 
         native: {
@@ -871,7 +855,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     this.configureStatusBar();
                     this.registerPushNotifications();
-                    // ConnectivityService now handles network listeners
+                    this.listenForNetworkChanges(); // Adiciona o listener de rede
+                }
+            },
+
+            // --- Funcionalidade 4: Monitoramento de Rede ---
+            async listenForNetworkChanges() {
+                try {
+                    const { Network } = Capacitor.Plugins;
+
+                    // Exibe o status inicial
+                    const status = await Network.getStatus();
+                    console.log(`Status inicial da rede: ${status.connected ? 'Online' : 'Offline'}`);
+
+                    // Adiciona um 'ouvinte' para quando o status da rede mudar
+                    Network.addListener('networkStatusChange', (status) => {
+                        console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
+                        if (status.connected) {
+                            // Se conectar, dispara um evento 'online' personalizado,
+                            // que a lógica existente do App já sabe como manipular.
+                            window.dispatchEvent(new Event('online'));
+                        }
+                    });
+                } catch (e) {
+                    console.error("Erro ao configurar o monitoramento de rede do Capacitor.", e);
                 }
             },
 
@@ -1024,17 +1031,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             // Bloqueia o login se a empresa do utilizador estiver inativa
                             if (userDoc.role !== 'super-admin' && userDoc.companyId) {
-                                try {
-                                    companyDoc = await App.data.getDocument('companies', userDoc.companyId);
-                                    if (companyDoc && companyDoc.active === false) {
-                                        App.auth.logout();
-                                        App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
-                                        return;
-                                    }
-                                } catch (e) {
-                                    console.warn("Não foi possível verificar o status da empresa (provavelmente offline). Permitindo acesso.", e);
-                                    // Se falhar (ex: offline e sem cache), permitimos continuar se já tivermos sessão válida.
-                                    // O listener da empresa cuidará de atualizar o estado depois.
+                                companyDoc = await App.data.getDocument('companies', userDoc.companyId);
+                                if (!companyDoc || companyDoc.active === false) {
+                                    App.auth.logout();
+                                    App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
+                                    return;
                                 }
                             }
 
@@ -1042,14 +1043,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             // Validação CRÍTICA para o modelo multi-empresa
                             if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
-                                // Não forçar logout se estiver offline, pois pode ser um erro de carregamento parcial do perfil
-                                if (navigator.onLine) {
-                                    App.auth.logout();
-                                    App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
-                                    return;
-                                } else {
-                                    console.warn("CompanyId ausente no perfil, mas offline. Tentando continuar.");
-                                }
+                                App.auth.logout();
+                                App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
+                                return;
                             }
 
                             // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
@@ -1087,10 +1083,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 App.actions.checkSequence();
 
                             } catch (error) {
-                                console.error("Falha ao carregar dados iniciais (possivelmente offline):", error);
-                                // Em vez de logout, tentamos carregar o app com o que temos
-                                App.ui.showAppScreen();
-                                App.data.listenToAllData();
+                                console.error("Falha crítica ao carregar dados iniciais:", error);
+                                App.auth.logout();
+                                App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
                             }
 
                         } else {
@@ -1134,7 +1129,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            // Login offline mantido como fallback, mas o fluxo principal agora tenta usar persistência do Firebase
             async loginOffline(email, password) {
                 if (!email || !password) {
                     App.ui.showAlert("Por favor, insira e-mail e senha.", "warning");
@@ -1145,7 +1139,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const credentials = await OfflineDB.get('offline-credentials', email.toLowerCase());
 
                     if (!credentials) {
-                        App.ui.showAlert("Credenciais offline não encontradas. Faça login online pelo menos uma vez.", "error");
+                        App.ui.showAlert("Credenciais offline não encontradas para este e-mail. Faça login online primeiro e habilite o acesso offline.", "error");
                         return;
                     }
 
@@ -1156,53 +1150,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (hashedPassword === credentials.hashedPassword) {
                         App.state.currentUser = credentials.userProfile;
-                        App.ui.setLoading(true, "A carregar dados offline...");
 
+                        App.ui.setLoading(true, "A carregar dados offline...");
                         try {
                             const companyId = App.state.currentUser.companyId;
-                            // Tenta carregar dados do cache do Firestore se disponível, senão continua com o básico
-                            try {
-                                if (companyId) {
-                                    const companyDoc = await App.data.getDocument('companies', companyId);
-                                    if (companyDoc) App.state.companies = [companyDoc];
+
+                            // Pré-carrega os dados da empresa a partir do cache offline
+                            if (companyId) {
+                                const companyDoc = await App.data.getDocument('companies', companyId);
+                                if (companyDoc) {
+                                     App.state.companies = [companyDoc];
+                                } else {
+                                    console.warn("Documento da empresa não encontrado no cache offline durante o login.");
                                 }
-                                const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                                if (globalConfigsDoc.exists()) App.state.globalConfigs = globalConfigsDoc.data();
-                            } catch (e) {
-                                console.warn("Acesso ao cache do Firestore falhou no modo offline manual. Usando apenas dados locais básicos.", e);
                             }
 
+                            // Pré-carrega as configurações globais a partir do cache offline
+                            const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                            if (globalConfigsDoc.exists()) {
+                                App.state.globalConfigs = globalConfigsDoc.data();
+                            } else {
+                                console.warn("Configurações globais não encontradas no cache offline durante o login.");
+                            }
+
+                            // Agora, com os dados essenciais pré-carregados, mostra a tela da aplicação
                             App.ui.showAppScreen();
                             App.mapModule.loadOfflineShapes();
-                            // Inicia listeners para quando a rede voltar
-                            App.data.listenToAllData();
+                            App.data.listenToAllData(); // Configura os 'listeners' para futuras atualizações quando estiver online
 
                         } catch (error) {
-                            console.error("Erro crítico no login offline:", error);
-                            App.ui.showAppScreen(); // Tenta mostrar mesmo com erro
+                            console.error("Erro ao pré-carregar dados do cache offline:", error);
+                            // Fallback para o comportamento antigo se o pré-carregamento falhar
+                            App.ui.showAppScreen();
+                            App.mapModule.loadOfflineShapes();
+                            App.data.listenToAllData();
                         } finally {
                             App.ui.setLoading(false);
                         }
                     } else {
-                        App.ui.showAlert("Senha incorreta.", "error");
+                        App.ui.showAlert("Senha offline incorreta.", "error");
                     }
                 } catch (error) {
-                    App.ui.showAlert("Erro ao processar login offline.", "error");
+                    App.ui.showAlert("Ocorreu um erro durante o login offline.", "error");
                     console.error("Erro no login offline:", error);
                 }
             },
             async logout() {
-                // Previne logout acidental se chamado por handlers de erro de rede
-                if (!navigator.onLine && !confirm("Você está offline. Fazer logout agora pode impedir que entre novamente sem internet. Deseja continuar?")) {
-                    return;
-                }
-
                 if (navigator.onLine) {
-                    try {
-                        await signOut(auth);
-                    } catch (e) {
-                        console.error("Erro ao fazer signout no Firebase:", e);
-                    }
+                    await signOut(auth);
                 }
                 // Limpa todos os listeners e processos em segundo plano
                 App.data.cleanupListeners();
@@ -1493,22 +1488,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (doc.exists()) {
                             // Coloca a empresa do utilizador no estado, para que o menu possa ser renderizado corretamente
                             App.state.companies = [{ id: doc.id, ...doc.data() }];
+                        } else if (navigator.onLine) {
+                            // Se estiver online e a empresa não for encontrada, desloga o utilizador por segurança.
+                            console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
+                            App.auth.logout();
                         } else {
-                            // [CORREÇÃO] Não deslogar o usuário se a empresa não for encontrada imediatamente.
-                            // Pode ser um delay de sincronização ou falha temporária de rede.
-                            // Mantém o estado anterior se existir, ou avisa.
-                            console.warn(`Documento da empresa com ID ${companyId} não disponível no momento (Snapshot vazio).`);
-
-                            // Tenta recuperar do cache local manual se o snapshot falhar/estiver vazio e estivermos offline
-                            if (!navigator.onLine && App.state.companies.length === 0) {
-                                // Tenta buscar do IndexedDB ou LocalStorage se tivermos backup
-                                // Por enquanto, apenas não faz logout.
-                            }
+                            // Se estiver offline e o documento da empresa não estiver no cache, permite que a aplicação continue.
+                            // Os módulos podem não ser renderizados corretamente, mas o acesso não é bloqueado.
+                            console.warn(`Documento da empresa com ID ${companyId} não encontrado no cache offline. O menu pode estar incompleto.`);
                         }
                         App.ui.renderMenu(); // Re-renderiza o menu quando os dados da empresa mudam
-                    }, (error) => {
-                        console.error("Erro no listener da empresa:", error);
-                        // Ignora erros de permissão/rede que causariam crash, mantém o app rodando
                     });
                     App.state.unsubscribeListeners.push(unsubscribeCompany);
 
@@ -2203,25 +2192,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             // ALTERAÇÃO PONTO 4: Nova função para atualizar o sino de notificação
-            updateConnectionStatus(isOnline) {
-                const badge = document.getElementById('connection-status-badge');
-                if (!badge) return;
-
-                badge.style.display = 'block';
-                if (isOnline) {
-                    badge.textContent = 'Online';
-                    badge.style.backgroundColor = 'var(--color-success)';
-                    // Oculta após alguns segundos se estiver online, para limpar a UI
-                    setTimeout(() => {
-                        if(ConnectivityService.isOnline) badge.style.display = 'none';
-                    }, 5000);
-                } else {
-                    badge.textContent = 'Offline';
-                    badge.style.backgroundColor = 'var(--color-danger)';
-                    App.ui.showSystemNotification("Modo Offline", "Você está sem internet. Os dados serão salvos localmente.", "warning");
-                }
-            },
-
             updateNotificationBell() {
                 const { list, count, noNotifications } = App.elements.notificationBell;
                 const notifications = App.state.trapNotifications;
@@ -6260,51 +6230,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async onConnectivityRestored() {
-                if (App.state.isSyncing) return;
-
-                console.log("Conectividade restaurada. Iniciando procedimentos de reconexão...");
-                App.ui.showSystemNotification("Conexão", "Internet detetada. A sincronizar dados...", "info");
-
-                // 1. Verificar força do sinal (opcional, mas bom pra evitar falsos positivos de redes cativas)
-                const isRealConnection = await ConnectivityService.checkConnectionStrength();
-                if (!isRealConnection) {
-                    console.warn("Falso positivo de conexão ou rede sem internet.");
-                    return;
-                }
-
-                // 2. Tentar renovar token se necessário (sem logout forçado)
-                if (auth.currentUser) {
-                    try {
-                        await auth.currentUser.getIdToken(true);
-                    } catch (e) {
-                        console.error("Erro ao renovar token silenciosamente:", e);
-                        // Não deslogar aqui se for erro de rede, apenas se for auth/invalid-user-token etc.
-                    }
-                }
-
-                // 3. Disparar sincronização da fila
-                await this.syncOfflineWrites();
-
-                // 4. Recarregar dados essenciais que podem ter mudado
-                // Mas de forma suave, sem bloquear a UI
-                if (App.state.currentUser && App.state.currentUser.companyId) {
-                     // Recarregar configurações da empresa em background
-                     const companyId = App.state.currentUser.companyId;
-                     App.data.getDocument('companies', companyId).then(doc => {
-                         if (doc) App.state.companies = [doc];
-                     });
-                }
-
-                App.ui.showSystemNotification("Sincronização", "Sincronização concluída.", "success");
-            },
-
             async checkActiveConnection() {
-                // Deprecated in favor of ConnectivityService and onConnectivityRestored
-                // Kept for compatibility if called from elsewhere, but redirecting logic.
-                const isOnline = await ConnectivityService.checkConnectionStrength();
-                if (isOnline) {
-                    this.onConnectivityRestored();
+                if (App.state.isCheckingConnection || !navigator.onLine) return;
+                App.state.isCheckingConnection = true;
+                console.log("Actively checking internet connection...");
+                try {
+                    // This is a lightweight request. A successful response (even if opaque) indicates connectivity.
+                    await fetch('https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js', {
+                        mode: 'no-cors',
+                        method: 'HEAD', // Use HEAD to be even more lightweight
+                        cache: 'no-store' // Avoid hitting the browser cache
+                    });
+
+                    console.log("Active connection confirmed.");
+                    // Stop the periodic check once connection is confirmed
+                    if (App.state.connectionCheckInterval) {
+                        clearInterval(App.state.connectionCheckInterval);
+                        App.state.connectionCheckInterval = null;
+                        console.log("Periodic connection check stopped.");
+                    }
+                    // Now, proceed with the actual synchronization logic
+                    this.forceTokenRefresh(false);
+
+                } catch (error) {
+                    console.warn("Active connection check failed. Still effectively offline.");
+                } finally {
+                    App.state.isCheckingConnection = false;
                 }
             },
 
@@ -9687,8 +9638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Sincroniza a cada 1 hora
                 const umaHora = 60 * 60 * 1000;
                 App.state.syncInterval = setInterval(() => {
-                    // Usa o novo serviço de conectividade para verificar status
-                    if (ConnectivityService.isOnline) {
+                    if (navigator.onLine) {
                         console.log("Sincronização automática em primeiro plano iniciada...");
                         App.actions.syncOfflineWrites();
                     } else {
@@ -14921,7 +14871,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Event listeners antigos para online/offline foram substituídos pelo ConnectivityService
+    window.addEventListener('offline', () => {
+        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        if (App.state.connectionCheckInterval) {
+            clearInterval(App.state.connectionCheckInterval);
+            App.state.connectionCheckInterval = null;
+            console.log("Periodic connection check stopped due to offline event.");
+        }
+    });
+
+    window.addEventListener('online', () => {
+        console.log("Browser reports 'online'. Starting active connection checks.");
+        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
+        // Clear any previous interval just in case
+        if (App.state.connectionCheckInterval) {
+            clearInterval(App.state.connectionCheckInterval);
+        }
+        // Check immediately, then start checking periodically in case the first check fails.
+        App.actions.checkActiveConnection();
+        App.state.connectionCheckInterval = setInterval(() => App.actions.checkActiveConnection(), 15000); // Check every 15 seconds
+    });
 
     // Inicia a aplicação
     App.init();
