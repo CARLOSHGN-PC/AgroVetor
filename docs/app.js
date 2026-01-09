@@ -6,7 +6,6 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
-import { syncService } from './js/services/SyncService.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -67,8 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 8 for KM local cache and sync queue extensions
-            this.dbPromise = openDB('agrovetor-offline-storage', 8, {
+            // Version 7 for KM local cache and future extensions
+            this.dbPromise = openDB('agrovetor-offline-storage', 7, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -95,22 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         kmStore.createIndex('updatedAt', 'updatedAt', { unique: false });
                         kmStore.createIndex('companyId_status_dataSaida', ['companyId', 'status', 'dataSaida'], { unique: false });
                         kmStore.createIndex('companyId_status_dataChegada', ['companyId', 'status', 'dataChegada'], { unique: false });
-                    }
-                    if (oldVersion < 8) {
-                        if (!db.objectStoreNames.contains('sync_queue')) {
-                            const queueStore = db.createObjectStore('sync_queue', { keyPath: 'id', autoIncrement: true });
-                            queueStore.createIndex('uuid', 'uuid', { unique: true });
-                            queueStore.createIndex('status', 'status', { unique: false });
-                        }
-                        if (!db.objectStoreNames.contains('data_cache')) {
-                            const dataStore = db.createObjectStore('data_cache', { keyPath: 'id' });
-                            dataStore.createIndex('collection', 'collection', { unique: false });
-                            dataStore.createIndex('updatedAt', 'updatedAt', { unique: false });
-                            dataStore.createIndex('syncStatus', 'syncStatus', { unique: false });
-                            dataStore.createIndex('fazendaId', 'data.fazendaId', { unique: false });
-                            dataStore.createIndex('companyId', 'data.companyId', { unique: false });
-                            dataStore.createIndex('data', 'data.data', { unique: false });
-                        }
                     }
                 },
             });
@@ -860,11 +843,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         init() {
             OfflineDB.init();
-            syncService.init(App.config.backendUrl, async () => {
-                const user = auth.currentUser;
-                if (!user) return null;
-                return user.getIdToken();
-            });
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
@@ -6273,7 +6251,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     // Now, proceed with the actual synchronization logic
                     this.forceTokenRefresh(false);
-                    syncService.handleOnlineConfirmed();
 
                 } catch (error) {
                     console.warn("Active connection check failed. Still effectively offline.");
@@ -14895,7 +14872,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.addEventListener('offline', () => {
-        console.log("Browser reports 'offline'.");
+        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
             App.state.connectionCheckInterval = null;
@@ -14905,6 +14882,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('online', () => {
         console.log("Browser reports 'online'. Starting active connection checks.");
+        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
         // Clear any previous interval just in case
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
