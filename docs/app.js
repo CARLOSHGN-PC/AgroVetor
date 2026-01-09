@@ -6,6 +6,8 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
+import { networkManager } from './js/services/NetworkManager.js';
+import { syncService } from './js/services/SyncService.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -844,6 +846,37 @@ document.addEventListener('DOMContentLoaded', () => {
         init() {
             OfflineDB.init();
             this.native.init();
+
+            // --- NEW: Network & Sync Initialization ---
+            networkManager.init(App.config.backendUrl);
+
+            syncService.init(App.config.backendUrl, async () => {
+                if (auth.currentUser) {
+                    return await auth.currentUser.getIdToken();
+                }
+                return null;
+            });
+
+            networkManager.addEventListener('connectivity:changed', (e) => {
+                const status = e.detail.status;
+                if (status === 'ONLINE') {
+                    App.ui.showSystemNotification("Conexão", "Internet restaurada. A iniciar sincronização...", "success");
+                    // Trigger sync logic
+                    if (auth.currentUser) {
+                         App.actions.forceTokenRefresh(false);
+                         if (syncService.queue) syncService.queue.processQueue();
+                    } else {
+                        // User is offline-logged-in but internet came back.
+                        // We can't sync yet without Firebase Auth.
+                        // Ideally prompt user or just wait.
+                        console.log("Online detected but no Firebase session. Sync delayed until auth.");
+                    }
+                } else {
+                    App.ui.showSystemNotification("Conexão", "Sem internet. Operando em modo offline.", "warning");
+                }
+            });
+            // ------------------------------------------
+
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
@@ -1019,6 +1052,20 @@ document.addEventListener('DOMContentLoaded', () => {
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
+                        // Check if we are already initialized to avoid UI flicker/reset
+                        if (App.state.currentUser && App.state.currentUser.uid === user.uid) {
+                             console.log("Session restored for existing user. Skipping UI re-init.");
+                             if (navigator.onLine) {
+                                 // Update token silently if possible
+                                 try {
+                                     await user.getIdToken(true);
+                                     App.actions.syncOfflineWrites();
+                                 } catch (e) { console.warn("Silent token refresh failed", e); }
+                             }
+                             App.ui.setLoading(false);
+                             return;
+                        }
+
                         App.ui.setLoading(true, "A carregar dados do utilizador...");
                         const userDoc = await App.data.getUserData(user.uid);
 
@@ -1046,6 +1093,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 App.auth.logout();
                                 App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
                                 return;
+                            }
+
+                            // OFFLINE AUTOMÁTICO: Salvar credenciais se for um login recente (tempPassword presente)
+                            if (App.state.tempPassword) {
+                                App.actions.saveOfflineCredentials(user.email, App.state.tempPassword, App.state.currentUser);
+                                delete App.state.tempPassword;
                             }
 
                             // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
@@ -1093,6 +1146,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
+                        // User is null (not signed in to Firebase)
+                        // IF we are logged in offline (App.state.currentUser is set), we stay there.
+                        if (App.state.currentUser) {
+                            console.log("Firebase session null, but Offline User is active. Staying offline.");
+                            // Maybe show a specific UI element indicating "Auth Required for Sync"
+                            App.ui.setLoading(false);
+                            return;
+                        }
+
                         const localProfiles = App.actions.getLocalUserProfiles();
                         if (localProfiles.length > 0 && !navigator.onLine) {
                             App.ui.showOfflineUserSelection();
@@ -1113,10 +1175,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.ui.setLoading(true, "A autenticar...");
                 try {
+                    // Guarda senha temporariamente para salvar credenciais offline após carregar o perfil
+                    App.state.tempPassword = password;
+
                     // Define a persistência da sessão para 'session', que limpa ao fechar o browser/app.
                     await setPersistence(auth, browserSessionPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
+                    delete App.state.tempPassword; // Limpa em caso de erro
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showLoginMessage("E-mail ou senha inválidos.");
                     } else if (error.code === 'auth/network-request-failed') {
@@ -9656,6 +9722,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            async saveOfflineCredentials(email, password, userProfile) {
+                try {
+                    // 1. Gerar hash da senha
+                    // Use window.CryptoJS to ensure access to the global library loaded via CDN
+                    const Crypto = window.CryptoJS || CryptoJS;
+                    const salt = Crypto.lib.WordArray.random(128 / 8).toString();
+                    const hashedPassword = Crypto.PBKDF2(password, salt, {
+                        keySize: 256 / 32,
+                        iterations: 1000
+                    }).toString();
+
+                    // 2. Preparar os dados para guardar
+                    const userProfileToSave = {
+                        uid: userProfile.uid,
+                        email: userProfile.email,
+                        username: userProfile.username,
+                        role: userProfile.role,
+                        permissions: userProfile.permissions,
+                        companyId: userProfile.companyId,
+                    };
+
+                    const credentialsToStore = {
+                        email: email.toLowerCase(),
+                        hashedPassword: hashedPassword,
+                        salt: salt,
+                        userProfile: userProfileToSave
+                    };
+
+                    // 3. Guardar no IndexedDB
+                    await OfflineDB.set('offline-credentials', credentialsToStore);
+                    console.log("Credenciais offline salvas automaticamente.");
+                    return true;
+                } catch (error) {
+                    console.error("Erro ao salvar credenciais offline:", error);
+                    return false;
+                }
+            },
+
             async enableOfflineLogin() {
                 const passwordInput = document.getElementById('enableOfflinePassword');
                 const password = passwordInput.value;
@@ -14871,26 +14975,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    window.addEventListener('offline', () => {
-        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
-        if (App.state.connectionCheckInterval) {
-            clearInterval(App.state.connectionCheckInterval);
-            App.state.connectionCheckInterval = null;
-            console.log("Periodic connection check stopped due to offline event.");
-        }
-    });
-
-    window.addEventListener('online', () => {
-        console.log("Browser reports 'online'. Starting active connection checks.");
-        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
-        // Clear any previous interval just in case
-        if (App.state.connectionCheckInterval) {
-            clearInterval(App.state.connectionCheckInterval);
-        }
-        // Check immediately, then start checking periodically in case the first check fails.
-        App.actions.checkActiveConnection();
-        App.state.connectionCheckInterval = setInterval(() => App.actions.checkActiveConnection(), 15000); // Check every 15 seconds
-    });
+    // Legacy event listeners replaced by NetworkManager in App.init()
 
     // Inicia a aplicação
     App.init();
