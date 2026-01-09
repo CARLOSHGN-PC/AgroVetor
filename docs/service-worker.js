@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v14'; // Incremented version for update
+const CACHE_NAME = 'agrovetor-cache-v15'; // Incremented version for update
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the IndexedDB tile cache
@@ -34,6 +34,7 @@ const urlsToCache = [
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
   './js/lib/shp.js',
+  './js/services/ConnectivityService.js',
   'https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js',
   'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
