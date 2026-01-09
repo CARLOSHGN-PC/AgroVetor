@@ -249,6 +249,36 @@
         gap: 10px;
       }
 
+      .connectivity-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 110px;
+        padding: 6px 12px;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        background-color: var(--color-border);
+        color: var(--color-text);
+      }
+
+      .connectivity-badge.online {
+        background-color: rgba(46, 204, 113, 0.2);
+        color: var(--color-success);
+      }
+
+      .connectivity-badge.offline {
+        background-color: rgba(231, 76, 60, 0.2);
+        color: var(--color-danger);
+      }
+
+      .connectivity-badge.syncing {
+        background-color: rgba(52, 152, 219, 0.2);
+        color: var(--color-info);
+      }
+
       #user-menu-container { position: relative; z-index: 1200; }
       #user-menu-toggle { background: rgba(255, 255, 255, 0.1); color: var(--color-white); padding: 8px; border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; transition: var(--transition); }
       #user-menu-toggle:hover, #user-menu-toggle.open { background: rgba(255, 255, 255, 0.2); }
@@ -1851,6 +1881,7 @@
             </div>
             
             <div class="header-actions-container">
+                <div id="connectivityBadge" class="connectivity-badge offline">Offline</div>
                 <div id="notification-bell-container" class="notification-bell" style="display: none;">
                     <button id="notification-bell-toggle" aria-label="Notificações">
                         <i class="fas fa-bell"></i>
