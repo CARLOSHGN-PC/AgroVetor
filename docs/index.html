@@ -249,27 +249,6 @@
         gap: 10px;
       }
 
-      .connectivity-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--color-white);
-        background: rgba(255, 255, 255, 0.2);
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        min-width: 110px;
-        justify-content: center;
-      }
-      .connectivity-badge[data-state="ONLINE"] { background: var(--color-success); }
-      .connectivity-badge[data-state="OFFLINE"] { background: var(--color-danger); }
-      .connectivity-badge[data-state="DEGRADED"] { background: var(--color-warning); color: #1f1f1f; }
-      .connectivity-badge[data-state="BOOTING"] { background: rgba(255, 255, 255, 0.3); }
-      .connectivity-badge.is-syncing { background: var(--color-info); }
-
       #user-menu-container { position: relative; z-index: 1200; }
       #user-menu-toggle { background: rgba(255, 255, 255, 0.1); color: var(--color-white); padding: 8px; border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; transition: var(--transition); }
       #user-menu-toggle:hover, #user-menu-toggle.open { background: rgba(255, 255, 255, 0.2); }
@@ -1872,7 +1851,6 @@
             </div>
             
             <div class="header-actions-container">
-                <div id="connectivityBadge" class="connectivity-badge" data-state="BOOTING">Conectando...</div>
                 <div id="notification-bell-container" class="notification-bell" style="display: none;">
                     <button id="notification-bell-toggle" aria-label="Notificações">
                         <i class="fas fa-bell"></i>
