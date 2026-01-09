@@ -6,7 +6,6 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
-import { ConnectivityService } from './js/services/ConnectivityService.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -209,23 +208,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 user: { dashboard: true }
             }
         },
-        connectivityService: null,
 
         state: {
             isImpersonating: false,
             originalUser: null,
             isSyncing: false,
-            syncRetryCount: 0,
-            syncRetryTimeout: null,
-            syncDebounceTimeout: null,
             isCheckingConnection: false,
             connectionCheckInterval: null,
-            connectivity: {
-                isOnline: navigator.onLine,
-                lastChangeAt: null,
-                connectionType: null,
-                reason: 'init'
-            },
             currentUser: null,
             users: [],
             companies: [],
@@ -363,7 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearBtn: document.getElementById('clear-notifications-btn'), // NOVO
                 noNotifications: document.getElementById('no-notifications'), // NOVO
             },
-            connectivityBadge: document.getElementById('connectivityBadge'),
             userMenu: {
                 container: document.getElementById('user-menu-container'),
                 toggle: document.getElementById('user-menu-toggle'),
@@ -855,7 +843,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         init() {
             OfflineDB.init();
-            this.actions.initConnectivity();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
@@ -868,6 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     this.configureStatusBar();
                     this.registerPushNotifications();
+                    this.listenForNetworkChanges(); // Adiciona o listener de rede
                 }
             },
 
@@ -1052,7 +1040,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             App.state.currentUser = { ...user, ...userDoc };
-                            App.actions.applyCachedMenuState();
 
                             // Validação CRÍTICA para o modelo multi-empresa
                             if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
@@ -1077,7 +1064,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (companyDoc) {
                                     App.state.companies = [companyDoc];
                                 }
-                                App.actions.cacheMenuState();
 
                                 // 3. Agora é seguro mostrar a tela principal
                                 App.actions.saveUserProfileLocally(App.state.currentUser);
@@ -1090,8 +1076,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     App.ui.showTab(lastTab || 'dashboard');
                                 }
 
-                                if (App.actions.isOnline()) {
-                                    App.actions.scheduleSync({ reason: 'login', debounceMs: 0 });
+                                if (navigator.onLine) {
+                                    App.actions.syncOfflineWrites();
                                 }
 
                                 App.actions.checkSequence();
@@ -1108,7 +1094,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } else {
                         const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !App.actions.isOnline()) {
+                        if (localProfiles.length > 0 && !navigator.onLine) {
                             App.ui.showOfflineUserSelection();
                         } else {
                             App.ui.showLoginScreen();
@@ -1164,7 +1150,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (hashedPassword === credentials.hashedPassword) {
                         App.state.currentUser = credentials.userProfile;
-                        App.actions.applyCachedMenuState();
 
                         App.ui.setLoading(true, "A carregar dados offline...");
                         try {
@@ -1187,7 +1172,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             } else {
                                 console.warn("Configurações globais não encontradas no cache offline durante o login.");
                             }
-                            App.actions.cacheMenuState();
 
                             // Agora, com os dados essenciais pré-carregados, mostra a tela da aplicação
                             App.ui.showAppScreen();
@@ -1212,7 +1196,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             async logout() {
-                if (App.actions.isOnline()) {
+                if (navigator.onLine) {
                     await signOut(auth);
                 }
                 // Limpa todos os listeners e processos em segundo plano
@@ -1220,21 +1204,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.stopGpsTracking();
                 App.actions.stopAutoSync(); // Para a sincronização automática
                 App.charts.destroyAll(); // Destrói todas as instâncias de gráficos
-                if (App.state.syncRetryTimeout) {
-                    clearTimeout(App.state.syncRetryTimeout);
-                    App.state.syncRetryTimeout = null;
-                }
-                if (App.state.syncDebounceTimeout) {
-                    clearTimeout(App.state.syncDebounceTimeout);
-                    App.state.syncDebounceTimeout = null;
-                }
-                App.state.syncRetryCount = 0;
 
                 // Limpa completamente o estado da aplicação para evitar "déjà vu"
                 App.state.isImpersonating = false;
                 App.state.originalUser = null;
                 App.state.currentUser = null;
-                App.state.isSyncing = false;
                 App.state.users = [];
                 App.state.companies = [];
                 App.state.globalConfigs = {};
@@ -1319,7 +1293,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!App.state.adminAction || typeof App.state.adminAction !== 'function') { return; }
 
                 // Se estiver offline, confia no papel do utilizador já logado
-                if (!App.actions.isOnline()) {
+                if (!navigator.onLine) {
                     const userRole = App.state.currentUser?.role;
                     if (userRole === 'admin' || userRole === 'super-admin') {
                         App.ui.setLoading(true, "A executar ação offline...");
@@ -1430,16 +1404,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const unsubscribeGlobalConfigs = onSnapshot(globalConfigsRef, (doc) => {
                     if (doc.exists()) {
                         App.state.globalConfigs = doc.data();
-                        App.actions.cacheMenuState();
                     } else {
                         console.warn("Documento de configurações globais 'main' não encontrado. Recursos podem estar desativados por padrão.");
-                        App.actions.applyCachedMenuState();
+                        App.state.globalConfigs = {}; // Garante que é um objeto vazio
                     }
                     // Re-renderiza o menu sempre que as flags globais mudam
                     App.ui.renderMenu();
                 }, (error) => {
                     console.error("Erro ao ouvir as configurações globais: ", error);
-                    App.actions.applyCachedMenuState();
+                    App.state.globalConfigs = {}; // Reseta em caso de erro
                     App.ui.renderMenu(); // Re-renderiza o menu com flags desativadas
                 });
                 App.state.unsubscribeListeners.push(unsubscribeGlobalConfigs);
@@ -1515,8 +1488,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (doc.exists()) {
                             // Coloca a empresa do utilizador no estado, para que o menu possa ser renderizado corretamente
                             App.state.companies = [{ id: doc.id, ...doc.data() }];
-                            App.actions.cacheMenuState();
-                        } else if (App.actions.isOnline()) {
+                        } else if (navigator.onLine) {
                             // Se estiver online e a empresa não for encontrada, desloga o utilizador por segurança.
                             console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
                             App.auth.logout();
@@ -1729,7 +1701,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.renderMenu();
                 this.renderAllDynamicContent();
-                this.updateConnectivityBadge();
                 App.actions.resetInactivityTimer();
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
                 App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
@@ -1854,28 +1825,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.showSystemNotification(title, message, type);
             },
 
-            updateConnectivityBadge() {
-                const badge = App.elements.connectivityBadge;
-                if (!badge) return;
-                const { isOnline } = App.state.connectivity;
-                const isSyncing = App.state.isSyncing;
-
-                badge.classList.remove('online', 'offline', 'syncing');
-                if (isSyncing) {
-                    badge.textContent = 'Sincronizando';
-                    badge.classList.add('syncing');
-                    return;
-                }
-
-                if (isOnline) {
-                    badge.textContent = 'Online';
-                    badge.classList.add('online');
-                } else {
-                    badge.textContent = 'Offline';
-                    badge.classList.add('offline');
-                }
-            },
-
             showSystemNotification(title, message, type = 'info', options = {}) {
                 const { list, count, noNotifications } = App.elements.notificationBell;
                 const { logId = null } = options;
@@ -1902,8 +1851,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const menuContent = document.createElement('div');
                 menuContent.className = 'menu-content';
                 menu.appendChild(menuContent);
-                let hiddenByPermission = 0;
-                let hiddenBySubscription = 0;
 
                 const createMenuItem = (item) => {
                     const { currentUser, companies } = App.state;
@@ -1913,10 +1860,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         item.submenu.some(sub => currentUser.permissions && currentUser.permissions[sub.permission]) :
                         (currentUser.permissions && currentUser.permissions[item.permission]));
 
-                    if (!hasPermission) {
-                        hiddenByPermission += 1;
-                        return null;
-                    }
+                    if (!hasPermission) return null;
 
                     if (!isSuperAdmin) {
                         const userCompany = companies.find(c => c.id === currentUser.companyId);
@@ -1926,10 +1870,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission) && subscribedModules.has(sub.permission)) :
                             (App.isFeatureGloballyActive(item.permission) && subscribedModules.has(item.permission));
 
-                        if (!isVisible) {
-                            hiddenBySubscription += 1;
-                            return null;
-                        }
+                        if (!isVisible) return null;
                     }
                     
                     const btn = document.createElement('button');
@@ -1961,7 +1902,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return btn;
                 };
                 menuConfig.forEach(item => { const menuItem = createMenuItem(item); if (menuItem) menuContent.appendChild(menuItem); });
-                console.info("[Menu] Renderizado", { hiddenByPermission, hiddenBySubscription, total: menuConfig.length });
             },
             renderSubmenu(parentItem) {
                 const { menu } = App.elements;
@@ -6160,136 +6100,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
-            initConnectivity() {
-                if (App.connectivityService) return;
-                App.connectivityService = new ConnectivityService({
-                    backendUrl: App.config.backendUrl,
-                    onStatusChange: (status) => App.actions.handleConnectivityChange(status),
-                    logger: (event, payload) => {
-                        console.info(`[Connectivity] ${event}`, payload);
-                    }
-                });
-                App.connectivityService.init();
-            },
-
-            isOnline() {
-                return App.state.connectivity?.isOnline ?? navigator.onLine;
-            },
-
-            handleConnectivityChange(status) {
-                const prev = App.state.connectivity;
-                App.state.connectivity = { ...status };
-                App.ui.updateConnectivityBadge();
-
-                if (!prev || prev.isOnline !== status.isOnline) {
-                    if (status.isOnline) {
-                        App.ui.showAlert("Conectado — sincronizando seus lançamentos...", "info");
-                        App.actions.scheduleSync({ reason: 'connectivity-restored', debounceMs: 1500 });
-                    } else {
-                        App.ui.showAlert("Sem internet — você pode continuar lançando offline.", "warning");
-                        App.actions.resetSyncRetry();
-                    }
-                }
-            },
-
-            scheduleSync({ reason = 'auto', debounceMs = 1500 } = {}) {
-                if (!App.actions.isOnline()) return;
-                if (App.state.syncDebounceTimeout) {
-                    clearTimeout(App.state.syncDebounceTimeout);
-                }
-                App.state.syncDebounceTimeout = setTimeout(() => {
-                    App.actions.runSync({ reason });
-                }, debounceMs);
-            },
-
-            async runSync({ reason = 'auto' } = {}) {
-                if (!App.actions.isOnline()) return;
-                if (!App.state.currentUser) {
-                    console.log("Sincronização ignorada: nenhum utilizador autenticado.");
-                    return;
-                }
-                if (App.state.isSyncing) {
-                    console.log("Sincronização ignorada: já existe uma sincronização ativa.");
-                    return;
-                }
-                console.info("[Sync] Iniciando sincronização", { reason });
-
-                await App.actions.syncOfflineWrites();
-
-                const pendingCount = await App.actions.getPendingOfflineWritesCount();
-                if (pendingCount > 0 && App.actions.isOnline()) {
-                    App.actions.scheduleSyncRetry({ pendingCount });
-                } else {
-                    App.actions.resetSyncRetry();
-                }
-            },
-
-            scheduleSyncRetry({ pendingCount }) {
-                App.state.syncRetryCount += 1;
-                const delay = Math.min(Math.pow(2, App.state.syncRetryCount) * 1000, 30000);
-                if (App.state.syncRetryTimeout) {
-                    clearTimeout(App.state.syncRetryTimeout);
-                }
-                App.state.syncRetryTimeout = setTimeout(() => {
-                    App.state.syncRetryTimeout = null;
-                    App.actions.runSync({ reason: 'retry' });
-                }, delay);
-                console.warn("[Sync] Falha ao sincronizar. Novo retry agendado.", { pendingCount, delay });
-            },
-
-            resetSyncRetry() {
-                App.state.syncRetryCount = 0;
-                if (App.state.syncRetryTimeout) {
-                    clearTimeout(App.state.syncRetryTimeout);
-                    App.state.syncRetryTimeout = null;
-                }
-            },
-
-            async getPendingOfflineWritesCount() {
-                const db = await OfflineDB.dbPromise;
-                if (!db) return 0;
-                const pending = await db.getAll('offline-writes');
-                return pending.length;
-            },
-
-            cacheMenuState() {
-                const cacheKey = App.actions.getMenuCacheKey();
-                const payload = {
-                    updatedAt: new Date().toISOString(),
-                    globalConfigs: App.state.globalConfigs || {},
-                    companies: App.state.companies || []
-                };
-                localStorage.setItem(cacheKey, JSON.stringify(payload));
-            },
-
-            loadCachedMenuState() {
-                const cacheKey = App.actions.getMenuCacheKey();
-                const cachedRaw = localStorage.getItem(cacheKey);
-                if (!cachedRaw) return null;
-                try {
-                    return JSON.parse(cachedRaw);
-                } catch (error) {
-                    console.warn("Falha ao ler cache do menu.", error);
-                    return null;
-                }
-            },
-
-            applyCachedMenuState() {
-                const cached = App.actions.loadCachedMenuState();
-                if (!cached) return;
-                if (cached.globalConfigs) {
-                    App.state.globalConfigs = cached.globalConfigs;
-                }
-                if (cached.companies && cached.companies.length > 0) {
-                    App.state.companies = cached.companies;
-                }
-            },
-
-            getMenuCacheKey() {
-                const companyId = App.state.currentUser?.companyId || 'global';
-                return `agrovetor-menu-cache:${companyId}`;
-            },
-
             async fixClimateData() {
                 App.ui.showConfirmationModal(
                     "Esta ação irá corrigir datas e formatos inconsistentes em todos os registros de clima importados. Deseja continuar?",
@@ -8883,7 +8693,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async forceTokenRefresh(isManual = false) {
-                if (!App.actions.isOnline() || !auth.currentUser) {
+                if (!navigator.onLine || !auth.currentUser) {
                     if (isManual) {
                         App.ui.showSystemNotification("Sincronização", "Offline ou sem utilizador. Não é possível sincronizar.", "warning");
                     }
@@ -8917,10 +8727,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.data.listenToAllData();
 
                     // Após a atualização bem-sucedida do token, iniciar a sincronização.
-                    App.actions.scheduleSync({ reason: isManual ? 'manual' : 'token-refresh', debounceMs: 0 });
+                    this.syncOfflineWrites();
                 } catch (error) {
                     console.error("Falha ao forçar a atualização do token:", error);
-                    console.warn("[Auth] Token refresh falhou", { error: error?.message || error });
                     App.ui.showSystemNotification("Erro de Autenticação", "Falha na autenticação. Não foi possível sincronizar.", "error");
                 }
             },
@@ -8931,13 +8740,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                if (!App.actions.isOnline()) {
-                    console.log("Sincronização ignorada (offline).");
-                    return;
-                }
-
                 App.state.isSyncing = true;
-                App.ui.updateConnectivityBadge();
                 this.syncGpsLocations(); // Sync GPS data
                 console.log("Iniciando a verificação de dados offline...");
 
@@ -8951,15 +8754,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     items: []
                 };
 
-                let successfulWrites = 0;
-                let failedWrites = 0;
-                let discardedWrites = 0;
-
                 try {
                     const db = await OfflineDB.dbPromise;
                     if (!db) {
                         App.state.isSyncing = false;
-                        App.ui.updateConnectivityBadge();
                         return;
                     }
 
@@ -8970,7 +8768,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (writesToSync.length === 0) {
                         console.log("Nenhum registo pendente para sincronizar.");
                         App.state.isSyncing = false;
-                        App.ui.updateConnectivityBadge();
                         return;
                     }
 
@@ -8978,6 +8775,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const successfulKeys = [];
                     const unrecoverableKeys = [];
+                    let successfulWrites = 0;
+                    let failedWrites = 0; // Erros recuperáveis (ex: rede)
+                    let discardedWrites = 0; // Erros irrecuperáveis (dados malformados)
 
                     // Etapa 2: Iterar sobre os dados em memória e tentar sincronizar
                     for (let i = 0; i < writesToSync.length; i++) {
@@ -9118,12 +8918,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo. Verifique a consola.", "critical_error");
                 } finally {
                     App.state.isSyncing = false;
-                    if (failedWrites > 0) {
-                        App.ui.showAlert("Falha ao sincronizar, vamos tentar novamente.", "warning");
-                    } else if (successfulWrites > 0 || discardedWrites > 0) {
-                        App.ui.showAlert("Sincronização concluída.", "success");
-                    }
-                    App.ui.updateConnectivityBadge();
                     console.log("Processo de sincronização finalizado.");
                 }
             },
@@ -9844,9 +9638,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Sincroniza a cada 1 hora
                 const umaHora = 60 * 60 * 1000;
                 App.state.syncInterval = setInterval(() => {
-                    if (App.actions.isOnline()) {
+                    if (navigator.onLine) {
                         console.log("Sincronização automática em primeiro plano iniciada...");
-                        App.actions.scheduleSync({ reason: 'interval', debounceMs: 0 });
+                        App.actions.syncOfflineWrites();
                     } else {
                         console.log("Sincronização automática ignorada (offline).");
                     }
@@ -15076,6 +14870,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
+    window.addEventListener('offline', () => {
+        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        if (App.state.connectionCheckInterval) {
+            clearInterval(App.state.connectionCheckInterval);
+            App.state.connectionCheckInterval = null;
+            console.log("Periodic connection check stopped due to offline event.");
+        }
+    });
+
+    window.addEventListener('online', () => {
+        console.log("Browser reports 'online'. Starting active connection checks.");
+        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
+        // Clear any previous interval just in case
+        if (App.state.connectionCheckInterval) {
+            clearInterval(App.state.connectionCheckInterval);
+        }
+        // Check immediately, then start checking periodically in case the first check fails.
+        App.actions.checkActiveConnection();
+        App.state.connectionCheckInterval = setInterval(() => App.actions.checkActiveConnection(), 15000); // Check every 15 seconds
+    });
 
     // Inicia a aplicação
     App.init();
