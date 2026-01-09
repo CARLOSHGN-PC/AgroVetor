@@ -7,22 +7,36 @@ class SyncService {
     constructor() {
         this.queue = null;
         this.initialized = false;
+        this.isOnline = () => navigator.onLine;
     }
 
-    init(backendUrl, authProvider) {
+    init(backendUrl, authProvider, { networkManager, isOnline } = {}) {
         if (this.initialized) return;
 
-        this.queue = SyncQueueFactory(backendUrl, authProvider);
+        if (isOnline) {
+            this.isOnline = isOnline;
+        }
+
+        this.queue = SyncQueueFactory(backendUrl, authProvider, { isOnline: this.isOnline });
 
         // Listeners de Rede
-        window.addEventListener('online', () => {
-            console.log("[SyncService] Online detectado. Iniciando sincronização...");
-            this.queue.processQueue();
-        });
+        if (networkManager) {
+            networkManager.addEventListener('connectivity:changed', (event) => {
+                if (event.detail?.status === 'ONLINE') {
+                    console.log("[SyncService] Online estável detectado. Iniciando sincronização...");
+                    this.queue.processQueue();
+                }
+            });
+        } else {
+            window.addEventListener('online', () => {
+                console.log("[SyncService] Online detectado. Iniciando sincronização...");
+                this.queue.processQueue();
+            });
+        }
 
         // Sincronização Periódica (Backup)
         setInterval(() => {
-            if (navigator.onLine) {
+            if (this.isOnline()) {
                 this.queue.processQueue();
             }
         }, 60 * 1000); // A cada 1 minuto
@@ -48,7 +62,7 @@ class SyncService {
         await offlineManager.enqueueOperation(type, collection, data, uuid);
 
         // Tenta sincronizar imediatamente se estiver online
-        if (navigator.onLine) {
+        if (this.isOnline()) {
             // Não aguardamos o processQueue terminar para não bloquear a UI
             this.queue.processQueue();
         }
@@ -58,7 +72,7 @@ class SyncService {
 
     async delete(collection, id) {
         await offlineManager.enqueueOperation('DELETE', collection, {}, id);
-        if (navigator.onLine) this.queue.processQueue();
+        if (this.isOnline()) this.queue.processQueue();
     }
 }
 
