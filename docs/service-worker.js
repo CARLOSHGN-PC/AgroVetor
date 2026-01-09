@@ -22,6 +22,7 @@ const urlsToCache = [
   './',
   './index.html',
   './app.js',
+  './js/services/ConnectivityManager.js',
   './capacitor.js',
   './manifest.json',
   // './shapefile.zip', // REMOVED to prevent conflict with IndexedDB caching in app.js

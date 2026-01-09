@@ -6,6 +6,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
+import { ConnectivityManager, ConnectivityStates } from './js/services/ConnectivityManager.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -213,8 +214,8 @@ document.addEventListener('DOMContentLoaded', () => {
             isImpersonating: false,
             originalUser: null,
             isSyncing: false,
-            isCheckingConnection: false,
-            connectionCheckInterval: null,
+            connectivityStatus: { state: ConnectivityStates.BOOTING, lastChange: null, details: {} },
+            pendingOnlineSyncTimer: null,
             currentUser: null,
             users: [],
             companies: [],
@@ -336,6 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
             offlineUserList: document.getElementById('offlineUserList'),
             headerTitle: document.querySelector('header h1'),
             headerLogo: document.getElementById('headerLogo'),
+            connectivityBadge: document.getElementById('connectivityBadge'),
             currentDateTime: document.getElementById('currentDateTime'),
             logoutBtn: document.getElementById('logoutBtn'),
             btnToggleMenu: document.getElementById('btnToggleMenu'),
@@ -816,9 +818,14 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         isFeatureGloballyActive(featureKey) {
-            // A funcionalidade está ativa se a flag correspondente for explicitamente `true`.
-            // Se a flag não existir ou for `false`, a funcionalidade está desativada.
-            return App.state.globalConfigs[featureKey] === true;
+            const configs = App.state.globalConfigs || {};
+            if (Object.keys(configs).length === 0) {
+                return true;
+            }
+            if (!(featureKey in configs)) {
+                return true;
+            }
+            return configs[featureKey] === true;
         },
 
         debounce(func, delay = 1000) {
@@ -842,12 +849,14 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
+            console.log("BOOT_START");
             OfflineDB.init();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
+            this.connectivity.init();
         },
 
         native: {
@@ -855,7 +864,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     this.configureStatusBar();
                     this.registerPushNotifications();
-                    this.listenForNetworkChanges(); // Adiciona o listener de rede
                 }
             },
 
@@ -1012,6 +1020,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     // com base nos dados da notificação.
                     // Ex: if (notification.notification.data.goToPage) { ... }
                 });
+            }
+        },
+
+        connectivity: {
+            manager: null,
+            init() {
+                if (!this.manager) {
+                    this.manager = new ConnectivityManager({
+                        heartbeatTimeoutMs: 4000,
+                        heartbeatIntervalMs: 15000,
+                        failureThreshold: 2
+                    });
+                    this.manager.onChange((status) => App.actions.handleConnectivityChange(status));
+                }
+                this.manager.start();
+                App.actions.handleConnectivityChange(this.manager.getStatus());
             }
         },
         
@@ -1506,6 +1530,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
                         if (doc.exists()) {
                             const configData = doc.data();
+                            console.log("COMPANY_CONFIG_LOADED", { companyId });
                             App.state.companyConfig = configData; // Carrega todas as configurações da empresa
                             App.state.companyLogo = configData.logoBase64 || null;
 
@@ -1522,6 +1547,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             App.state.companyLogo = null;
                             App.state.companyConfig = {};
+                            console.log("COMPANY_CONFIG_LOADED", { companyId, empty: true });
                         }
                         App.ui.renderLogoPreview();
                     });
@@ -1688,6 +1714,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
                 App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AgroVetor`;
+                App.ui.updateConnectivityBadge(App.state.connectivityStatus);
 
                 this.updateDateTime();
                 setInterval(() => this.updateDateTime(), 60000);
@@ -1844,8 +1871,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.updateNotificationBell();
                 App.actions.saveNotification(newNotification); // Salva a notificação completa
             },
+            updateConnectivityBadge(status) {
+                const badge = App.elements.connectivityBadge;
+                if (!badge) return;
+                const state = status?.state || ConnectivityStates.BOOTING;
+                const isSyncing = App.state.isSyncing;
+
+                let label = 'Conectando...';
+                if (isSyncing) {
+                    label = 'Sincronizando...';
+                } else if (state === ConnectivityStates.ONLINE) {
+                    label = 'Online';
+                } else if (state === ConnectivityStates.OFFLINE) {
+                    label = 'Offline';
+                } else if (state === ConnectivityStates.DEGRADED) {
+                    label = 'Instável';
+                }
+
+                badge.textContent = label;
+                badge.dataset.state = state;
+                badge.classList.toggle('is-syncing', isSyncing);
+            },
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
             renderMenu() {
+                console.log("MENU_RENDER_START");
                 const { menu } = App.elements; const { menuConfig } = App.config; const { currentUser } = App.state;
                 menu.innerHTML = '';
                 const menuContent = document.createElement('div');
@@ -1864,13 +1913,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (!isSuperAdmin) {
                         const userCompany = companies.find(c => c.id === currentUser.companyId);
+                        const hasSubscribedModules = userCompany && Array.isArray(userCompany.subscribedModules);
                         const subscribedModules = new Set(userCompany?.subscribedModules || []);
 
-                        const isVisible = item.submenu ?
-                            item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission) && subscribedModules.has(sub.permission)) :
-                            (App.isFeatureGloballyActive(item.permission) && subscribedModules.has(item.permission));
+                        if (hasSubscribedModules) {
+                            const isVisible = item.submenu ?
+                                item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission) && subscribedModules.has(sub.permission)) :
+                                (App.isFeatureGloballyActive(item.permission) && subscribedModules.has(item.permission));
 
-                        if (!isVisible) return null;
+                            if (!isVisible) return null;
+                        }
                     }
                     
                     const btn = document.createElement('button');
@@ -1902,6 +1954,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return btn;
                 };
                 menuConfig.forEach(item => { const menuItem = createMenuItem(item); if (menuItem) menuContent.appendChild(menuItem); });
+                console.log("MENU_RENDER_END");
             },
             renderSubmenu(parentItem) {
                 const { menu } = App.elements;
@@ -6230,33 +6283,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async checkActiveConnection() {
-                if (App.state.isCheckingConnection || !navigator.onLine) return;
-                App.state.isCheckingConnection = true;
-                console.log("Actively checking internet connection...");
-                try {
-                    // This is a lightweight request. A successful response (even if opaque) indicates connectivity.
-                    await fetch('https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js', {
-                        mode: 'no-cors',
-                        method: 'HEAD', // Use HEAD to be even more lightweight
-                        cache: 'no-store' // Avoid hitting the browser cache
-                    });
+            handleConnectivityChange(status) {
+                const previousState = App.state.connectivityStatus?.state;
+                App.state.connectivityStatus = status;
+                App.ui.updateConnectivityBadge(status);
 
-                    console.log("Active connection confirmed.");
-                    // Stop the periodic check once connection is confirmed
-                    if (App.state.connectionCheckInterval) {
-                        clearInterval(App.state.connectionCheckInterval);
-                        App.state.connectionCheckInterval = null;
-                        console.log("Periodic connection check stopped.");
+                if (previousState !== status.state) {
+                    if (status.state === ConnectivityStates.OFFLINE) {
+                        App.ui.showSystemNotification("Conexão", "Sem internet. A operar offline.", "warning");
+                    } else if (status.state === ConnectivityStates.DEGRADED) {
+                        App.ui.showSystemNotification("Conexão", "Rede instável. A verificar conectividade...", "warning");
+                    } else if (status.state === ConnectivityStates.ONLINE) {
+                        App.ui.showSystemNotification("Conexão", "Online. Preparando sincronização automática...", "info");
                     }
-                    // Now, proceed with the actual synchronization logic
-                    this.forceTokenRefresh(false);
-
-                } catch (error) {
-                    console.warn("Active connection check failed. Still effectively offline.");
-                } finally {
-                    App.state.isCheckingConnection = false;
                 }
+
+                if (status.state === ConnectivityStates.ONLINE) {
+                    this.scheduleOnlineSync();
+                } else if (App.state.pendingOnlineSyncTimer) {
+                    clearTimeout(App.state.pendingOnlineSyncTimer);
+                    App.state.pendingOnlineSyncTimer = null;
+                }
+            },
+
+            scheduleOnlineSync() {
+                if (App.state.pendingOnlineSyncTimer) {
+                    clearTimeout(App.state.pendingOnlineSyncTimer);
+                }
+                App.state.pendingOnlineSyncTimer = setTimeout(async () => {
+                    if (App.state.connectivityStatus.state !== ConnectivityStates.ONLINE) return;
+                    await this.triggerAutoSyncIfNeeded();
+                }, 4000);
+            },
+
+            async triggerAutoSyncIfNeeded() {
+                if (!App.state.currentUser || App.state.isSyncing) return;
+                const db = await OfflineDB.dbPromise;
+                if (!db) return;
+                const pendingKeys = await db.getAllKeys('offline-writes');
+                if (pendingKeys.length === 0) return;
+                await this.forceTokenRefresh(false);
             },
 
             filterDashboardData(data, startDate, endDate) {
@@ -8741,6 +8807,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.state.isSyncing = true;
+                console.log("SYNC_START");
+                App.ui.updateConnectivityBadge(App.state.connectivityStatus);
                 this.syncGpsLocations(); // Sync GPS data
                 console.log("Iniciando a verificação de dados offline...");
 
@@ -8758,6 +8826,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const db = await OfflineDB.dbPromise;
                     if (!db) {
                         App.state.isSyncing = false;
+                        App.ui.updateConnectivityBadge(App.state.connectivityStatus);
                         return;
                     }
 
@@ -8768,6 +8837,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (writesToSync.length === 0) {
                         console.log("Nenhum registo pendente para sincronizar.");
                         App.state.isSyncing = false;
+                        App.ui.updateConnectivityBadge(App.state.connectivityStatus);
                         return;
                     }
 
@@ -8918,6 +8988,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo. Verifique a consola.", "critical_error");
                 } finally {
                     App.state.isSyncing = false;
+                    App.ui.updateConnectivityBadge(App.state.connectivityStatus);
+                    console.log("SYNC_END");
                     console.log("Processo de sincronização finalizado.");
                 }
             },
@@ -9638,7 +9710,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Sincroniza a cada 1 hora
                 const umaHora = 60 * 60 * 1000;
                 App.state.syncInterval = setInterval(() => {
-                    if (navigator.onLine) {
+                    if (App.state.connectivityStatus.state === ConnectivityStates.ONLINE) {
                         console.log("Sincronização automática em primeiro plano iniciada...");
                         App.actions.syncOfflineWrites();
                     } else {
@@ -14830,8 +14902,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             let refreshing;
                             navigator.serviceWorker.addEventListener('controllerchange', function() {
                                 if (refreshing) return;
-                                window.location.reload();
                                 refreshing = true;
+                                if (navigator.onLine) {
+                                    window.location.reload();
+                                } else {
+                                    console.log("Service worker atualizado, mas offline. Ignorando reload automático.");
+                                }
                             });
 
                             // ** NOVO: Lógica de Sincronização Periódica **
@@ -14870,27 +14946,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
-
-    window.addEventListener('offline', () => {
-        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
-        if (App.state.connectionCheckInterval) {
-            clearInterval(App.state.connectionCheckInterval);
-            App.state.connectionCheckInterval = null;
-            console.log("Periodic connection check stopped due to offline event.");
-        }
-    });
-
-    window.addEventListener('online', () => {
-        console.log("Browser reports 'online'. Starting active connection checks.");
-        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
-        // Clear any previous interval just in case
-        if (App.state.connectionCheckInterval) {
-            clearInterval(App.state.connectionCheckInterval);
-        }
-        // Check immediately, then start checking periodically in case the first check fails.
-        App.actions.checkActiveConnection();
-        App.state.connectionCheckInterval = setInterval(() => App.actions.checkActiveConnection(), 15000); // Check every 15 seconds
-    });
 
     // Inicia a aplicação
     App.init();
