@@ -6,6 +6,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
+import { networkManager, NetworkStatus } from './js/services/NetworkManager.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -209,12 +210,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
+        isEffectivelyOnline() {
+            const offlinePreference = App.state?.forceOffline === true;
+            return networkManager.isOnline() && !offlinePreference;
+        },
+
         state: {
             isImpersonating: false,
             originalUser: null,
             isSyncing: false,
+            isRefreshingToken: false,
             isCheckingConnection: false,
             connectionCheckInterval: null,
+            connectionStatus: NetworkStatus.OFFLINE,
+            forceOffline: false,
             currentUser: null,
             users: [],
             companies: [],
@@ -844,6 +853,11 @@ document.addEventListener('DOMContentLoaded', () => {
         init() {
             OfflineDB.init();
             this.native.init();
+            networkManager.configure({ heartbeatUrl: `${this.config.backendUrl}/health` });
+            networkManager.start();
+            networkManager.addEventListener('connectivity:changed', (event) => {
+                App.actions.handleConnectivityChange(event.detail);
+            });
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
@@ -867,15 +881,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Exibe o status inicial
                     const status = await Network.getStatus();
                     console.log(`Status inicial da rede: ${status.connected ? 'Online' : 'Offline'}`);
+                    networkManager.updateTransportStatus(status.connected, 'capacitor');
 
                     // Adiciona um 'ouvinte' para quando o status da rede mudar
                     Network.addListener('networkStatusChange', (status) => {
                         console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
-                        if (status.connected) {
-                            // Se conectar, dispara um evento 'online' personalizado,
-                            // que a lógica existente do App já sabe como manipular.
-                            window.dispatchEvent(new Event('online'));
-                        }
+                        networkManager.updateTransportStatus(status.connected, 'capacitor');
                     });
                 } catch (e) {
                     console.error("Erro ao configurar o monitoramento de rede do Capacitor.", e);
@@ -1076,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     App.ui.showTab(lastTab || 'dashboard');
                                 }
 
-                                if (navigator.onLine) {
+                                if (App.isEffectivelyOnline()) {
                                     App.actions.syncOfflineWrites();
                                 }
 
@@ -1094,7 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } else {
                         const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
+                        if (localProfiles.length > 0 && !App.isEffectivelyOnline()) {
                             App.ui.showOfflineUserSelection();
                         } else {
                             App.ui.showLoginScreen();
@@ -1196,7 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             async logout() {
-                if (navigator.onLine) {
+                if (App.isEffectivelyOnline()) {
                     await signOut(auth);
                 }
                 // Limpa todos os listeners e processos em segundo plano
@@ -1209,10 +1220,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.isImpersonating = false;
                 App.state.originalUser = null;
                 App.state.currentUser = null;
+                App.state.isRefreshingToken = false;
                 App.state.users = [];
                 App.state.companies = [];
                 App.state.globalConfigs = {};
                 App.state.companyConfig = {};
+                App.state.forceOffline = false;
+                App.state.connectionStatus = NetworkStatus.OFFLINE;
                 App.state.registros = [];
                 App.state.perdas = [];
                 App.state.cigarrinha = [];
@@ -1293,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!App.state.adminAction || typeof App.state.adminAction !== 'function') { return; }
 
                 // Se estiver offline, confia no papel do utilizador já logado
-                if (!navigator.onLine) {
+                if (!App.isEffectivelyOnline()) {
                     const userRole = App.state.currentUser?.role;
                     if (userRole === 'admin' || userRole === 'super-admin') {
                         App.ui.setLoading(true, "A executar ação offline...");
@@ -1488,7 +1502,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (doc.exists()) {
                             // Coloca a empresa do utilizador no estado, para que o menu possa ser renderizado corretamente
                             App.state.companies = [{ id: doc.id, ...doc.data() }];
-                        } else if (navigator.onLine) {
+                        } else if (App.isEffectivelyOnline()) {
                             // Se estiver online e a empresa não for encontrada, desloga o utilizador por segurança.
                             console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
                             App.auth.logout();
@@ -1506,8 +1520,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const unsubscribeConfig = onSnapshot(configDocRef, (doc) => {
                         if (doc.exists()) {
                             const configData = doc.data();
+                            const previousForceOffline = App.state.forceOffline;
                             App.state.companyConfig = configData; // Carrega todas as configurações da empresa
                             App.state.companyLogo = configData.logoBase64 || null;
+                            App.state.forceOffline = configData.forceOffline === true;
 
                             // Atualiza a UI com o valor carregado
                             const cigarrinhaMethodSelect = document.getElementById('cigarrinhaCalcMethod');
@@ -1519,9 +1535,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
                             }
 
+                            if (previousForceOffline !== App.state.forceOffline) {
+                                App.actions.handleConnectivityChange({ status: networkManager.getStatus() });
+                            }
+
                         } else {
                             App.state.companyLogo = null;
                             App.state.companyConfig = {};
+                            App.state.forceOffline = false;
                         }
                         App.ui.renderLogoPreview();
                     });
@@ -6072,7 +6093,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal("Confirmar registro de aplicação?", async () => {
                     App.ui.setLoading(true, "Salvando...");
                     try {
-                        if (navigator.onLine) {
+                        if (App.isEffectivelyOnline()) {
                             await App.data.addDocument('registroAplicacao', registroData);
                             App.ui.showAlert("Registro salvo com sucesso!", "success");
                         } else {
@@ -6100,6 +6121,32 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+            handleConnectivityChange({ status }) {
+                App.state.connectionStatus = status;
+
+                if (status === NetworkStatus.OFFLINE) {
+                    App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+                    App.actions.stopAutoSync();
+                    return;
+                }
+
+                if (App.state.forceOffline) {
+                    App.ui.showSystemNotification("Conexão", "Modo offline forçado ativo.", "info");
+                    App.actions.stopAutoSync();
+                    return;
+                }
+
+                if (status === NetworkStatus.UNSTABLE) {
+                    App.ui.showSystemNotification("Conexão", "Conexão instável. Aguardando estabilidade...", "warning");
+                    return;
+                }
+
+                if (status === NetworkStatus.ONLINE) {
+                    App.ui.showSystemNotification("Conexão", "Online. A iniciar sincronização automática...", "success");
+                    App.actions.forceTokenRefresh(false);
+                    App.actions.startAutoSync();
+                }
+            },
             async fixClimateData() {
                 App.ui.showConfirmationModal(
                     "Esta ação irá corrigir datas e formatos inconsistentes em todos os registros de clima importados. Deseja continuar?",
@@ -6231,27 +6278,11 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async checkActiveConnection() {
-                if (App.state.isCheckingConnection || !navigator.onLine) return;
+                if (App.state.isCheckingConnection) return;
                 App.state.isCheckingConnection = true;
                 console.log("Actively checking internet connection...");
                 try {
-                    // This is a lightweight request. A successful response (even if opaque) indicates connectivity.
-                    await fetch('https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js', {
-                        mode: 'no-cors',
-                        method: 'HEAD', // Use HEAD to be even more lightweight
-                        cache: 'no-store' // Avoid hitting the browser cache
-                    });
-
-                    console.log("Active connection confirmed.");
-                    // Stop the periodic check once connection is confirmed
-                    if (App.state.connectionCheckInterval) {
-                        clearInterval(App.state.connectionCheckInterval);
-                        App.state.connectionCheckInterval = null;
-                        console.log("Periodic connection check stopped.");
-                    }
-                    // Now, proceed with the actual synchronization logic
-                    this.forceTokenRefresh(false);
-
+                    await networkManager.checkNow('manual');
                 } catch (error) {
                     console.warn("Active connection check failed. Still effectively offline.");
                 } finally {
@@ -6637,7 +6668,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(true, "A guardar...");
                     try {
                         if (existingId) {
-                            if (!navigator.onLine) {
+                            if (!App.isEffectivelyOnline()) {
                                 App.ui.showAlert("A edição não está disponível offline. Conecte-se para atualizar.", "warning");
                                 return;
                             }
@@ -6656,7 +6687,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const errorMessage = `Erro ao guardar Frente de Plantio: ${error.message}.`;
 
                         // Apenas tenta guardar offline se for uma nova entrada e se o erro for de rede
-                        if (!existingId && !navigator.onLine) {
+                        if (!existingId && !App.isEffectivelyOnline()) {
                             try {
                                 const entryId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                                 await OfflineDB.add('offline-writes', { id: entryId, collection: 'frentesDePlantio', data: data });
@@ -6859,7 +6890,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal(confirmationMessage, async () => {
                     App.ui.setLoading(true, "A guardar...");
                     try {
-                        if (navigator.onLine) {
+                        if (App.isEffectivelyOnline()) {
                             if (entryId) {
                                 await App.data.updateDocument('apontamentosPlantio', entryId, newEntry);
                                 App.ui.showAlert("Apontamento de plantio atualizado com sucesso!");
@@ -6939,7 +6970,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.showConfirmationModal(confirmationMessage, async () => {
                     App.ui.setLoading(true, "A guardar...");
                     try {
-                        if (navigator.onLine) {
+                        if (App.isEffectivelyOnline()) {
                             if (entryId) {
                                 await App.data.updateDocument('clima', entryId, newEntry);
                                 App.ui.showAlert("Apontamento atualizado com sucesso!");
@@ -7833,7 +7864,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     (async () => {
                         try {
-                            if (navigator.onLine) {
+                            if (App.isEffectivelyOnline()) {
                                 await App.data.addDocument(collectionName, newEntry);
                                 App.ui.showAlert(successMessage);
                                 if (formType === 'broca' || formType === 'perda') {
@@ -7963,7 +7994,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     (async () => {
                         try {
-                            if (navigator.onLine) {
+                            if (App.isEffectivelyOnline()) {
                                 await App.data.addDocument('cigarrinhaAmostragem', newEntry);
                                 App.ui.showAlert("Lançamento de amostragem guardado com sucesso!");
                             } else {
@@ -8648,7 +8679,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // [CORREÇÃO] Tenta salvar no Firestore se estiver online
-                if (navigator.onLine && App.state.currentUser) {
+                if (App.isEffectivelyOnline() && App.state.currentUser) {
                     try {
                         const notificationData = {
                             ...notification,
@@ -8693,13 +8724,18 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async forceTokenRefresh(isManual = false) {
-                if (!navigator.onLine || !auth.currentUser) {
+                if (!App.isEffectivelyOnline() || !auth.currentUser) {
                     if (isManual) {
                         App.ui.showSystemNotification("Sincronização", "Offline ou sem utilizador. Não é possível sincronizar.", "warning");
                     }
                     console.log("Offline ou sem utilizador, não é possível atualizar o token.");
                     return;
                 }
+                if (App.state.isRefreshingToken) {
+                    console.log("Atualização de token já em andamento.");
+                    return;
+                }
+                App.state.isRefreshingToken = true;
                 try {
                     const message = isManual ? "A iniciar sincronização manual..." : "Conexão reestabelecida. A iniciar sincronização automática...";
                     App.ui.showSystemNotification("Sincronização", message, "info");
@@ -8731,12 +8767,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     console.error("Falha ao forçar a atualização do token:", error);
                     App.ui.showSystemNotification("Erro de Autenticação", "Falha na autenticação. Não foi possível sincronizar.", "error");
+                } finally {
+                    App.state.isRefreshingToken = false;
                 }
             },
 
             async syncOfflineWrites() {
                 if (App.state.isSyncing) {
                     console.log("A sincronização já está em andamento.");
+                    return;
+                }
+                if (!App.isEffectivelyOnline()) {
+                    console.log("Sem conexão estável. Sincronização adiada.");
                     return;
                 }
 
@@ -9638,7 +9680,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Sincroniza a cada 1 hora
                 const umaHora = 60 * 60 * 1000;
                 App.state.syncInterval = setInterval(() => {
-                    if (navigator.onLine) {
+                    if (App.isEffectivelyOnline()) {
                         console.log("Sincronização automática em primeiro plano iniciada...");
                         App.actions.syncOfflineWrites();
                     } else {
@@ -9666,7 +9708,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                if (!navigator.onLine) {
+                if (!App.isEffectivelyOnline()) {
                     App.ui.showAlert("É preciso estar online para habilitar o login offline pela primeira vez.", "warning");
                     return;
                 }
@@ -9725,7 +9767,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!App.state.currentUser) return;
 
                 // Apenas executa online para garantir que tem os anúncios mais recentes
-                if (!navigator.onLine) return;
+                if (!App.isEffectivelyOnline()) return;
 
                 try {
                     const user = App.state.currentUser;
@@ -9820,7 +9862,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async exportClimateData() {
                 // OTIMIZAÇÃO: Usa o backend para exportar histórico completo (evita dependência do estado local limitado)
-                if (navigator.onLine) {
+                if (App.isEffectivelyOnline()) {
                     try {
                         App.ui.setLoading(true, "A exportar dados climatológicos...");
                         // Usa a função de relatório existente, sem filtros de data para pegar tudo
@@ -11139,7 +11181,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.setLoading(true, "A guardar armadilha...");
 
                 try {
-                    if (navigator.onLine) {
+                    if (App.isEffectivelyOnline()) {
                         const dataForFirestore = { ...newTrapData, dataInstalacao: Timestamp.fromDate(installDate) };
                         await App.data.setDocument('armadilhas', trapId, dataForFirestore);
                         this.addOrUpdateTrapMarker({ id: trapId, ...dataForFirestore });
@@ -11212,7 +11254,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.checkTrapStatusAndNotify();
 
                 try {
-                    if (!navigator.onLine) {
+                    if (!App.isEffectivelyOnline()) {
                         throw new Error("Offline mode detected");
                     }
                     // For online, use Firestore Timestamp
@@ -13691,7 +13733,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 try {
-                    if (navigator.onLine) {
+                    if (App.isEffectivelyOnline()) {
                         App.ui.setLoading(true, "A carregar dados climáticos...");
                         const token = await auth.currentUser.getIdToken();
                         const query = new URLSearchParams(filters).toString();
@@ -14870,27 +14912,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
-
-    window.addEventListener('offline', () => {
-        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
-        if (App.state.connectionCheckInterval) {
-            clearInterval(App.state.connectionCheckInterval);
-            App.state.connectionCheckInterval = null;
-            console.log("Periodic connection check stopped due to offline event.");
-        }
-    });
-
-    window.addEventListener('online', () => {
-        console.log("Browser reports 'online'. Starting active connection checks.");
-        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
-        // Clear any previous interval just in case
-        if (App.state.connectionCheckInterval) {
-            clearInterval(App.state.connectionCheckInterval);
-        }
-        // Check immediately, then start checking periodically in case the first check fails.
-        App.actions.checkActiveConnection();
-        App.state.connectionCheckInterval = setInterval(() => App.actions.checkActiveConnection(), 15000); // Check every 15 seconds
-    });
 
     // Inicia a aplicação
     App.init();

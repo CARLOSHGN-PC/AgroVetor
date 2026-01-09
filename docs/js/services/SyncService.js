@@ -2,6 +2,7 @@
 
 import { offlineManager, OfflineManager } from '../lib/OfflineManager.js';
 import { SyncQueueFactory } from '../lib/SyncQueue.js';
+import { networkManager, NetworkStatus } from './NetworkManager.js';
 
 class SyncService {
     constructor() {
@@ -14,15 +15,16 @@ class SyncService {
 
         this.queue = SyncQueueFactory(backendUrl, authProvider);
 
-        // Listeners de Rede
-        window.addEventListener('online', () => {
-            console.log("[SyncService] Online detectado. Iniciando sincronização...");
-            this.queue.processQueue();
+        networkManager.addEventListener('connectivity:changed', (event) => {
+            if (event.detail.status === NetworkStatus.ONLINE) {
+                console.log("[SyncService] Online detectado. Iniciando sincronização...");
+                this.queue.processQueue();
+            }
         });
 
         // Sincronização Periódica (Backup)
         setInterval(() => {
-            if (navigator.onLine) {
+            if (networkManager.isOnline()) {
                 this.queue.processQueue();
             }
         }, 60 * 1000); // A cada 1 minuto
@@ -48,7 +50,7 @@ class SyncService {
         await offlineManager.enqueueOperation(type, collection, data, uuid);
 
         // Tenta sincronizar imediatamente se estiver online
-        if (navigator.onLine) {
+        if (networkManager.isOnline()) {
             // Não aguardamos o processQueue terminar para não bloquear a UI
             this.queue.processQueue();
         }
@@ -58,7 +60,7 @@ class SyncService {
 
     async delete(collection, id) {
         await offlineManager.enqueueOperation('DELETE', collection, {}, id);
-        if (navigator.onLine) this.queue.processQueue();
+        if (networkManager.isOnline()) this.queue.processQueue();
     }
 }
 

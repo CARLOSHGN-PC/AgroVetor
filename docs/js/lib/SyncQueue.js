@@ -1,6 +1,7 @@
 // docs/js/lib/SyncQueue.js
 
 import { offlineManager } from './OfflineManager.js';
+import { networkManager } from '../services/NetworkManager.js';
 
 /**
  * Gerencia a fila de sincronização: processamento, retry e dependências.
@@ -18,7 +19,7 @@ class SyncQueue {
      * Deve ser chamado quando há conexão ou periodicamente.
      */
     async processQueue() {
-        if (this.isSyncing || !navigator.onLine) return;
+        if (this.isSyncing || !networkManager.isOnline()) return;
         this.isSyncing = true;
 
         try {
@@ -32,7 +33,7 @@ class SyncQueue {
             pendingOps.sort((a, b) => a.id - b.id);
 
             for (const op of pendingOps) {
-                if (!navigator.onLine) break; // Para se cair a net no meio
+                if (!networkManager.isOnline()) break; // Para se cair a net no meio
 
                 // Verifica Backoff Exponencial
                 if (op.nextRetry && Date.now() < op.nextRetry) {

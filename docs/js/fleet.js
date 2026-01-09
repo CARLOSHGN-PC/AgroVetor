@@ -1,4 +1,5 @@
 import { createKMRepository } from './repositories/KMRepository.js';
+import { networkManager } from './services/NetworkManager.js';
 
 const FleetModule = {
     historyPage: 0,
@@ -414,7 +415,7 @@ const FleetModule = {
             App.ui.showAlert("Saída registada com sucesso!");
             this.clearTripForm();
             await this.loadActiveTrips();
-            if (navigator.onLine) {
+            if (networkManager.isOnline()) {
                 App.actions.syncOfflineWrites();
             }
         } catch (error) {
@@ -516,7 +517,7 @@ const FleetModule = {
             this.clearTripForm();
             await this.loadActiveTrips();
             await this.loadHistoryPage();
-            if (navigator.onLine) {
+            if (networkManager.isOnline()) {
                 App.actions.syncOfflineWrites();
             }
 
