@@ -164,8 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
                         { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
                         { label: 'Qualidade de Plantio', icon: 'fas fa-seedling', target: 'qualidadePlantio', permission: 'qualidadePlantio' },
-                        { label: 'Consumo de Muda', icon: 'fas fa-weight-hanging', target: 'qualidadeConsumoMuda', permission: 'qualidadeConsumoMuda' },
-                        { label: 'Broca (Qualidade)', icon: 'fas fa-bug', target: 'qualidadeBroca', permission: 'qualidadeBroca' },
                         { label: 'Apontamento de Plantio', icon: 'fas fa-seedling', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
                         { label: 'Apontamento Climatológico', icon: 'fas fa-cloud', target: 'lancamentoClima', permission: 'lancamentoClima' },
                     ]
@@ -290,6 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
             plantioVariedadeWarningShown: false,
             plantioLegacyMudaArea: null,
             qualidadePlantioContext: null,
+            qualidadePlantioDraft: null,
         },
         
         fleet: FleetModule,
@@ -594,42 +593,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 data: document.getElementById('qualidadeData'),
                 tipoInspecao: document.getElementById('qualidadeTipoInspecao'),
                 tipoPrestador: document.getElementById('qualidadeTipoPrestador'),
-                indicador: document.getElementById('qualidadeIndicador'),
-                indicadorLabel: document.getElementById('qualidadeIndicadorLabel'),
-                indicadorValor: document.getElementById('qualidadeIndicadorValor'),
-                indicadorCard: document.getElementById('qualidadeIndicadorCard'),
-                gemasGroup: document.getElementById('qualidadeGemasGroup'),
-                amostragem: document.getElementById('qualidadeAmostragem'),
-                qtdGemasTotal: document.getElementById('qualidadeQtdGemasTotal'),
                 btnSalvar: document.getElementById('btnSalvarQualidadePlantio'),
+                tabs: document.querySelectorAll('.qualidade-tab'),
+                tabPanels: document.querySelectorAll('.qualidade-tab-panel'),
+                subamostrasList: document.getElementById('qualidadeSubamostrasList'),
+                btnAddSubamostra: document.getElementById('btnAdicionarSubamostra'),
+                emptySubamostras: document.getElementById('qualidadeSubamostrasEmpty'),
             },
             qualidadeConsumo: {
-                form: document.getElementById('formQualidadeConsumo'),
                 tipoPlantio: document.getElementById('qualidadeConsumoTipoPlantio'),
                 fazenda: document.getElementById('qualidadeConsumoFazenda'),
                 talhao: document.getElementById('qualidadeConsumoTalhao'),
                 variedade: document.getElementById('qualidadeConsumoVariedade'),
                 data: document.getElementById('qualidadeConsumoData'),
+                subamostra: document.getElementById('qualidadeConsumoSubamostra'),
                 pesoTotal: document.getElementById('qualidadePesoTotal'),
                 metrosLineares: document.getElementById('qualidadeMetrosLineares'),
                 consumoMuda: document.getElementById('qualidadeConsumoMudaValor'),
                 prestadorTirou: document.getElementById('qualidadePrestadorTirou'),
                 fazendaOrigem: document.getElementById('qualidadeFazendaOrigem'),
-                btnSalvar: document.getElementById('btnSalvarQualidadeConsumo'),
-                btnVoltar: document.getElementById('btnVoltarQualidadeConsumo'),
+                emptyState: document.getElementById('qualidadeConsumoEmpty'),
             },
             qualidadeBroca: {
-                form: document.getElementById('formQualidadeBroca'),
                 tipoPlantio: document.getElementById('qualidadeBrocaTipoPlantio'),
                 fazenda: document.getElementById('qualidadeBrocaFazenda'),
                 talhao: document.getElementById('qualidadeBrocaTalhao'),
                 variedade: document.getElementById('qualidadeBrocaVariedade'),
                 data: document.getElementById('qualidadeBrocaData'),
+                subamostra: document.getElementById('qualidadeBrocaSubamostra'),
                 broca: document.getElementById('qualidadeBrocaValor'),
                 qtdGemasTotal: document.getElementById('qualidadeBrocaQtdGemasTotal'),
                 percentualBroca: document.getElementById('qualidadeBrocaPercentual'),
-                btnSalvar: document.getElementById('btnSalvarQualidadeBroca'),
-                btnVoltar: document.getElementById('btnVoltarQualidadeBroca'),
+                emptyState: document.getElementById('qualidadeBrocaEmpty'),
             },
             relatorioQualidade: {
                 inicio: document.getElementById('qualidadeReportInicio'),
@@ -1886,6 +1881,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('populateUserSelects', () => this.populateUserSelects([App.elements.planejamento.responsavel]));
                 renderWithCatch('populateOperatorSelects', () => this.populateOperatorSelects());
                 renderWithCatch('updateQualidadeIndicatorOptions', () => this.updateQualidadeIndicatorOptions());
+                renderWithCatch('renderQualidadeSubamostras', () => this.renderQualidadeSubamostras());
+                renderWithCatch('renderQualidadeContext', () => this.renderQualidadeContext());
                 renderWithCatch('updateQualidadeReportIndicators', () => this.updateQualidadeReportIndicators());
                 renderWithCatch('renderUsersList', () => this.renderUsersList());
                 renderWithCatch('renderPersonnelList', () => this.renderPersonnelList());
@@ -2106,11 +2103,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
 
-                if ((id === 'qualidadeConsumoMuda' || id === 'qualidadeBroca') && !App.state.qualidadePlantioContext) {
-                    App.ui.showAlert("Preencha os campos base na Qualidade de Plantio antes de acessar esta tela.", "warning");
-                    id = 'qualidadePlantio';
-                }
-
                 const currentActiveTab = document.querySelector('.tab-content.active');
                 if (currentActiveTab && currentActiveTab.id === 'apontamentoPlantio' && App.state.apontamentoPlantioFormIsDirty && id !== 'apontamentoPlantio') {
                     App.ui.showConfirmationModal(
@@ -2182,12 +2174,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     tab.classList.add('active');
                     tab.hidden = false;
                 }
-
-                if (id === 'qualidadeConsumoMuda') {
-                    this.renderQualidadeContext('consumo');
-                }
-                if (id === 'qualidadeBroca') {
-                    this.renderQualidadeContext('broca');
+                if (id === 'qualidadePlantio') {
+                    const draft = App.actions.ensureQualidadeDraft();
+                    this.setQualidadeTab(draft.activeTab || 'qual');
+                    this.renderQualidadeSubamostras();
+                    this.renderQualidadeContext();
                 }
                 
                 if (id === 'dashboard') {
@@ -2497,68 +2488,242 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             updateQualidadeIndicatorOptions() {
                 const els = App.elements.qualidadePlantio;
-                if (!els.tipoPlantio || !els.indicador) return;
-
+                if (!els.tipoPlantio) return;
                 const tipoPlantio = els.tipoPlantio.value;
                 const indicadores = tipoPlantio ? App.actions.getQualidadeIndicadores(tipoPlantio) : [];
-                const currentValue = els.indicador.value;
+                const options = indicadores
+                    .map(indicador => `<option value="${indicador.code}">${indicador.name}</option>`)
+                    .join('');
 
-                els.indicador.innerHTML = '<option value="">Selecione...</option>';
-                indicadores.forEach(indicador => {
-                    els.indicador.innerHTML += `<option value="${indicador.code}">${indicador.name}</option>`;
+                if (els.subamostrasList) {
+                    els.subamostrasList.querySelectorAll('.qualidade-indicadores-select').forEach(select => {
+                        const currentValues = Array.from(select.selectedOptions).map(option => option.value);
+                        select.innerHTML = options;
+                        Array.from(select.options).forEach(option => {
+                            option.selected = currentValues.includes(option.value);
+                        });
+                    });
+                }
+
+                this.updateQualidadeSubamostraControls();
+            },
+            updateQualidadeSubamostraControls() {
+                const els = App.elements.qualidadePlantio;
+                const hasTipoPlantio = Boolean(els.tipoPlantio?.value);
+                if (els.btnAddSubamostra) {
+                    els.btnAddSubamostra.disabled = !hasTipoPlantio;
+                }
+                if (els.subamostrasList) {
+                    els.subamostrasList.querySelectorAll('.qualidade-indicadores-select').forEach(select => {
+                        select.disabled = !hasTipoPlantio;
+                    });
+                }
+            },
+            setQualidadeTab(tabKey) {
+                const els = App.elements.qualidadePlantio;
+                if (!els.tabs || !els.tabPanels) return;
+                const draft = App.actions.ensureQualidadeDraft();
+                draft.activeTab = tabKey;
+
+                els.tabs.forEach(tab => {
+                    const isActive = tab.dataset.qualidadeTab === tabKey;
+                    tab.classList.toggle('active', isActive);
+                    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
                 });
-                const validCodes = new Set(indicadores.map(ind => ind.code));
-                els.indicador.value = validCodes.has(currentValue) ? currentValue : '';
+                els.tabPanels.forEach(panel => {
+                    panel.classList.toggle('active', panel.dataset.qualidadePanel === tabKey);
+                });
+                if (tabKey === 'cm' || tabKey === 'bro') {
+                    this.renderQualidadeContext();
+                }
             },
-            updateQualidadeIndicatorFields() {
+            renderQualidadeSubamostras() {
                 const els = App.elements.qualidadePlantio;
-                if (!els.indicador || !els.indicadorCard) return;
+                const draft = App.actions.ensureQualidadeDraft();
+                if (!els.subamostrasList) return;
+                if (draft.activeSubamostraId && !draft.subamostras.some(item => item.id === draft.activeSubamostraId)) {
+                    draft.activeSubamostraId = draft.subamostras[0]?.id || null;
+                }
+                const tipoPlantio = els.tipoPlantio?.value || '';
+                const indicadores = tipoPlantio ? App.actions.getQualidadeIndicadores(tipoPlantio) : [];
 
-                const indicador = App.actions.getQualidadeIndicadorByCode(els.indicador.value);
-                if (!indicador) {
-                    this.resetQualidadeIndicadorFields();
+                if (draft.subamostras.length === 0) {
+                    els.subamostrasList.innerHTML = '';
+                    if (els.emptySubamostras) {
+                        els.emptySubamostras.hidden = false;
+                    }
+                    this.updateQualidadeSubamostraControls();
                     return;
                 }
 
+                if (els.emptySubamostras) {
+                    els.emptySubamostras.hidden = true;
+                }
+
+                els.subamostrasList.innerHTML = draft.subamostras
+                    .map(subamostra => this.buildQualidadeSubamostraCard(subamostra, indicadores))
+                    .join('');
+                this.updateQualidadeSubamostraControls();
+            },
+            buildQualidadeSubamostraCard(subamostra, indicadores) {
+                const selectedIndicadores = subamostra.selectedIndicadores || [];
+                const options = indicadores
+                    .map(indicador => `<option value="${indicador.code}" ${selectedIndicadores.includes(indicador.code) ? 'selected' : ''}>${indicador.name}</option>`)
+                    .join('');
+                const items = selectedIndicadores
+                    .map(code => {
+                        const indicador = subamostra.indicadores?.[code];
+                        if (!indicador) return '';
+                        const status = App.actions.getQualidadeIndicadorStatus(indicador);
+                        const statusClass = status === 'preenchido' ? 'status-done' : 'status-pending';
+                        const isOpen = indicador.expanded ? 'is-open' : '';
+                        const bodyContent = this.buildQualidadeIndicadorBody(subamostra, indicador);
+                        return `
+                            <div class="qualidade-indicador-item ${isOpen}" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}">
+                                <button class="qualidade-indicador-toggle" type="button" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}">
+                                    <div class="qualidade-indicador-title">${indicador.name}</div>
+                                    <span class="qualidade-status ${statusClass}" data-status-indicador>${status === 'preenchido' ? 'Preenchido' : 'Pendente'}</span>
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                                <div class="qualidade-indicador-body">${bodyContent}</div>
+                            </div>
+                        `;
+                    })
+                    .join('');
+                const status = App.actions.getQualidadeSubamostraStatus(subamostra);
+                const statusClass = status === 'preenchido' ? 'status-done' : 'status-pending';
+
+                return `
+                    <div class="qualidade-subamostra-card" data-subamostra-id="${subamostra.id}">
+                        <div class="qualidade-subamostra-header">
+                            <div class="qualidade-subamostra-title">Subamostra ${subamostra.numero}</div>
+                            <span class="qualidade-status ${statusClass}" data-status-subamostra>${status === 'preenchido' ? 'Preenchida' : 'Pendente'}</span>
+                        </div>
+                        <div class="form-row qualidade-subamostra-row">
+                            <div class="form-col">
+                                <label>Indicadores</label>
+                                <select class="qualidade-indicadores-select" data-subamostra-id="${subamostra.id}" multiple>${options}</select>
+                                <div class="qualidade-indicadores-hint">Selecione um ou mais indicadores por subamostra.</div>
+                            </div>
+                        </div>
+                        <div class="qualidade-indicadores-list">
+                            ${items || '<div class="qualidade-empty-state">Nenhum indicador selecionado.</div>'}
+                        </div>
+                    </div>
+                `;
+            },
+            buildQualidadeIndicadorBody(subamostra, indicador) {
+                if (indicador.type === 'valor') {
+                    return `
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label class="required">${indicador.label}</label>
+                                <input type="number" min="0" step="0.01" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}" data-field="valor" value="${indicador.valor ?? ''}">
+                            </div>
+                        </div>
+                    `;
+                }
+                if (indicador.type === 'gemas') {
+                    const qtdGemasTotal = indicador.qtdGemasTotal ?? null;
+                    return `
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label class="required">${indicador.label}</label>
+                                <input type="number" min="0" step="0.01" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}" data-field="valor" value="${indicador.valor ?? ''}">
+                            </div>
+                            <div class="form-col">
+                                <label class="required">Amostragem</label>
+                                <input type="number" min="0" step="1" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}" data-field="amostragem" value="${indicador.amostragem ?? ''}">
+                            </div>
+                            <div class="form-col">
+                                <label>Qtd. Gemas Total</label>
+                                <div class="info-display" data-field="qtdGemasTotal">${qtdGemasTotal !== null ? Number(qtdGemasTotal).toFixed(2) : ''}</div>
+                            </div>
+                        </div>
+                    `;
+                }
                 if (indicador.type === 'consumo') {
-                    if (App.actions.setQualidadeContextFromForm(indicador)) {
-                        this.resetQualidadeIndicadorFields();
-                        App.ui.showTab('qualidadeConsumoMuda');
-                    }
-                    return;
+                    const consumo = indicador.consumo || {};
+                    const consumoMuda = consumo.consumoMudaT ?? null;
+                    const pesoTotal = consumo.pesoTotal ?? null;
+                    return `
+                        <div class="qualidade-indicador-summary">
+                            <div><strong>Consumo (t):</strong> <span data-field="consumoMudaT">${consumoMuda !== null ? Number(consumoMuda).toFixed(2) : '-'}</span></div>
+                            <div><strong>Peso Total:</strong> <span data-field="pesoTotal">${pesoTotal !== null ? Number(pesoTotal).toFixed(2) : '-'}</span></div>
+                            <button type="button" class="btn-secondary qualidade-indicador-edit" data-action="edit-consumo" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}">
+                                <i class="fas fa-pen"></i> Editar na aba CM
+                            </button>
+                        </div>
+                    `;
                 }
-
                 if (indicador.type === 'broca') {
-                    if (App.actions.setQualidadeContextFromForm(indicador)) {
-                        this.resetQualidadeIndicadorFields();
-                        App.ui.showTab('qualidadeBroca');
-                    }
-                    return;
+                    const broca = indicador.broca || {};
+                    const percentual = broca.percentualBroca ?? null;
+                    const qtdGemas = broca.qtdGemasTotal ?? null;
+                    return `
+                        <div class="qualidade-indicador-summary">
+                            <div><strong>% Broca:</strong> <span data-field="percentualBroca">${percentual !== null ? Number(percentual).toFixed(2) : '-'}</span></div>
+                            <div><strong>Qtd. Gemas:</strong> <span data-field="qtdGemasTotal">${qtdGemas !== null ? Number(qtdGemas).toFixed(2) : '-'}</span></div>
+                            <button type="button" class="btn-secondary qualidade-indicador-edit" data-action="edit-broca" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}">
+                                <i class="fas fa-pen"></i> Editar na aba BRO
+                            </button>
+                        </div>
+                    `;
                 }
-
-                els.indicadorCard.style.display = 'block';
-                if (els.indicadorLabel) {
-                    els.indicadorLabel.textContent = indicador.label;
-                }
-                if (els.gemasGroup) {
-                    els.gemasGroup.style.display = indicador.type === 'gemas' ? 'flex' : 'none';
-                }
-                if (indicador.type !== 'gemas') {
-                    if (els.amostragem) els.amostragem.value = '';
-                    if (els.qtdGemasTotal) els.qtdGemasTotal.textContent = '';
-                } else {
-                    this.calculateQualidadeGemasTotal();
-                }
+                return '';
             },
-            resetQualidadeIndicadorFields() {
-                const els = App.elements.qualidadePlantio;
-                if (!els.indicadorCard) return;
-                els.indicadorCard.style.display = 'none';
-                if (els.indicadorLabel) els.indicadorLabel.textContent = '';
-                if (els.indicadorValor) els.indicadorValor.value = '';
-                if (els.amostragem) els.amostragem.value = '';
-                if (els.qtdGemasTotal) els.qtdGemasTotal.textContent = '';
-                if (els.gemasGroup) els.gemasGroup.style.display = 'none';
+            updateQualidadeStatusIndicators(subamostraId, indicadorCode) {
+                const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
+                if (!subamostra) return;
+                const indicador = subamostra.indicadores?.[indicadorCode];
+                if (indicador) {
+                    const status = App.actions.getQualidadeIndicadorStatus(indicador);
+                    const item = document.querySelector(`.qualidade-indicador-item[data-subamostra-id="${subamostraId}"][data-indicador-code="${indicadorCode}"]`);
+                    const badge = item?.querySelector('[data-status-indicador]');
+                    if (badge) {
+                        badge.textContent = status === 'preenchido' ? 'Preenchido' : 'Pendente';
+                        badge.classList.toggle('status-done', status === 'preenchido');
+                        badge.classList.toggle('status-pending', status !== 'preenchido');
+                    }
+                    if (item && indicador.type === 'consumo') {
+                        const consumo = indicador.consumo || {};
+                        const consumoEl = item.querySelector('[data-field="consumoMudaT"]');
+                        const pesoEl = item.querySelector('[data-field="pesoTotal"]');
+                        if (consumoEl) {
+                            consumoEl.textContent = consumo.consumoMudaT !== undefined && consumo.consumoMudaT !== null
+                                ? Number(consumo.consumoMudaT).toFixed(2)
+                                : '-';
+                        }
+                        if (pesoEl) {
+                            pesoEl.textContent = consumo.pesoTotal !== undefined && consumo.pesoTotal !== null
+                                ? Number(consumo.pesoTotal).toFixed(2)
+                                : '-';
+                        }
+                    }
+                    if (item && indicador.type === 'broca') {
+                        const broca = indicador.broca || {};
+                        const percentualEl = item.querySelector('[data-field="percentualBroca"]');
+                        const qtdEl = item.querySelector('[data-field="qtdGemasTotal"]');
+                        if (percentualEl) {
+                            percentualEl.textContent = broca.percentualBroca !== undefined && broca.percentualBroca !== null
+                                ? Number(broca.percentualBroca).toFixed(2)
+                                : '-';
+                        }
+                        if (qtdEl) {
+                            qtdEl.textContent = broca.qtdGemasTotal !== undefined && broca.qtdGemasTotal !== null
+                                ? Number(broca.qtdGemasTotal).toFixed(2)
+                                : '-';
+                        }
+                    }
+                }
+                const status = App.actions.getQualidadeSubamostraStatus(subamostra);
+                const card = document.querySelector(`.qualidade-subamostra-card[data-subamostra-id="${subamostraId}"]`);
+                const subBadge = card?.querySelector('[data-status-subamostra]');
+                if (subBadge) {
+                    subBadge.textContent = status === 'preenchido' ? 'Preenchida' : 'Pendente';
+                    subBadge.classList.toggle('status-done', status === 'preenchido');
+                    subBadge.classList.toggle('status-pending', status !== 'preenchido');
+                }
             },
             updateQualidadeTalhaoOptions(selectEl, farmId, includeAll = false) {
                 if (!selectEl) return;
@@ -2593,51 +2758,107 @@ document.addEventListener('DOMContentLoaded', () => {
                     els.variedade.placeholder = '';
                 }
             },
-            calculateQualidadeGemasTotal() {
+            renderQualidadeContext() {
+                const draft = App.actions.ensureQualidadeDraft();
                 const els = App.elements.qualidadePlantio;
-                if (!els.indicador || !els.qtdGemasTotal) return;
-                const indicador = App.actions.getQualidadeIndicadorByCode(els.indicador.value);
-                if (!indicador || indicador.type !== 'gemas') {
-                    els.qtdGemasTotal.textContent = '';
-                    return;
+                const consumoEls = App.elements.qualidadeConsumo;
+                const brocaEls = App.elements.qualidadeBroca;
+                if (!consumoEls || !brocaEls) return;
+
+                const base = App.actions.buildQualidadeBaseFromForm();
+                const subamostra = App.actions.getQualidadeSubamostraById(draft.activeSubamostraId);
+                const hasSubamostra = Boolean(subamostra);
+                const hasConsumo = hasSubamostra && Boolean(App.actions.getQualidadeConsumoIndicador(subamostra));
+                const hasBroca = hasSubamostra && Boolean(App.actions.getQualidadeBrocaIndicador(subamostra));
+                const formattedDate = base.data ? App.actions.formatDateForDisplay(base.data) : '-';
+
+                [consumoEls, brocaEls].forEach(target => {
+                    target.tipoPlantio.textContent = base.tipoPlantio || '-';
+                    target.fazenda.textContent = base.fazendaNome || '-';
+                    target.talhao.textContent = base.talhaoNome || '-';
+                    target.variedade.textContent = base.variedadeNome || '-';
+                    target.data.textContent = formattedDate;
+                    if (target.subamostra) {
+                        target.subamostra.textContent = subamostra ? `#${subamostra.numero}` : '-';
+                    }
+                });
+
+                this.toggleQualidadeTabInputs(consumoEls, hasConsumo);
+                this.toggleQualidadeTabInputs(brocaEls, hasBroca);
+
+                if (consumoEls.emptyState) {
+                    consumoEls.emptyState.hidden = hasConsumo;
                 }
-                const gemas = parseFloat(els.indicadorValor.value) || 0;
-                const amostragem = parseFloat(els.amostragem.value) || 0;
-                const total = gemas * amostragem;
-                els.qtdGemasTotal.textContent = total > 0 ? total.toFixed(2) : '0';
-            },
-            calculateQualidadeConsumoMuda() {
-                const els = App.elements.qualidadeConsumo;
-                if (!els.pesoTotal || !els.metrosLineares || !els.consumoMuda) return;
-                const pesoTotal = parseFloat(els.pesoTotal.value) || 0;
-                const metrosLineares = (pesoTotal / 5) * 6666;
-                const consumoMuda = metrosLineares / 1000;
-                els.metrosLineares.textContent = pesoTotal > 0 ? metrosLineares.toFixed(2) : '0';
-                els.consumoMuda.textContent = pesoTotal > 0 ? consumoMuda.toFixed(2) : '0';
-            },
-            calculateQualidadeBroca() {
-                const els = App.elements.qualidadeBroca;
-                if (!els.broca || !els.qtdGemasTotal || !els.percentualBroca) return;
-                const broca = parseFloat(els.broca.value) || 0;
-                const totalGemas = parseFloat(els.qtdGemasTotal.value) || 0;
-                const percentual = totalGemas > 0 ? (broca / totalGemas) * 100 : 0;
-                els.percentualBroca.textContent = totalGemas > 0 ? percentual.toFixed(2) : '0';
-            },
-            renderQualidadeContext(target) {
-                const context = App.state.qualidadePlantioContext;
-                if (!context) return;
-                const map = target === 'consumo' ? App.elements.qualidadeConsumo : App.elements.qualidadeBroca;
-                if (!map) return;
+                if (brocaEls.emptyState) {
+                    brocaEls.emptyState.hidden = hasBroca;
+                }
 
-                map.tipoPlantio.textContent = context.tipoPlantio || '-';
-                map.fazenda.textContent = context.fazendaNome || '-';
-                map.talhao.textContent = context.talhaoNome || '-';
-                map.variedade.textContent = context.variedadeNome || '-';
-                map.data.textContent = App.actions.formatDateForDisplay(context.data) || context.data || '-';
+                if (hasConsumo) {
+                    this.populateQualidadeConsumoFields(subamostra);
+                } else {
+                    consumoEls.pesoTotal.value = '';
+                    consumoEls.metrosLineares.textContent = '';
+                    consumoEls.consumoMuda.textContent = '';
+                    consumoEls.prestadorTirou.value = '';
+                    consumoEls.fazendaOrigem.value = '';
+                }
 
-                if (target === 'broca' && map.qtdGemasTotal) {
-                    map.qtdGemasTotal.value = context.qtdGemasTotal || '';
-                    this.calculateQualidadeBroca();
+                if (hasBroca) {
+                    this.populateQualidadeBrocaFields(subamostra);
+                } else {
+                    brocaEls.broca.value = '';
+                    brocaEls.qtdGemasTotal.value = '';
+                    brocaEls.percentualBroca.textContent = '';
+                }
+            },
+            toggleQualidadeTabInputs(target, enabled) {
+                if (!target) return;
+                const panelKey = target === App.elements.qualidadeConsumo ? 'cm' : 'bro';
+                const panel = document.querySelector(`.qualidade-tab-panel[data-qualidade-panel="${panelKey}"]`);
+                if (!panel) return;
+                panel.querySelectorAll('input, select, textarea').forEach(input => {
+                    input.disabled = !enabled;
+                });
+            },
+            populateQualidadeConsumoFields(subamostra) {
+                const consumoEls = App.elements.qualidadeConsumo;
+                if (!consumoEls || !subamostra) return;
+                const indicador = App.actions.getQualidadeConsumoIndicador(subamostra);
+                const consumo = indicador?.consumo || {};
+                const metrosLineares = consumo.metrosLineares ?? null;
+                const consumoMuda = consumo.consumoMudaT ?? null;
+                consumoEls.pesoTotal.value = consumo.pesoTotal ?? '';
+                consumoEls.metrosLineares.textContent = metrosLineares !== null ? Number(metrosLineares).toFixed(2) : '';
+                consumoEls.consumoMuda.textContent = consumoMuda !== null ? Number(consumoMuda).toFixed(2) : '';
+                consumoEls.prestadorTirou.value = consumo.prestadorTirouMudaId || '';
+                consumoEls.fazendaOrigem.value = consumo.fazendaOrigemMudaId || '';
+            },
+            populateQualidadeBrocaFields(subamostra) {
+                const brocaEls = App.elements.qualidadeBroca;
+                if (!brocaEls || !subamostra) return;
+                const indicador = App.actions.getQualidadeBrocaIndicador(subamostra);
+                const broca = indicador?.broca || {};
+                const qtdGemasTotal = App.actions.getQualidadeSubamostraQtdGemasTotal(subamostra);
+                const brocaValue = App.safeParseFloat(broca.broca);
+                const resolvedQtdGemas = qtdGemasTotal || App.safeParseFloat(broca.qtdGemasTotal);
+                const percentual = resolvedQtdGemas > 0 ? (brocaValue / resolvedQtdGemas) * 100 : 0;
+
+                brocaEls.broca.value = broca.broca ?? '';
+                if (qtdGemasTotal) {
+                    brocaEls.qtdGemasTotal.value = qtdGemasTotal.toFixed(2);
+                    brocaEls.qtdGemasTotal.readOnly = true;
+                } else {
+                    brocaEls.qtdGemasTotal.value = broca.qtdGemasTotal ?? '';
+                    brocaEls.qtdGemasTotal.readOnly = false;
+                }
+                brocaEls.percentualBroca.textContent = resolvedQtdGemas > 0 ? percentual.toFixed(2) : '';
+                if (indicador) {
+                    indicador.broca = {
+                        ...broca,
+                        broca: brocaValue,
+                        qtdGemasTotal: resolvedQtdGemas,
+                        percentualBroca: percentual,
+                    };
                 }
             },
             updateQualidadeReportIndicators() {
@@ -4964,8 +5185,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const qualidadeEls = App.elements.qualidadePlantio;
                 if (qualidadeEls.tipoPlantio) {
                     qualidadeEls.tipoPlantio.addEventListener('change', () => {
-                        App.ui.updateQualidadeIndicatorOptions();
-                        App.ui.resetQualidadeIndicadorFields();
+                        const draft = App.actions.ensureQualidadeDraft();
+                        const applyChange = () => {
+                            App.actions.resetQualidadeDraft();
+                            App.ui.updateQualidadeIndicatorOptions();
+                            App.ui.renderQualidadeSubamostras();
+                            App.ui.renderQualidadeContext();
+                        };
+                        if (draft.subamostras.length) {
+                            App.ui.showConfirmationModal(
+                                "Alterar o Tipo de Plantio irá limpar as Subamostras. Deseja continuar?",
+                                applyChange
+                            );
+                        } else {
+                            applyChange();
+                        }
                     });
                 }
                 if (qualidadeEls.fazenda) {
@@ -4973,52 +5207,218 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.updateQualidadeTalhaoOptions(qualidadeEls.talhao, e.target.value);
                         if (qualidadeEls.talhao) qualidadeEls.talhao.value = '';
                         App.ui.updateQualidadeVariedade();
+                        App.ui.renderQualidadeContext();
                     });
                 }
                 if (qualidadeEls.talhao) {
-                    qualidadeEls.talhao.addEventListener('change', () => App.ui.updateQualidadeVariedade());
+                    qualidadeEls.talhao.addEventListener('change', () => {
+                        App.ui.updateQualidadeVariedade();
+                        App.ui.renderQualidadeContext();
+                    });
+                }
+                if (qualidadeEls.data) {
+                    qualidadeEls.data.addEventListener('change', () => App.ui.renderQualidadeContext());
                 }
                 if (qualidadeEls.variedade) {
                     qualidadeEls.variedade.addEventListener('input', () => {
                         qualidadeEls.variedade.value = qualidadeEls.variedade.value.toUpperCase();
                     });
                 }
-                if (qualidadeEls.indicador) {
-                    qualidadeEls.indicador.addEventListener('change', () => App.ui.updateQualidadeIndicatorFields());
-                }
-                if (qualidadeEls.indicadorValor) {
-                    qualidadeEls.indicadorValor.addEventListener('input', () => App.ui.calculateQualidadeGemasTotal());
-                }
-                if (qualidadeEls.amostragem) {
-                    qualidadeEls.amostragem.addEventListener('input', () => App.ui.calculateQualidadeGemasTotal());
-                }
                 if (qualidadeEls.btnSalvar) {
                     qualidadeEls.btnSalvar.addEventListener('click', () => App.actions.saveQualidadePlantioMain());
+                }
+                if (qualidadeEls.tabs) {
+                    qualidadeEls.tabs.forEach(tab => {
+                        tab.addEventListener('click', () => App.ui.setQualidadeTab(tab.dataset.qualidadeTab));
+                    });
+                }
+                if (qualidadeEls.btnAddSubamostra) {
+                    qualidadeEls.btnAddSubamostra.addEventListener('click', () => {
+                        if (!qualidadeEls.tipoPlantio.value) {
+                            App.ui.showAlert("Selecione o Tipo de Plantio antes de adicionar subamostras.", "warning");
+                            return;
+                        }
+                        App.actions.addQualidadeSubamostra();
+                        App.ui.renderQualidadeSubamostras();
+                    });
+                }
+                if (qualidadeEls.subamostrasList) {
+                    qualidadeEls.subamostrasList.addEventListener('change', (event) => {
+                        const select = event.target.closest('.qualidade-indicadores-select');
+                        if (!select) return;
+                        const subamostraId = select.dataset.subamostraId;
+                        const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
+                        if (!subamostra) return;
+                        const tipoPlantio = qualidadeEls.tipoPlantio.value;
+                        const indicadores = tipoPlantio ? App.actions.getQualidadeIndicadores(tipoPlantio) : [];
+                        const selectedCodes = Array.from(select.selectedOptions).map(option => option.value);
+                        const previous = App.actions.updateQualidadeSubamostraIndicadores(subamostra, selectedCodes, indicadores);
+                        App.ui.renderQualidadeSubamostras();
+
+                        const added = selectedCodes.filter(code => !previous.includes(code));
+                        if (added.length) {
+                            const addedIndicador = indicadores.find(item => item.code === added[0]);
+                            if (addedIndicador?.type === 'consumo') {
+                                App.state.qualidadePlantioDraft.activeSubamostraId = subamostraId;
+                                App.state.qualidadePlantioDraft.activeIndicadorCode = addedIndicador.code;
+                                App.ui.setQualidadeTab('cm');
+                            }
+                            if (addedIndicador?.type === 'broca') {
+                                App.state.qualidadePlantioDraft.activeSubamostraId = subamostraId;
+                                App.state.qualidadePlantioDraft.activeIndicadorCode = addedIndicador.code;
+                                App.ui.setQualidadeTab('bro');
+                            }
+                        }
+                    });
+                    qualidadeEls.subamostrasList.addEventListener('click', (event) => {
+                        const toggle = event.target.closest('.qualidade-indicador-toggle');
+                        if (toggle) {
+                            const subamostraId = toggle.dataset.subamostraId;
+                            const indicadorCode = toggle.dataset.indicadorCode;
+                            const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
+                            const indicador = subamostra?.indicadores?.[indicadorCode];
+                            if (indicador) {
+                                indicador.expanded = !indicador.expanded;
+                                const item = toggle.closest('.qualidade-indicador-item');
+                                if (item) item.classList.toggle('is-open', indicador.expanded);
+                            }
+                            return;
+                        }
+                        const editBtn = event.target.closest('.qualidade-indicador-edit');
+                        if (editBtn) {
+                            const subamostraId = editBtn.dataset.subamostraId;
+                            const indicadorCode = editBtn.dataset.indicadorCode;
+                            App.state.qualidadePlantioDraft.activeSubamostraId = subamostraId;
+                            App.state.qualidadePlantioDraft.activeIndicadorCode = indicadorCode;
+                            if (editBtn.dataset.action === 'edit-consumo') {
+                                App.ui.setQualidadeTab('cm');
+                            } else if (editBtn.dataset.action === 'edit-broca') {
+                                App.ui.setQualidadeTab('bro');
+                            }
+                        }
+                    });
+                    qualidadeEls.subamostrasList.addEventListener('input', (event) => {
+                        const input = event.target.closest('input[data-subamostra-id]');
+                        if (!input) return;
+                        const subamostraId = input.dataset.subamostraId;
+                        const indicadorCode = input.dataset.indicadorCode;
+                        const field = input.dataset.field;
+                        const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
+                        const indicador = subamostra?.indicadores?.[indicadorCode];
+                        if (!indicador) return;
+
+                        if (field === 'valor' || field === 'amostragem') {
+                            indicador[field] = App.safeParseFloat(input.value);
+                            if (indicador.type === 'gemas') {
+                                indicador.qtdGemasTotal = indicador.valor > 0 && indicador.amostragem > 0
+                                    ? indicador.valor * indicador.amostragem
+                                    : 0;
+                                const totalEl = input.closest('.form-row')?.querySelector('[data-field="qtdGemasTotal"]');
+                                if (totalEl) {
+                                    totalEl.textContent = indicador.qtdGemasTotal ? indicador.qtdGemasTotal.toFixed(2) : '';
+                                }
+                                const brocaIndicador = App.actions.getQualidadeBrocaIndicador(subamostra);
+                                if (brocaIndicador) {
+                                    App.ui.populateQualidadeBrocaFields(subamostra);
+                                    App.ui.updateQualidadeStatusIndicators(subamostraId, brocaIndicador.code);
+                                }
+                            }
+                            App.ui.updateQualidadeStatusIndicators(subamostraId, indicadorCode);
+                        }
+                    });
                 }
 
                 const qualidadeConsumoEls = App.elements.qualidadeConsumo;
                 if (qualidadeConsumoEls.pesoTotal) {
-                    qualidadeConsumoEls.pesoTotal.addEventListener('input', () => App.ui.calculateQualidadeConsumoMuda());
+                    qualidadeConsumoEls.pesoTotal.addEventListener('input', () => {
+                        const draft = App.actions.ensureQualidadeDraft();
+                        const subamostra = App.actions.getQualidadeSubamostraById(draft.activeSubamostraId);
+                        const indicador = App.actions.getQualidadeConsumoIndicador(subamostra);
+                        if (!indicador) return;
+                        const pesoTotal = App.safeParseFloat(qualidadeConsumoEls.pesoTotal.value);
+                        const metrosLineares = pesoTotal > 0 ? (pesoTotal / 5) * 6666 : 0;
+                        const consumoMudaT = metrosLineares / 1000;
+                        indicador.consumo = {
+                            ...indicador.consumo,
+                            pesoTotal,
+                            metrosLineares,
+                            consumoMudaT,
+                        };
+                        qualidadeConsumoEls.metrosLineares.textContent = pesoTotal > 0 ? metrosLineares.toFixed(2) : '';
+                        qualidadeConsumoEls.consumoMuda.textContent = pesoTotal > 0 ? consumoMudaT.toFixed(2) : '';
+                        App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                    });
                 }
-                if (qualidadeConsumoEls.btnSalvar) {
-                    qualidadeConsumoEls.btnSalvar.addEventListener('click', () => App.actions.saveQualidadeConsumoMuda());
+                if (qualidadeConsumoEls.prestadorTirou) {
+                    qualidadeConsumoEls.prestadorTirou.addEventListener('change', () => {
+                        const draft = App.actions.ensureQualidadeDraft();
+                        const subamostra = App.actions.getQualidadeSubamostraById(draft.activeSubamostraId);
+                        const indicador = App.actions.getQualidadeConsumoIndicador(subamostra);
+                        if (!indicador) return;
+                        const prestador = App.state.personnel.find(p => String(p.matricula) === qualidadeConsumoEls.prestadorTirou.value);
+                        indicador.consumo = {
+                            ...indicador.consumo,
+                            prestadorTirouMudaId: qualidadeConsumoEls.prestadorTirou.value,
+                            prestadorTirouMudaNome: prestador ? prestador.name : '',
+                        };
+                        App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                    });
                 }
-                if (qualidadeConsumoEls.btnVoltar) {
-                    qualidadeConsumoEls.btnVoltar.addEventListener('click', () => App.ui.showTab('qualidadePlantio'));
+                if (qualidadeConsumoEls.fazendaOrigem) {
+                    qualidadeConsumoEls.fazendaOrigem.addEventListener('change', () => {
+                        const draft = App.actions.ensureQualidadeDraft();
+                        const subamostra = App.actions.getQualidadeSubamostraById(draft.activeSubamostraId);
+                        const indicador = App.actions.getQualidadeConsumoIndicador(subamostra);
+                        if (!indicador) return;
+                        const fazendaOrigem = App.state.fazendas.find(f => f.id === qualidadeConsumoEls.fazendaOrigem.value);
+                        indicador.consumo = {
+                            ...indicador.consumo,
+                            fazendaOrigemMudaId: qualidadeConsumoEls.fazendaOrigem.value,
+                            fazendaOrigemMudaNome: fazendaOrigem ? fazendaOrigem.name : '',
+                        };
+                        App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                    });
                 }
 
                 const qualidadeBrocaEls = App.elements.qualidadeBroca;
                 if (qualidadeBrocaEls.broca) {
-                    qualidadeBrocaEls.broca.addEventListener('input', () => App.ui.calculateQualidadeBroca());
+                    qualidadeBrocaEls.broca.addEventListener('input', () => {
+                        const draft = App.actions.ensureQualidadeDraft();
+                        const subamostra = App.actions.getQualidadeSubamostraById(draft.activeSubamostraId);
+                        const indicador = App.actions.getQualidadeBrocaIndicador(subamostra);
+                        if (!indicador) return;
+                        const brocaValue = App.safeParseFloat(qualidadeBrocaEls.broca.value);
+                        const qtdGemasTotal = App.actions.getQualidadeSubamostraQtdGemasTotal(subamostra) || App.safeParseFloat(qualidadeBrocaEls.qtdGemasTotal.value);
+                        const percentual = qtdGemasTotal > 0 ? (brocaValue / qtdGemasTotal) * 100 : 0;
+                        indicador.broca = {
+                            ...indicador.broca,
+                            broca: brocaValue,
+                            qtdGemasTotal,
+                            percentualBroca: percentual,
+                        };
+                        qualidadeBrocaEls.percentualBroca.textContent = qtdGemasTotal > 0 ? percentual.toFixed(2) : '';
+                        App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                    });
                 }
                 if (qualidadeBrocaEls.qtdGemasTotal) {
-                    qualidadeBrocaEls.qtdGemasTotal.addEventListener('input', () => App.ui.calculateQualidadeBroca());
-                }
-                if (qualidadeBrocaEls.btnSalvar) {
-                    qualidadeBrocaEls.btnSalvar.addEventListener('click', () => App.actions.saveQualidadeBroca());
-                }
-                if (qualidadeBrocaEls.btnVoltar) {
-                    qualidadeBrocaEls.btnVoltar.addEventListener('click', () => App.ui.showTab('qualidadePlantio'));
+                    qualidadeBrocaEls.qtdGemasTotal.addEventListener('input', () => {
+                        if (qualidadeBrocaEls.qtdGemasTotal.readOnly) return;
+                        const draft = App.actions.ensureQualidadeDraft();
+                        const subamostra = App.actions.getQualidadeSubamostraById(draft.activeSubamostraId);
+                        const indicador = App.actions.getQualidadeBrocaIndicador(subamostra);
+                        if (!indicador) return;
+                        const brocaValue = App.safeParseFloat(qualidadeBrocaEls.broca.value);
+                        const qtdGemasTotal = App.safeParseFloat(qualidadeBrocaEls.qtdGemasTotal.value);
+                        const percentual = qtdGemasTotal > 0 ? (brocaValue / qtdGemasTotal) * 100 : 0;
+                        indicador.broca = {
+                            ...indicador.broca,
+                            broca: brocaValue,
+                            qtdGemasTotal,
+                            percentualBroca: percentual,
+                        };
+                        qualidadeBrocaEls.percentualBroca.textContent = qtdGemasTotal > 0 ? percentual.toFixed(2) : '';
+                        App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                    });
                 }
                 
                 if (App.elements.broca.btnPDF) App.elements.broca.btnPDF.addEventListener('click', () => App.reports.generateBrocamentoPDF());
@@ -5331,8 +5731,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.enableEnterKeyNavigation('#lancamentoCigarrinha');
                 this.enableEnterKeyNavigation('#lancamentoCigarrinhaAmostragem');
                 this.enableEnterKeyNavigation('#qualidadePlantio');
-                this.enableEnterKeyNavigation('#qualidadeConsumoMuda');
-                this.enableEnterKeyNavigation('#qualidadeBroca');
                 this.enableEnterKeyNavigation('#frenteDePlantio');
                 this.enableEnterKeyNavigation('#apontamentoPlantio');
                 this.enableEnterKeyNavigation('#relatorioPlantio');
@@ -6705,46 +7103,135 @@ document.addEventListener('DOMContentLoaded', () => {
                     usuario: App.state.currentUser?.username || App.state.currentUser?.email || '',
                 };
             },
-            setQualidadeContextFromForm(indicador) {
-                const els = App.elements.qualidadePlantio;
-                const requiredFields = [
-                    els.tipoPlantio.id,
-                    els.fazenda.id,
-                    els.talhao.id,
-                    els.data.id,
-                    els.tipoInspecao.id,
-                    els.tipoPrestador.id,
-                ];
-                if (!App.ui.validateFields(requiredFields)) {
-                    App.ui.showAlert("Preencha os campos base obrigatórios.", "warning");
-                    return false;
+            ensureQualidadeDraft() {
+                if (!App.state.qualidadePlantioDraft) {
+                    App.state.qualidadePlantioDraft = {
+                        subamostras: [],
+                        activeSubamostraId: null,
+                        activeIndicadorCode: null,
+                        activeTab: 'qual',
+                    };
                 }
-
-                const base = this.buildQualidadeBaseFromForm();
-                if (!base.fazendaId || !base.talhaoId) {
-                    App.ui.showAlert("Selecione Fazenda e Talhão válidos.", "warning");
-                    return false;
-                }
-
-                const qtdGemasTotal = parseFloat(els.qtdGemasTotal?.textContent || '') || null;
-                App.state.qualidadePlantioContext = {
-                    ...base,
-                    indicadorCodigo: indicador.code,
-                    indicadorNome: indicador.name,
-                    indicadorTipo: indicador.type,
-                    qtdGemasTotal: qtdGemasTotal || null,
-                };
-
-                if (indicador.type === 'consumo') {
-                    App.ui.renderQualidadeContext('consumo');
-                } else if (indicador.type === 'broca') {
-                    App.ui.renderQualidadeContext('broca');
-                }
-
-                return true;
+                return App.state.qualidadePlantioDraft;
             },
-            clearQualidadeContext() {
-                App.state.qualidadePlantioContext = null;
+            resetQualidadeDraft() {
+                App.state.qualidadePlantioDraft = {
+                    subamostras: [],
+                    activeSubamostraId: null,
+                    activeIndicadorCode: null,
+                    activeTab: 'qual',
+                };
+            },
+            getQualidadeSubamostraById(id) {
+                const draft = this.ensureQualidadeDraft();
+                return draft.subamostras.find(item => item.id === id) || null;
+            },
+            addQualidadeSubamostra() {
+                const draft = this.ensureQualidadeDraft();
+                const numero = draft.subamostras.length + 1;
+                const subamostra = {
+                    id: this.generateQualidadeId(),
+                    numero,
+                    selectedIndicadores: [],
+                    indicadores: {},
+                };
+                draft.subamostras.push(subamostra);
+                if (!draft.activeSubamostraId) {
+                    draft.activeSubamostraId = subamostra.id;
+                }
+                return subamostra;
+            },
+            updateQualidadeSubamostraIndicadores(subamostra, selectedCodes, indicadores) {
+                const previous = subamostra.selectedIndicadores || [];
+                subamostra.selectedIndicadores = selectedCodes;
+                selectedCodes.forEach(code => {
+                    if (!subamostra.indicadores[code]) {
+                        const indicador = indicadores.find(item => item.code === code);
+                        if (!indicador) return;
+                        subamostra.indicadores[code] = {
+                            code: indicador.code,
+                            name: indicador.name,
+                            label: indicador.label,
+                            type: indicador.type,
+                            valor: null,
+                            amostragem: null,
+                            qtdGemasTotal: null,
+                            consumo: indicador.type === 'consumo' ? {} : null,
+                            broca: indicador.type === 'broca' ? {} : null,
+                            expanded: previous.length === 0,
+                        };
+                    }
+                });
+                Object.keys(subamostra.indicadores).forEach(code => {
+                    if (!selectedCodes.includes(code)) {
+                        delete subamostra.indicadores[code];
+                    }
+                });
+                return previous;
+            },
+            getQualidadeIndicadorStatus(indicador) {
+                if (!indicador) return 'pendente';
+                if (indicador.type === 'valor') {
+                    return indicador.valor > 0 ? 'preenchido' : 'pendente';
+                }
+                if (indicador.type === 'gemas') {
+                    return indicador.valor > 0 && indicador.amostragem > 0 ? 'preenchido' : 'pendente';
+                }
+                if (indicador.type === 'consumo') {
+                    const consumo = indicador.consumo || {};
+                    return consumo.pesoTotal > 0 && consumo.prestadorTirouMudaId && consumo.fazendaOrigemMudaId ? 'preenchido' : 'pendente';
+                }
+                if (indicador.type === 'broca') {
+                    const broca = indicador.broca || {};
+                    return broca.broca >= 0 && broca.qtdGemasTotal > 0 ? 'preenchido' : 'pendente';
+                }
+                return 'pendente';
+            },
+            getQualidadeSubamostraStatus(subamostra) {
+                const selected = subamostra.selectedIndicadores || [];
+                if (selected.length === 0) return 'pendente';
+                const hasPending = selected.some(code => this.getQualidadeIndicadorStatus(subamostra.indicadores?.[code]) !== 'preenchido');
+                return hasPending ? 'pendente' : 'preenchido';
+            },
+            getQualidadeConsumoIndicador(subamostra) {
+                if (!subamostra) return null;
+                return Object.values(subamostra.indicadores || {}).find(indicador => indicador.type === 'consumo') || null;
+            },
+            getQualidadeBrocaIndicador(subamostra) {
+                if (!subamostra) return null;
+                return Object.values(subamostra.indicadores || {}).find(indicador => indicador.type === 'broca') || null;
+            },
+            getQualidadeSubamostraQtdGemasTotal(subamostra) {
+                if (!subamostra) return 0;
+                const indicador = Object.values(subamostra.indicadores || {}).find(item => item.type === 'gemas');
+                return indicador?.qtdGemasTotal || 0;
+            },
+            flattenQualidadePlantioEntries(entries) {
+                const flattened = [];
+                entries.forEach(entry => {
+                    if (entry.subamostras && Array.isArray(entry.subamostras)) {
+                        const { subamostras, ...base } = entry;
+                        subamostras.forEach(sub => {
+                            const indicadores = sub.indicadores || [];
+                            indicadores.forEach(indicador => {
+                                flattened.push({
+                                    ...base,
+                                    subamostraNumero: sub.numero || null,
+                                    indicadorCodigo: indicador.codigo,
+                                    indicadorNome: indicador.nome,
+                                    valor: indicador.valor,
+                                    amostragem: indicador.amostragem,
+                                    qtdGemasTotal: indicador.qtdGemasTotal,
+                                    consumo: indicador.consumo || null,
+                                    broca: indicador.broca || null,
+                                });
+                            });
+                        });
+                    } else if (entry.indicadorCodigo) {
+                        flattened.push(entry);
+                    }
+                });
+                return flattened;
             },
             async cacheQualidadePlantioEntries() {
                 try {
@@ -6845,46 +7332,121 @@ document.addEventListener('DOMContentLoaded', () => {
                     els.data.id,
                     els.tipoInspecao.id,
                     els.tipoPrestador.id,
-                    els.indicador.id,
                 ];
                 if (!App.ui.validateFields(requiredFields)) {
-                    App.ui.showAlert("Preencha todos os campos obrigatórios.", "warning");
-                    return;
-                }
-
-                const indicador = this.getQualidadeIndicadorByCode(els.indicador.value);
-                if (!indicador) {
-                    App.ui.showAlert("Selecione um indicador válido.", "warning");
-                    return;
-                }
-
-                if (indicador.type === 'consumo' || indicador.type === 'broca') {
-                    App.ui.showAlert("Use a tela específica para Consumo de Muda ou Broca.", "info");
-                    return;
-                }
-
-                const valor = parseFloat(els.indicadorValor.value) || 0;
-                const amostragem = parseFloat(els.amostragem.value) || 0;
-                const qtdGemasTotal = indicador.type === 'gemas' ? valor * amostragem : null;
-
-                if (indicador.type === 'gemas' && (!valor || !amostragem)) {
-                    App.ui.showAlert("Informe Nº de Gemas Viáveis e Amostragem para calcular o total.", "warning");
-                    return;
-                }
-
-                if (indicador.type === 'valor' && !valor) {
-                    App.ui.showAlert("Informe o valor do indicador.", "warning");
+                    App.ui.showAlert("Preencha todos os campos base obrigatórios.", "warning");
                     return;
                 }
 
                 const base = this.buildQualidadeBaseFromForm();
+                const draft = this.ensureQualidadeDraft();
+                if (!base.fazendaId || !base.talhaoId) {
+                    App.ui.showAlert("Selecione Fazenda e Talhão válidos.", "warning");
+                    return;
+                }
+
+                if (!draft.subamostras.length) {
+                    App.ui.showAlert("Adicione ao menos uma Subamostra.", "warning");
+                    return;
+                }
+
+                const subamostrasPayload = [];
+                for (const subamostra of draft.subamostras) {
+                    const selected = subamostra.selectedIndicadores || [];
+                    if (!selected.length) {
+                        App.ui.showAlert(`Selecione indicadores na Subamostra ${subamostra.numero}.`, "warning");
+                        return;
+                    }
+
+                    const indicadoresPayload = [];
+                    for (const code of selected) {
+                        const indicador = subamostra.indicadores?.[code];
+                        if (!indicador) continue;
+
+                        const payload = {
+                            codigo: indicador.code,
+                            nome: indicador.name,
+                            tipo: indicador.type,
+                            valor: null,
+                            amostragem: null,
+                            qtdGemasTotal: null,
+                            consumo: null,
+                            broca: null,
+                        };
+
+                        if (indicador.type === 'valor') {
+                            const valor = App.safeParseFloat(indicador.valor);
+                            if (valor <= 0) {
+                                App.ui.showAlert(`Informe o valor do indicador ${indicador.name} na Subamostra ${subamostra.numero}.`, "warning");
+                                return;
+                            }
+                            payload.valor = valor;
+                        }
+
+                        if (indicador.type === 'gemas') {
+                            const valor = App.safeParseFloat(indicador.valor);
+                            const amostragem = App.safeParseFloat(indicador.amostragem);
+                            if (valor <= 0 || amostragem <= 0) {
+                                App.ui.showAlert(`Informe Nº de Gemas Viáveis e Amostragem na Subamostra ${subamostra.numero}.`, "warning");
+                                return;
+                            }
+                            const total = valor * amostragem;
+                            payload.valor = valor;
+                            payload.amostragem = amostragem;
+                            payload.qtdGemasTotal = total;
+                        }
+
+                        if (indicador.type === 'consumo') {
+                            const consumo = indicador.consumo || {};
+                            const pesoTotal = App.safeParseFloat(consumo.pesoTotal);
+                            if (pesoTotal <= 0 || !consumo.prestadorTirouMudaId || !consumo.fazendaOrigemMudaId) {
+                                App.ui.showAlert(`Preencha os dados de Consumo de Muda na Subamostra ${subamostra.numero}.`, "warning");
+                                return;
+                            }
+                            const metrosLineares = (pesoTotal / 5) * 6666;
+                            const consumoMudaT = metrosLineares / 1000;
+                            payload.valor = consumoMudaT;
+                            payload.consumo = {
+                                pesoTotal,
+                                metrosLineares,
+                                consumoMudaT,
+                                prestadorTirouMudaId: consumo.prestadorTirouMudaId,
+                                prestadorTirouMudaNome: consumo.prestadorTirouMudaNome || '',
+                                fazendaOrigemMudaId: consumo.fazendaOrigemMudaId,
+                                fazendaOrigemMudaNome: consumo.fazendaOrigemMudaNome || '',
+                            };
+                        }
+
+                        if (indicador.type === 'broca') {
+                            const broca = indicador.broca || {};
+                            const brocaValor = App.safeParseFloat(broca.broca);
+                            const qtdGemasTotal = this.getQualidadeSubamostraQtdGemasTotal(subamostra) || App.safeParseFloat(broca.qtdGemasTotal);
+                            if (qtdGemasTotal <= 0) {
+                                App.ui.showAlert(`Informe Qtd. Gemas Total na Subamostra ${subamostra.numero}.`, "warning");
+                                return;
+                            }
+                            const percentualBroca = qtdGemasTotal > 0 ? (brocaValor / qtdGemasTotal) * 100 : 0;
+                            payload.valor = percentualBroca;
+                            payload.broca = {
+                                broca: brocaValor,
+                                qtdGemasTotal,
+                                percentualBroca,
+                            };
+                        }
+
+                        indicadoresPayload.push(payload);
+                    }
+
+                    subamostrasPayload.push({
+                        id: subamostra.id,
+                        numero: subamostra.numero,
+                        indicadores: indicadoresPayload,
+                    });
+                }
+
                 const entry = {
                     ...base,
-                    indicadorCodigo: indicador.code,
-                    indicadorNome: indicador.name,
-                    valor: valor || null,
-                    amostragem: indicador.type === 'gemas' ? amostragem : null,
-                    qtdGemasTotal: indicador.type === 'gemas' ? qtdGemasTotal : null,
+                    subamostras: subamostrasPayload,
                 };
 
                 App.ui.showConfirmationModal("Tem a certeza que deseja guardar este lançamento?", async () => {
@@ -6892,118 +7454,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         await this.persistQualidadePlantioEntry(entry, "Qualidade de Plantio guardada com sucesso!");
                         App.ui.clearForm(els.form);
-                        App.ui.resetQualidadeIndicadorFields();
+                        this.resetQualidadeDraft();
+                        App.ui.renderQualidadeSubamostras();
+                        App.ui.setQualidadeTab('qual');
+                        App.ui.renderQualidadeContext();
                         App.ui.setDefaultDatesForEntryForms();
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                });
-            },
-            async saveQualidadeConsumoMuda() {
-                const els = App.elements.qualidadeConsumo;
-                const context = App.state.qualidadePlantioContext;
-                if (!context) {
-                    App.ui.showAlert("Contexto do lançamento não encontrado.", "warning");
-                    return;
-                }
-                if (context.indicadorTipo !== 'consumo') {
-                    App.ui.showAlert("Indicador inválido para Consumo de Muda.", "warning");
-                    return;
-                }
-
-                const requiredFields = [els.pesoTotal.id, els.prestadorTirou.id, els.fazendaOrigem.id];
-                if (!App.ui.validateFields(requiredFields)) {
-                    App.ui.showAlert("Preencha os campos obrigatórios do consumo.", "warning");
-                    return;
-                }
-
-                const pesoTotal = parseFloat(els.pesoTotal.value) || 0;
-                if (pesoTotal <= 0) {
-                    App.ui.showAlert("Informe um Peso Total válido.", "warning");
-                    return;
-                }
-
-                const metrosLineares = (pesoTotal / 5) * 6666;
-                const consumoMudaT = metrosLineares / 1000;
-                const prestador = App.state.personnel.find(p => String(p.matricula) === els.prestadorTirou.value);
-                const fazendaOrigem = App.state.fazendas.find(f => f.id === els.fazendaOrigem.value);
-
-                const entry = {
-                    ...context,
-                    indicadorCodigo: context.indicadorCodigo,
-                    indicadorNome: context.indicadorNome,
-                    valor: consumoMudaT,
-                    consumo: {
-                        pesoTotal,
-                        metrosLineares,
-                        consumoMudaT,
-                        prestadorTirouMudaId: els.prestadorTirou.value,
-                        prestadorTirouMudaNome: prestador ? prestador.name : '',
-                        fazendaOrigemMudaId: els.fazendaOrigem.value,
-                        fazendaOrigemMudaNome: fazendaOrigem ? fazendaOrigem.name : '',
-                    },
-                };
-
-                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este consumo?", async () => {
-                    App.ui.setLoading(true, "A guardar...");
-                    try {
-                        await this.persistQualidadePlantioEntry(entry, "Consumo de Muda guardado com sucesso!");
-                        App.ui.clearForm(els.form);
-                        App.ui.calculateQualidadeConsumoMuda();
-                        this.clearQualidadeContext();
-                        App.ui.showTab('qualidadePlantio');
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                });
-            },
-            async saveQualidadeBroca() {
-                const els = App.elements.qualidadeBroca;
-                const context = App.state.qualidadePlantioContext;
-                if (!context) {
-                    App.ui.showAlert("Contexto do lançamento não encontrado.", "warning");
-                    return;
-                }
-                if (context.indicadorTipo !== 'broca') {
-                    App.ui.showAlert("Indicador inválido para Broca.", "warning");
-                    return;
-                }
-
-                const requiredFields = [els.broca.id, els.qtdGemasTotal.id];
-                if (!App.ui.validateFields(requiredFields)) {
-                    App.ui.showAlert("Preencha os campos obrigatórios da broca.", "warning");
-                    return;
-                }
-
-                const broca = parseFloat(els.broca.value) || 0;
-                const qtdGemasTotal = parseFloat(els.qtdGemasTotal.value) || 0;
-                if (qtdGemasTotal <= 0) {
-                    App.ui.showAlert("Qtd. Gemas Total deve ser maior que zero.", "warning");
-                    return;
-                }
-
-                const percentualBroca = (broca / qtdGemasTotal) * 100;
-
-                const entry = {
-                    ...context,
-                    indicadorCodigo: context.indicadorCodigo,
-                    indicadorNome: context.indicadorNome,
-                    valor: percentualBroca,
-                    broca: {
-                        broca,
-                        qtdGemasTotal,
-                        percentualBroca,
-                    },
-                };
-
-                App.ui.showConfirmationModal("Tem a certeza que deseja guardar este lançamento?", async () => {
-                    App.ui.setLoading(true, "A guardar...");
-                    try {
-                        await this.persistQualidadePlantioEntry(entry, "Broca guardada com sucesso!");
-                        App.ui.clearForm(els.form);
-                        App.ui.calculateQualidadeBroca();
-                        this.clearQualidadeContext();
-                        App.ui.showTab('qualidadePlantio');
                     } finally {
                         App.ui.setLoading(false);
                     }
@@ -15026,7 +15481,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    const data = await App.actions.getQualidadePlantioData();
+                    const rawData = await App.actions.getQualidadePlantioData();
+                    const data = App.actions.flattenQualidadePlantioEntries(rawData);
                     const inicio = els.inicio.value;
                     const fim = els.fim.value;
 
