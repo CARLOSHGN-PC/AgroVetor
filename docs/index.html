@@ -298,8 +298,18 @@
       .qualidade-status.status-done {
         background-color: var(--color-success);
       }
+      .qualidade-indicadores-controls {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
       .qualidade-indicadores-select {
-        min-height: 120px;
+        flex: 1;
+        min-width: 200px;
+      }
+      .qualidade-indicador-add {
+        white-space: nowrap;
       }
       .qualidade-indicadores-hint {
         font-size: 12px;
@@ -313,11 +323,17 @@
         margin-top: 12px;
         background: var(--color-bg);
       }
+      .qualidade-indicador-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px;
+      }
       .qualidade-indicador-toggle {
-        width: 100%;
+        flex: 1;
         border: none;
         background: transparent;
-        padding: 12px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -325,6 +341,15 @@
         cursor: pointer;
         font-weight: 600;
         color: var(--color-text);
+        padding: 0;
+      }
+      .qualidade-indicador-remove {
+        border: none;
+        background: transparent;
+        color: var(--color-danger);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
       }
       .qualidade-indicador-title {
         flex: 1;
