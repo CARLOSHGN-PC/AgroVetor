@@ -183,6 +183,23 @@ export class OfflineManager {
         return results;
     }
 
+    async getAllByCollection(collectionName) {
+        const db = await this.init();
+        const tx = db.transaction('data_cache', 'readonly');
+        const index = tx.objectStore('data_cache').index('collection');
+        const range = IDBKeyRange.only(collectionName);
+
+        const results = [];
+        let cursor = await index.openCursor(range);
+
+        while (cursor) {
+            results.push(cursor.value.data);
+            cursor = await cursor.continue();
+        }
+
+        return results;
+    }
+
     async getPendingOperations() {
         const db = await this.init();
         return db.getAll('sync_queue');
