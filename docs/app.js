@@ -154,7 +154,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Lançamento Perda', icon: 'fas fa-dollar-sign', target: 'lancamentoPerda', permission: 'lancamentoPerda' },
                         { label: 'Monitoramento Cigarrinha', icon: 'fas fa-leaf', target: 'lancamentoCigarrinha', permission: 'lancamentoCigarrinha' },
                         { label: 'Monitoramento de Cigarrinha (Amostragem)', icon: 'fas fa-vial', target: 'lancamentoCigarrinhaAmostragem', permission: 'lancamentoCigarrinhaAmostragem' },
-                        { label: 'Qualidade de Plantio', icon: 'fas fa-seedling', target: 'lancamentoQualidadePlantio', permission: 'lancamentoQualidadePlantio' },
                         { label: 'Apontamento de Plantio', icon: 'fas fa-seedling', target: 'apontamentoPlantio', permission: 'apontamentoPlantio' },
                         { label: 'Apontamento Climatológico', icon: 'fas fa-cloud', target: 'lancamentoClima', permission: 'lancamentoClima' },
                     ]
@@ -170,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                         { label: 'Relatório de Risco', icon: 'fas fa-shield-alt', target: 'relatorioRisco', permission: 'relatorioRisco' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
-                        { label: 'Relatório de Qualidade', icon: 'fas fa-clipboard-check', target: 'relatorioQualidadePlantio', permission: 'relatorioQualidadePlantio' },
                         { label: 'Relatório Climatológico', icon: 'fas fa-file-pdf', target: 'relatorioClima', permission: 'relatorioClima' },
                         { label: 'Relatório de Frota', icon: 'fas fa-bus', target: 'relatorioFrota', permission: 'gestaoFrota' },
                     ]
@@ -203,27 +201,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, lancamentoQualidadePlantio: true, relatorioQualidadePlantio: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, lancamentoQualidadePlantio: true, relatorioQualidadePlantio: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, lancamentoQualidadePlantio: true, relatorioQualidadePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, controleKM: true },
                 user: { dashboard: true }
-            },
-            qualidadePlantioIndicators: {
-                Man: [
-                    { id: 'alturaCobertura', label: '1.3.2 Altura de cobertura (cm)' },
-                    { id: 'espacamento', label: '1.3.3 Espaçamento (m)' },
-                    { id: 'gemasViaveis', label: '1.3.4 Nº de gemas viáveis (qtde.)' },
-                    { id: 'profundidade', label: '1.3.5 Profundidade da sulcação (cm)' },
-                    { id: 'consumoMuda', label: '1.3.1 Consumo de muda (t)' },
-                ],
-                Mec: [
-                    { id: 'alturaCobertura', label: '2.3.2 Altura de cobertura (cm)' },
-                    { id: 'espacamento', label: '2.3.3 Espaçamento (m)' },
-                    { id: 'gemasViaveis', label: '2.3.4 Nº de gemas viáveis (qtde.)' },
-                    { id: 'profundidade', label: '2.3.5 Profundidade da sulcação (cm)' },
-                    { id: 'consumoMuda', label: '2.3.6 Consumo de muda (t)' },
-                ],
             }
         },
 
@@ -246,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
             personnel: [],
             frentesDePlantio: [],
             apontamentosPlantio: [],
-            qualidadePlantio: [],
             companyLogo: null,
             activeSubmenu: null,
             charts: {},
@@ -747,48 +728,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnPDF: document.getElementById('btnPDFCigarrinhaAmostragem'),
                 btnExcel: document.getElementById('btnExcelCigarrinhaAmostragem'),
             },
-            qualidadePlantio: {
-                form: document.getElementById('lancamentoQualidadePlantio'),
-                entryId: document.getElementById('qualidadeEntryId'),
-                tipoPlantio: document.getElementById('qualidadeTipoPlantio'),
-                fazenda: document.getElementById('qualidadeFazenda'),
-                talhao: document.getElementById('qualidadeTalhao'),
-                variedade: document.getElementById('qualidadeVariedade'),
-                data: document.getElementById('qualidadeData'),
-                tipoInspecao: document.getElementById('qualidadeTipoInspecao'),
-                tipoPrestador: document.getElementById('qualidadeTipoPrestador'),
-                valorAmostragem: document.getElementById('qualidadeAmostragem'),
-                indicadoresContainer: document.getElementById('qualidadeIndicadoresContainer'),
-                indicadoresValores: document.getElementById('qualidadeIndicadoresValores'),
-                alturaCobertura: document.getElementById('qualidadeAlturaCobertura'),
-                espacamento: document.getElementById('qualidadeEspacamento'),
-                profundidade: document.getElementById('qualidadeProfundidade'),
-                alturaCol: document.getElementById('qualidadeAlturaCol'),
-                espacamentoCol: document.getElementById('qualidadeEspacamentoCol'),
-                profundidadeCol: document.getElementById('qualidadeProfundidadeCol'),
-                alturaLabel: document.getElementById('qualidadeAlturaLabel'),
-                espacamentoLabel: document.getElementById('qualidadeEspacamentoLabel'),
-                profundidadeLabel: document.getElementById('qualidadeProfundidadeLabel'),
-                gemasBlock: document.getElementById('qualidadeGemasBlock'),
-                gemasViaveis: document.getElementById('qualidadeGemasViaveis'),
-                gemasPorMetro: document.getElementById('qualidadeGemasPorMetro'),
-                gemasTotal: document.getElementById('qualidadeGemasTotal'),
-                consumoBlock: document.getElementById('qualidadeConsumoBlock'),
-                consumoTipoPlantio: document.getElementById('qualidadeConsumoTipoPlantio'),
-                consumoFazenda: document.getElementById('qualidadeConsumoFazenda'),
-                consumoTalhao: document.getElementById('qualidadeConsumoTalhao'),
-                consumoVariedade: document.getElementById('qualidadeConsumoVariedade'),
-                consumoData: document.getElementById('qualidadeConsumoData'),
-                consumoPesoTotal: document.getElementById('qualidadePesoTotal'),
-                consumoPrestador: document.getElementById('qualidadePrestadorMuda'),
-                consumoResultado: document.getElementById('qualidadeConsumoResultado'),
-                broca: document.getElementById('qualidadeBroca'),
-                brocaGemasTotal: document.getElementById('qualidadeBrocaGemasTotal'),
-                brocaPercentual: document.getElementById('qualidadeBrocaPercentual'),
-                btnSalvar: document.getElementById('btnSalvarQualidade'),
-                btnSalvarNovo: document.getElementById('btnSalvarNovoQualidade'),
-                btnCancelar: document.getElementById('btnCancelarQualidade'),
-            },
             gerenciamento: {
                 lista: document.getElementById('listaGerenciamento'),
                 dataType: document.getElementById('manageDataType'),
@@ -829,24 +768,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tipo: document.getElementById('tipoRelatorioPlantio'),
                 btnPDF: document.getElementById('btnPDFPlantio'),
                 btnExcel: document.getElementById('btnExcelPlantio'),
-            },
-            relatorioQualidadePlantio: {
-                tipoRelatorio: document.getElementById('qualidadeTipoRelatorio'),
-                inicio: document.getElementById('qualidadeRelatorioInicio'),
-                fim: document.getElementById('qualidadeRelatorioFim'),
-                fazenda: document.getElementById('qualidadeRelatorioFazenda'),
-                talhao: document.getElementById('qualidadeRelatorioTalhao'),
-                variedade: document.getElementById('qualidadeRelatorioVariedade'),
-                tipoPlantio: document.getElementById('qualidadeRelatorioTipoPlantio'),
-                tipoInspecao: document.getElementById('qualidadeRelatorioTipoInspecao'),
-                tipoPrestador: document.getElementById('qualidadeRelatorioTipoPrestador'),
-                prestadorMuda: document.getElementById('qualidadeRelatorioPrestadorMuda'),
-                indicador: document.getElementById('qualidadeRelatorioIndicador'),
-                pendentes: document.getElementById('qualidadeRelatorioPendentes'),
-                btnVisualizar: document.getElementById('btnVisualizarQualidade'),
-                btnPDF: document.getElementById('btnPdfQualidade'),
-                btnExcel: document.getElementById('btnExcelQualidade'),
-                tabela: document.getElementById('qualidadeReportTable'),
             },
                 lancamentoClima: {
                     form: document.getElementById('formLancamentoClima'),
@@ -1501,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // OTIMIZAÇÃO: Remove 'clima' da lista padrão para evitar carregamento massivo (20k+ registros)
                 // 'controleFrota' e 'abastecimentos' também são removidos para carregamento otimizado
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'qualidadePlantio', 'frota'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'frota'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -1824,11 +1745,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'apontamentosPlantio':
                         // This collection is for storing data, no direct render action needed on snapshot
-                        break;
-                    case 'qualidadePlantio':
-                        if (activeTab === 'relatorioQualidadePlantio') {
-                            App.reports.renderQualidadeReport();
-                        }
                         break;
                     case 'planos':
                         if (activeTab === 'planejamento') {
@@ -2267,18 +2183,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 }
-                if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha', 'relatorioQualidadePlantio'].includes(id)) this.setDefaultDatesForReportForms();
+                if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
-                if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio', 'lancamentoQualidadePlantio'].includes(id)) this.setDefaultDatesForEntryForms();
-                if (id === 'lancamentoQualidadePlantio') {
-                    App.ui.renderQualidadeIndicadores(false);
-                    App.ui.updateQualidadeTalhaoOptions(App.elements.qualidadePlantio.talhao, App.elements.qualidadePlantio.fazenda.value);
-                    App.ui.updateQualidadeVariedade();
-                    App.ui.syncQualidadeConsumoMudaBaseFields();
-                }
-                if (id === 'relatorioQualidadePlantio') {
-                    App.ui.updateQualidadeTalhaoOptions(App.elements.relatorioQualidadePlantio.talhao, App.elements.relatorioQualidadePlantio.fazenda.value, { includeAll: true });
-                }
+                if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio'].includes(id)) this.setDefaultDatesForEntryForms();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
@@ -2410,13 +2317,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.cigarrinha.data.value = today;
                 App.elements.cigarrinhaAmostragem.data.value = today;
                 App.elements.apontamentoPlantio.date.value = today;
-                if (App.elements.qualidadePlantio && App.elements.qualidadePlantio.data) App.elements.qualidadePlantio.data.value = today;
                 if (App.elements.lancamentoClima && App.elements.lancamentoClima.data) App.elements.lancamentoClima.data.value = today;
                 App.elements.broca.data.max = today;
                 App.elements.perda.data.max = today;
                 App.elements.cigarrinha.data.max = today;
                 App.elements.cigarrinhaAmostragem.data.max = today;
-                if (App.elements.qualidadePlantio && App.elements.qualidadePlantio.data) App.elements.qualidadePlantio.data.max = today;
                 if (App.elements.lancamentoClima && App.elements.lancamentoClima.data) App.elements.lancamentoClima.data.max = today;
             },
             setDefaultDatesForReportForms() {
@@ -2424,7 +2329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
                 const todayDate = today.toISOString().split('T')[0];
 
-                const reportSections = ['broca', 'perda', 'cigarrinha', 'cigarrinhaAmostragem', 'relatorioMonitoramento', 'relatorioClima', 'relatorioQualidadePlantio'];
+                const reportSections = ['broca', 'perda', 'cigarrinha', 'cigarrinhaAmostragem', 'relatorioMonitoramento', 'relatorioClima'];
 
                 reportSections.forEach(section => {
                     const els = App.elements[section];
@@ -2500,7 +2405,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.cigarrinha.codigo,
                     App.elements.cigarrinhaAmostragem.codigo,
                     App.elements.apontamentoPlantio.mudaFazenda,
-                    App.elements.qualidadePlantio.fazenda,
                     App.elements.relatorioPlantio.fazenda,
                     App.elements.cigarrinha.filtroFazenda,
                     App.elements.cigarrinhaAmostragem.filtroFazenda,
@@ -2508,7 +2412,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.apontamentoPlantio.farmName,
                     App.elements.lancamentoClima.fazenda,
                     App.elements.relatorioClima.fazenda,
-                    App.elements.relatorioQualidadePlantio.fazenda,
                     document.getElementById('climaDashboardFazenda')
                 ];
 
@@ -2554,207 +2457,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     select.value = currentValue;
                 });
-            },
-            updateQualidadeTalhaoOptions(selectEl, farmId, options = {}) {
-                if (!selectEl) return;
-                const { includeAll = false } = options;
-                selectEl.innerHTML = includeAll ? '<option value="">Todos</option>' : '<option value="">Selecione...</option>';
-
-                if (!farmId) return;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm || !farm.talhoes) return;
-
-                [...farm.talhoes]
-                    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true }))
-                    .forEach(talhao => {
-                        selectEl.innerHTML += `<option value="${talhao.name}">${talhao.name}</option>`;
-                    });
-            },
-            updateQualidadeVariedade() {
-                const els = App.elements.qualidadePlantio;
-                if (!els) return;
-                const farmId = els.fazenda.value;
-                const talhaoName = els.talhao.value;
-                els.variedade.value = '';
-
-                if (!farmId || !talhaoName) return;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const talhao = farm?.talhoes?.find(t => t.name === talhaoName);
-                if (talhao && talhao.variedade) {
-                    els.variedade.value = talhao.variedade;
-                }
-            },
-            syncQualidadeConsumoMudaBaseFields() {
-                const els = App.elements.qualidadePlantio;
-                if (!els) return;
-                const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
-                els.consumoTipoPlantio.value = els.tipoPlantio.value || '';
-                els.consumoFazenda.value = farm ? `${farm.code} - ${farm.name}` : '';
-                els.consumoTalhao.value = els.talhao.value || '';
-                els.consumoVariedade.value = els.variedade.value || '';
-                els.consumoData.value = els.data.value || '';
-            },
-            getSelectedQualidadeIndicators() {
-                const container = App.elements.qualidadePlantio.indicadoresContainer;
-                if (!container) return [];
-                return Array.from(container.querySelectorAll('input[name="qualidadeIndicadores"]:checked')).map(cb => cb.value);
-            },
-            updateQualidadeIndicatorLabels(tipoPlantio) {
-                const els = App.elements.qualidadePlantio;
-                if (!els) return;
-                const indicators = App.config.qualidadePlantioIndicators[tipoPlantio] || [];
-                const getLabel = (id) => indicators.find(ind => ind.id === id)?.label || '';
-                if (els.alturaLabel) els.alturaLabel.textContent = `${getLabel('alturaCobertura') || 'Altura de cobertura (cm)'}:`;
-                if (els.espacamentoLabel) els.espacamentoLabel.textContent = `${getLabel('espacamento') || 'Espaçamento (m)'}:`;
-                if (els.profundidadeLabel) els.profundidadeLabel.textContent = `${getLabel('profundidade') || 'Profundidade da sulcação (cm)'}:`;
-            },
-            renderQualidadeIndicadores(resetValues = true) {
-                const els = App.elements.qualidadePlantio;
-                if (!els || !els.indicadoresContainer) return;
-                const tipoPlantio = els.tipoPlantio.value;
-                const previousSelected = this.getSelectedQualidadeIndicators();
-
-                els.indicadoresContainer.innerHTML = '';
-                if (!tipoPlantio) {
-                    this.updateQualidadeIndicatorLabels('');
-                    this.updateQualidadeIndicadoresVisibility([]);
-                    return;
-                }
-
-                const indicators = App.config.qualidadePlantioIndicators[tipoPlantio] || [];
-                indicators.forEach(indicator => {
-                    els.indicadoresContainer.insertAdjacentHTML('beforeend', `
-                        <label class="report-option-item">
-                            <input type="checkbox" name="qualidadeIndicadores" value="${indicator.id}" data-indicador="${indicator.id}">
-                            <span class="checkbox-visual"><i class="fas fa-check"></i></span>
-                            <span class="option-content">${indicator.label}</span>
-                        </label>
-                    `);
-                });
-
-                if (resetValues && previousSelected.length > 0) {
-                    App.ui.showAlert("Indicadores atualizados para o tipo de plantio selecionado.", "info");
-                    this.resetQualidadeIndicatorValues();
-                }
-
-                this.updateQualidadeIndicatorLabels(tipoPlantio);
-                this.updateQualidadeIndicadoresVisibility([]);
-            },
-            resetQualidadeIndicatorValues() {
-                const els = App.elements.qualidadePlantio;
-                if (!els) return;
-                [els.alturaCobertura, els.espacamento, els.profundidade, els.gemasViaveis, els.valorAmostragem, els.gemasPorMetro, els.gemasTotal, els.consumoPesoTotal, els.consumoPrestador, els.consumoResultado, els.broca, els.brocaGemasTotal, els.brocaPercentual].forEach(field => {
-                    if (field) field.value = '';
-                });
-            },
-            updateQualidadeIndicadoresVisibility(selectedIndicators) {
-                const els = App.elements.qualidadePlantio;
-                if (!els) return;
-                const selected = selectedIndicators || this.getSelectedQualidadeIndicators();
-
-                const showAltura = selected.includes('alturaCobertura');
-                const showEspacamento = selected.includes('espacamento');
-                const showProfundidade = selected.includes('profundidade');
-                const showGemas = selected.includes('gemasViaveis');
-                const showConsumo = selected.includes('consumoMuda');
-
-                if (els.alturaCol) els.alturaCol.style.display = showAltura ? 'block' : 'none';
-                if (els.espacamentoCol) els.espacamentoCol.style.display = showEspacamento ? 'block' : 'none';
-                if (els.profundidadeCol) els.profundidadeCol.style.display = showProfundidade ? 'block' : 'none';
-
-                if (!showAltura && els.alturaCobertura) els.alturaCobertura.value = '';
-                if (!showEspacamento && els.espacamento) els.espacamento.value = '';
-                if (!showProfundidade && els.profundidade) els.profundidade.value = '';
-
-                if (els.gemasBlock) els.gemasBlock.style.display = showGemas ? 'block' : 'none';
-                if (!showGemas) {
-                    if (els.gemasViaveis) els.gemasViaveis.value = '';
-                    if (els.valorAmostragem) els.valorAmostragem.value = '';
-                    if (els.gemasPorMetro) els.gemasPorMetro.value = '';
-                    if (els.gemasTotal) els.gemasTotal.value = '';
-                    if (els.brocaGemasTotal) els.brocaGemasTotal.value = '';
-                }
-
-                if (els.consumoBlock) els.consumoBlock.style.display = showConsumo ? 'block' : 'none';
-                if (!showConsumo) {
-                    if (els.consumoPesoTotal) els.consumoPesoTotal.value = '';
-                    if (els.consumoPrestador) els.consumoPrestador.value = '';
-                    if (els.consumoResultado) els.consumoResultado.value = '';
-                }
-
-                if (els.valorAmostragem) els.valorAmostragem.required = showGemas;
-                if (els.consumoPrestador) els.consumoPrestador.required = showConsumo;
-                if (els.consumoPesoTotal) els.consumoPesoTotal.required = showConsumo;
-
-                if (els.brocaGemasTotal) {
-                    els.brocaGemasTotal.readOnly = showGemas;
-                    els.brocaGemasTotal.style.backgroundColor = showGemas ? '#eee' : '';
-                    if (showGemas) {
-                        els.brocaGemasTotal.value = els.gemasTotal.value || '';
-                    }
-                }
-            },
-            calculateQualidadeGemas() {
-                const els = App.elements.qualidadePlantio;
-                if (!els) return;
-                const selectedIndicators = this.getSelectedQualidadeIndicators();
-                if (!selectedIndicators.includes('gemasViaveis')) return;
-
-                const gemas = App.safeParseFloat(els.gemasViaveis.value);
-                const amostragem = App.safeParseFloat(els.valorAmostragem.value);
-
-                if (amostragem > 0) {
-                    const gemasPorMetro = gemas / amostragem;
-                    const total = gemasPorMetro * 6666;
-                    els.gemasPorMetro.value = gemasPorMetro.toFixed(2);
-                    els.gemasTotal.value = total.toFixed(2);
-                } else {
-                    els.gemasPorMetro.value = '';
-                    els.gemasTotal.value = '';
-                }
-
-                if (els.brocaGemasTotal && els.brocaGemasTotal.readOnly) {
-                    els.brocaGemasTotal.value = els.gemasTotal.value || '';
-                }
-                this.calculateQualidadeBroca();
-            },
-            calculateQualidadeConsumoMuda() {
-                const els = App.elements.qualidadePlantio;
-                if (!els) return;
-                const selectedIndicators = this.getSelectedQualidadeIndicators();
-                if (!selectedIndicators.includes('consumoMuda')) return;
-
-                const pesoTotal = App.safeParseFloat(els.consumoPesoTotal.value);
-                if (pesoTotal > 0) {
-                    const consumo = (pesoTotal / 5) * 6666 / 1000;
-                    els.consumoResultado.value = consumo.toFixed(2);
-                } else {
-                    els.consumoResultado.value = '';
-                }
-            },
-            calculateQualidadeBroca() {
-                const els = App.elements.qualidadePlantio;
-                if (!els) return;
-                const broca = App.safeParseFloat(els.broca.value);
-                const qtdGemasTotal = App.safeParseFloat(els.brocaGemasTotal.value);
-                if (broca > 0 && qtdGemasTotal > 0) {
-                    const percentual = (broca / qtdGemasTotal) * 100;
-                    els.brocaPercentual.value = percentual.toFixed(2);
-                } else {
-                    els.brocaPercentual.value = '';
-                }
-            },
-            resetQualidadeForm() {
-                const els = App.elements.qualidadePlantio;
-                if (!els) return;
-                App.ui.clearForm(els.form);
-                if (els.indicadoresContainer) els.indicadoresContainer.innerHTML = '';
-                this.renderQualidadeIndicadores(false);
-                this.updateQualidadeIndicadoresVisibility([]);
-                this.updateQualidadeTalhaoOptions(els.talhao, '');
-                this.syncQualidadeConsumoMudaBaseFields();
-                if (els.entryId) els.entryId.value = '';
-                App.ui.setDefaultDatesForEntryForms();
             },
             populateUserSelects(selects) {
                 if (!selects || selects.length === 0) return;
@@ -5034,72 +4736,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (amostragemEls.btnPDF) amostragemEls.btnPDF.addEventListener('click', () => App.reports.generateCigarrinhaAmostragemPDF());
                 if (amostragemEls.btnExcel) amostragemEls.btnExcel.addEventListener('click', () => App.reports.generateCigarrinhaAmostragemCSV());
 
-                const qualidadeEls = App.elements.qualidadePlantio;
-                if (qualidadeEls.tipoPlantio) {
-                    qualidadeEls.tipoPlantio.addEventListener('change', () => {
-                        App.ui.renderQualidadeIndicadores(true);
-                        App.ui.syncQualidadeConsumoMudaBaseFields();
-                    });
-                }
-                if (qualidadeEls.fazenda) {
-                    qualidadeEls.fazenda.addEventListener('change', (e) => {
-                        App.ui.updateQualidadeTalhaoOptions(qualidadeEls.talhao, e.target.value);
-                        App.ui.updateQualidadeVariedade();
-                        App.ui.syncQualidadeConsumoMudaBaseFields();
-                    });
-                }
-                if (qualidadeEls.talhao) {
-                    qualidadeEls.talhao.addEventListener('change', () => {
-                        App.ui.updateQualidadeVariedade();
-                        App.ui.syncQualidadeConsumoMudaBaseFields();
-                    });
-                }
-                if (qualidadeEls.data) {
-                    qualidadeEls.data.addEventListener('change', () => App.ui.syncQualidadeConsumoMudaBaseFields());
-                }
-                if (qualidadeEls.indicadoresContainer) {
-                    qualidadeEls.indicadoresContainer.addEventListener('change', (e) => {
-                        if (e.target.matches('input[name="qualidadeIndicadores"]')) {
-                            App.ui.updateQualidadeIndicadoresVisibility();
-                            App.ui.calculateQualidadeGemas();
-                            App.ui.calculateQualidadeConsumoMuda();
-                            App.ui.calculateQualidadeBroca();
-                        }
-                    });
-                }
-
-                const debouncedQualidadeGemas = App.debounce(() => App.ui.calculateQualidadeGemas(), 200);
-                const debouncedQualidadeConsumo = App.debounce(() => App.ui.calculateQualidadeConsumoMuda(), 200);
-                const debouncedQualidadeBroca = App.debounce(() => App.ui.calculateQualidadeBroca(), 200);
-
-                if (qualidadeEls.gemasViaveis) qualidadeEls.gemasViaveis.addEventListener('input', debouncedQualidadeGemas);
-                if (qualidadeEls.valorAmostragem) qualidadeEls.valorAmostragem.addEventListener('input', debouncedQualidadeGemas);
-                if (qualidadeEls.consumoPesoTotal) qualidadeEls.consumoPesoTotal.addEventListener('input', debouncedQualidadeConsumo);
-                if (qualidadeEls.broca) qualidadeEls.broca.addEventListener('input', debouncedQualidadeBroca);
-                if (qualidadeEls.brocaGemasTotal) qualidadeEls.brocaGemasTotal.addEventListener('input', debouncedQualidadeBroca);
-
-                if (qualidadeEls.btnSalvar) qualidadeEls.btnSalvar.addEventListener('click', () => App.actions.saveQualidadePlantio({ resetAfterSave: false }));
-                if (qualidadeEls.btnSalvarNovo) qualidadeEls.btnSalvarNovo.addEventListener('click', () => App.actions.saveQualidadePlantio({ resetAfterSave: true }));
-                if (qualidadeEls.btnCancelar) qualidadeEls.btnCancelar.addEventListener('click', () => App.ui.resetQualidadeForm());
-
-                const qualidadeReportEls = App.elements.relatorioQualidadePlantio;
-                if (qualidadeReportEls.fazenda) {
-                    qualidadeReportEls.fazenda.addEventListener('change', (e) => {
-                        App.ui.updateQualidadeTalhaoOptions(qualidadeReportEls.talhao, e.target.value, { includeAll: true });
-                    });
-                }
-                if (qualidadeReportEls.btnVisualizar) qualidadeReportEls.btnVisualizar.addEventListener('click', () => App.reports.renderQualidadeReport());
-                if (qualidadeReportEls.btnExcel) qualidadeReportEls.btnExcel.addEventListener('click', () => App.reports.exportQualidadeReport('csv'));
-                if (qualidadeReportEls.btnPDF) qualidadeReportEls.btnPDF.addEventListener('click', () => App.reports.exportQualidadeReport('pdf'));
-                if (qualidadeReportEls.tabela) {
-                    qualidadeReportEls.tabela.addEventListener('click', (e) => {
-                        const button = e.target.closest('button[data-action="edit-qualidade"]');
-                        if (button) {
-                            App.actions.loadQualidadeForEdit(button.dataset.id);
-                        }
-                    });
-                }
-
                 if (App.elements.gerenciamento.lista) App.elements.gerenciamento.lista.addEventListener('click', e => {
                     const button = e.target.closest('button');
                     if (button) {
@@ -7341,279 +6977,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.setLoading(false);
                     }
                 });
-            },
-
-            async updatePendingQualidadeWrite(entryId, entryData) {
-                const db = await OfflineDB.dbPromise;
-                if (!db) return false;
-                const tx = db.transaction('offline-writes', 'readwrite');
-                const store = tx.objectStore('offline-writes');
-                let cursor = await store.openCursor();
-                let updated = false;
-                while (cursor) {
-                    const value = cursor.value;
-                    if (value.collection === 'qualidadePlantio' && value.id === entryId) {
-                        await cursor.update({ ...value, data: entryData });
-                        updated = true;
-                        break;
-                    }
-                    cursor = await cursor.continue();
-                }
-                await tx.done;
-                return updated;
-            },
-
-            async getQualidadeConsolidatedData() {
-                const syncedData = App.state.qualidadePlantio ? [...App.state.qualidadePlantio] : [];
-                const pendingWrites = await OfflineDB.getAll('offline-writes');
-                const currentCompanyId = App.state.currentUser?.companyId;
-                const relevantWrites = pendingWrites.filter(write => write.collection === 'qualidadePlantio' && write.data?.companyId === currentCompanyId);
-
-                const createWrites = relevantWrites.filter(write => !write.type);
-                const updateWrites = relevantWrites.filter(write => write.type === 'update' && write.docId);
-
-                const pendingCreates = createWrites.map(write => ({ id: write.id, ...write.data, _offline: true }));
-                const updatedSynced = syncedData.map(entry => {
-                    const update = updateWrites.find(write => write.docId === entry.id);
-                    if (update) {
-                        return { id: entry.id, ...update.data, _offline: true, _pendingUpdate: true };
-                    }
-                    return { ...entry };
-                });
-                const orphanUpdates = updateWrites
-                    .filter(write => !syncedData.some(entry => entry.id === write.docId))
-                    .map(write => ({ id: write.docId, ...write.data, _offline: true, _pendingUpdate: true }));
-
-                return [...updatedSynced, ...pendingCreates, ...orphanUpdates];
-            },
-
-            async saveQualidadePlantio(options = {}) {
-                const els = App.elements.qualidadePlantio;
-                const { resetAfterSave = false } = options;
-                const requiredFields = [
-                    els.tipoPlantio.id,
-                    els.fazenda.id,
-                    els.talhao.id,
-                    els.data.id,
-                    els.tipoInspecao.id,
-                    els.tipoPrestador.id
-                ];
-
-                if (!App.ui.validateFields(requiredFields)) {
-                    App.ui.showAlert("Preencha todos os campos obrigatórios!", "error");
-                    return;
-                }
-
-                const selectedIndicators = App.ui.getSelectedQualidadeIndicators();
-                const requiresField = (field, label) => {
-                    if (!field.value) {
-                        App.ui.showAlert(`Preencha o campo "${label}".`, "warning");
-                        field.focus();
-                        return false;
-                    }
-                    return true;
-                };
-
-                if (selectedIndicators.includes('alturaCobertura') && !requiresField(els.alturaCobertura, els.alturaLabel?.textContent || 'Altura de cobertura')) return;
-                if (selectedIndicators.includes('espacamento') && !requiresField(els.espacamento, els.espacamentoLabel?.textContent || 'Espaçamento')) return;
-                if (selectedIndicators.includes('profundidade') && !requiresField(els.profundidade, els.profundidadeLabel?.textContent || 'Profundidade da sulcação')) return;
-
-                if (selectedIndicators.includes('gemasViaveis')) {
-                    const gemas = App.safeParseFloat(els.gemasViaveis.value);
-                    const amostragem = App.safeParseFloat(els.valorAmostragem.value);
-                    if (!els.gemasViaveis.value && els.gemasViaveis.value !== '0') {
-                        App.ui.showAlert("Informe o número de gemas viáveis.", "warning");
-                        return;
-                    }
-                    if (gemas < 0) {
-                        App.ui.showAlert("Gemas viáveis não pode ser negativo.", "warning");
-                        return;
-                    }
-                    if (amostragem <= 0) {
-                        App.ui.showAlert("Valor de amostragem deve ser maior que zero.", "warning");
-                        return;
-                    }
-                }
-
-                if (selectedIndicators.includes('consumoMuda')) {
-                    const pesoTotal = App.safeParseFloat(els.consumoPesoTotal.value);
-                    if (pesoTotal <= 0) {
-                        App.ui.showAlert("Peso total deve ser maior que zero.", "warning");
-                        return;
-                    }
-                    if (!els.consumoPrestador.value.trim()) {
-                        App.ui.showAlert("Informe o prestador que tirou muda.", "warning");
-                        return;
-                    }
-                }
-
-                const brocaValue = App.safeParseFloat(els.broca.value);
-                const brocaGemasTotal = App.safeParseFloat(els.brocaGemasTotal.value);
-                if (els.broca.value && brocaValue > 0 && brocaGemasTotal <= 0) {
-                    App.ui.showAlert("Informe a quantidade de gemas total para calcular a broca.", "warning");
-                    return;
-                }
-
-                const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
-                if (!farm) {
-                    App.ui.showAlert("Fazenda não encontrada.", "error");
-                    return;
-                }
-
-                const entryId = els.entryId.value;
-                const nowIso = new Date().toISOString();
-
-                const gemasViaveis = selectedIndicators.includes('gemasViaveis') ? App.safeParseFloat(els.gemasViaveis.value) : null;
-                const amostragem = selectedIndicators.includes('gemasViaveis') ? App.safeParseFloat(els.valorAmostragem.value) : null;
-                const gemasPorMetro = amostragem && amostragem > 0 ? gemasViaveis / amostragem : null;
-                const qtdGemasTotal = gemasPorMetro != null ? gemasPorMetro * 6666 : null;
-
-                const pesoTotal = selectedIndicators.includes('consumoMuda') ? App.safeParseFloat(els.consumoPesoTotal.value) : null;
-                const consumoMuda = pesoTotal && pesoTotal > 0 ? (pesoTotal / 5) * 6666 / 1000 : null;
-
-                const brocaPercentual = brocaValue && brocaGemasTotal > 0 ? (brocaValue / brocaGemasTotal) * 100 : null;
-
-                const entryData = {
-                    tipoPlantio: els.tipoPlantio.value,
-                    fazendaId: farm.id,
-                    fazendaCodigo: farm.code,
-                    fazendaNome: farm.name,
-                    talhao: els.talhao.value.trim(),
-                    variedade: els.variedade.value || '',
-                    data: els.data.value,
-                    tipoInspecao: els.tipoInspecao.value,
-                    tipoPrestador: els.tipoPrestador.value.trim(),
-                    valorAmostragem: amostragem != null ? amostragem : null,
-                    indicadoresSelecionados: selectedIndicators,
-                    alturaCobertura: els.alturaCobertura.value ? App.safeParseFloat(els.alturaCobertura.value) : null,
-                    espacamento: els.espacamento.value ? App.safeParseFloat(els.espacamento.value) : null,
-                    profundidade: els.profundidade.value ? App.safeParseFloat(els.profundidade.value) : null,
-                    gemasViaveis: gemasViaveis != null ? gemasViaveis : null,
-                    gemasPorMetro: gemasPorMetro != null ? gemasPorMetro : null,
-                    qtdGemasTotal: qtdGemasTotal != null ? qtdGemasTotal : null,
-                    pesoTotal: pesoTotal != null ? pesoTotal : null,
-                    prestadorMuda: els.consumoPrestador.value ? els.consumoPrestador.value.trim() : '',
-                    consumoMuda: consumoMuda != null ? consumoMuda : null,
-                    broca: els.broca.value ? App.safeParseFloat(els.broca.value) : null,
-                    brocaQtdGemasTotal: els.brocaGemasTotal.value ? App.safeParseFloat(els.brocaGemasTotal.value) : null,
-                    brocaPercentual: brocaPercentual != null ? brocaPercentual : null,
-                    usuario: App.state.currentUser.username,
-                    companyId: App.state.currentUser.companyId,
-                    updatedAt: nowIso
-                };
-
-                if (!entryId) {
-                    entryData.createdAt = nowIso;
-                }
-
-                const confirmationMessage = entryId
-                    ? "Tem a certeza que deseja atualizar este lançamento de qualidade?"
-                    : "Tem a certeza que deseja guardar este lançamento de qualidade?";
-
-                App.ui.showConfirmationModal(confirmationMessage, async () => {
-                    App.ui.setLoading(true, "A guardar...");
-                    try {
-                        if (navigator.onLine) {
-                            if (entryId) {
-                                await App.data.updateDocument('qualidadePlantio', entryId, entryData);
-                                App.ui.showAlert("Lançamento atualizado com sucesso!");
-                            } else {
-                                const docRef = await App.data.addDocument('qualidadePlantio', entryData);
-                                App.ui.showAlert("Lançamento guardado com sucesso!");
-                                if (!resetAfterSave) {
-                                    els.entryId.value = docRef.id;
-                                }
-                            }
-                        } else {
-                            if (entryId) {
-                                if (entryId.startsWith('offline_')) {
-                                    const updated = await this.updatePendingQualidadeWrite(entryId, entryData);
-                                    if (!updated) {
-                                        await OfflineDB.add('offline-writes', { id: entryId, collection: 'qualidadePlantio', data: entryData });
-                                    }
-                                } else {
-                                    await OfflineDB.add('offline-writes', {
-                                        id: `update_${entryId}_${Date.now()}`,
-                                        type: 'update',
-                                        collection: 'qualidadePlantio',
-                                        docId: entryId,
-                                        data: entryData
-                                    });
-                                }
-                                App.ui.showAlert("Atualização guardada offline. Será sincronizada quando houver conexão.", "info");
-                            } else {
-                                const offlineId = `offline_qualidade_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                await OfflineDB.add('offline-writes', { id: offlineId, collection: 'qualidadePlantio', data: entryData });
-                                App.ui.showAlert("Lançamento guardado offline. Será sincronizado quando houver conexão.", "info");
-                                if (!resetAfterSave) {
-                                    els.entryId.value = offlineId;
-                                }
-                            }
-                        }
-
-                        if (resetAfterSave) {
-                            App.ui.resetQualidadeForm();
-                        }
-                    } catch (error) {
-                        console.error("Erro ao guardar qualidade de plantio:", error);
-                        App.ui.showAlert(`Erro ao guardar: ${error.message}`, "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                });
-            },
-
-            async loadQualidadeForEdit(entryId) {
-                const data = await this.getQualidadeConsolidatedData();
-                const entry = data.find(item => item.id === entryId);
-                if (!entry) {
-                    App.ui.showAlert("Lançamento não encontrado para edição.", "warning");
-                    return;
-                }
-
-                const els = App.elements.qualidadePlantio;
-                App.ui.showTab('lancamentoQualidadePlantio');
-                els.entryId.value = entry.id;
-                els.tipoPlantio.value = entry.tipoPlantio || '';
-                App.ui.renderQualidadeIndicadores(false);
-
-                els.fazenda.value = entry.fazendaId || '';
-                App.ui.updateQualidadeTalhaoOptions(els.talhao, els.fazenda.value);
-                els.talhao.value = entry.talhao || '';
-                App.ui.updateQualidadeVariedade();
-
-                els.data.value = entry.data || '';
-                els.tipoInspecao.value = entry.tipoInspecao || '';
-                els.tipoPrestador.value = entry.tipoPrestador || '';
-                els.valorAmostragem.value = entry.valorAmostragem != null ? entry.valorAmostragem : '';
-
-                const selectedIndicators = entry.indicadoresSelecionados || [];
-                if (els.indicadoresContainer) {
-                    els.indicadoresContainer.querySelectorAll('input[name="qualidadeIndicadores"]').forEach(cb => {
-                        cb.checked = selectedIndicators.includes(cb.value);
-                    });
-                }
-
-                els.alturaCobertura.value = entry.alturaCobertura != null ? entry.alturaCobertura : '';
-                els.espacamento.value = entry.espacamento != null ? entry.espacamento : '';
-                els.profundidade.value = entry.profundidade != null ? entry.profundidade : '';
-                els.gemasViaveis.value = entry.gemasViaveis != null ? entry.gemasViaveis : '';
-                els.gemasPorMetro.value = entry.gemasPorMetro != null ? entry.gemasPorMetro : '';
-                els.gemasTotal.value = entry.qtdGemasTotal != null ? entry.qtdGemasTotal : '';
-
-                els.consumoPesoTotal.value = entry.pesoTotal != null ? entry.pesoTotal : '';
-                els.consumoPrestador.value = entry.prestadorMuda || '';
-                els.consumoResultado.value = entry.consumoMuda != null ? entry.consumoMuda : '';
-
-                els.broca.value = entry.broca != null ? entry.broca : '';
-                els.brocaGemasTotal.value = entry.brocaQtdGemasTotal != null ? entry.brocaQtdGemasTotal : '';
-                els.brocaPercentual.value = entry.brocaPercentual != null ? entry.brocaPercentual : '';
-
-                App.ui.updateQualidadeIndicadoresVisibility(selectedIndicators);
-                App.ui.syncQualidadeConsumoMudaBaseFields();
-                App.ui.calculateQualidadeGemas();
-                App.ui.calculateQualidadeConsumoMuda();
-                App.ui.calculateQualidadeBroca();
             },
 
 
@@ -15452,319 +14815,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     riskOnly: riskOnlyCheckbox ? riskOnlyCheckbox.checked : false
                 };
                 this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
-            },
-
-            formatQualidadeNumber(value, decimals = 2) {
-                if (value === null || value === undefined || value === '') return '—';
-                const number = Number(value);
-                if (Number.isNaN(number)) return '—';
-                return number.toFixed(decimals).replace('.', ',');
-            },
-
-            formatQualidadeText(value) {
-                return value ? String(value) : '—';
-            },
-
-            getQualidadeIndicatorFilterMatch(entry, indicador) {
-                if (!indicador) return true;
-                if (indicador === 'broca') {
-                    return entry.broca != null && entry.broca !== '';
-                }
-                if (indicador === 'consumoMuda') {
-                    return entry.consumoMuda != null && entry.consumoMuda !== '';
-                }
-                if (indicador === 'gemasViaveis') {
-                    return entry.gemasViaveis != null && entry.gemasViaveis !== '';
-                }
-                return (entry.indicadoresSelecionados || []).includes(indicador);
-            },
-
-            filterQualidadeEntries(entries) {
-                const els = App.elements.relatorioQualidadePlantio;
-                const inicio = els.inicio.value;
-                const fim = els.fim.value;
-                const inicioDate = inicio ? new Date(inicio + 'T00:00:00') : null;
-                const fimDate = fim ? new Date(fim + 'T23:59:59') : null;
-
-                return entries.filter(entry => {
-                    if (inicioDate || fimDate) {
-                        const entryDate = entry.data ? new Date(entry.data + 'T12:00:00') : null;
-                        if (!entryDate) return false;
-                        if (inicioDate && entryDate < inicioDate) return false;
-                        if (fimDate && entryDate > fimDate) return false;
-                    }
-                    if (els.fazenda.value && entry.fazendaId !== els.fazenda.value) return false;
-                    if (els.talhao.value && (entry.talhao || '').toUpperCase() !== els.talhao.value.toUpperCase()) return false;
-                    if (els.variedade.value && !(entry.variedade || '').toUpperCase().includes(els.variedade.value.toUpperCase())) return false;
-                    if (els.tipoPlantio.value && entry.tipoPlantio !== els.tipoPlantio.value) return false;
-                    if (els.tipoInspecao.value && entry.tipoInspecao !== els.tipoInspecao.value) return false;
-                    if (els.tipoPrestador.value && !(entry.tipoPrestador || '').toUpperCase().includes(els.tipoPrestador.value.toUpperCase())) return false;
-                    if (els.prestadorMuda.value && !(entry.prestadorMuda || '').toUpperCase().includes(els.prestadorMuda.value.toUpperCase())) return false;
-                    if (!this.getQualidadeIndicatorFilterMatch(entry, els.indicador.value)) return false;
-
-                    if (els.pendentes.checked) {
-                        if (!entry._offline && !entry._pendingUpdate) return false;
-                    }
-                    return true;
-                });
-            },
-
-            buildQualidadeResumoReport(entries) {
-                const groups = {};
-                entries.forEach(entry => {
-                    const key = [
-                        entry.fazendaNome || '',
-                        entry.talhao || '',
-                        entry.variedade || '',
-                        entry.tipoPlantio || '',
-                        entry.data || ''
-                    ].join('|');
-
-                    if (!groups[key]) {
-                        groups[key] = {
-                            fazenda: entry.fazendaNome || '',
-                            talhao: entry.talhao || '',
-                            variedade: entry.variedade || '',
-                            tipoPlantio: entry.tipoPlantio || '',
-                            data: entry.data || '',
-                            count: 0,
-                            altura: [],
-                            espacamento: [],
-                            profundidade: [],
-                            gemasPorMetro: [],
-                            gemasTotal: [],
-                            consumoMuda: [],
-                            brocaPercentual: [],
-                        };
-                    }
-
-                    const group = groups[key];
-                    group.count += 1;
-                    if (entry.alturaCobertura != null) group.altura.push(Number(entry.alturaCobertura));
-                    if (entry.espacamento != null) group.espacamento.push(Number(entry.espacamento));
-                    if (entry.profundidade != null) group.profundidade.push(Number(entry.profundidade));
-                    if (entry.gemasPorMetro != null) group.gemasPorMetro.push(Number(entry.gemasPorMetro));
-                    if (entry.qtdGemasTotal != null) group.gemasTotal.push(Number(entry.qtdGemasTotal));
-                    if (entry.consumoMuda != null) group.consumoMuda.push(Number(entry.consumoMuda));
-                    if (entry.brocaPercentual != null) group.brocaPercentual.push(Number(entry.brocaPercentual));
-                });
-
-                const calcStats = (values) => {
-                    if (!values.length) return null;
-                    const sum = values.reduce((acc, val) => acc + val, 0);
-                    return {
-                        avg: sum / values.length,
-                        min: Math.min(...values),
-                        max: Math.max(...values),
-                    };
-                };
-
-                const formatStats = (stats) => {
-                    if (!stats) return '—';
-                    return `${this.formatQualidadeNumber(stats.avg)} / ${this.formatQualidadeNumber(stats.min)} / ${this.formatQualidadeNumber(stats.max)}`;
-                };
-
-                const headers = [
-                    'Fazenda',
-                    'Talhão',
-                    'Variedade',
-                    'Tipo Plantio',
-                    'Data',
-                    'Qtde Lançamentos',
-                    'Altura (média/min/max)',
-                    'Espaçamento (média/min/max)',
-                    'Profundidade (média/min/max)',
-                    'Gemas por metro (média/min/max)',
-                    'Qtd. Gemas Total (média/min/max)',
-                    'Consumo de muda (média/min/max)',
-                    '% Broca (média/min/max)'
-                ];
-
-                const rows = Object.values(groups).map(group => ([
-                    this.formatQualidadeText(group.fazenda),
-                    this.formatQualidadeText(group.talhao),
-                    this.formatQualidadeText(group.variedade),
-                    this.formatQualidadeText(group.tipoPlantio),
-                    this.formatQualidadeText(group.data),
-                    group.count.toString(),
-                    formatStats(calcStats(group.altura)),
-                    formatStats(calcStats(group.espacamento)),
-                    formatStats(calcStats(group.profundidade)),
-                    formatStats(calcStats(group.gemasPorMetro)),
-                    formatStats(calcStats(group.gemasTotal)),
-                    formatStats(calcStats(group.consumoMuda)),
-                    formatStats(calcStats(group.brocaPercentual)),
-                ]));
-
-                return { headers, rows };
-            },
-
-            buildQualidadeOperacionalReport(entries, options = {}) {
-                const { includeActions = false } = options;
-                const sorted = [...entries].sort((a, b) => {
-                    const fazendaCompare = (a.fazendaNome || '').localeCompare(b.fazendaNome || '', 'pt-BR', { numeric: true });
-                    if (fazendaCompare !== 0) return fazendaCompare;
-                    const talhaoCompare = (a.talhao || '').localeCompare(b.talhao || '', 'pt-BR', { numeric: true });
-                    if (talhaoCompare !== 0) return talhaoCompare;
-                    return (a.data || '').localeCompare(b.data || '');
-                });
-
-                const headers = [
-                    'Data',
-                    'Tipo Plantio',
-                    'Fazenda',
-                    'Talhão',
-                    'Variedade',
-                    'Tipo de Inspeção',
-                    'Tipo de Prestador',
-                    'Altura cobertura (cm)',
-                    'Espaçamento (m)',
-                    'Profundidade (cm)',
-                    'Gemas viáveis',
-                    'Amostragem (m)',
-                    'Gemas por metro',
-                    'Qtd. Gemas Total',
-                    'Peso Total (kg)',
-                    'Prestador tirou muda',
-                    'Consumo de muda (t/ha)',
-                    'Broca',
-                    'Qtd. Gemas Total (broca)',
-                    '% Broca',
-                    'Status Sync'
-                ];
-
-                const rows = sorted.map(entry => {
-                    const status = entry._offline || entry._pendingUpdate ? 'Pendente' : 'Sincronizado';
-                    return [
-                        this.formatQualidadeText(entry.data),
-                        this.formatQualidadeText(entry.tipoPlantio),
-                        this.formatQualidadeText(entry.fazendaNome),
-                        this.formatQualidadeText(entry.talhao),
-                        this.formatQualidadeText(entry.variedade),
-                        this.formatQualidadeText(entry.tipoInspecao),
-                        this.formatQualidadeText(entry.tipoPrestador),
-                        this.formatQualidadeNumber(entry.alturaCobertura),
-                        this.formatQualidadeNumber(entry.espacamento),
-                        this.formatQualidadeNumber(entry.profundidade),
-                        this.formatQualidadeNumber(entry.gemasViaveis, 0),
-                        this.formatQualidadeNumber(entry.valorAmostragem),
-                        this.formatQualidadeNumber(entry.gemasPorMetro),
-                        this.formatQualidadeNumber(entry.qtdGemasTotal),
-                        this.formatQualidadeNumber(entry.pesoTotal),
-                        this.formatQualidadeText(entry.prestadorMuda),
-                        this.formatQualidadeNumber(entry.consumoMuda),
-                        this.formatQualidadeNumber(entry.broca),
-                        this.formatQualidadeNumber(entry.brocaQtdGemasTotal),
-                        this.formatQualidadeNumber(entry.brocaPercentual),
-                        status
-                    ];
-                });
-
-                if (includeActions) {
-                    headers.push('Ações');
-                    rows.forEach((row, index) => {
-                        const entry = sorted[index];
-                        row.push(`<button class="save" type="button" data-action="edit-qualidade" data-id="${entry.id}" style="max-width: 120px;"><i class="fas fa-edit"></i> Editar</button>`);
-                    });
-                }
-
-                return { headers, rows };
-            },
-
-            async getQualidadeReportData(options = {}) {
-                const els = App.elements.relatorioQualidadePlantio;
-                if (!els.inicio.value || !els.fim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return null;
-                }
-                const entries = await App.actions.getQualidadeConsolidatedData();
-                const filtered = this.filterQualidadeEntries(entries);
-                const includeActions = options.includeActions || false;
-
-                if (els.tipoRelatorio.value === 'resumo') {
-                    return { ...this.buildQualidadeResumoReport(filtered), type: 'resumo' };
-                }
-                return { ...this.buildQualidadeOperacionalReport(filtered, { includeActions }), type: 'operacional' };
-            },
-
-            async renderQualidadeReport() {
-                const data = await this.getQualidadeReportData({ includeActions: true });
-                const container = App.elements.relatorioQualidadePlantio.tabela;
-                if (!container || !data) return;
-
-                if (data.rows.length === 0) {
-                    container.innerHTML = '<p style="color: var(--color-text-light);">Nenhum lançamento encontrado para os filtros selecionados.</p>';
-                    return;
-                }
-
-                const headerRow = data.headers.map(header => `<th>${header}</th>`).join('');
-                const bodyRows = data.rows.map(row => {
-                    const cells = row.map((cell, index) => `<td data-label="${data.headers[index]}">${cell}</td>`).join('');
-                    return `<tr>${cells}</tr>`;
-                }).join('');
-
-                container.innerHTML = `
-                    <table>
-                        <thead><tr>${headerRow}</tr></thead>
-                        <tbody>${bodyRows}</tbody>
-                    </table>
-                `;
-            },
-
-            async exportQualidadeReport(format) {
-                const data = await this.getQualidadeReportData();
-                if (!data) return;
-
-                const filename = `relatorio_qualidade_${data.type}_${new Date().toISOString().split('T')[0]}.${format === 'pdf' ? 'pdf' : 'csv'}`;
-
-                if (format === 'pdf') {
-                    const htmlContent = `
-                        <html>
-                        <head>
-                            <title>Relatório de Qualidade</title>
-                            <style>
-                                body { font-family: Arial, sans-serif; padding: 20px; }
-                                table { width: 100%; border-collapse: collapse; font-size: 12px; }
-                                th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
-                                th { background-color: #f5f5f5; }
-                            </style>
-                        </head>
-                        <body>
-                            <h2>Relatório de Qualidade - ${data.type === 'resumo' ? 'Resumo' : 'Operacional'}</h2>
-                            <table>
-                                <thead><tr>${data.headers.map(header => `<th>${header}</th>`).join('')}</tr></thead>
-                                <tbody>
-                                    ${data.rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
-                                </tbody>
-                            </table>
-                        </body>
-                        </html>
-                    `;
-                    const printWindow = window.open('', '_blank');
-                    if (!printWindow) {
-                        App.ui.showAlert("Não foi possível abrir a visualização para PDF.", "error");
-                        return;
-                    }
-                    printWindow.document.write(htmlContent);
-                    printWindow.document.close();
-                    printWindow.focus();
-                    printWindow.print();
-                    return;
-                }
-
-                const csvRows = [
-                    data.headers.join(';'),
-                    ...data.rows.map(row => row.map(cell => `"${String(cell).replace(/\"/g, '""')}"`).join(';'))
-                ];
-                const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', filename);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
             },
         },
 
