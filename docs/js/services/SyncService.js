@@ -37,15 +37,16 @@ class SyncService {
     async save(collection, data, id = null) {
         const type = id ? 'UPDATE' : 'CREATE';
         const uuid = id || OfflineManager.generateUUID(); // Gera UUID se for criação nova
+        const payload = { ...data, id: uuid };
 
         // Adiciona timestamp local se não houver
-        if (!data.createdAt && type === 'CREATE') {
-            data.createdAt = new Date().toISOString();
+        if (!payload.createdAt && type === 'CREATE') {
+            payload.createdAt = new Date().toISOString();
         }
-        data.updatedAt = new Date().toISOString();
+        payload.updatedAt = new Date().toISOString();
 
         // Enfileira
-        await offlineManager.enqueueOperation(type, collection, data, uuid);
+        await offlineManager.enqueueOperation(type, collection, payload, uuid);
 
         // Tenta sincronizar imediatamente se estiver online
         if (navigator.onLine) {
