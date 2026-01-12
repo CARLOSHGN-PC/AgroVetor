@@ -200,6 +200,29 @@
         font-weight: 600;
         text-transform: uppercase;
       }
+      .qualidade-context-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .qualidade-context-item {
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
+        border-radius: var(--border-radius);
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+      .qualidade-context-item span {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .qualidade-report-empty {
+        text-align: center;
+        color: var(--color-text-light);
+        padding: 16px;
+      }
       .menu-btn .arrow { margin-left: auto; transition: transform 0.3s ease; font-size: 14px; }
       .submenu-back-btn { font-weight: 600; }
       main.content {
@@ -2824,6 +2847,182 @@
                 <button class="save" type="button" id="btnSalvarCigarrinha"><i class="fas fa-save"></i> Guardar Monitoramento</button>
             </section>
 
+            <section id="qualidadePlantio" class="tab-content card" aria-label="Qualidade de Plantio" tabindex="0" hidden>
+                <h2><i class="fas fa-seedling"></i> Qualidade de Plantio</h2>
+                <form id="formQualidadePlantio">
+                    <div class="card" style="border-left-color: var(--color-info); margin-bottom: 20px;">
+                        <h3><i class="fas fa-list-check"></i> Campos base</h3>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="qualidadeTipoPlantio" class="required">Tipo de Plantio:</label>
+                                <select id="qualidadeTipoPlantio" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="Mec">Mec</option>
+                                    <option value="Man">Man</option>
+                                </select>
+                            </div>
+                            <div class="form-col">
+                                <label for="qualidadeFazenda" class="required">Fazenda:</label>
+                                <select id="qualidadeFazenda" required></select>
+                            </div>
+                            <div class="form-col">
+                                <label for="qualidadeTalhao" class="required">Talhão:</label>
+                                <select id="qualidadeTalhao" required>
+                                    <option value="">Selecione...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="qualidadeVariedade">Variedade:</label>
+                                <input type="text" id="qualidadeVariedade" readonly placeholder="Selecionar fazenda e talhão">
+                            </div>
+                            <div class="form-col">
+                                <label for="qualidadeData" class="required">Data:</label>
+                                <input type="date" id="qualidadeData" required>
+                            </div>
+                            <div class="form-col">
+                                <label for="qualidadeTipoInspecao" class="required">Tipo de Inspeção:</label>
+                                <select id="qualidadeTipoInspecao" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="Inspeção da Qualidade">Inspeção da Qualidade</option>
+                                    <option value="Outros">Outros</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="qualidadeTipoPrestador" class="required">Tipo de Prestador (plantando):</label>
+                                <select id="qualidadeTipoPrestador" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="Próprio">Próprio</option>
+                                    <option value="Terceiro">Terceiro</option>
+                                    <option value="Parceiro">Parceiro</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="border-left-color: var(--color-primary);">
+                        <h3><i class="fas fa-clipboard-check"></i> Indicador</h3>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="qualidadeIndicador" class="required">Indicador:</label>
+                                <select id="qualidadeIndicador" required></select>
+                            </div>
+                        </div>
+                        <div id="qualidadeIndicadorCard" style="display: none;">
+                            <div class="form-row">
+                                <div class="form-col">
+                                    <label id="qualidadeIndicadorLabel" for="qualidadeIndicadorValor" class="required"></label>
+                                    <input type="number" id="qualidadeIndicadorValor" min="0" step="0.01">
+                                </div>
+                            </div>
+                            <div class="form-row" id="qualidadeGemasGroup" style="display: none;">
+                                <div class="form-col">
+                                    <label for="qualidadeAmostragem" class="required">Amostragem:</label>
+                                    <input type="number" id="qualidadeAmostragem" min="0" step="1">
+                                </div>
+                                <div class="form-col">
+                                    <label>Qtd. Gemas Total:</label>
+                                    <div id="qualidadeQtdGemasTotal" class="info-display"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <p style="margin-top: 10px; color: var(--color-text-light); font-size: 13px;">
+                            Ao escolher Consumo de Muda ou Broca, você será direcionado para a tela específica.
+                        </p>
+                    </div>
+                    <button class="save" type="button" id="btnSalvarQualidadePlantio" style="margin-top: 20px;">
+                        <i class="fas fa-save"></i> Guardar Qualidade
+                    </button>
+                </form>
+            </section>
+
+            <section id="qualidadeConsumoMuda" class="tab-content card" aria-label="Consumo de Muda" tabindex="0" hidden>
+                <h2><i class="fas fa-weight-hanging"></i> Consumo de Muda</h2>
+                <form id="formQualidadeConsumo">
+                    <div class="card" style="border-left-color: var(--color-info); margin-bottom: 20px;">
+                        <h3><i class="fas fa-location-dot"></i> Contexto do lançamento</h3>
+                        <div class="qualidade-context-grid">
+                            <div class="qualidade-context-item"><span>Tipo de Plantio</span><div id="qualidadeConsumoTipoPlantio"></div></div>
+                            <div class="qualidade-context-item"><span>Fazenda</span><div id="qualidadeConsumoFazenda"></div></div>
+                            <div class="qualidade-context-item"><span>Talhão</span><div id="qualidadeConsumoTalhao"></div></div>
+                            <div class="qualidade-context-item"><span>Variedade</span><div id="qualidadeConsumoVariedade"></div></div>
+                            <div class="qualidade-context-item"><span>Data</span><div id="qualidadeConsumoData"></div></div>
+                        </div>
+                    </div>
+                    <div class="card" style="border-left-color: var(--color-primary);">
+                        <h3><i class="fas fa-clipboard-check"></i> Consumo</h3>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="qualidadePesoTotal" class="required">Peso Total:</label>
+                                <input type="number" id="qualidadePesoTotal" min="0" step="0.01">
+                            </div>
+                            <div class="form-col">
+                                <label>Metros Lineares:</label>
+                                <div id="qualidadeMetrosLineares" class="info-display"></div>
+                            </div>
+                            <div class="form-col">
+                                <label>Consumo de Muda (t):</label>
+                                <div id="qualidadeConsumoMudaValor" class="info-display"></div>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="qualidadePrestadorTirou" class="required">Prestador que tirou a muda:</label>
+                                <select id="qualidadePrestadorTirou" required></select>
+                            </div>
+                            <div class="form-col">
+                                <label for="qualidadeFazendaOrigem" class="required">Fazenda de origem da muda:</label>
+                                <select id="qualidadeFazendaOrigem" required></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="botoes-relatorio" style="justify-content: flex-start;">
+                        <button class="save" type="button" id="btnSalvarQualidadeConsumo"><i class="fas fa-save"></i> Guardar Consumo</button>
+                        <button class="save" type="button" id="btnVoltarQualidadeConsumo" style="background-color: var(--color-info);"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    </div>
+                </form>
+            </section>
+
+            <section id="qualidadeBroca" class="tab-content card" aria-label="Broca - Qualidade de Plantio" tabindex="0" hidden>
+                <h2><i class="fas fa-bug"></i> Broca (Qualidade de Plantio)</h2>
+                <form id="formQualidadeBroca">
+                    <div class="card" style="border-left-color: var(--color-info); margin-bottom: 20px;">
+                        <h3><i class="fas fa-location-dot"></i> Contexto do lançamento</h3>
+                        <div class="qualidade-context-grid">
+                            <div class="qualidade-context-item"><span>Tipo de Plantio</span><div id="qualidadeBrocaTipoPlantio"></div></div>
+                            <div class="qualidade-context-item"><span>Fazenda</span><div id="qualidadeBrocaFazenda"></div></div>
+                            <div class="qualidade-context-item"><span>Talhão</span><div id="qualidadeBrocaTalhao"></div></div>
+                            <div class="qualidade-context-item"><span>Variedade</span><div id="qualidadeBrocaVariedade"></div></div>
+                            <div class="qualidade-context-item"><span>Data</span><div id="qualidadeBrocaData"></div></div>
+                        </div>
+                    </div>
+                    <div class="card" style="border-left-color: var(--color-primary);">
+                        <h3><i class="fas fa-clipboard-check"></i> Broca</h3>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="qualidadeBrocaValor" class="required">Broca:</label>
+                                <input type="number" id="qualidadeBrocaValor" min="0" step="0.01">
+                            </div>
+                            <div class="form-col">
+                                <label for="qualidadeBrocaQtdGemasTotal" class="required">Qtd. Gemas Total:</label>
+                                <input type="number" id="qualidadeBrocaQtdGemasTotal" min="0" step="0.01">
+                            </div>
+                            <div class="form-col">
+                                <label>% Broca:</label>
+                                <div id="qualidadeBrocaPercentual" class="info-display"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="botoes-relatorio" style="justify-content: flex-start;">
+                        <button class="save" type="button" id="btnSalvarQualidadeBroca"><i class="fas fa-save"></i> Guardar Broca</button>
+                        <button class="save" type="button" id="btnVoltarQualidadeBroca" style="background-color: var(--color-info);"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    </div>
+                </form>
+            </section>
+
             <section id="relatorioPerda" class="tab-content card" aria-label="Relatório Perda" tabindex="0" hidden>
                 <h2><i class="fas fa-chart-pie"></i> Relatório de Perda de Cana</h2>
                 <div class="form-row">
@@ -2888,6 +3087,58 @@
         <button id="btnExcelCigarrinhaAmostragem" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
     </div>
 </section>
+
+            <section id="relatorioQualidadePlantio" class="tab-content card" aria-label="Relatórios de Qualidade de Plantio" tabindex="0" hidden>
+                <h2><i class="fas fa-clipboard-check"></i> Relatórios de Qualidade</h2>
+                <div class="card" style="border-left-color: var(--color-info); margin-bottom: 20px;">
+                    <h3><i class="fas fa-filter"></i> Filtros</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="qualidadeReportInicio" class="required">Data Início:</label><input type="date" id="qualidadeReportInicio"></div>
+                        <div class="form-col"><label for="qualidadeReportFim" class="required">Data Fim:</label><input type="date" id="qualidadeReportFim"></div>
+                        <div class="form-col"><label for="qualidadeReportTipoPlantio">Tipo de Plantio:</label>
+                            <select id="qualidadeReportTipoPlantio">
+                                <option value="">Todos</option>
+                                <option value="Mec">Mec</option>
+                                <option value="Man">Man</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="qualidadeReportFazenda">Fazenda:</label><select id="qualidadeReportFazenda"><option value="">Todas</option></select></div>
+                        <div class="form-col"><label for="qualidadeReportTalhao">Talhão:</label><select id="qualidadeReportTalhao"><option value="">Todos</option></select></div>
+                        <div class="form-col"><label for="qualidadeReportIndicador">Indicador:</label><select id="qualidadeReportIndicador"><option value="">Todos</option></select></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="qualidadeReportTipoInspecao">Tipo de Inspeção:</label>
+                            <select id="qualidadeReportTipoInspecao">
+                                <option value="">Todos</option>
+                                <option value="Inspeção da Qualidade">Inspeção da Qualidade</option>
+                                <option value="Outros">Outros</option>
+                            </select>
+                        </div>
+                        <div class="form-col"><label for="qualidadeReportTipoPrestador">Tipo de Prestador (plantando):</label>
+                            <select id="qualidadeReportTipoPrestador">
+                                <option value="">Todos</option>
+                                <option value="Próprio">Próprio</option>
+                                <option value="Terceiro">Terceiro</option>
+                                <option value="Parceiro">Parceiro</option>
+                            </select>
+                        </div>
+                        <div class="form-col"><label for="qualidadeReportModelo">Modelo:</label>
+                            <select id="qualidadeReportModelo">
+                                <option value="resumo">Resumo</option>
+                                <option value="detalhado">Detalhado</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="qualidadeReportPrestadorTirou">Prestador que tirou a muda:</label><select id="qualidadeReportPrestadorTirou"><option value="">Todos</option></select></div>
+                        <div class="form-col"><label for="qualidadeReportFazendaOrigem">Fazenda de origem da muda:</label><select id="qualidadeReportFazendaOrigem"><option value="">Todas</option></select></div>
+                    </div>
+                    <button id="btnAplicarRelatorioQualidade" type="button" class="save"><i class="fas fa-filter"></i> Gerar Relatório</button>
+                </div>
+                <div id="qualidadeReportResult" class="table-responsive"></div>
+            </section>
 
             <section id="gerenciarLancamentos" class="tab-content card" aria-label="Gerenciar Lançamentos" tabindex="0" hidden>
                 <h2><i class="fas fa-edit"></i> Gerenciar Lançamentos</h2>
