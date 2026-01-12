@@ -7,7 +7,7 @@
 export class OfflineManager {
     constructor() {
         this.dbName = 'agrovetor-offline-storage';
-        this.dbVersion = 7; // Incremented for new architecture
+        this.dbVersion = 8; // Incremented for Qualidade de Plantio store
         this.dbPromise = null;
     }
 
@@ -61,6 +61,16 @@ export class OfflineManager {
                     dataStore.createIndex('fazendaId', 'data.fazendaId', { unique: false });
                     dataStore.createIndex('companyId', 'data.companyId', { unique: false });
                     dataStore.createIndex('data', 'data.data', { unique: false }); // Data do evento (YYYY-MM-DD)
+                }
+
+                if (!db.objectStoreNames.contains('qualidade_plantio')) {
+                    const qualidadeStore = db.createObjectStore('qualidade_plantio', { keyPath: 'id' });
+                    qualidadeStore.createIndex('companyId', 'companyId', { unique: false });
+                    qualidadeStore.createIndex('fazendaId', 'fazendaId', { unique: false });
+                    qualidadeStore.createIndex('talhaoId', 'talhaoId', { unique: false });
+                    qualidadeStore.createIndex('data', 'data', { unique: false });
+                    qualidadeStore.createIndex('indicadorCodigo', 'indicadorCodigo', { unique: false });
+                    qualidadeStore.createIndex('tipoPlantio', 'tipoPlantio', { unique: false });
                 }
             },
         });
