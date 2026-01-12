@@ -2491,17 +2491,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!els.tipoPlantio) return;
                 const tipoPlantio = els.tipoPlantio.value;
                 const indicadores = tipoPlantio ? App.actions.getQualidadeIndicadores(tipoPlantio) : [];
-                const options = indicadores
-                    .map(indicador => `<option value="${indicador.code}">${indicador.name}</option>`)
-                    .join('');
 
                 if (els.subamostrasList) {
                     els.subamostrasList.querySelectorAll('.qualidade-indicadores-select').forEach(select => {
-                        const currentValues = Array.from(select.selectedOptions).map(option => option.value);
-                        select.innerHTML = options;
-                        Array.from(select.options).forEach(option => {
-                            option.selected = currentValues.includes(option.value);
-                        });
+                        const subamostra = App.actions.getQualidadeSubamostraById(select.dataset.subamostraId);
+                        const selected = subamostra?.selectedIndicadores || [];
+                        const available = indicadores.filter(indicador => !selected.includes(indicador.code));
+                        const options = available
+                            .map(indicador => `<option value="${indicador.code}">${indicador.name}</option>`)
+                            .join('');
+                        select.innerHTML = `<option value="">Adicionar indicador...</option>${options}`;
+                        select.disabled = !tipoPlantio || available.length === 0;
+                        const addButton = els.subamostrasList.querySelector(`.qualidade-indicador-add[data-subamostra-id="${select.dataset.subamostraId}"]`);
+                        if (addButton) {
+                            addButton.disabled = !tipoPlantio || available.length === 0;
+                        }
                     });
                 }
 
@@ -2515,7 +2519,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (els.subamostrasList) {
                     els.subamostrasList.querySelectorAll('.qualidade-indicadores-select').forEach(select => {
-                        select.disabled = !hasTipoPlantio;
+                        if (!hasTipoPlantio) {
+                            select.disabled = true;
+                        }
+                    });
+                    els.subamostrasList.querySelectorAll('.qualidade-indicador-add').forEach(button => {
+                        if (!hasTipoPlantio) {
+                            button.disabled = true;
+                        }
                     });
                 }
             },
@@ -2567,8 +2578,9 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             buildQualidadeSubamostraCard(subamostra, indicadores) {
                 const selectedIndicadores = subamostra.selectedIndicadores || [];
-                const options = indicadores
-                    .map(indicador => `<option value="${indicador.code}" ${selectedIndicadores.includes(indicador.code) ? 'selected' : ''}>${indicador.name}</option>`)
+                const availableIndicators = indicadores.filter(indicador => !selectedIndicadores.includes(indicador.code));
+                const options = availableIndicators
+                    .map(indicador => `<option value="${indicador.code}">${indicador.name}</option>`)
                     .join('');
                 const items = selectedIndicadores
                     .map(code => {
@@ -2580,11 +2592,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         const bodyContent = this.buildQualidadeIndicadorBody(subamostra, indicador);
                         return `
                             <div class="qualidade-indicador-item ${isOpen}" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}">
-                                <button class="qualidade-indicador-toggle" type="button" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}">
-                                    <div class="qualidade-indicador-title">${indicador.name}</div>
-                                    <span class="qualidade-status ${statusClass}" data-status-indicador>${status === 'preenchido' ? 'Preenchido' : 'Pendente'}</span>
-                                    <i class="fas fa-chevron-down"></i>
-                                </button>
+                                <div class="qualidade-indicador-header">
+                                    <button class="qualidade-indicador-toggle" type="button" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}">
+                                        <div class="qualidade-indicador-title">${indicador.name}</div>
+                                        <span class="qualidade-status ${statusClass}" data-status-indicador>${status === 'preenchido' ? 'Preenchido' : 'Pendente'}</span>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </button>
+                                    <button class="qualidade-indicador-remove" type="button" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}">
+                                        Remover
+                                    </button>
+                                </div>
                                 <div class="qualidade-indicador-body">${bodyContent}</div>
                             </div>
                         `;
@@ -2592,18 +2609,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     .join('');
                 const status = App.actions.getQualidadeSubamostraStatus(subamostra);
                 const statusClass = status === 'preenchido' ? 'status-done' : 'status-pending';
+                const numeroLabel = App.actions.formatQualidadeSubamostraNumero(subamostra.numero);
+                const disableControls = !indicadores.length || availableIndicators.length === 0;
+                const hintText = availableIndicators.length
+                    ? 'Selecione um indicador para adicionar.'
+                    : 'Todos os indicadores disponíveis já foram adicionados.';
 
                 return `
                     <div class="qualidade-subamostra-card" data-subamostra-id="${subamostra.id}">
                         <div class="qualidade-subamostra-header">
-                            <div class="qualidade-subamostra-title">Subamostra ${subamostra.numero}</div>
+                            <div class="qualidade-subamostra-title">Subamostra ${numeroLabel}</div>
                             <span class="qualidade-status ${statusClass}" data-status-subamostra>${status === 'preenchido' ? 'Preenchida' : 'Pendente'}</span>
                         </div>
                         <div class="form-row qualidade-subamostra-row">
                             <div class="form-col">
                                 <label>Indicadores</label>
-                                <select class="qualidade-indicadores-select" data-subamostra-id="${subamostra.id}" multiple>${options}</select>
-                                <div class="qualidade-indicadores-hint">Selecione um ou mais indicadores por subamostra.</div>
+                                <div class="qualidade-indicadores-controls">
+                                    <select class="qualidade-indicadores-select" data-subamostra-id="${subamostra.id}" ${disableControls ? 'disabled' : ''}>
+                                        <option value="">Adicionar indicador...</option>
+                                        ${options}
+                                    </select>
+                                    <button class="btn-secondary qualidade-indicador-add" type="button" data-subamostra-id="${subamostra.id}" ${disableControls ? 'disabled' : ''}>
+                                        <i class="fas fa-plus"></i> Adicionar
+                                    </button>
+                                </div>
+                                <div class="qualidade-indicadores-hint">${hintText}</div>
                             </div>
                         </div>
                         <div class="qualidade-indicadores-list">
@@ -2750,8 +2780,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const talhao = farm?.talhoes?.find(t => t.id === els.talhao.value);
                 const variedade = talhao?.variedade || '';
 
-                els.variedade.value = variedade;
-                els.variedade.readOnly = !variedade;
+                els.variedade.value = variedade ? variedade.toUpperCase() : '';
+                els.variedade.readOnly = true;
                 if (!variedade) {
                     els.variedade.placeholder = 'Variedade não cadastrada';
                 } else {
@@ -2779,7 +2809,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     target.variedade.textContent = base.variedadeNome || '-';
                     target.data.textContent = formattedDate;
                     if (target.subamostra) {
-                        target.subamostra.textContent = subamostra ? `#${subamostra.numero}` : '-';
+                        const numeroLabel = subamostra ? App.actions.formatQualidadeSubamostraNumero(subamostra.numero) : '';
+                        target.subamostra.textContent = subamostra ? `Subamostra ${numeroLabel}` : '-';
                     }
                 });
 
@@ -5243,34 +5274,66 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 if (qualidadeEls.subamostrasList) {
-                    qualidadeEls.subamostrasList.addEventListener('change', (event) => {
-                        const select = event.target.closest('.qualidade-indicadores-select');
-                        if (!select) return;
-                        const subamostraId = select.dataset.subamostraId;
-                        const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
-                        if (!subamostra) return;
-                        const tipoPlantio = qualidadeEls.tipoPlantio.value;
-                        const indicadores = tipoPlantio ? App.actions.getQualidadeIndicadores(tipoPlantio) : [];
-                        const selectedCodes = Array.from(select.selectedOptions).map(option => option.value);
-                        const previous = App.actions.updateQualidadeSubamostraIndicadores(subamostra, selectedCodes, indicadores);
-                        App.ui.renderQualidadeSubamostras();
-
-                        const added = selectedCodes.filter(code => !previous.includes(code));
-                        if (added.length) {
-                            const addedIndicador = indicadores.find(item => item.code === added[0]);
+                    qualidadeEls.subamostrasList.addEventListener('click', (event) => {
+                        const addBtn = event.target.closest('.qualidade-indicador-add');
+                        if (addBtn) {
+                            const subamostraId = addBtn.dataset.subamostraId;
+                            const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
+                            if (!subamostra) return;
+                            const select = qualidadeEls.subamostrasList.querySelector(`.qualidade-indicadores-select[data-subamostra-id="${subamostraId}"]`);
+                            const code = select?.value;
+                            if (!code) {
+                                App.ui.showAlert('Selecione um indicador para adicionar.', 'warning');
+                                return;
+                            }
+                            const tipoPlantio = qualidadeEls.tipoPlantio.value;
+                            const indicadores = tipoPlantio ? App.actions.getQualidadeIndicadores(tipoPlantio) : [];
+                            const selectedCodes = Array.from(new Set([...(subamostra.selectedIndicadores || []), code]));
+                            App.actions.updateQualidadeSubamostraIndicadores(subamostra, selectedCodes, indicadores);
+                            const addedIndicador = indicadores.find(item => item.code === code);
+                            App.state.qualidadePlantioDraft.activeSubamostraId = subamostraId;
+                            App.state.qualidadePlantioDraft.activeIndicadorCode = code;
+                            App.ui.renderQualidadeSubamostras();
                             if (addedIndicador?.type === 'consumo') {
-                                App.state.qualidadePlantioDraft.activeSubamostraId = subamostraId;
-                                App.state.qualidadePlantioDraft.activeIndicadorCode = addedIndicador.code;
                                 App.ui.setQualidadeTab('cm');
                             }
                             if (addedIndicador?.type === 'broca') {
-                                App.state.qualidadePlantioDraft.activeSubamostraId = subamostraId;
-                                App.state.qualidadePlantioDraft.activeIndicadorCode = addedIndicador.code;
                                 App.ui.setQualidadeTab('bro');
                             }
+                            return;
                         }
-                    });
-                    qualidadeEls.subamostrasList.addEventListener('click', (event) => {
+                        const removeBtn = event.target.closest('.qualidade-indicador-remove');
+                        if (removeBtn) {
+                            const subamostraId = removeBtn.dataset.subamostraId;
+                            const indicadorCode = removeBtn.dataset.indicadorCode;
+                            const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
+                            const indicador = subamostra?.indicadores?.[indicadorCode];
+                            if (!subamostra || !indicador) return;
+                            const tipoPlantio = qualidadeEls.tipoPlantio.value;
+                            const indicadores = tipoPlantio ? App.actions.getQualidadeIndicadores(tipoPlantio) : [];
+                            const removeIndicator = () => {
+                                const selectedCodes = (subamostra.selectedIndicadores || []).filter(code => code !== indicadorCode);
+                                App.actions.updateQualidadeSubamostraIndicadores(subamostra, selectedCodes, indicadores);
+                                const draft = App.actions.ensureQualidadeDraft();
+                                if (draft.activeSubamostraId === subamostraId && draft.activeIndicadorCode === indicadorCode) {
+                                    draft.activeIndicadorCode = null;
+                                    if (draft.activeTab !== 'qual') {
+                                        App.ui.setQualidadeTab('qual');
+                                    }
+                                }
+                                App.ui.renderQualidadeSubamostras();
+                                App.ui.renderQualidadeContext();
+                            };
+                            if (App.actions.hasQualidadeIndicadorValues(indicador)) {
+                                App.ui.showConfirmationModal(
+                                    `Remover o indicador "${indicador.name}" apagará os valores lançados. Deseja continuar?`,
+                                    removeIndicator
+                                );
+                            } else {
+                                removeIndicator();
+                            }
+                            return;
+                        }
                         const toggle = event.target.closest('.qualidade-indicador-toggle');
                         if (toggle) {
                             const subamostraId = toggle.dataset.subamostraId;
@@ -5278,6 +5341,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
                             const indicador = subamostra?.indicadores?.[indicadorCode];
                             if (indicador) {
+                                App.state.qualidadePlantioDraft.activeSubamostraId = subamostraId;
+                                App.state.qualidadePlantioDraft.activeIndicadorCode = indicadorCode;
                                 indicador.expanded = !indicador.expanded;
                                 const item = toggle.closest('.qualidade-indicador-item');
                                 if (item) item.classList.toggle('is-open', indicador.expanded);
@@ -7079,6 +7144,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const list = this.getQualidadeIndicadores('Man', true);
                 return list.find(indicador => indicador.code === code) || null;
             },
+            formatQualidadeSubamostraNumero(numero) {
+                if (!numero && numero !== 0) return '';
+                return String(numero).padStart(2, '0');
+            },
             generateQualidadeId() {
                 if (window.crypto?.randomUUID) return window.crypto.randomUUID();
                 return `qualidade_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -7158,7 +7227,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             qtdGemasTotal: null,
                             consumo: indicador.type === 'consumo' ? {} : null,
                             broca: indicador.type === 'broca' ? {} : null,
-                            expanded: previous.length === 0,
+                            expanded: true,
                         };
                     }
                 });
@@ -7168,6 +7237,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
                 return previous;
+            },
+            hasQualidadeIndicadorValues(indicador) {
+                if (!indicador) return false;
+                if (indicador.type === 'valor') {
+                    return App.safeParseFloat(indicador.valor) > 0;
+                }
+                if (indicador.type === 'gemas') {
+                    return App.safeParseFloat(indicador.valor) > 0 || App.safeParseFloat(indicador.amostragem) > 0;
+                }
+                if (indicador.type === 'consumo') {
+                    const consumo = indicador.consumo || {};
+                    return App.safeParseFloat(consumo.pesoTotal) > 0 || Boolean(consumo.prestadorTirouMudaId) || Boolean(consumo.fazendaOrigemMudaId);
+                }
+                if (indicador.type === 'broca') {
+                    const broca = indicador.broca || {};
+                    return App.safeParseFloat(broca.broca) > 0 || App.safeParseFloat(broca.qtdGemasTotal) > 0;
+                }
+                return false;
             },
             getQualidadeIndicadorStatus(indicador) {
                 if (!indicador) return 'pendente';
