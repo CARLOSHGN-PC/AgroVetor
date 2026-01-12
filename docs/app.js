@@ -1116,6 +1116,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Define a persistência da sessão para 'session', que limpa ao fechar o browser/app.
                     await setPersistence(auth, browserSessionPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
+
+                    // Salva credenciais offline automaticamente
+                    try {
+                        await App.actions.enableOfflineLogin(email, password, true);
+                    } catch (offlineError) {
+                        console.warn("Não foi possível salvar as credenciais offline:", offlineError);
+                    }
+
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showLoginMessage("E-mail ou senha inválidos.");
@@ -1412,8 +1420,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.renderMenu();
                 }, (error) => {
                     console.error("Erro ao ouvir as configurações globais: ", error);
-                    App.state.globalConfigs = {}; // Reseta em caso de erro
-                    App.ui.renderMenu(); // Re-renderiza o menu com flags desativadas
+                    // App.state.globalConfigs = {}; // REMOVIDO: Não reseta em caso de erro para manter o menu visível se a conexão cair
+                    // App.ui.renderMenu();
                 });
                 App.state.unsubscribeListeners.push(unsubscribeGlobalConfigs);
 
@@ -4281,7 +4289,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                // Event Listeners for enabling offline login
+                // Event Listeners for enabling offline login - REMOVED (Automatic now)
+                /*
                 const btnEnableOffline = document.getElementById('btnEnableOfflineLogin');
                 if (btnEnableOffline) {
                     btnEnableOffline.addEventListener('click', () => App.ui.showEnableOfflineLoginModal());
@@ -4291,6 +4300,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnConfirmEnableOffline) {
                     btnConfirmEnableOffline.addEventListener('click', () => App.actions.enableOfflineLogin());
                 }
+                */
 
                 const offlineModal = document.getElementById('enableOfflineLoginModal');
                 if(offlineModal) {
@@ -8693,6 +8703,13 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async forceTokenRefresh(isManual = false) {
+                // Se temos um usuário local (logado offline) mas o Auth do Firebase está nulo (sessão desconectada),
+                // não tentamos atualizar o token para evitar erros e perda de estado.
+                if (App.state.currentUser && !auth.currentUser) {
+                    console.log("Sessão offline ativa. Ignorando atualização de token para preservar o estado.");
+                    return;
+                }
+
                 if (!navigator.onLine || !auth.currentUser) {
                     if (isManual) {
                         App.ui.showSystemNotification("Sincronização", "Offline ou sem utilizador. Não é possível sincronizar.", "warning");
@@ -9656,28 +9673,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async enableOfflineLogin() {
+            async enableOfflineLogin(emailArg, passwordArg, silent = false) {
+                let password = passwordArg;
+                let email = emailArg;
+
                 const passwordInput = document.getElementById('enableOfflinePassword');
-                const password = passwordInput.value;
+
+                // Fallback para input do DOM se não fornecido via argumentos
+                if (!password && passwordInput) {
+                    password = passwordInput.value;
+                }
+
                 const currentUser = App.state.currentUser;
+                if (!email && currentUser) {
+                    email = currentUser.email;
+                }
 
                 if (!password) {
-                    App.ui.showAlert("Por favor, insira a sua senha atual para confirmar.", "error");
+                    if (!silent) App.ui.showAlert("Por favor, insira a sua senha atual para confirmar.", "error");
                     return;
                 }
 
-                if (!navigator.onLine) {
+                if (!navigator.onLine && !silent) {
                     App.ui.showAlert("É preciso estar online para habilitar o login offline pela primeira vez.", "warning");
                     return;
                 }
 
-                App.ui.setLoading(true, "A verificar senha e a guardar credenciais...");
+                if (!silent) App.ui.setLoading(true, "A verificar senha e a guardar credenciais...");
 
                 try {
-                    // 1. Re-autenticar para verificar a senha
-                    const user = auth.currentUser;
-                    const credential = EmailAuthProvider.credential(user.email, password);
-                    await reauthenticateWithCredential(user, credential);
+                    // 1. Re-autenticar para verificar a senha (se não for silent/automático)
+                    if (!silent && navigator.onLine) {
+                        const user = auth.currentUser;
+                        if (user) {
+                            const credential = EmailAuthProvider.credential(user.email, password);
+                            await reauthenticateWithCredential(user, credential);
+                        }
+                    }
 
                     // 2. Gerar "salt" e "hash" da senha
                     const salt = CryptoJS.lib.WordArray.random(128 / 8).toString();
@@ -9696,7 +9728,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         companyId: currentUser.companyId,
                     };
                     const credentialsToStore = {
-                        email: currentUser.email.toLowerCase(),
+                        email: email.toLowerCase(),
                         hashedPassword: hashedPassword,
                         salt: salt,
                         userProfile: userProfileToSave
@@ -9705,19 +9737,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 4. Guardar no IndexedDB
                     await OfflineDB.set('offline-credentials', credentialsToStore);
 
-                    App.ui.showAlert("Login offline habilitado/atualizado com sucesso!", "success");
-                    App.ui.closeEnableOfflineLoginModal();
+                    if (!silent) {
+                        App.ui.showAlert("Login offline habilitado/atualizado com sucesso!", "success");
+                        App.ui.closeEnableOfflineLoginModal();
+                    } else {
+                        console.log("Credenciais offline atualizadas automaticamente.");
+                    }
 
                 } catch (error) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
-                        App.ui.showAlert("A senha está incorreta.", "error");
+                    if (!silent) {
+                        if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
+                            App.ui.showAlert("A senha está incorreta.", "error");
+                        } else {
+                            App.ui.showAlert("Ocorreu um erro ao habilitar o login offline.", "error");
+                            console.error("Erro ao habilitar login offline:", error);
+                        }
                     } else {
-                        App.ui.showAlert("Ocorreu um erro ao habilitar o login offline.", "error");
-                        console.error("Erro ao habilitar login offline:", error);
+                        console.warn("Falha silenciosa ao salvar credenciais offline:", error);
                     }
                 } finally {
-                    App.ui.setLoading(false);
-                    passwordInput.value = '';
+                    if (!silent) App.ui.setLoading(false);
+                    if (passwordInput) passwordInput.value = '';
                 }
             },
 
