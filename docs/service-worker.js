@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v16'; // Incremented version for update
+const CACHE_NAME = 'agrovetor-cache-v15'; // Incremented version for update
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the IndexedDB tile cache
@@ -36,7 +36,6 @@ const urlsToCache = [
   './js/lib/shp.js',
   'https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js',
   'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js',
-  'https://cdn.jsdelivr.net/npm/pmtiles@3.1.6/dist/pmtiles.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js',
@@ -90,7 +89,7 @@ self.addEventListener('activate', event => {
 importScripts('https://cdn.jsdelivr.net/npm/idb@7.1.1/build/iife/index-min.js');
 
 const DB_NAME = 'agrovetor-offline-storage';
-const DB_VERSION = 10;
+const DB_VERSION = 9;
 const OFFLINE_WRITES_STORE = 'offline-writes';
 
 // Função para lidar com a sincronização em segundo plano
@@ -188,9 +187,6 @@ function getDb() {
                 if (oldVersion < 9 && !db.objectStoreNames.contains(TILE_STORE_NAME)) {
                     db.createObjectStore(TILE_STORE_NAME);
                 }
-                if (oldVersion < 10 && !db.objectStoreNames.contains('aerial_map_bundle')) {
-                    db.createObjectStore('aerial_map_bundle', { keyPath: 'key' });
-                }
             }
         });
     }
@@ -227,48 +223,6 @@ async function saveTileToIndexedDB(request, response) {
     }
 }
 
-async function getAerialBundleFromIndexedDB(packageId) {
-    try {
-        const db = await getDb();
-        return await db.get('aerial_map_bundle', packageId);
-    } catch (error) {
-        console.error('Error fetching aerial bundle from IndexedDB:', error);
-        return null;
-    }
-}
-
-function buildRangeResponse(blob, rangeHeader) {
-    const size = blob.size;
-    if (!rangeHeader) {
-        return new Response(blob, {
-            headers: {
-                'Content-Length': size,
-                'Content-Type': 'application/octet-stream',
-                'Accept-Ranges': 'bytes'
-            }
-        });
-    }
-
-    const match = /bytes=(\d+)-(\d+)?/.exec(rangeHeader);
-    if (!match) {
-        return new Response(null, { status: 416 });
-    }
-
-    const start = Number(match[1]);
-    const end = match[2] ? Number(match[2]) : size - 1;
-    const chunk = blob.slice(start, end + 1);
-
-    return new Response(chunk, {
-        status: 206,
-        headers: {
-            'Content-Range': `bytes ${start}-${end}/${size}`,
-            'Content-Length': chunk.size,
-            'Content-Type': 'application/octet-stream',
-            'Accept-Ranges': 'bytes'
-        }
-    });
-}
-
 
 // Fetch event: intercept requests
 self.addEventListener('fetch', event => {
@@ -277,21 +231,6 @@ self.addEventListener('fetch', event => {
   }
 
   const url = new URL(event.request.url);
-
-  if (url.pathname.startsWith('/offline/aereo/') && url.pathname.endsWith('/map.pmtiles')) {
-    event.respondWith(
-        (async () => {
-            const parts = url.pathname.split('/');
-            const packageId = decodeURIComponent(parts[3] || '');
-            const entry = await getAerialBundleFromIndexedDB(packageId);
-            if (!entry?.blob) {
-                return new Response('Offline bundle not found', { status: 404 });
-            }
-            return buildRangeResponse(entry.blob, event.request.headers.get('Range'));
-        })()
-    );
-    return;
-  }
 
   // ADDED: Explicitly ignore shapefile downloads to let the app handle them
   if (url.pathname.endsWith('.zip')) {
