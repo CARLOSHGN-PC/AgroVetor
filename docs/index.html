@@ -3734,10 +3734,16 @@
                             </select>
                             <small>Define o divisor usado no cálculo do resultado do monitoramento.</small>
                         </div>
+                        <div class="form-col">
+                            <label for="divisorAmostragemGemasViaveis">Divisor (Nº de Gemas Viáveis):</label>
+                            <input type="number" id="divisorAmostragemGemasViaveis" min="1" step="1" placeholder="Ex: 5">
+                            <small>Define o divisor usado no cálculo do resultado do indicador de gemas viáveis.</small>
+                        </div>
                     </div>
                     <div class="button-group" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
                          <button id="btnSaveCalcMethod" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-save"></i> Guardar Alteração</button>
                          <button id="btnViewCalcHistory" class="btn-secondary" style="max-width: 250px; margin-top: 0;"><i class="fas fa-history"></i> Ver Histórico</button>
+                         <button id="btnSaveGemasDivisor" class="save" style="max-width: 300px; margin-top: 0;"><i class="fas fa-save"></i> Guardar Divisor de Gemas Viáveis</button>
                     </div>
                 </div>
 

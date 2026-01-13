@@ -449,6 +449,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 logoInput: document.getElementById('logoInput'),
                 logoPreview: document.getElementById('logoPreview'),
                 removeLogoBtn: document.getElementById('removeLogoBtn'),
+                gemasDivisorInput: document.getElementById('divisorAmostragemGemasViaveis'),
+                btnSaveGemasDivisor: document.getElementById('btnSaveGemasDivisor'),
                 progressUploadArea: document.getElementById('harvestReportProgressUploadArea'),
                 progressInput: document.getElementById('harvestReportProgressInput'),
                 btnDownloadProgressTemplate: document.getElementById('btnDownloadProgressTemplate'),
@@ -1594,6 +1596,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (cigarrinhaMethodSelect) {
                                 cigarrinhaMethodSelect.value = configData.cigarrinhaCalcMethod || '5';
                             }
+                            const gemasDivisorInput = document.getElementById('divisorAmostragemGemasViaveis');
+                            if (gemasDivisorInput) {
+                                gemasDivisorInput.value = Number.isFinite(configData.divisorAmostragemGemasViaveis)
+                                    ? String(configData.divisorAmostragemGemasViaveis)
+                                    : '5';
+                            }
 
                             if (configData.shapefileURL) {
                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
@@ -1822,6 +1830,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.renderFrenteDePlantioList();
                         }
                         this.populateFrenteDePlantioSelect();
+                        this.populateQualidadePrestadorSelects();
                         break;
                     case 'apontamentosPlantio':
                         // This collection is for storing data, no direct render action needed on snapshot
@@ -1889,6 +1898,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('populateFazendaSelects', () => this.populateFazendaSelects());
                 renderWithCatch('populateUserSelects', () => this.populateUserSelects([App.elements.planejamento.responsavel]));
                 renderWithCatch('populateOperatorSelects', () => this.populateOperatorSelects());
+                renderWithCatch('populateQualidadePrestadorSelects', () => this.populateQualidadePrestadorSelects());
                 renderWithCatch('updateQualidadeIndicatorOptions', () => this.updateQualidadeIndicatorOptions());
                 renderWithCatch('renderQualidadeSubamostras', () => this.renderQualidadeSubamostras());
                 renderWithCatch('renderQualidadeContext', () => this.renderQualidadeContext());
@@ -2684,7 +2694,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                 }
                 if (indicador.type === 'gemas') {
-                    const qtdGemasTotal = indicador.qtdGemasTotal ?? null;
+                    const valorCalculado = indicador.valorCalculado ?? null;
                     return `
                         <div class="form-row">
                             <div class="form-col">
@@ -2692,12 +2702,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <input type="number" min="0" step="0.01" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}" data-field="valor" value="${indicador.valor ?? ''}">
                             </div>
                             <div class="form-col">
-                                <label class="required">Amostragem</label>
-                                <input type="number" min="0" step="1" data-subamostra-id="${subamostra.id}" data-indicador-code="${indicador.code}" data-field="amostragem" value="${indicador.amostragem ?? ''}">
-                            </div>
-                            <div class="form-col">
-                                <label>Qtd. Gemas Total</label>
-                                <div class="info-display" data-field="qtdGemasTotal">${qtdGemasTotal !== null ? Number(qtdGemasTotal).toFixed(2) : ''}</div>
+                                <label>Resultado</label>
+                                <div class="info-display" data-field="valorCalculado">${valorCalculado !== null ? Number(valorCalculado).toFixed(2) : ''}</div>
                             </div>
                         </div>
                     `;
@@ -2760,6 +2766,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 : '-';
                         }
                     }
+                    if (item && indicador.type === 'gemas') {
+                        const resultadoEl = item.querySelector('[data-field="valorCalculado"]');
+                        if (resultadoEl) {
+                            resultadoEl.textContent = indicador.valorCalculado !== undefined && indicador.valorCalculado !== null
+                                ? Number(indicador.valorCalculado).toFixed(2)
+                                : '';
+                        }
+                    }
                     if (item && indicador.type === 'broca') {
                         const broca = indicador.broca || {};
                         const percentualEl = item.querySelector('[data-field="percentualBroca"]');
@@ -2809,10 +2823,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
                 const talhao = farm?.talhoes?.find(t => t.id === els.talhao.value);
                 const variedade = talhao?.variedade || '';
-
-                els.variedade.value = variedade ? variedade.toUpperCase() : '';
-                els.variedade.readOnly = true;
-                els.variedade.placeholder = variedade ? '' : 'Variedade não cadastrada';
+                const normalizedVariedade = variedade ? variedade.toUpperCase() : '';
+                const hasTalhao = Boolean(els.talhao.value);
+                els.variedade.value = normalizedVariedade;
+                els.variedade.readOnly = Boolean(normalizedVariedade) || !hasTalhao;
+                if (!hasTalhao) {
+                    els.variedade.placeholder = 'Selecionar fazenda e talhão';
+                } else {
+                    els.variedade.placeholder = normalizedVariedade ? '' : 'Digite a variedade';
+                }
                 if (els.variedadeHint) {
                     els.variedadeHint.hidden = Boolean(variedade) || !els.talhao.value;
                 }
@@ -2916,11 +2935,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const indicador = App.actions.getQualidadeBrocaIndicador(subamostra);
                 const broca = indicador?.broca || {};
                 const qtdGemasTotal = App.actions.getQualidadeSubamostraQtdGemasTotal(subamostra);
-                const brocaValue = App.safeParseFloat(broca.broca);
+                const hasBrocaValue = broca.broca !== null && broca.broca !== undefined && broca.broca !== '';
+                const brocaValue = hasBrocaValue ? App.safeParseFloat(broca.broca) : null;
                 const resolvedQtdGemas = qtdGemasTotal || App.safeParseFloat(broca.qtdGemasTotal);
                 const percentual = resolvedQtdGemas > 0 ? (brocaValue / resolvedQtdGemas) * 100 : 0;
 
-                brocaEls.broca.value = broca.broca ?? '';
+                brocaEls.broca.value = hasBrocaValue ? brocaValue : '';
                 if (qtdGemasTotal) {
                     brocaEls.qtdGemasTotal.value = qtdGemasTotal.toFixed(2);
                     brocaEls.qtdGemasTotal.readOnly = true;
@@ -2932,7 +2952,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (indicador) {
                     indicador.broca = {
                         ...broca,
-                        broca: brocaValue,
+                        broca: hasBrocaValue ? brocaValue : null,
                         qtdGemasTotal: resolvedQtdGemas,
                         percentualBroca: percentual,
                     };
@@ -3039,19 +3059,15 @@ document.addEventListener('DOMContentLoaded', () => {
             populateOperatorSelects() {
                 const selects = [
                     App.elements.perda.filtroOperador,
-                    App.elements.qualidadeConsumo.prestadorTirou,
-                    App.elements.relatorioQualidade.prestadorTirou,
                 ];
                 selects.forEach(select => {
                     if (!select) return;
 
                     const currentValue = select.value;
                     let firstOptionHTML = '';
-                    if (select.id === 'operadorFiltroPerda' || select.id === 'qualidadeReportPrestadorTirou') {
-                        firstOptionHTML = '<option value="">Todos</option>';
-                    } else {
-                        firstOptionHTML = '<option value="">Selecione um operador...</option>';
-                    }
+                    firstOptionHTML = select.id === 'operadorFiltroPerda'
+                        ? '<option value="">Todos</option>'
+                        : '<option value="">Selecione um operador...</option>';
                     select.innerHTML = firstOptionHTML;
                     
                     App.state.personnel
@@ -3059,6 +3075,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         .forEach(p => {
                             select.innerHTML += `<option value="${p.matricula}">${p.matricula} - ${p.name}</option>`;
                         });
+                    select.value = currentValue;
+                });
+            },
+            populateQualidadePrestadorSelects() {
+                const selects = [
+                    App.elements.qualidadeConsumo.prestadorTirou,
+                    App.elements.relatorioQualidade.prestadorTirou,
+                ];
+                const providers = Array.from(new Set(
+                    App.state.frentesDePlantio
+                        .map(frente => (frente.provider || '').trim())
+                        .filter(Boolean)
+                )).sort((a, b) => a.localeCompare(b));
+
+                selects.forEach(select => {
+                    if (!select) return;
+                    const currentValue = select.value;
+                    const firstOptionHTML = select.id === 'qualidadeReportPrestadorTirou'
+                        ? '<option value="">Todos</option>'
+                        : '<option value="">Selecione um prestador...</option>';
+                    select.innerHTML = firstOptionHTML;
+
+                    providers.forEach(provider => {
+                        select.innerHTML += `<option value="${provider}">${provider}</option>`;
+                    });
                     select.value = currentValue;
                 });
             },
@@ -5486,15 +5527,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         const indicador = subamostra?.indicadores?.[indicadorCode];
                         if (!indicador) return;
 
-                        if (field === 'valor' || field === 'amostragem') {
-                            indicador[field] = App.safeParseFloat(input.value);
+                        if (field === 'valor') {
+                            indicador.valor = App.safeParseFloat(input.value);
                             if (indicador.type === 'gemas') {
-                                indicador.qtdGemasTotal = indicador.valor > 0 && indicador.amostragem > 0
-                                    ? indicador.valor * indicador.amostragem
-                                    : 0;
-                                const totalEl = input.closest('.form-row')?.querySelector('[data-field="qtdGemasTotal"]');
+                                const divisor = App.actions.getDivisorAmostragemGemasViaveis();
+                                indicador.valorCalculado = indicador.valor > 0 ? indicador.valor / divisor : 0;
+                                const totalEl = input.closest('.form-row')?.querySelector('[data-field="valorCalculado"]');
                                 if (totalEl) {
-                                    totalEl.textContent = indicador.qtdGemasTotal ? indicador.qtdGemasTotal.toFixed(2) : '';
+                                    totalEl.textContent = indicador.valorCalculado ? indicador.valorCalculado.toFixed(2) : '';
                                 }
                                 const brocaIndicador = App.actions.getQualidadeBrocaIndicador(subamostra);
                                 if (brocaIndicador) {
@@ -5536,11 +5576,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         const subamostra = App.actions.getQualidadeSubamostraById(draft.activeSubamostraId);
                         const indicador = App.actions.getQualidadeConsumoIndicador(subamostra);
                         if (!indicador) return;
-                        const prestador = App.state.personnel.find(p => String(p.matricula) === qualidadeConsumoEls.prestadorTirou.value);
+                        const selectedProvider = qualidadeConsumoEls.prestadorTirou.value;
+                        const prestador = App.state.frentesDePlantio.find(f => (f.provider || '').trim() === selectedProvider);
                         indicador.consumo = {
                             ...indicador.consumo,
-                            prestadorTirouMudaId: qualidadeConsumoEls.prestadorTirou.value,
-                            prestadorTirouMudaNome: prestador ? prestador.name : '',
+                            prestadorTirouMudaId: selectedProvider,
+                            prestadorTirouMudaNome: prestador ? prestador.provider : selectedProvider,
                         };
                         App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
                         App.actions.touchQualidadeSubamostra(subamostra);
@@ -6048,6 +6089,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const btnViewCalcHistory = document.getElementById('btnViewCalcHistory');
                 if (btnViewCalcHistory) {
                     btnViewCalcHistory.addEventListener('click', () => App.actions.viewConfigHistory());
+                }
+                const btnSaveGemasDivisor = App.elements.companyConfig.btnSaveGemasDivisor;
+                if (btnSaveGemasDivisor) {
+                    btnSaveGemasDivisor.addEventListener('click', () => App.actions.saveGemasViaveisDivisor());
                 }
                 const configModal = App.elements.configHistoryModal;
                 if (configModal.overlay) configModal.overlay.addEventListener('click', e => { if (e.target === configModal.overlay) App.ui.hideConfigHistoryModal(); });
@@ -7235,6 +7280,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return date.toLocaleDateString('pt-BR');
             },
+            getDivisorAmostragemGemasViaveis() {
+                const raw = App.state.companyConfig?.divisorAmostragemGemasViaveis;
+                const parsed = parseInt(raw, 10);
+                if (!Number.isFinite(parsed) || parsed < 1) {
+                    return 5;
+                }
+                return parsed;
+            },
             getQualidadeIndicadores(tipoPlantio = '', includeAll = false) {
                 const indicadores = {
                     Man: [
@@ -7389,8 +7442,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             label: indicador.label,
                             type: indicador.type,
                             valor: null,
-                            amostragem: null,
                             qtdGemasTotal: null,
+                            valorCalculado: null,
                             consumo: indicador.type === 'consumo' ? {} : null,
                             broca: indicador.type === 'broca' ? {} : null,
                             expanded: true,
@@ -7427,7 +7480,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return App.safeParseFloat(indicador.valor) > 0;
                 }
                 if (indicador.type === 'gemas') {
-                    return App.safeParseFloat(indicador.valor) > 0 || App.safeParseFloat(indicador.amostragem) > 0;
+                    return App.safeParseFloat(indicador.valor) > 0;
                 }
                 if (indicador.type === 'consumo') {
                     const consumo = indicador.consumo || {};
@@ -7445,7 +7498,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return indicador.valor > 0 ? 'preenchido' : 'pendente';
                 }
                 if (indicador.type === 'gemas') {
-                    return indicador.valor > 0 && indicador.amostragem > 0 ? 'preenchido' : 'pendente';
+                    return indicador.valor > 0 ? 'preenchido' : 'pendente';
                 }
                 if (indicador.type === 'consumo') {
                     const consumo = indicador.consumo || {};
@@ -7474,7 +7527,8 @@ document.addEventListener('DOMContentLoaded', () => {
             getQualidadeSubamostraQtdGemasTotal(subamostra) {
                 if (!subamostra) return 0;
                 const indicador = Object.values(subamostra.indicadores || {}).find(item => item.type === 'gemas');
-                return indicador?.qtdGemasTotal || 0;
+                if (!indicador) return 0;
+                return indicador.valorCalculado || indicador.qtdGemasTotal || 0;
             },
             flattenQualidadePlantioEntries(entries) {
                 const flattened = [];
@@ -7492,6 +7546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     valor: indicador.valor,
                                     amostragem: indicador.amostragem,
                                     qtdGemasTotal: indicador.qtdGemasTotal,
+                                    valorCalculado: indicador.valorCalculado,
                                     consumo: indicador.consumo || null,
                                     broca: indicador.broca || null,
                                 });
@@ -7638,8 +7693,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             nome: indicador.name,
                             tipo: indicador.type,
                             valor: null,
-                            amostragem: null,
                             qtdGemasTotal: null,
+                            valorCalculado: null,
                             consumo: null,
                             broca: null,
                         };
@@ -7655,15 +7710,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (indicador.type === 'gemas') {
                             const valor = App.safeParseFloat(indicador.valor);
-                            const amostragem = App.safeParseFloat(indicador.amostragem);
-                            if (valor <= 0 || amostragem <= 0) {
-                                App.ui.showAlert(`Informe Nº de Gemas Viáveis e Amostragem na Subamostra ${subamostra.numero}.`, "warning");
+                            if (valor <= 0) {
+                                App.ui.showAlert(`Informe Nº de Gemas Viáveis na Subamostra ${subamostra.numero}.`, "warning");
                                 return;
                             }
-                            const total = valor * amostragem;
+                            const divisor = this.getDivisorAmostragemGemasViaveis();
+                            const total = divisor > 0 ? valor / divisor : 0;
                             payload.valor = valor;
-                            payload.amostragem = amostragem;
-                            payload.qtdGemasTotal = total;
+                            payload.valorCalculado = total;
                         }
 
                         if (indicador.type === 'consumo') {
@@ -8576,6 +8630,40 @@ document.addEventListener('DOMContentLoaded', () => {
                         required: true
                     }]
                 );
+            },
+            async saveGemasViaveisDivisor() {
+                const companyId = App.state.currentUser.companyId;
+                if (!companyId) return;
+
+                const inputEl = App.elements.companyConfig.gemasDivisorInput;
+                if (!inputEl) return;
+
+                const parsedValue = parseInt(inputEl.value, 10);
+                const normalizedValue = Number.isFinite(parsedValue) && parsedValue >= 1 ? parsedValue : 5;
+                const oldValue = Number.isFinite(App.state.companyConfig?.divisorAmostragemGemasViaveis)
+                    ? App.state.companyConfig.divisorAmostragemGemasViaveis
+                    : 5;
+
+                if (normalizedValue !== parsedValue) {
+                    inputEl.value = String(normalizedValue);
+                }
+
+                if (normalizedValue === oldValue) {
+                    App.ui.showAlert("Nenhuma alteração detectada.", "info");
+                    return;
+                }
+
+                App.ui.setLoading(true, "A guardar divisor de gemas viáveis...");
+                try {
+                    await App.data.setDocument('config', companyId, { divisorAmostragemGemasViaveis: normalizedValue });
+                    App.state.companyConfig.divisorAmostragemGemasViaveis = normalizedValue;
+                    App.ui.showAlert("Divisor de gemas viáveis atualizado com sucesso!", "success");
+                } catch (error) {
+                    console.error("Erro ao guardar divisor de gemas viáveis:", error);
+                    App.ui.showAlert("Ocorreu um erro ao guardar o divisor.", "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
             },
 
             async agendarInspecao() {
