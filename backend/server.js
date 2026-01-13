@@ -48,6 +48,7 @@ const { generateOsPdf } = require('./reports/osReport');
 const { generateRiskViewPdf, getRiskViewData } = require('./reports/riskViewReport');
 const { getClimateStats } = require('./reports/climaDashboard');
 const { generateFleetPdf, getFleetData } = require('./reports/fleetReport');
+const { generateQualidadePlantioPdf, generateQualidadePlantioExcel } = require('./reports/qualidadePlantioReport');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -906,6 +907,11 @@ try {
             res.download(filePath);
         } catch (error) { res.status(500).send('Erro ao gerar relatório.'); }
     });
+
+    app.get('/api/reports/qualidade-plantio/pdf', authMiddleware, (req, res) => generateQualidadePlantioPdf(req, res, db));
+    app.post('/api/reports/qualidade-plantio/pdf', authMiddleware, (req, res) => generateQualidadePlantioPdf(req, res, db));
+    app.get('/api/reports/qualidade-plantio/excel', authMiddleware, (req, res) => generateQualidadePlantioExcel(req, res, db));
+    app.post('/api/reports/qualidade-plantio/excel', authMiddleware, (req, res) => generateQualidadePlantioExcel(req, res, db));
 
     app.get('/reports/cigarrinha/pdf', authMiddleware, (req, res) => generateCigarrinhaPdf(req, res, db));
 
