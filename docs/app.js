@@ -67,8 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 8 for Qualidade de Plantio local cache
-            this.dbPromise = openDB('agrovetor-offline-storage', 8, {
+            // Version 9 for offline packages + aerial GeoJSON cache
+            this.dbPromise = openDB('agrovetor-offline-storage', 9, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -105,6 +105,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         qualidadeStore.createIndex('indicadorCodigo', 'indicadorCodigo', { unique: false });
                         qualidadeStore.createIndex('tipoPlantio', 'tipoPlantio', { unique: false });
                     }
+                    if (oldVersion < 9) {
+                        if (!db.objectStoreNames.contains('data_cache')) {
+                            db.createObjectStore('data_cache', { keyPath: 'key' });
+                        }
+                        if (!db.objectStoreNames.contains('offline_packages')) {
+                            db.createObjectStore('offline_packages', { keyPath: 'packageId' });
+                        }
+                        if (!db.objectStoreNames.contains('aerial_geojson_cache')) {
+                            db.createObjectStore('aerial_geojson_cache', { keyPath: 'key' });
+                        }
+                    }
                 },
             });
         },
@@ -137,6 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
             inactivityTimeout: 15 * 60 * 1000,
             inactivityWarningTime: 1 * 60 * 1000,
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
+            offlineCacheCollections: ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'qualidadePlantio', 'frota'],
+            offlinePackageZoomLevels: [14, 15, 16, 17],
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
@@ -230,6 +243,8 @@ document.addEventListener('DOMContentLoaded', () => {
             isSyncing: false,
             isCheckingConnection: false,
             connectionCheckInterval: null,
+            isInitializing: false,
+            network: 'ONLINE',
             currentUser: null,
             users: [],
             companies: [],
@@ -354,6 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
             offlineUserList: document.getElementById('offlineUserList'),
             headerTitle: document.querySelector('header h1'),
             headerLogo: document.getElementById('headerLogo'),
+            networkStatusBadge: document.getElementById('networkStatusBadge'),
             currentDateTime: document.getElementById('currentDateTime'),
             logoutBtn: document.getElementById('logoutBtn'),
             btnToggleMenu: document.getElementById('btnToggleMenu'),
@@ -468,6 +484,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnDownloadClimateTemplate: document.getElementById('btnDownloadClimateTemplate'),
                 btnExportClimateData: document.getElementById('btnExportClimateData'),
                 btnFixClimateData: document.getElementById('btnFixClimateData'), // Novo botão para correção de dados
+            },
+            offlinePackages: {
+                typeSelect: document.getElementById('offlinePackageType'),
+                scopeSelect: document.getElementById('offlinePackageScope'),
+                farmSelect: document.getElementById('offlinePackageFarm'),
+                talhaoSelect: document.getElementById('offlinePackageTalhao'),
+                statusBadge: document.getElementById('offlinePackageStatus'),
+                progressContainer: document.getElementById('offlinePackageProgress'),
+                progressText: document.getElementById('offlinePackageProgressText'),
+                progressBar: document.getElementById('offlinePackageProgressBar'),
+                downloadBtn: document.getElementById('btnDownloadOfflinePackage'),
             },
             dashboard: {
                 selector: document.getElementById('dashboard-selector'),
@@ -924,10 +951,13 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
+            if (this.state.isInitializing) return;
+            this.state.isInitializing = true;
             OfflineDB.init();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
+            this.actions.setNetworkStatus(navigator.onLine ? 'ONLINE' : 'OFFLINE', { silent: true });
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
@@ -949,14 +979,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Exibe o status inicial
                     const status = await Network.getStatus();
                     console.log(`Status inicial da rede: ${status.connected ? 'Online' : 'Offline'}`);
+                    App.actions.setNetworkStatus(status.connected ? 'ONLINE' : 'OFFLINE', { silent: true });
 
                     // Adiciona um 'ouvinte' para quando o status da rede mudar
                     Network.addListener('networkStatusChange', (status) => {
                         console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
+                        App.actions.setNetworkStatus(status.connected ? 'ONLINE' : 'OFFLINE');
                         if (status.connected) {
                             // Se conectar, dispara um evento 'online' personalizado,
                             // que a lógica existente do App já sabe como manipular.
                             window.dispatchEvent(new Event('online'));
+                        } else {
+                            window.dispatchEvent(new Event('offline'));
                         }
                     });
                 } catch (e) {
@@ -1100,57 +1134,62 @@ document.addEventListener('DOMContentLoaded', () => {
         auth: {
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        App.ui.setLoading(true, "A carregar dados do utilizador...");
-                        const userDoc = await App.data.getUserData(user.uid);
-
-                        if (userDoc && userDoc.active) {
-                            let companyDoc = null;
-                            // [CORREÇÃO] Se for super-admin, o companyId deve ser ignorado para acesso global.
-                            if (userDoc.role === 'super-admin') {
-                                delete userDoc.companyId; // Garante que a sessão do super-admin não fique presa a uma empresa.
+                    try {
+                        if (user) {
+                            App.ui.setLoading(true, "A carregar dados do utilizador...");
+                            let userDoc = null;
+                            try {
+                                userDoc = await App.actions.withTimeout(App.data.getUserData(user.uid), 10000, "Timeout ao carregar utilizador.");
+                            } catch (error) {
+                                console.warn("Falha ao carregar utilizador remoto:", error);
                             }
 
-                            // Bloqueia o login se a empresa do utilizador estiver inativa
-                            if (userDoc.role !== 'super-admin' && userDoc.companyId) {
-                                companyDoc = await App.data.getDocument('companies', userDoc.companyId);
-                                if (!companyDoc || companyDoc.active === false) {
+                            if (!userDoc && !navigator.onLine && user.email) {
+                                const offlineCredentials = await OfflineDB.get('offline-credentials', user.email.toLowerCase());
+                                userDoc = offlineCredentials?.userProfile || null;
+                            }
+
+                            if (userDoc && userDoc.active !== false) {
+                                // [CORREÇÃO] Se for super-admin, o companyId deve ser ignorado para acesso global.
+                                if (userDoc.role === 'super-admin') {
+                                    delete userDoc.companyId; // Garante que a sessão do super-admin não fique presa a uma empresa.
+                                }
+
+                                App.state.currentUser = { ...user, ...userDoc };
+
+                                // Validação CRÍTICA para o modelo multi-empresa
+                                if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
                                     App.auth.logout();
-                                    App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
+                                    App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
                                     return;
                                 }
-                            }
 
-                            App.state.currentUser = { ...user, ...userDoc };
+                                App.ui.setLoading(true, "A carregar dados locais...");
+                                await App.actions.hydrateLocalState(userDoc);
 
-                            // Validação CRÍTICA para o modelo multi-empresa
-                            if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
-                                App.auth.logout();
-                                App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
-                                return;
-                            }
-
-                            // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
-                            App.ui.setLoading(true, "A carregar configurações...");
-                            try {
-                                // 1. Carregar configurações globais
-                                const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                                if (globalConfigsDoc.exists()) {
-                                    App.state.globalConfigs = globalConfigsDoc.data();
-                                } else {
-                                    console.warn("Documento de configurações globais 'main' não encontrado.");
-                                    App.state.globalConfigs = {};
+                                if (userDoc.role !== 'super-admin' && userDoc.companyId) {
+                                    const cachedCompany = App.state.companies.find(c => c.id === userDoc.companyId);
+                                    if (cachedCompany && cachedCompany.active === false) {
+                                        App.auth.logout();
+                                        App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
+                                        return;
+                                    }
                                 }
 
-                                // 2. Pré-popular os dados da empresa (se já foram carregados)
-                                if (companyDoc) {
-                                    App.state.companies = [companyDoc];
-                                }
-
-                                // 3. Agora é seguro mostrar a tela principal
                                 App.actions.saveUserProfileLocally(App.state.currentUser);
-                                App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
-                                App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
+                                App.ui.showAppScreen(); // Renderiza menu usando cache local
+
+                                setTimeout(async () => {
+                                    try {
+                                        App.data.listenToAllData(); // Ouvintes em background
+                                        if (navigator.onLine) {
+                                            App.actions.syncOfflineWrites();
+                                        }
+                                        App.actions.checkSequence();
+                                    } catch (error) {
+                                        console.error("Falha ao iniciar sincronização em background:", error);
+                                    }
+                                }, 0);
 
                                 const draftRestored = await App.actions.checkForDraft();
                                 if (!draftRestored) {
@@ -1158,31 +1197,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                     App.ui.showTab(lastTab || 'dashboard');
                                 }
 
-                                if (navigator.onLine) {
-                                    App.actions.syncOfflineWrites();
-                                }
-
-                                App.actions.checkSequence();
-
-                            } catch (error) {
-                                console.error("Falha crítica ao carregar dados iniciais:", error);
-                                App.auth.logout();
-                                App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
+                            } else {
+                                this.logout();
+                                App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                             }
-
                         } else {
-                            this.logout();
-                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
+                            const localProfiles = App.actions.getLocalUserProfiles();
+                            if (localProfiles.length > 0 && !navigator.onLine) {
+                                App.ui.showOfflineUserSelection();
+                            } else {
+                                App.ui.showLoginScreen();
+                            }
                         }
-                    } else {
-                        const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection();
-                        } else {
-                            App.ui.showLoginScreen();
-                        }
+                    } finally {
+                        App.ui.setLoading(false);
+                        App.state.isInitializing = false;
                     }
-                    App.ui.setLoading(false);
                 });
             },
 
@@ -1235,26 +1265,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         App.ui.setLoading(true, "A carregar dados offline...");
                         try {
-                            const companyId = App.state.currentUser.companyId;
-
-                            // Pré-carrega os dados da empresa a partir do cache offline
-                            if (companyId) {
-                                const companyDoc = await App.data.getDocument('companies', companyId);
-                                if (companyDoc) {
-                                     App.state.companies = [companyDoc];
-                                } else {
-                                    console.warn("Documento da empresa não encontrado no cache offline durante o login.");
-                                }
-                            }
-
-                            // Pré-carrega as configurações globais a partir do cache offline
-                            const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                            if (globalConfigsDoc.exists()) {
-                                App.state.globalConfigs = globalConfigsDoc.data();
-                            } else {
-                                console.warn("Configurações globais não encontradas no cache offline durante o login.");
-                            }
-
+                            await App.actions.hydrateLocalState(App.state.currentUser);
                             // Agora, com os dados essenciais pré-carregados, mostra a tela da aplicação
                             App.ui.showAppScreen();
                             App.mapModule.loadOfflineShapes();
@@ -1486,6 +1497,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const unsubscribeGlobalConfigs = onSnapshot(globalConfigsRef, (doc) => {
                     if (doc.exists()) {
                         App.state.globalConfigs = doc.data();
+                        App.actions.cacheData(App.actions.getDocCacheKey('global_configs', 'main'), App.state.globalConfigs);
                     } else {
                         console.warn("Documento de configurações globais 'main' não encontrado. Recursos podem estar desativados por padrão.");
                         App.state.globalConfigs = {}; // Garante que é um objeto vazio
@@ -1514,6 +1526,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const data = [];
                             querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
                             App.state[collectionName] = data;
+                            App.actions.cacheData(App.actions.getCollectionCacheKey(collectionName, 'all'), data);
                             App.ui.renderSpecificContent(collectionName);
                         }, (error) => {
                             console.error(`Erro ao ouvir a coleção ${collectionName} como Super Admin: `, error);
@@ -1531,6 +1544,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const data = [];
                         querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
                         App.state['companies'] = data;
+                        App.actions.cacheData(App.actions.getCollectionCacheKey('companies', 'all'), data);
                         App.ui.renderSpecificContent('companies');
                     }, (error) => console.error(`Erro ao ouvir a coleção companies: `, error));
                     App.state.unsubscribeListeners.push(unsubscribeCompanies);
@@ -1546,6 +1560,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const data = [];
                             querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
                             App.state[collectionName] = data;
+                            App.actions.cacheData(App.actions.getCollectionCacheKey(collectionName, companyId), data);
 
                             if (collectionName === 'armadilhas') {
                                 if (App.state.mapboxMap) App.mapModule.loadTraps();
@@ -1569,7 +1584,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const unsubscribeCompany = onSnapshot(companyDocRef, (doc) => {
                         if (doc.exists()) {
                             // Coloca a empresa do utilizador no estado, para que o menu possa ser renderizado corretamente
-                            App.state.companies = [{ id: doc.id, ...doc.data() }];
+                            const companyData = { id: doc.id, ...doc.data() };
+                            App.state.companies = [companyData];
+                            App.actions.cacheData(App.actions.getDocCacheKey('companies', companyId), companyData);
                         } else if (navigator.onLine) {
                             // Se estiver online e a empresa não for encontrada, desloga o utilizador por segurança.
                             console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
@@ -1590,6 +1607,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const configData = doc.data();
                             App.state.companyConfig = configData; // Carrega todas as configurações da empresa
                             App.state.companyLogo = configData.logoBase64 || null;
+                            App.actions.cacheData(App.actions.getDocCacheKey('config', companyId), configData);
 
                             // Atualiza a UI com o valor carregado
                             const cigarrinhaMethodSelect = document.getElementById('cigarrinhaCalcMethod');
@@ -1603,7 +1621,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     : '5';
                             }
 
-                            if (configData.shapefileURL) {
+                            if (configData.shapefileURL && navigator.onLine) {
                                 App.mapModule.loadAndCacheShapes(configData.shapefileURL);
                             }
 
@@ -1733,6 +1751,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
                 App.elements.loadingProgressText.textContent = progressText;
             },
+            updateNetworkBadge(status, options = {}) {
+                const badge = App.elements.networkStatusBadge;
+                if (!badge) return;
+                const normalized = status === 'ONLINE' ? 'ONLINE' : 'OFFLINE';
+                badge.textContent = normalized === 'ONLINE' ? 'Online' : 'Offline';
+                badge.dataset.status = normalized.toLowerCase();
+                if (!options.silent) {
+                    badge.classList.add('pulse');
+                    setTimeout(() => badge.classList.remove('pulse'), 1200);
+                }
+            },
             showLoginScreen() {
                 App.elements.loginForm.style.display = 'block';
                 App.elements.offlineUserSelection.style.display = 'none';
@@ -1773,6 +1802,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.userMenu.container.style.display = 'block';
                 App.elements.notificationBell.container.style.display = 'block';
                 App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
+                App.ui.updateNetworkBadge(App.state.network, { silent: true });
                 
                 // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
                 App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AgroVetor`;
@@ -1818,6 +1848,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (activeTab === 'cadastros') {
                             this.renderFarmSelect();
                         }
+                        App.actions.renderOfflinePackageSelectors();
                         break;
                     case 'personnel':
                         this.populateOperatorSelects();
@@ -2233,6 +2264,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (id === 'configuracoesEmpresa') {
                     App.actions.setupPlantingGoals();
+                    App.actions.refreshOfflinePackageUI();
                 }
                 if (id === 'syncHistory') this.renderSyncHistory();
                 if (id === 'excluirDados') this.renderExclusao();
@@ -4929,6 +4961,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     btnConfirmEnableOffline.addEventListener('click', () => App.actions.enableOfflineLogin());
                 }
 
+                const offlinePackageEls = App.elements.offlinePackages;
+                if (offlinePackageEls?.typeSelect) {
+                    offlinePackageEls.typeSelect.addEventListener('change', () => App.actions.updateOfflinePackageStatusUI());
+                }
+                if (offlinePackageEls?.scopeSelect) {
+                    offlinePackageEls.scopeSelect.addEventListener('change', () => {
+                        App.actions.renderOfflinePackageSelectors();
+                        App.actions.updateOfflinePackageStatusUI();
+                    });
+                }
+                if (offlinePackageEls?.farmSelect) {
+                    offlinePackageEls.farmSelect.addEventListener('change', () => {
+                        App.actions.renderOfflinePackageSelectors();
+                        App.actions.updateOfflinePackageStatusUI();
+                    });
+                }
+                if (offlinePackageEls?.talhaoSelect) {
+                    offlinePackageEls.talhaoSelect.addEventListener('change', () => App.actions.updateOfflinePackageStatusUI());
+                }
+                if (offlinePackageEls?.downloadBtn) {
+                    offlinePackageEls.downloadBtn.addEventListener('click', () => App.actions.downloadOfflinePackage());
+                }
+
                 const offlineModal = document.getElementById('enableOfflineLoginModal');
                 if(offlineModal) {
                     const closeBtn = offlineModal.querySelector('.modal-close-btn');
@@ -7096,6 +7151,292 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+            setNetworkStatus(status, options = {}) {
+                const normalized = status === 'ONLINE' ? 'ONLINE' : 'OFFLINE';
+                App.state.network = normalized;
+                App.ui.updateNetworkBadge(normalized, options);
+            },
+            withTimeout(promise, ms = 10000, message = 'Tempo limite excedido.') {
+                let timer;
+                const timeoutPromise = new Promise((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(message)), ms);
+                });
+                return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+            },
+            getCollectionCacheKey(collectionName, scopeKey) {
+                return `collection:${collectionName}:${scopeKey}`;
+            },
+            getDocCacheKey(collectionName, docId) {
+                return `doc:${collectionName}:${docId}`;
+            },
+            async cacheData(key, data) {
+                try {
+                    await OfflineDB.set('data_cache', { key, data, updatedAt: new Date().toISOString() });
+                } catch (error) {
+                    console.warn("Falha ao guardar cache offline:", key, error);
+                }
+            },
+            async getCachedData(key) {
+                try {
+                    const entry = await OfflineDB.get('data_cache', key);
+                    return entry ? entry.data : null;
+                } catch (error) {
+                    console.warn("Falha ao ler cache offline:", key, error);
+                    return null;
+                }
+            },
+            async getLatestAerialGeojsonEntry() {
+                try {
+                    const entries = await OfflineDB.getAll('aerial_geojson_cache');
+                    if (!entries || entries.length === 0) return null;
+                    return entries.reduce((latest, entry) => {
+                        if (!latest) return entry;
+                        return new Date(entry.updatedAt || 0) > new Date(latest.updatedAt || 0) ? entry : latest;
+                    }, null);
+                } catch (error) {
+                    console.warn("Falha ao ler GeoJSON offline:", error);
+                    return null;
+                }
+            },
+            async hydrateLocalState(userDoc) {
+                if (!userDoc) return;
+                const isSuperAdmin = userDoc.role === 'super-admin';
+                const companyId = userDoc.companyId;
+                const globalConfigs = await this.getCachedData(this.getDocCacheKey('global_configs', 'main'));
+                if (globalConfigs) {
+                    App.state.globalConfigs = globalConfigs;
+                }
+
+                if (isSuperAdmin) {
+                    const cachedCompanies = await this.getCachedData(this.getCollectionCacheKey('companies', 'all'));
+                    if (cachedCompanies) {
+                        App.state.companies = cachedCompanies;
+                    }
+                } else if (companyId) {
+                    const cachedCompany = await this.getCachedData(this.getDocCacheKey('companies', companyId));
+                    if (cachedCompany) {
+                        App.state.companies = [cachedCompany];
+                    }
+                    const cachedConfig = await this.getCachedData(this.getDocCacheKey('config', companyId));
+                    if (cachedConfig) {
+                        App.state.companyConfig = cachedConfig;
+                        App.state.companyLogo = cachedConfig.logoBase64 || null;
+                    }
+                }
+
+                const scopeKey = isSuperAdmin ? 'all' : companyId;
+                if (scopeKey) {
+                    for (const collectionName of App.config.offlineCacheCollections) {
+                        const cachedCollection = await this.getCachedData(this.getCollectionCacheKey(collectionName, scopeKey));
+                        if (cachedCollection) {
+                            App.state[collectionName] = cachedCollection;
+                        }
+                    }
+                }
+
+                const geojsonEntry = await this.getLatestAerialGeojsonEntry();
+                if (geojsonEntry?.geojson) {
+                    App.state.geoJsonData = geojsonEntry.geojson;
+                }
+            },
+            async refreshOfflinePackageUI() {
+                const els = App.elements.offlinePackages;
+                if (!els?.typeSelect) return;
+                this.renderOfflinePackageSelectors();
+                await this.updateOfflinePackageStatusUI();
+            },
+            renderOfflinePackageSelectors() {
+                const els = App.elements.offlinePackages;
+                if (!els?.farmSelect || !els?.talhaoSelect || !els?.typeSelect) return;
+
+                const scope = els.scopeSelect?.value || 'all';
+                els.farmSelect.disabled = scope === 'all';
+                els.talhaoSelect.disabled = scope !== 'talhao';
+
+                const selectedFarm = els.farmSelect.value;
+                els.farmSelect.innerHTML = '<option value="">Todas as Fazendas</option>';
+                App.state.fazendas
+                    .slice()
+                    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+                    .forEach(farm => {
+                        els.farmSelect.innerHTML += `<option value="${farm.id}">${farm.code || ''} ${farm.name}</option>`;
+                    });
+                if (selectedFarm) els.farmSelect.value = selectedFarm;
+
+                const farm = App.state.fazendas.find(f => String(f.id) === String(els.farmSelect.value));
+                els.talhaoSelect.innerHTML = '<option value="">Todos os Talhões</option>';
+                if (farm?.talhoes?.length) {
+                    farm.talhoes.forEach(talhao => {
+                        els.talhaoSelect.innerHTML += `<option value="${talhao.id}">${talhao.name || talhao.id}</option>`;
+                    });
+                }
+            },
+            buildOfflinePackageScope() {
+                const els = App.elements.offlinePackages;
+                const scopeType = els.scopeSelect?.value || 'all';
+                const farmId = els.farmSelect?.value || '';
+                const talhaoId = els.talhaoSelect?.value || '';
+
+                if (scopeType === 'talhao' && !talhaoId) {
+                    return { type: 'all', scopeKey: 'all', label: 'Toda a Empresa' };
+                }
+                if (scopeType === 'fazenda' && !farmId) {
+                    return { type: 'all', scopeKey: 'all', label: 'Toda a Empresa' };
+                }
+
+                if (scopeType === 'talhao') {
+                    return { type: 'talhao', scopeKey: `talhao:${talhaoId}`, farmId, talhaoId, label: `Talhão ${talhaoId}` };
+                }
+                if (scopeType === 'fazenda') {
+                    return { type: 'fazenda', scopeKey: `fazenda:${farmId}`, farmId, label: `Fazenda ${farmId}` };
+                }
+                return { type: 'all', scopeKey: 'all', label: 'Toda a Empresa' };
+            },
+            async updateOfflinePackageStatusUI() {
+                const els = App.elements.offlinePackages;
+                if (!els?.statusBadge || !els?.typeSelect) return;
+                const scope = this.buildOfflinePackageScope();
+                const type = els.typeSelect.value || 'cadastros';
+                const packageId = `${type}:${scope.scopeKey}`;
+                const entry = await OfflineDB.get('offline_packages', packageId);
+
+                const status = entry?.status || 'stale';
+                els.statusBadge.textContent = status.toUpperCase();
+                els.statusBadge.dataset.status = status;
+            },
+            async downloadOfflinePackage() {
+                const els = App.elements.offlinePackages;
+                if (!els?.downloadBtn) return;
+
+                if (!navigator.onLine) {
+                    App.ui.showAlert("É necessário estar online para baixar o pacote offline.", "warning");
+                    return;
+                }
+
+                const type = els.typeSelect.value || 'cadastros';
+                const scope = this.buildOfflinePackageScope();
+                const packageId = `${type}:${scope.scopeKey}`;
+                const progressContainer = els.progressContainer;
+                const progressText = els.progressText;
+                const progressBar = els.progressBar;
+
+                progressContainer.style.display = 'block';
+                progressText.textContent = 'A preparar download...';
+                progressBar.value = 0;
+                progressBar.max = 100;
+
+                await OfflineDB.set('offline_packages', {
+                    packageId,
+                    type,
+                    scope: scope.scopeKey,
+                    updatedAt: new Date().toISOString(),
+                    status: 'downloading',
+                    stats: {}
+                });
+                await this.updateOfflinePackageStatusUI();
+
+                try {
+                    const companyId = App.state.currentUser?.companyId;
+                    if (!companyId) throw new Error("Empresa não identificada.");
+
+                    const globalConfigsDoc = await this.withTimeout(getDoc(doc(db, 'global_configs', 'main')), 10000, "Timeout ao baixar configurações globais.");
+                    if (globalConfigsDoc.exists()) {
+                        App.state.globalConfigs = globalConfigsDoc.data();
+                        await this.cacheData(this.getDocCacheKey('global_configs', 'main'), App.state.globalConfigs);
+                    }
+
+                    const configDoc = await this.withTimeout(getDoc(doc(db, 'config', companyId)), 10000, "Timeout ao baixar configurações.");
+                    if (configDoc.exists()) {
+                        App.state.companyConfig = configDoc.data();
+                        App.state.companyLogo = App.state.companyConfig.logoBase64 || null;
+                        await this.cacheData(this.getDocCacheKey('config', companyId), App.state.companyConfig);
+                    }
+                    const companyDoc = await this.withTimeout(getDoc(doc(db, 'companies', companyId)), 10000, "Timeout ao baixar empresa.");
+                    if (companyDoc.exists()) {
+                        const companyData = { id: companyDoc.id, ...companyDoc.data() };
+                        App.state.companies = [companyData];
+                        await this.cacheData(this.getDocCacheKey('companies', companyId), companyData);
+                    }
+
+                    const packageSteps = [];
+                    if (type === 'cadastros' || type === 'all') {
+                        packageSteps.push({ label: 'Cadastros', collections: ['fazendas', 'personnel', 'frentesDePlantio', 'users'] });
+                    }
+                    if (type === 'plantio' || type === 'all') {
+                        packageSteps.push({ label: 'Plantio', collections: ['apontamentosPlantio', 'qualidadePlantio', 'planos', 'harvestPlans'] });
+                    }
+                    if (type === 'aereo' || type === 'all') {
+                        packageSteps.push({ label: 'Monitoramento Aéreo', collections: ['armadilhas'] });
+                    }
+
+                    let completed = 0;
+                    const totalSteps = packageSteps.length + (type === 'aereo' || type === 'all' ? 1 : 0);
+
+                    for (const step of packageSteps) {
+                        progressText.textContent = `A baixar ${step.label}...`;
+                        await this.downloadOfflineCollections(step.collections, companyId);
+                        completed += 1;
+                        progressBar.value = Math.round((completed / totalSteps) * 100);
+                    }
+
+                    if (type === 'aereo' || type === 'all') {
+                        progressText.textContent = 'A preparar mapa aéreo offline...';
+                        await App.mapModule.downloadAerialPackage(scope, {
+                            onProgress: (current, total, message) => {
+                                progressText.textContent = message;
+                                const ratio = total > 0 ? current / total : 0;
+                                progressBar.value = Math.round((completed + ratio) / totalSteps * 100);
+                            }
+                        });
+                        completed += 1;
+                        progressBar.value = Math.round((completed / totalSteps) * 100);
+                    }
+
+                    await OfflineDB.set('offline_packages', {
+                        packageId,
+                        type,
+                        scope: scope.scopeKey,
+                        updatedAt: new Date().toISOString(),
+                        status: 'ready',
+                        stats: {
+                            downloadedAt: new Date().toISOString()
+                        }
+                    });
+                    progressText.textContent = 'Pacote offline pronto.';
+                    App.ui.showAlert("Pacote offline pronto para uso.", "success");
+                } catch (error) {
+                    console.error("Erro ao baixar pacote offline:", error);
+                    progressText.textContent = 'Falha ao baixar pacote.';
+                    await OfflineDB.set('offline_packages', {
+                        packageId,
+                        type,
+                        scope: scope.scopeKey,
+                        updatedAt: new Date().toISOString(),
+                        status: 'error',
+                        stats: { error: error.message }
+                    });
+                    App.ui.showAlert(`Erro ao baixar pacote offline: ${error.message}`, "error");
+                } finally {
+                    await this.updateOfflinePackageStatusUI();
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                    }, 4000);
+                }
+            },
+            async downloadOfflineCollections(collections, companyId) {
+                const scopeKey = companyId || 'all';
+                for (const collectionName of collections) {
+                    const q = query(
+                        collection(db, collectionName),
+                        where("companyId", "==", companyId)
+                    );
+                    const snapshot = await this.withTimeout(getDocs(q), 15000, `Timeout ao baixar ${collectionName}.`);
+                    const data = [];
+                    snapshot.forEach(docSnap => data.push({ id: docSnap.id, ...docSnap.data() }));
+                    App.state[collectionName] = data;
+                    await this.cacheData(this.getCollectionCacheKey(collectionName, scopeKey), data);
+                }
+            },
             async fixClimateData() {
                 App.ui.showConfirmationModal(
                     "Esta ação irá corrigir datas e formatos inconsistentes em todos os registros de clima importados. Deseja continuar?",
@@ -7239,6 +7580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     console.log("Active connection confirmed.");
+                    App.actions.setNetworkStatus('ONLINE', { silent: true });
                     // Stop the periodic check once connection is confirmed
                     if (App.state.connectionCheckInterval) {
                         clearInterval(App.state.connectionCheckInterval);
@@ -7250,6 +7592,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } catch (error) {
                     console.warn("Active connection check failed. Still effectively offline.");
+                    App.actions.setNetworkStatus('OFFLINE', { silent: true });
                 } finally {
                     App.state.isCheckingConnection = false;
                 }
@@ -11866,6 +12209,28 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         mapModule: {
+            getBaseMapStyle() {
+                const accessToken = mapboxgl.accessToken;
+                return {
+                    version: 8,
+                    sources: {
+                        satellite: {
+                            type: 'raster',
+                            tiles: [`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.png?access_token=${accessToken}`],
+                            tileSize: 256
+                        },
+                        streets: {
+                            type: 'raster',
+                            tiles: [`https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/{z}/{x}/{y}@2x.png?access_token=${accessToken}`],
+                            tileSize: 256
+                        }
+                    },
+                    layers: [
+                        { id: 'satellite-layer', type: 'raster', source: 'satellite' },
+                        { id: 'streets-layer', type: 'raster', source: 'streets', paint: { 'raster-opacity': 0.5 } }
+                    ]
+                };
+            },
             initMap() {
                 if (App.state.mapboxMap) return; // Evita reinicialização
                 if (typeof mapboxgl === 'undefined') {
@@ -11880,7 +12245,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.state.mapboxMap = new mapboxgl.Map({
                         container: mapContainer,
-                        style: 'mapbox://styles/mapbox/satellite-streets-v12', // Estilo satélite com ruas
+                        style: this.getBaseMapStyle(),
                         center: [-48.45, -21.17], // [lng, lat]
                         zoom: 12,
                         attributionControl: false
@@ -12038,8 +12403,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
             },
+            normalizeGeoJSON(geojson) {
+                if (!geojson || !geojson.features) return geojson;
+                let featureIdCounter = 0;
+                geojson.features.forEach(feature => {
+                    feature.id = featureIdCounter++;
+                    const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                    feature.properties.AGV_FUNDO = String(fundo).trim();
 
-            async loadAndCacheShapes(url) {
+                    const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
+                    feature.properties.AGV_TALHAO = String(talhao).trim();
+                });
+                return geojson;
+            },
+            async fetchAndCacheGeoJSON(url, scopeKey = 'all') {
+                const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+                const response = await fetch(urlWithCacheBuster, { signal: controller.signal });
+                clearTimeout(timeout);
+                if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
+                const buffer = await response.arrayBuffer();
+                await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
+
+                let geojson = await shp(buffer);
+                this._reprojectGeoJSON(geojson);
+                geojson = this.normalizeGeoJSON(geojson);
+                await OfflineDB.set('aerial_geojson_cache', {
+                    key: `${App.state.currentUser?.companyId || 'company'}:${scopeKey}`,
+                    geojson,
+                    updatedAt: new Date().toISOString()
+                });
+                return geojson;
+            },
+
+            async loadAndCacheShapes(url, options = {}) {
                 const mapContainer = document.getElementById('map-container');
                 if (!url) {
                     if (mapContainer) mapContainer.classList.remove('loading');
@@ -12048,38 +12446,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Iniciando o carregamento dos contornos do mapa em segundo plano...");
                 if (mapContainer) mapContainer.classList.add('loading');
                 try {
-                    const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
-                    const response = await fetch(urlWithCacheBuster);
-                    if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
-                    const buffer = await response.arrayBuffer();
-
-                    await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
-
                     console.log("Processando e desenhando os talhões no mapa...");
-                    let geojson = await shp(buffer);
-
-                    // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                    this._reprojectGeoJSON(geojson);
-
-
-                    // ETAPA DE NORMALIZAÇÃO:
-                    // O código da aplicação espera propriedades padronizadas (ex: 'AGV_FUNDO').
-                    // No entanto, os shapefiles podem ter nomes de colunas diferentes (ex: 'FUNDO_AGR', 'FUNDO_AGRI').
-                    // O loop abaixo normaliza esses dados, criando as propriedades padronizadas que o resto do código usa.
-                    let featureIdCounter = 0;
-                    geojson.features.forEach(feature => {
-                        feature.id = featureIdCounter++; // Adiciona um ID numérico único para o estado do Mapbox
-
-                        // Busca por vários nomes possíveis para o "fundo agrícola" e normaliza para 'AGV_FUNDO'.
-                        const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
-                        feature.properties.AGV_FUNDO = String(fundo).trim();
-
-                        // Faz o mesmo para o nome do talhão.
-                        const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
-                        feature.properties.AGV_TALHAO = String(talhao).trim();
-                    });
-
-
+                    const geojson = await this.fetchAndCacheGeoJSON(url, options.scopeKey || 'all');
                     App.state.geoJsonData = geojson;
                     if (App.state.mapboxMap) {
                         this.loadShapesOnMap();
@@ -12090,6 +12458,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
                     if (mapContainer) mapContainer.classList.remove('loading');
                     this.loadOfflineShapes();
+                } finally {
+                    if (mapContainer) mapContainer.classList.remove('loading');
                 }
             },
 
@@ -12097,46 +12467,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = document.getElementById('map-container');
                 if (mapContainer) mapContainer.classList.add('loading');
                 try {
+                    const cachedGeojsonEntry = await App.actions.getLatestAerialGeojsonEntry();
+                    if (cachedGeojsonEntry?.geojson) {
+                        App.ui.showAlert("A carregar contornos do pacote offline.", "info");
+                        App.state.geoJsonData = cachedGeojsonEntry.geojson;
+                        if (App.state.mapboxMap) {
+                            this.loadShapesOnMap();
+                        }
+                        return;
+                    }
+
                     let buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
-                    if (buffer) {
-                        App.ui.showAlert("A carregar mapa do cache offline.", "info");
+                    if (!buffer) return;
 
-                        // Correção para Android 13/WebView: Converte Blob para ArrayBuffer se necessário
-                        if (buffer instanceof Blob) {
-                            console.log("Convertendo Blob do cache para ArrayBuffer...");
-                            buffer = await buffer.arrayBuffer();
-                        }
+                    App.ui.showAlert("A carregar mapa do cache offline.", "info");
 
-                        let geojson;
-                        try {
-                            geojson = await shp(buffer);
-                        } catch (parseError) {
-                            console.error("Erro ao analisar o shapefile (shpjs):", parseError);
-                            throw new Error("O arquivo de mapa offline está corrompido ou inválido.");
-                        }
+                    // Correção para Android 13/WebView: Converte Blob para ArrayBuffer se necessário
+                    if (buffer instanceof Blob) {
+                        console.log("Convertendo Blob do cache para ArrayBuffer...");
+                        buffer = await buffer.arrayBuffer();
+                    }
 
-                        // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                        this._reprojectGeoJSON(geojson);
+                    let geojson;
+                    try {
+                        geojson = await shp(buffer);
+                    } catch (parseError) {
+                        console.error("Erro ao analisar o shapefile (shpjs):", parseError);
+                        throw new Error("O arquivo de mapa offline está corrompido ou inválido.");
+                    }
 
-                        // ETAPA DE NORMALIZAÇÃO (CACHE OFFLINE): Garante a consistência dos dados carregados do cache.
-                        let featureIdCounter = 0;
-                        if (geojson && geojson.features) {
-                            geojson.features.forEach(feature => {
-                                feature.id = featureIdCounter++; // Adiciona um ID numérico único
-                                const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
-                                feature.properties.AGV_FUNDO = String(fundo).trim();
-
-                                const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
-                                feature.properties.AGV_TALHAO = String(talhao).trim();
-                            });
-
-                            App.state.geoJsonData = geojson;
-                            if (App.state.mapboxMap) {
-                                this.loadShapesOnMap();
-                            }
-                        } else {
-                            console.warn("GeoJSON inválido ou sem features após carregamento offline.");
-                        }
+                    this._reprojectGeoJSON(geojson);
+                    geojson = this.normalizeGeoJSON(geojson);
+                    App.state.geoJsonData = geojson;
+                    if (App.state.mapboxMap) {
+                        this.loadShapesOnMap();
                     }
                 } catch (error) {
                     console.error("Erro ao carregar ou processar o mapa offline:", error);
@@ -12396,6 +12760,76 @@ document.addEventListener('DOMContentLoaded', () => {
                     return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
                 }
             },
+            buildTileUrlsForBbox(bbox, zoomLevels) {
+                const [minLng, minLat, maxLng, maxLat] = bbox;
+                const urls = [];
+                zoomLevels.forEach(zoom => {
+                    const minX = this.tileMath.long2tile(minLng, zoom);
+                    const maxX = this.tileMath.long2tile(maxLng, zoom);
+                    const minY = this.tileMath.lat2tile(maxLat, zoom);
+                    const maxY = this.tileMath.lat2tile(minLat, zoom);
+
+                    for (let x = minX; x <= maxX; x++) {
+                        for (let y = minY; y <= maxY; y++) {
+                            const satelliteUrl = `https://api.mapbox.com/v4/mapbox.satellite/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
+                            const streetsUrl = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
+                            urls.push(satelliteUrl, streetsUrl);
+                        }
+                    }
+                });
+                return urls;
+            },
+            async downloadAerialPackage(scope, options = {}) {
+                const companyConfig = App.state.companyConfig || {};
+                if (!companyConfig.shapefileURL) {
+                    throw new Error("Shapefile não configurado para esta empresa.");
+                }
+
+                let geojson = App.state.geoJsonData;
+                if (!geojson || !geojson.features?.length) {
+                    if (!navigator.onLine) {
+                        throw new Error("Pacote aéreo não está disponível offline.");
+                    }
+                    geojson = await this.fetchAndCacheGeoJSON(companyConfig.shapefileURL, scope.scopeKey);
+                    App.state.geoJsonData = geojson;
+                }
+
+                let filteredGeojson = geojson;
+                const normalize = (val) => String(val || '').trim().toLowerCase();
+
+                if (scope.type === 'fazenda' || scope.type === 'talhao') {
+                    const farm = App.state.fazendas.find(f => String(f.id) === String(scope.farmId));
+                    const farmCode = farm?.code || farm?.name || scope.farmId;
+                    const talhao = farm?.talhoes?.find(t => String(t.id) === String(scope.talhaoId));
+                    const talhaoCode = talhao?.name || talhao?.id || scope.talhaoId;
+
+                    filteredGeojson = {
+                        ...geojson,
+                        features: geojson.features.filter(feature => {
+                            const fundo = normalize(feature.properties?.AGV_FUNDO);
+                            const talhaoName = normalize(feature.properties?.AGV_TALHAO);
+                            if (scope.type === 'fazenda') {
+                                return fundo === normalize(farmCode);
+                            }
+                            return fundo === normalize(farmCode) && talhaoName === normalize(talhaoCode);
+                        })
+                    };
+                }
+
+                if (!filteredGeojson.features || filteredGeojson.features.length === 0) {
+                    throw new Error("Nenhum contorno encontrado para o escopo selecionado.");
+                }
+
+                const bbox = turf.bbox(filteredGeojson);
+                const urls = this.buildTileUrlsForBbox(bbox, App.config.offlinePackageZoomLevels);
+                if (typeof options.onProgress === 'function') {
+                    options.onProgress(0, urls.length, `A preparar download de ${urls.length} tiles...`);
+                }
+
+                await this.downloadTiles(urls, {
+                    onProgress: options.onProgress
+                });
+            },
 
             startOfflineMapDownload(feature) {
                 const ZOOM_LEVELS = [14, 15, 16, 17];
@@ -12436,11 +12870,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.downloadTiles(allTileUrls);
             },
 
-            async downloadTiles(urls) {
+            async downloadTiles(urls, options = {}) {
                 const infoBox = App.elements.monitoramentoAereo.infoBox;
-                const progressContainer = infoBox.querySelector('.download-progress-container');
-                const progressText = infoBox.querySelector('.download-progress-text');
-                const progressBar = infoBox.querySelector('.download-progress-bar');
+                const progressContainer = options.progressContainer || infoBox?.querySelector('.download-progress-container');
+                const progressText = options.progressText || infoBox?.querySelector('.download-progress-text');
+                const progressBar = options.progressBar || infoBox?.querySelector('.download-progress-bar');
                 let processedCount = 0;
                 let failedCount = 0;
                 const totalTiles = urls.length;
@@ -12475,8 +12909,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
 
-                    progressBar.value = processedCount;
-                    progressText.textContent = `A guardar mapa offline... ${processedCount}/${totalTiles} (Falhas: ${failedCount})`;
+                    if (progressBar) progressBar.value = processedCount;
+                    if (progressText) {
+                        progressText.textContent = `A guardar mapa offline... ${processedCount}/${totalTiles} (Falhas: ${failedCount})`;
+                    }
+                    if (typeof options.onProgress === 'function') {
+                        options.onProgress(processedCount, totalTiles, `A guardar mapa offline... ${processedCount}/${totalTiles} (Falhas: ${failedCount})`);
+                    }
                 }
 
                 if (failedCount > 0) {
@@ -12485,10 +12924,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert(`Mapa offline guardado com sucesso! ${totalTiles} tiles processados.`, 'success');
                 }
 
-                setTimeout(() => {
-                    progressContainer.style.display = 'none';
-                    infoBox.querySelector('.btn-download-map').style.display = 'block';
-                }, 5000);
+                if (progressContainer && infoBox) {
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                        const button = infoBox.querySelector('.btn-download-map');
+                        if (button) button.style.display = 'block';
+                    }, 5000);
+                }
             },
 
             hideTalhaoInfo() {
@@ -16572,6 +17014,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.addEventListener('offline', () => {
+        App.actions.setNetworkStatus('OFFLINE');
         App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
@@ -16581,6 +17024,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('online', () => {
+        App.actions.setNetworkStatus('ONLINE');
         console.log("Browser reports 'online'. Starting active connection checks.");
         App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
         // Clear any previous interval just in case

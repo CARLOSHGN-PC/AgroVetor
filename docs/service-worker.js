@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v14'; // Incremented version for update
+const CACHE_NAME = 'agrovetor-cache-v15'; // Incremented version for update
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the IndexedDB tile cache
@@ -89,7 +89,7 @@ self.addEventListener('activate', event => {
 importScripts('https://cdn.jsdelivr.net/npm/idb@7.1.1/build/iife/index-min.js');
 
 const DB_NAME = 'agrovetor-offline-storage';
-const DB_VERSION = 6;
+const DB_VERSION = 9;
 const OFFLINE_WRITES_STORE = 'offline-writes';
 
 // Função para lidar com a sincronização em segundo plano
@@ -184,10 +184,8 @@ function getDb() {
     if (!dbPromise) {
         dbPromise = idb.openDB(DB_NAME, DB_VERSION, {
             upgrade(db, oldVersion) {
-                if (oldVersion < 7) {
-                    if (!db.objectStoreNames.contains(TILE_STORE_NAME)) {
-                        db.createObjectStore(TILE_STORE_NAME);
-                    }
+                if (oldVersion < 9 && !db.objectStoreNames.contains(TILE_STORE_NAME)) {
+                    db.createObjectStore(TILE_STORE_NAME);
                 }
             }
         });
