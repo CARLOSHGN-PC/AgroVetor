@@ -200,6 +200,45 @@
         font-weight: 600;
         text-transform: uppercase;
       }
+      .network-status-badge {
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: white;
+        margin-right: 8px;
+        background: var(--color-success);
+        display: inline-flex;
+        align-items: center;
+      }
+      .network-status-badge[data-status="offline"] {
+        background: var(--color-danger);
+      }
+      .network-status-badge.pulse {
+        animation: networkPulse 1.2s ease;
+      }
+      @keyframes networkPulse {
+        0% { transform: scale(1); opacity: 0.8; }
+        50% { transform: scale(1.06); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      .offline-package-status {
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: white;
+        background: var(--color-text-light);
+        display: inline-flex;
+        align-items: center;
+        margin-left: 8px;
+      }
+      .offline-package-status[data-status="ready"] { background: var(--color-success); }
+      .offline-package-status[data-status="downloading"] { background: var(--color-warning); }
+      .offline-package-status[data-status="stale"] { background: var(--color-info); }
+      .offline-package-status[data-status="error"] { background: var(--color-danger); }
       .qualidade-context-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -2075,6 +2114,7 @@
             </div>
             
             <div class="header-actions-container">
+                <span id="networkStatusBadge" class="network-status-badge" data-status="online">Online</span>
                 <div id="notification-bell-container" class="notification-bell" style="display: none;">
                     <button id="notification-bell-toggle" aria-label="Notificações">
                         <i class="fas fa-bell"></i>
@@ -3843,6 +3883,54 @@
                     <h3><i class="fas fa-key"></i> Acesso Offline</h3>
                     <p>Habilite o acesso offline para poder entrar na aplicação e registar dados mesmo sem internet. Terá de re-autenticar online para atualizar a sua password offline.</p>
                     <button id="btnEnableOfflineLogin" class="save" style="max-width: 300px; background: var(--color-warning);"><i class="fas fa-wifi"></i> Habilitar/Atualizar Login Offline</button>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-info); margin-top: 30px;">
+                    <h3><i class="fas fa-box-open"></i> Pacote Offline</h3>
+                    <p>Baixe pacotes offline para manter cadastros, plantio e monitoramento aéreo disponíveis no campo, mesmo sem conexão.</p>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="offlinePackageType">Tipo de Pacote:</label>
+                            <select id="offlinePackageType">
+                                <option value="cadastros">Cadastros Essenciais</option>
+                                <option value="plantio">Plantio/Qualidade</option>
+                                <option value="aereo">Monitoramento Aéreo</option>
+                                <option value="all">Completo (Tudo)</option>
+                            </select>
+                        </div>
+                        <div class="form-col">
+                            <label for="offlinePackageScope">Escopo:</label>
+                            <select id="offlinePackageScope">
+                                <option value="all">Toda a Empresa</option>
+                                <option value="fazenda">Fazenda</option>
+                                <option value="talhao">Talhão</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="offlinePackageFarm">Fazenda:</label>
+                            <select id="offlinePackageFarm">
+                                <option value="">Todas as Fazendas</option>
+                            </select>
+                        </div>
+                        <div class="form-col">
+                            <label for="offlinePackageTalhao">Talhão:</label>
+                            <select id="offlinePackageTalhao">
+                                <option value="">Todos os Talhões</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="download-progress-container" id="offlinePackageProgress" style="display: none; margin-top: 10px;">
+                        <p class="download-progress-text" id="offlinePackageProgressText">Preparando...</p>
+                        <progress class="download-progress-bar" id="offlinePackageProgressBar" value="0" max="100"></progress>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                        <button id="btnDownloadOfflinePackage" class="save" style="max-width: 320px; background: var(--color-info);">
+                            <i class="fas fa-cloud-download-alt"></i> Baixar Pacote Offline
+                        </button>
+                        <span id="offlinePackageStatus" class="offline-package-status" data-status="stale">STALE</span>
+                    </div>
                 </div>
 
                 <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid var(--color-border); text-align: right;">
