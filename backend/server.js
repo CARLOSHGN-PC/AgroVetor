@@ -135,10 +135,7 @@ try {
             file: () => ({
                 save: async () => {},
                 makePublic: async () => {},
-                publicUrl: () => 'http://mock-url.com/file.zip',
-                exists: async () => [false],
-                download: async () => [Buffer.from('{}')],
-                getMetadata: async () => [{}]
+                publicUrl: () => 'http://mock-url.com/file.zip'
             })
         };
     } else {
@@ -224,48 +221,6 @@ try {
         } catch (error) {
             console.error("Erro no servidor ao fazer upload do shapefile:", error);
             res.status(500).send({ message: `Erro no servidor ao processar o arquivo: ${error.message}` });
-        }
-    });
-
-    app.get('/api/offline/aereo-bundle', authMiddleware, async (req, res) => {
-        const { companyId, scope = 'all', fazendaId = '' } = req.query;
-        if (!companyId) {
-            return res.status(400).json({ message: 'O ID da empresa é obrigatório.' });
-        }
-
-        try {
-            const scopeKey = scope || (fazendaId ? `fazenda:${fazendaId}` : 'all');
-            const sanitizedScope = String(scopeKey).replace(/[^a-zA-Z0-9:_-]/g, '_');
-            const basePath = `offline/aereo/${companyId}/${sanitizedScope}`;
-
-            const manifestFile = bucket.file(`${basePath}/manifest.json`);
-            const [manifestExists] = await manifestFile.exists();
-            if (!manifestExists) {
-                return res.status(404).json({ message: 'Manifest do pacote aéreo não encontrado.' });
-            }
-
-            const [manifestBuffer] = await manifestFile.download();
-            const manifest = JSON.parse(manifestBuffer.toString('utf-8'));
-
-            const mapFile = bucket.file(`${basePath}/map.pmtiles`);
-            const geojsonFile = bucket.file(`${basePath}/contornos.geojson`);
-
-            const [mapMetadata] = await mapFile.getMetadata().catch(() => [{}]);
-            const [geojsonMetadata] = await geojsonFile.getMetadata().catch(() => [{}]);
-
-            res.json({
-                ...manifest,
-                packageId: manifest.packageId || `aereo:${scopeKey}`,
-                scope: scopeKey,
-                updatedAt: manifest.updatedAt || new Date().toISOString(),
-                mapUrl: mapFile.publicUrl(),
-                geojsonUrl: geojsonFile.publicUrl(),
-                mapSize: Number(mapMetadata.size || 0),
-                geojsonSize: Number(geojsonMetadata.size || 0)
-            });
-        } catch (error) {
-            console.error("Erro ao preparar bundle aéreo:", error);
-            res.status(500).json({ message: `Erro ao preparar bundle aéreo: ${error.message}` });
         }
     });
 
