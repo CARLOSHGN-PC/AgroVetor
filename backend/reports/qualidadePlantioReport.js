@@ -38,6 +38,7 @@ const flattenQualidadeEntries = (entries) => {
                         valor: indicador.valor,
                         amostragem: indicador.amostragem,
                         qtdGemasTotal: indicador.qtdGemasTotal,
+                        valorCalculado: indicador.valorCalculado,
                         consumo: indicador.consumo || null,
                         broca: indicador.broca || null,
                     });
@@ -72,7 +73,7 @@ const getQualidadeMetric = (entry) => {
     if (!entry) return null;
     const indicadorCodigo = entry.indicadorCodigo;
     if (indicadorCodigo === '1.3.4' || indicadorCodigo === '2.3.4') {
-        return entry.qtdGemasTotal;
+        return entry.valorCalculado ?? entry.qtdGemasTotal;
     }
     if (indicadorCodigo === '1.3.1' || indicadorCodigo === '2.3.6') {
         return entry.consumo?.consumoMudaT ?? entry.valor;
@@ -136,7 +137,7 @@ const buildDetalhadoRows = (entries) => {
         .map(entry => {
             const consumo = entry.consumo || {};
             const broca = entry.broca || {};
-            const qtdGemas = entry.qtdGemasTotal ?? broca.qtdGemasTotal;
+            const qtdGemas = entry.valorCalculado ?? entry.qtdGemasTotal ?? broca.qtdGemasTotal;
             return [
                 formatDate(normalizeQualidadeDate(entry.data)),
                 entry.fazendaNome || '-',
