@@ -67,8 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 9 for offline packages + aerial GeoJSON cache
-            this.dbPromise = openDB('agrovetor-offline-storage', 9, {
+            // Version 10 for offline packages + aerial GeoJSON cache + aerial map bundles
+            this.dbPromise = openDB('agrovetor-offline-storage', 10, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -116,6 +116,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             db.createObjectStore('aerial_geojson_cache', { keyPath: 'key' });
                         }
                     }
+                    if (oldVersion < 10) {
+                        if (!db.objectStoreNames.contains('aerial_map_bundle')) {
+                            db.createObjectStore('aerial_map_bundle', { keyPath: 'key' });
+                        }
+                    }
                 },
             });
         },
@@ -150,6 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             offlineCacheCollections: ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'qualidadePlantio', 'frota'],
             offlinePackageZoomLevels: [14, 15, 16, 17],
+            aerialBundleEndpoint: '/api/offline/aereo-bundle',
             menuConfig: [
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
@@ -271,6 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
             adminAction: null, // Stores a function to be executed after admin password confirmation
             expandedChart: null,
             mapboxMap: null,
+            pmtilesProtocol: null,
             mapboxUserMarker: null,
             mapboxTrapMarkers: {},
             armadilhas: [],
@@ -7198,6 +7205,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     return null;
                 }
             },
+            async getLatestAerialMapBundleEntry() {
+                try {
+                    const entries = await OfflineDB.getAll('aerial_map_bundle');
+                    if (!entries || entries.length === 0) return null;
+                    return entries.reduce((latest, entry) => {
+                        if (!latest) return entry;
+                        return new Date(entry.updatedAt || 0) > new Date(latest.updatedAt || 0) ? entry : latest;
+                    }, null);
+                } catch (error) {
+                    console.warn("Falha ao ler bundle de mapa offline:", error);
+                    return null;
+                }
+            },
+            async computeSha256(buffer) {
+                const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            },
             async hydrateLocalState(userDoc) {
                 if (!userDoc) return;
                 const isSuperAdmin = userDoc.role === 'super-admin';
@@ -7382,6 +7407,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (type === 'aereo' || type === 'all') {
                         progressText.textContent = 'A preparar mapa aéreo offline...';
                         await App.mapModule.downloadAerialPackage(scope, {
+                            packageId,
                             onProgress: (current, total, message) => {
                                 progressText.textContent = message;
                                 const ratio = total > 0 ? current / total : 0;
@@ -7392,13 +7418,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         progressBar.value = Math.round((completed / totalSteps) * 100);
                     }
 
+                    const existingPackage = await OfflineDB.get('offline_packages', packageId);
                     await OfflineDB.set('offline_packages', {
+                        ...existingPackage,
                         packageId,
                         type,
                         scope: scope.scopeKey,
                         updatedAt: new Date().toISOString(),
                         status: 'ready',
                         stats: {
+                            ...(existingPackage?.stats || {}),
                             downloadedAt: new Date().toISOString()
                         }
                     });
@@ -7407,13 +7436,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     console.error("Erro ao baixar pacote offline:", error);
                     progressText.textContent = 'Falha ao baixar pacote.';
+                    const existingPackage = await OfflineDB.get('offline_packages', packageId);
                     await OfflineDB.set('offline_packages', {
+                        ...existingPackage,
                         packageId,
                         type,
                         scope: scope.scopeKey,
                         updatedAt: new Date().toISOString(),
                         status: 'error',
-                        stats: { error: error.message }
+                        stats: { ...(existingPackage?.stats || {}), error: error.message }
                     });
                     App.ui.showAlert(`Erro ao baixar pacote offline: ${error.message}`, "error");
                 } finally {
@@ -12231,7 +12262,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ]
                 };
             },
-            initMap() {
+            async initMap() {
                 if (App.state.mapboxMap) return; // Evita reinicialização
                 if (typeof mapboxgl === 'undefined') {
                     console.error("Mapbox GL JS não está carregado.");
@@ -12242,18 +12273,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
                     const mapContainer = App.elements.monitoramentoAereo.mapContainer;
+                    const offlineBundle = await this.getPreferredAerialBundle();
+                    const shouldUseOffline = !navigator.onLine && offlineBundle;
+                    if (!navigator.onLine && !offlineBundle) {
+                        App.ui.showAlert("Pacote aéreo offline não encontrado. O mapa base pode não carregar no modo avião.", "warning");
+                    }
+                    let mapStyle = this.getBaseMapStyle();
+                    if (shouldUseOffline) {
+                        try {
+                            mapStyle = await this.getOfflineMapStyle(offlineBundle);
+                        } catch (error) {
+                            console.warn("Falha ao montar estilo offline, usando mapa online.", error);
+                        }
+                    }
 
                     App.state.mapboxMap = new mapboxgl.Map({
                         container: mapContainer,
-                        style: this.getBaseMapStyle(),
+                        style: mapStyle,
                         center: [-48.45, -21.17], // [lng, lat]
                         zoom: 12,
                         attributionControl: false
                     });
 
-                    App.state.mapboxMap.on('load', () => {
+                    App.state.mapboxMap.on('load', async () => {
                         console.log("Mapbox map loaded.");
                         this.watchUserPosition();
+                        if (shouldUseOffline) {
+                            await this.loadOfflineShapes();
+                        }
                         this.loadShapesOnMap();
                         this.loadTraps();
                     });
@@ -12475,32 +12522,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.loadShapesOnMap();
                         }
                         return;
-                    }
-
-                    let buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
-                    if (!buffer) return;
-
-                    App.ui.showAlert("A carregar mapa do cache offline.", "info");
-
-                    // Correção para Android 13/WebView: Converte Blob para ArrayBuffer se necessário
-                    if (buffer instanceof Blob) {
-                        console.log("Convertendo Blob do cache para ArrayBuffer...");
-                        buffer = await buffer.arrayBuffer();
-                    }
-
-                    let geojson;
-                    try {
-                        geojson = await shp(buffer);
-                    } catch (parseError) {
-                        console.error("Erro ao analisar o shapefile (shpjs):", parseError);
-                        throw new Error("O arquivo de mapa offline está corrompido ou inválido.");
-                    }
-
-                    this._reprojectGeoJSON(geojson);
-                    geojson = this.normalizeGeoJSON(geojson);
-                    App.state.geoJsonData = geojson;
-                    if (App.state.mapboxMap) {
-                        this.loadShapesOnMap();
                     }
                 } catch (error) {
                     console.error("Erro ao carregar ou processar o mapa offline:", error);
@@ -12734,7 +12755,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
                         <button class="btn-download-map save" style="width: 100%;">
-                            <i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline
+                            <i class="fas fa-cloud-download-alt"></i> Baixar Pacote Aéreo Offline
                         </button>
                     </div>
                     <div class="download-progress-container" style="display: none; padding: 0 20px 20px 20px;">
@@ -12750,187 +12771,350 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.hideTrapInfo();
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
             },
-
-            tileMath: {
-                long2tile(lon, zoom) { return (Math.floor((lon + 180) / 360 * Math.pow(2, zoom))); },
-                lat2tile(lat, zoom) { return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))); },
-                tile2long(x, z) { return (x / Math.pow(2, z) * 360 - 180); },
-                tile2lat(y, z) {
-                    const n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
-                    return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+            buildScopeFromFeature(feature) {
+                if (!feature?.properties) {
+                    return { type: 'all', scopeKey: 'all', label: 'Toda a Empresa' };
                 }
-            },
-            buildTileUrlsForBbox(bbox, zoomLevels) {
-                const [minLng, minLat, maxLng, maxLat] = bbox;
-                const urls = [];
-                zoomLevels.forEach(zoom => {
-                    const minX = this.tileMath.long2tile(minLng, zoom);
-                    const maxX = this.tileMath.long2tile(maxLng, zoom);
-                    const minY = this.tileMath.lat2tile(maxLat, zoom);
-                    const maxY = this.tileMath.lat2tile(minLat, zoom);
-
-                    for (let x = minX; x <= maxX; x++) {
-                        for (let y = minY; y <= maxY; y++) {
-                            const satelliteUrl = `https://api.mapbox.com/v4/mapbox.satellite/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
-                            const streetsUrl = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
-                            urls.push(satelliteUrl, streetsUrl);
-                        }
-                    }
-                });
-                return urls;
-            },
-            async downloadAerialPackage(scope, options = {}) {
-                const companyConfig = App.state.companyConfig || {};
-                if (!companyConfig.shapefileURL) {
-                    throw new Error("Shapefile não configurado para esta empresa.");
-                }
-
-                let geojson = App.state.geoJsonData;
-                if (!geojson || !geojson.features?.length) {
-                    if (!navigator.onLine) {
-                        throw new Error("Pacote aéreo não está disponível offline.");
-                    }
-                    geojson = await this.fetchAndCacheGeoJSON(companyConfig.shapefileURL, scope.scopeKey);
-                    App.state.geoJsonData = geojson;
-                }
-
-                let filteredGeojson = geojson;
-                const normalize = (val) => String(val || '').trim().toLowerCase();
-
-                if (scope.type === 'fazenda' || scope.type === 'talhao') {
-                    const farm = App.state.fazendas.find(f => String(f.id) === String(scope.farmId));
-                    const farmCode = farm?.code || farm?.name || scope.farmId;
-                    const talhao = farm?.talhoes?.find(t => String(t.id) === String(scope.talhaoId));
-                    const talhaoCode = talhao?.name || talhao?.id || scope.talhaoId;
-
-                    filteredGeojson = {
-                        ...geojson,
-                        features: geojson.features.filter(feature => {
-                            const fundo = normalize(feature.properties?.AGV_FUNDO);
-                            const talhaoName = normalize(feature.properties?.AGV_TALHAO);
-                            if (scope.type === 'fazenda') {
-                                return fundo === normalize(farmCode);
-                            }
-                            return fundo === normalize(farmCode) && talhaoName === normalize(talhaoCode);
-                        })
+                const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA', 'AGV_FUNDO']);
+                const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'AGV_TALHAO']);
+                const farm = App.state.fazendas.find(f => String(f.code || f.name || f.id).trim() === String(fundo).trim());
+                if (farm && talhao) {
+                    const talhaoEntry = farm.talhoes?.find(t => String(t.name || t.id).trim() === String(talhao).trim());
+                    return {
+                        type: 'talhao',
+                        scopeKey: `talhao:${talhaoEntry?.id || talhao}`,
+                        farmId: farm.id,
+                        talhaoId: talhaoEntry?.id || talhao,
+                        label: `Talhão ${talhaoEntry?.name || talhao}`
                     };
                 }
-
-                if (!filteredGeojson.features || filteredGeojson.features.length === 0) {
-                    throw new Error("Nenhum contorno encontrado para o escopo selecionado.");
+                if (farm) {
+                    return {
+                        type: 'fazenda',
+                        scopeKey: `fazenda:${farm.id}`,
+                        farmId: farm.id,
+                        label: `Fazenda ${farm.name || farm.code || farm.id}`
+                    };
                 }
-
-                const bbox = turf.bbox(filteredGeojson);
-                const urls = this.buildTileUrlsForBbox(bbox, App.config.offlinePackageZoomLevels);
-                if (typeof options.onProgress === 'function') {
-                    options.onProgress(0, urls.length, `A preparar download de ${urls.length} tiles...`);
-                }
-
-                await this.downloadTiles(urls, {
-                    onProgress: options.onProgress
-                });
+                return { type: 'all', scopeKey: 'all', label: 'Toda a Empresa' };
             },
-
-            startOfflineMapDownload(feature) {
-                const ZOOM_LEVELS = [14, 15, 16, 17];
+            async startOfflineMapDownload(feature) {
                 const infoBox = App.elements.monitoramentoAereo.infoBox;
                 const progressContainer = infoBox.querySelector('.download-progress-container');
                 const progressText = infoBox.querySelector('.download-progress-text');
                 const progressBar = infoBox.querySelector('.download-progress-bar');
-
-                const bbox = turf.bbox(feature);
-                const [minLng, minLat, maxLng, maxLat] = bbox;
-
-                let totalTilesToDownload = 0;
-                const allTileUrls = [];
-
-                ZOOM_LEVELS.forEach(zoom => {
-                    const minX = this.tileMath.long2tile(minLng, zoom);
-                    const maxX = this.tileMath.long2tile(maxLng, zoom);
-                    const minY = this.tileMath.lat2tile(maxLat, zoom);
-                    const maxY = this.tileMath.lat2tile(minLat, zoom);
-
-                    for (let x = minX; x <= maxX; x++) {
-                        for (let y = minY; y <= maxY; y++) {
-                            const satelliteUrl = `https://api.mapbox.com/v4/mapbox.satellite/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
-                            const streetsUrl = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${zoom}/${x}/${y}@2x.png?access_token=${mapboxgl.accessToken}`;
-                            allTileUrls.push(satelliteUrl);
-                            allTileUrls.push(streetsUrl);
-                            totalTilesToDownload += 2;
-                        }
-                    }
-                });
+                const scope = this.buildScopeFromFeature(feature);
 
                 infoBox.querySelector('.btn-download-map').style.display = 'none';
                 progressContainer.style.display = 'block';
-                progressText.textContent = `A preparar para baixar ${totalTilesToDownload} tiles...`;
+                progressText.textContent = 'A preparar pacote aéreo offline...';
                 progressBar.value = 0;
-                progressBar.max = totalTilesToDownload;
+                progressBar.max = 100;
 
-                this.downloadTiles(allTileUrls);
-            },
-
-            async downloadTiles(urls, options = {}) {
-                const infoBox = App.elements.monitoramentoAereo.infoBox;
-                const progressContainer = options.progressContainer || infoBox?.querySelector('.download-progress-container');
-                const progressText = options.progressText || infoBox?.querySelector('.download-progress-text');
-                const progressBar = options.progressBar || infoBox?.querySelector('.download-progress-bar');
-                let processedCount = 0;
-                let failedCount = 0;
-                const totalTiles = urls.length;
-                const CONCURRENCY_LIMIT = 8; // Increased concurrency
-
-                // This function just triggers the fetch. The service worker does the actual caching.
-                const triggerFetch = async (url) => {
-                    try {
-                        // We don't need the response body, just the status.
-                        // The 'no-cors' mode is a trick to speed things up as we don't read the response directly,
-                        // but the service worker still gets the full response to cache.
-                        const response = await fetch(url, { mode: 'no-cors', cache: 'no-store' });
-                        // A response (even opaque) means the request was sent.
-                        // The service worker will handle success/failure of caching.
-                        // For UI feedback, we assume success if the request doesn't throw an error.
-                        return { status: 'success' };
-                    } catch (error) {
-                        console.warn(`Falha ao iniciar o download para o tile: ${url}`, error);
-                        return { status: 'failed' };
-                    }
-                };
-
-                for (let i = 0; i < totalTiles; i += CONCURRENCY_LIMIT) {
-                    const chunk = urls.slice(i, i + CONCURRENCY_LIMIT);
-                    const promises = chunk.map(url => triggerFetch(url));
-                    const results = await Promise.all(promises);
-
-                    results.forEach(result => {
-                        processedCount++;
-                        if (result.status === 'failed') {
-                            failedCount++;
+                try {
+                    await this.downloadAerialPackage(scope, {
+                        onProgress: (current, total, message) => {
+                            progressText.textContent = message;
+                            progressBar.value = total > 0 ? Math.round((current / total) * 100) : 0;
                         }
                     });
-
-                    if (progressBar) progressBar.value = processedCount;
-                    if (progressText) {
-                        progressText.textContent = `A guardar mapa offline... ${processedCount}/${totalTiles} (Falhas: ${failedCount})`;
-                    }
-                    if (typeof options.onProgress === 'function') {
-                        options.onProgress(processedCount, totalTiles, `A guardar mapa offline... ${processedCount}/${totalTiles} (Falhas: ${failedCount})`);
-                    }
-                }
-
-                if (failedCount > 0) {
-                    App.ui.showAlert(`Download concluído com ${failedCount} falhas. Tente novamente se o mapa offline estiver incompleto.`, 'warning');
-                } else {
-                    App.ui.showAlert(`Mapa offline guardado com sucesso! ${totalTiles} tiles processados.`, 'success');
-                }
-
-                if (progressContainer && infoBox) {
+                    App.ui.showAlert("Pacote aéreo offline pronto.", "success");
+                } catch (error) {
+                    console.error("Erro ao baixar pacote aéreo:", error);
+                    App.ui.showAlert(`Erro ao baixar pacote aéreo: ${error.message}`, "error");
+                } finally {
                     setTimeout(() => {
                         progressContainer.style.display = 'none';
                         const button = infoBox.querySelector('.btn-download-map');
                         if (button) button.style.display = 'block';
-                    }, 5000);
+                    }, 4000);
                 }
+            },
+            async initPmtilesProtocol() {
+                if (App.state.pmtilesProtocol) return;
+                if (!window.pmtiles || typeof mapboxgl?.addProtocol !== 'function') {
+                    console.warn("PMTiles não está disponível ou o Mapbox não suporta addProtocol.");
+                    return;
+                }
+                const protocol = new pmtiles.Protocol();
+                mapboxgl.addProtocol('pmtiles', protocol.tile);
+                App.state.pmtilesProtocol = protocol;
+            },
+            async getOfflineMapStyle(bundle) {
+                await this.initPmtilesProtocol();
+                if (!App.state.pmtilesProtocol || !bundle?.localUrl) {
+                    throw new Error("Bundle offline não disponível para o mapa.");
+                }
+                const pmtilesUrl = bundle.localUrl;
+                const pmtilesSource = new pmtiles.PMTiles(pmtilesUrl);
+                App.state.pmtilesProtocol.add(pmtilesSource);
+
+                return {
+                    version: 8,
+                    sources: {
+                        satellite: {
+                            type: 'raster',
+                            url: `pmtiles://${pmtilesUrl}`,
+                            tileSize: 256
+                        }
+                    },
+                    layers: [
+                        { id: 'satellite-layer', type: 'raster', source: 'satellite' }
+                    ]
+                };
+            },
+            async getPreferredAerialBundle() {
+                const latestBundle = await App.actions.getLatestAerialMapBundleEntry();
+                if (!latestBundle || latestBundle.status !== 'ready') return null;
+                return latestBundle;
+            },
+            async downloadAerialPackage(scope, options = {}) {
+                const companyId = App.state.currentUser?.companyId;
+                if (!companyId) {
+                    throw new Error("Empresa não identificada.");
+                }
+                if (!navigator.onLine) {
+                    throw new Error("É necessário estar online para baixar o pacote aéreo.");
+                }
+
+                const manifest = await this.fetchAerialBundleManifest(companyId, scope);
+                const packageId = options.packageId || manifest.packageId || `aereo:${scope.scopeKey}`;
+                const updatedAt = manifest.updatedAt || new Date().toISOString();
+
+                await OfflineDB.set('offline_packages', {
+                    packageId,
+                    type: 'aereo',
+                    scope: scope.scopeKey,
+                    version: manifest.version || '1',
+                    hash: manifest.bundleHash || manifest.mapSha256 || '',
+                    status: 'downloading',
+                    updatedAt,
+                    stats: { size: manifest.mapSize || 0 }
+                });
+
+                const mapBlob = await this.downloadBundleFile(manifest.mapUrl, {
+                    packageId,
+                    expectedHash: manifest.mapSha256,
+                    totalBytes: manifest.mapSize,
+                    onProgress: options.onProgress
+                });
+
+                const mapBundleEntry = await this.persistMapBundle(packageId, mapBlob, {
+                    hash: manifest.mapSha256,
+                    updatedAt,
+                    size: manifest.mapSize
+                });
+
+                const geojson = await this.downloadGeojsonBundle(manifest.geojsonUrl, manifest.geojsonSha256);
+                await OfflineDB.set('aerial_geojson_cache', {
+                    key: packageId,
+                    geojson,
+                    hash: manifest.geojsonSha256,
+                    updatedAt
+                });
+
+                await OfflineDB.set('offline_packages', {
+                    packageId,
+                    type: 'aereo',
+                    scope: scope.scopeKey,
+                    version: manifest.version || '1',
+                    hash: manifest.bundleHash || manifest.mapSha256 || '',
+                    status: 'ready',
+                    updatedAt,
+                    stats: {
+                        size: manifest.mapSize || mapBundleEntry?.size || 0,
+                        downloadedAt: new Date().toISOString()
+                    }
+                });
+
+                return { mapBundleEntry, geojson };
+            },
+            async fetchAerialBundleManifest(companyId, scope) {
+                const token = await auth.currentUser.getIdToken();
+                const params = new URLSearchParams({
+                    companyId,
+                    scope: scope.scopeKey || 'all',
+                    fazendaId: scope.farmId || ''
+                });
+                const response = await fetch(`${App.config.backendUrl}${App.config.aerialBundleEndpoint}?${params.toString()}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Erro ao baixar manifest: ${response.status}`);
+                }
+                return await response.json();
+            },
+            async downloadGeojsonBundle(url, expectedHash) {
+                if (!url) throw new Error("Manifest sem URL de GeoJSON.");
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Falha ao baixar GeoJSON: ${response.status}`);
+                const text = await response.text();
+                const buffer = new TextEncoder().encode(text).buffer;
+                if (expectedHash) {
+                    const actualHash = await App.actions.computeSha256(buffer);
+                    if (actualHash !== expectedHash) {
+                        throw new Error("GeoJSON corrompido (hash inválido).");
+                    }
+                }
+                return JSON.parse(text);
+            },
+            async downloadBundleFile(url, options = {}) {
+                if (!url) throw new Error("Manifest sem URL de mapa.");
+                const packageId = options.packageId;
+                const expectedHash = options.expectedHash;
+                const totalBytesHint = options.totalBytes || 0;
+                const bundleKey = packageId;
+                const existingEntry = await OfflineDB.get('aerial_map_bundle', bundleKey);
+                let existingBlob = existingEntry?.blob || null;
+                let receivedBytes = existingEntry?.receivedBytes || 0;
+                let totalBytes = existingEntry?.size || totalBytesHint || 0;
+                let startByte = receivedBytes;
+
+                const headers = {};
+                if (startByte > 0) {
+                    headers.Range = `bytes=${startByte}-`;
+                }
+
+                const response = await fetch(url, { headers });
+                if (!response.ok) {
+                    throw new Error(`Erro ao baixar mapa: ${response.status}`);
+                }
+
+                const isPartial = response.status === 206;
+                if (!isPartial && startByte > 0) {
+                    existingBlob = null;
+                    receivedBytes = 0;
+                    startByte = 0;
+                }
+
+                const contentLength = Number(response.headers.get('Content-Length') || 0);
+                if (totalBytes === 0) {
+                    totalBytes = isPartial ? receivedBytes + contentLength : contentLength;
+                }
+
+                const reader = response.body.getReader();
+                let chunks = existingBlob ? [existingBlob] : [];
+                let lastPersisted = receivedBytes;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    receivedBytes += value.length;
+
+                    if (typeof options.onProgress === 'function') {
+                        options.onProgress(receivedBytes, totalBytes, `A baixar mapa aéreo... ${Math.round((receivedBytes / totalBytes) * 100)}%`);
+                    }
+
+                    if (receivedBytes - lastPersisted > 5 * 1024 * 1024) {
+                        const partialBlob = new Blob(chunks);
+                        await OfflineDB.set('aerial_map_bundle', {
+                            key: bundleKey,
+                            blob: partialBlob,
+                            size: totalBytes,
+                            receivedBytes,
+                            status: 'downloading',
+                            updatedAt: new Date().toISOString()
+                        });
+                        lastPersisted = receivedBytes;
+                        chunks = [partialBlob];
+                    }
+                }
+
+                const finalBlob = new Blob(chunks);
+                const buffer = await finalBlob.arrayBuffer();
+                if (expectedHash) {
+                    const actualHash = await App.actions.computeSha256(buffer);
+                    if (actualHash !== expectedHash) {
+                        await OfflineDB.delete('aerial_map_bundle', bundleKey);
+                        throw new Error("Mapa offline corrompido (hash inválido).");
+                    }
+                }
+
+                await OfflineDB.set('aerial_map_bundle', {
+                    key: bundleKey,
+                    blob: finalBlob,
+                    size: totalBytes || buffer.byteLength,
+                    receivedBytes: buffer.byteLength,
+                    status: 'ready',
+                    updatedAt: new Date().toISOString()
+                });
+
+                return finalBlob;
+            },
+            async persistMapBundle(packageId, mapBlob, meta = {}) {
+                if (window.Capacitor && Capacitor.isNativePlatform()) {
+                    try {
+                        const { Filesystem } = Capacitor.Plugins;
+                        const base64 = await this.convertBlobToBase64(mapBlob);
+                        const fileName = `aereo_${packageId.replace(/[^a-z0-9_-]/gi, '_')}.pmtiles`;
+                        await Filesystem.writeFile({
+                            path: fileName,
+                            data: base64,
+                            directory: Filesystem.Directory.Data
+                        });
+                        const fileUri = await Filesystem.getUri({
+                            path: fileName,
+                            directory: Filesystem.Directory.Data
+                        });
+                        const localUrl = Capacitor.convertFileSrc(fileUri.uri);
+                        const entry = {
+                            key: packageId,
+                            localUrl,
+                            size: meta.size || mapBlob.size,
+                            hash: meta.hash || '',
+                            updatedAt: meta.updatedAt || new Date().toISOString(),
+                            status: 'ready',
+                            storage: 'filesystem'
+                        };
+                        await OfflineDB.set('aerial_map_bundle', entry);
+                        return entry;
+                    } catch (error) {
+                        console.warn("Falha ao gravar bundle no Filesystem, usando IndexedDB.", error);
+                    }
+                }
+
+                const path = `/offline/aereo/${packageId}/map.pmtiles`;
+                const entry = {
+                    key: packageId,
+                    localUrl: path,
+                    size: meta.size || mapBlob.size,
+                    hash: meta.hash || '',
+                    updatedAt: meta.updatedAt || new Date().toISOString(),
+                    status: 'ready',
+                    storage: 'indexeddb'
+                };
+                await OfflineDB.set('aerial_map_bundle', {
+                    key: packageId,
+                    blob: mapBlob,
+                    size: entry.size,
+                    receivedBytes: mapBlob.size,
+                    status: 'ready',
+                    updatedAt: entry.updatedAt,
+                    localUrl: entry.localUrl,
+                    hash: entry.hash,
+                    storage: entry.storage
+                });
+                return entry;
+            },
+            async convertBlobToBase64(blob) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64data = reader.result?.split(',')[1];
+                        if (!base64data) {
+                            reject(new Error("Falha ao converter arquivo para Base64."));
+                            return;
+                        }
+                        resolve(base64data);
+                    };
+                    reader.onerror = () => reject(new Error("Falha ao ler o arquivo."));
+                    reader.readAsDataURL(blob);
+                });
             },
 
             hideTalhaoInfo() {
