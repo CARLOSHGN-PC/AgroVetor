@@ -2168,6 +2168,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (currentActiveTab.id === 'controleKM') {
                         App.fleet.onHide();
                     }
+                    if (currentActiveTab.id === 'qualidadePlantio' && id !== 'qualidadePlantio') {
+                        const qualidadeEls = App.elements.qualidadePlantio;
+                        const consumoEls = App.elements.qualidadeConsumo;
+                        const brocaEls = App.elements.qualidadeBroca;
+                        App.actions.resetQualidadeDraft();
+                        if (qualidadeEls?.form) {
+                            App.ui.clearForm(qualidadeEls.form);
+                        }
+                        if (consumoEls) {
+                            consumoEls.pesoTotal.value = '';
+                            consumoEls.metrosLineares.textContent = '';
+                            consumoEls.consumoMuda.textContent = '';
+                            consumoEls.prestadorTirou.value = '';
+                            consumoEls.fazendaOrigem.value = '';
+                        }
+                        if (brocaEls) {
+                            brocaEls.broca.value = '';
+                            brocaEls.qtdGemasTotal.value = '';
+                            brocaEls.qtdGemasTotal.readOnly = false;
+                            brocaEls.percentualBroca.textContent = '';
+                        }
+                        App.ui.setQualidadeTab('qual');
+                        App.ui.renderQualidadeSubamostras();
+                        App.ui.renderQualidadeContext();
+                    }
                 }
 
                 const mapContainer = App.elements.monitoramentoAereo.container;
@@ -2806,7 +2831,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectEl.innerHTML = firstOption;
 
                 if (farmId) {
-                    const farm = App.state.fazendas.find(f => f.id === farmId);
+                    const farm = App.state.fazendas.find(f => String(f.id) === String(farmId));
                     if (farm && farm.talhoes) {
                         farm.talhoes
                             .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
@@ -2820,8 +2845,8 @@ document.addEventListener('DOMContentLoaded', () => {
             updateQualidadeVariedade() {
                 const els = App.elements.qualidadePlantio;
                 if (!els.fazenda || !els.talhao || !els.variedade) return;
-                const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
-                const talhao = farm?.talhoes?.find(t => t.id === els.talhao.value);
+                const farm = App.state.fazendas.find(f => String(f.id) === String(els.fazenda.value));
+                const talhao = farm?.talhoes?.find(t => String(t.id) === String(els.talhao.value));
                 const variedade = talhao?.variedade || '';
                 const normalizedVariedade = variedade ? variedade.toUpperCase() : '';
                 const hasTalhao = Boolean(els.talhao.value);
@@ -2934,20 +2959,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!brocaEls || !subamostra) return;
                 const indicador = App.actions.getQualidadeBrocaIndicador(subamostra);
                 const broca = indicador?.broca || {};
-                const qtdGemasTotal = App.actions.getQualidadeSubamostraQtdGemasTotal(subamostra);
                 const hasBrocaValue = broca.broca !== null && broca.broca !== undefined && broca.broca !== '';
                 const brocaValue = hasBrocaValue ? App.safeParseFloat(broca.broca) : null;
-                const resolvedQtdGemas = qtdGemasTotal || App.safeParseFloat(broca.qtdGemasTotal);
-                const percentual = resolvedQtdGemas > 0 ? (brocaValue / resolvedQtdGemas) * 100 : 0;
 
                 brocaEls.broca.value = hasBrocaValue ? brocaValue : '';
-                if (qtdGemasTotal) {
-                    brocaEls.qtdGemasTotal.value = qtdGemasTotal.toFixed(2);
-                    brocaEls.qtdGemasTotal.readOnly = true;
-                } else {
-                    brocaEls.qtdGemasTotal.value = broca.qtdGemasTotal ?? '';
-                    brocaEls.qtdGemasTotal.readOnly = false;
-                }
+                brocaEls.qtdGemasTotal.value = broca.qtdGemasTotal ?? '';
+                brocaEls.qtdGemasTotal.readOnly = false;
+                const resolvedQtdGemas = App.safeParseFloat(brocaEls.qtdGemasTotal.value);
+                const percentual = resolvedQtdGemas > 0 ? (brocaValue / resolvedQtdGemas) * 100 : 0;
                 brocaEls.percentualBroca.textContent = resolvedQtdGemas > 0 ? percentual.toFixed(2) : '';
                 if (indicador) {
                     indicador.broca = {
@@ -5612,7 +5631,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const indicador = App.actions.getQualidadeBrocaIndicador(subamostra);
                         if (!indicador) return;
                         const brocaValue = App.safeParseFloat(qualidadeBrocaEls.broca.value);
-                        const qtdGemasTotal = App.actions.getQualidadeSubamostraQtdGemasTotal(subamostra) || App.safeParseFloat(qualidadeBrocaEls.qtdGemasTotal.value);
+                        const qtdGemasTotal = App.safeParseFloat(qualidadeBrocaEls.qtdGemasTotal.value);
                         const percentual = qtdGemasTotal > 0 ? (brocaValue / qtdGemasTotal) * 100 : 0;
                         indicador.broca = {
                             ...indicador.broca,
@@ -7330,8 +7349,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             buildQualidadeBaseFromForm() {
                 const els = App.elements.qualidadePlantio;
-                const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
-                const talhao = farm?.talhoes?.find(t => t.id === els.talhao.value);
+                const farm = App.state.fazendas.find(f => String(f.id) === String(els.fazenda.value));
+                const talhao = farm?.talhoes?.find(t => String(t.id) === String(els.talhao.value));
                 const variedade = (els.variedade.value || talhao?.variedade || '').toUpperCase();
                 const frente = App.state.frentesDePlantio.find(item => item.id === els.frentePlantio?.value);
 
