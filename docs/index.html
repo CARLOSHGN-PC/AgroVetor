@@ -275,15 +275,52 @@
         background: var(--color-surface);
         box-shadow: var(--shadow-sm);
       }
+      .qualidade-subamostra-card.is-open {
+        border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+      }
       .qualidade-subamostra-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
       }
+      .qualidade-subamostra-toggle {
+        flex: 1;
+        border: none;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--color-text);
+        padding: 0;
+      }
       .qualidade-subamostra-title {
         font-weight: 600;
         color: var(--color-primary-dark);
+      }
+      .qualidade-subamostra-meta {
+        font-size: 12px;
+        color: var(--color-text-light);
+        margin-left: 8px;
+      }
+      .qualidade-subamostra-remove {
+        border: none;
+        background: transparent;
+        color: var(--color-danger);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .qualidade-subamostra-body {
+        display: none;
+        margin-top: 12px;
+      }
+      .qualidade-subamostra-card.is-open .qualidade-subamostra-body {
+        display: block;
       }
       .qualidade-status {
         padding: 2px 10px;
@@ -381,6 +418,11 @@
         display: flex;
         justify-content: flex-start;
         margin-top: 16px;
+      }
+      .qualidade-variedade-hint {
+        font-size: 12px;
+        color: var(--color-warning);
+        margin-top: 6px;
       }
       .menu-btn .arrow { margin-left: auto; transition: transform 0.3s ease; font-size: 14px; }
       .submenu-back-btn { font-weight: 600; }
@@ -3046,6 +3088,7 @@
                             <div class="form-col">
                                 <label for="qualidadeVariedade">Variedade:</label>
                                 <input type="text" id="qualidadeVariedade" readonly placeholder="Selecionar fazenda e talhão">
+                                <div id="qualidadeVariedadeHint" class="qualidade-variedade-hint" hidden>Variedade não cadastrada para o talhão selecionado.</div>
                             </div>
                             <div class="form-col">
                                 <label for="qualidadeData" class="required">Data:</label>
@@ -3068,6 +3111,12 @@
                                     <option value="Próprio">Próprio</option>
                                     <option value="Terceiro">Terceiro</option>
                                     <option value="Parceiro">Parceiro</option>
+                                </select>
+                            </div>
+                            <div class="form-col">
+                                <label for="qualidadeFrentePlantio">Frente de Plantio:</label>
+                                <select id="qualidadeFrentePlantio">
+                                    <option value="">Selecione...</option>
                                 </select>
                             </div>
                         </div>
@@ -3279,8 +3328,12 @@
                     <div class="form-row">
                         <div class="form-col"><label for="qualidadeReportPrestadorTirou">Prestador que tirou a muda:</label><select id="qualidadeReportPrestadorTirou"><option value="">Todos</option></select></div>
                         <div class="form-col"><label for="qualidadeReportFazendaOrigem">Fazenda de origem da muda:</label><select id="qualidadeReportFazendaOrigem"><option value="">Todas</option></select></div>
+                        <div class="form-col"><label for="qualidadeReportFrentePlantio">Frente de Plantio:</label><select id="qualidadeReportFrentePlantio"><option value="">Todas</option></select></div>
                     </div>
-                    <button id="btnAplicarRelatorioQualidade" type="button" class="save"><i class="fas fa-filter"></i> Gerar Relatório</button>
+                    <div class="botoes-relatorio">
+                        <button id="btnPdfRelatorioQualidade" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
+                        <button id="btnExcelRelatorioQualidade" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
+                    </div>
                 </div>
                 <div id="qualidadeReportResult" class="table-responsive"></div>
             </section>
@@ -4080,6 +4133,15 @@
                         <div class="form-col">
                             <label for="frenteDePlantioProvider" class="required">Prestador Vinculado:</label>
                             <input type="text" id="frenteDePlantioProvider" placeholder="Ex: Agro Sementes">
+                        </div>
+                        <div class="form-col">
+                            <label for="frenteDePlantioProviderType" class="required">Tipo de Prestador (plantando):</label>
+                            <select id="frenteDePlantioProviderType" required>
+                                <option value="">Selecione...</option>
+                                <option value="Próprio">Próprio</option>
+                                <option value="Terceiro">Terceiro</option>
+                                <option value="Parceiro">Parceiro</option>
+                            </select>
                         </div>
                     </div>
                     <div class="form-row">

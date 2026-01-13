@@ -6,6 +6,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 // Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
+import CalculationService from './js/lib/CalculationService.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -127,6 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const App = {
         offlineDB: OfflineDB,
+        services: {
+            CalculationService,
+        },
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
@@ -544,6 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: document.getElementById('frenteDePlantioId'),
                 name: document.getElementById('frenteDePlantioName'),
                 provider: document.getElementById('frenteDePlantioProvider'),
+                providerType: document.getElementById('frenteDePlantioProviderType'),
                 obs: document.getElementById('frenteDePlantioObs'),
                 btnSave: document.getElementById('btnSaveFrenteDePlantio'),
                 list: document.getElementById('frenteDePlantioList'),
@@ -590,9 +595,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 fazenda: document.getElementById('qualidadeFazenda'),
                 talhao: document.getElementById('qualidadeTalhao'),
                 variedade: document.getElementById('qualidadeVariedade'),
+                variedadeHint: document.getElementById('qualidadeVariedadeHint'),
                 data: document.getElementById('qualidadeData'),
                 tipoInspecao: document.getElementById('qualidadeTipoInspecao'),
                 tipoPrestador: document.getElementById('qualidadeTipoPrestador'),
+                frentePlantio: document.getElementById('qualidadeFrentePlantio'),
                 btnSalvar: document.getElementById('btnSalvarQualidadePlantio'),
                 tabs: document.querySelectorAll('.qualidade-tab'),
                 tabPanels: document.querySelectorAll('.qualidade-tab-panel'),
@@ -637,8 +644,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 tipoPrestador: document.getElementById('qualidadeReportTipoPrestador'),
                 prestadorTirou: document.getElementById('qualidadeReportPrestadorTirou'),
                 fazendaOrigem: document.getElementById('qualidadeReportFazendaOrigem'),
+                frentePlantio: document.getElementById('qualidadeReportFrentePlantio'),
                 modelo: document.getElementById('qualidadeReportModelo'),
-                btnAplicar: document.getElementById('btnAplicarRelatorioQualidade'),
+                btnPdf: document.getElementById('btnPdfRelatorioQualidade'),
+                btnExcel: document.getElementById('btnExcelRelatorioQualidade'),
                 resultado: document.getElementById('qualidadeReportResult'),
             },
             cadastros: {
@@ -1831,7 +1840,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'qualidadePlantio':
                         App.actions.cacheQualidadePlantioEntries();
                         if (activeTab === 'relatorioQualidadePlantio') {
-                            App.reports.renderQualidadePlantioReport();
+                            App.reports.resetQualidadePlantioReport();
                         }
                         break;
                     case 'frota':
@@ -2555,6 +2564,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (draft.activeSubamostraId && !draft.subamostras.some(item => item.id === draft.activeSubamostraId)) {
                     draft.activeSubamostraId = draft.subamostras[0]?.id || null;
                 }
+                if (draft.activeSubamostraId) {
+                    draft.subamostras.forEach(item => {
+                        if (item.id === draft.activeSubamostraId && item.expanded === false) {
+                            item.expanded = true;
+                        }
+                    });
+                }
                 const tipoPlantio = els.tipoPlantio?.value || '';
                 const indicadores = tipoPlantio ? App.actions.getQualidadeIndicadores(tipoPlantio) : [];
 
@@ -2610,34 +2626,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 const status = App.actions.getQualidadeSubamostraStatus(subamostra);
                 const statusClass = status === 'preenchido' ? 'status-done' : 'status-pending';
                 const numeroLabel = App.actions.formatQualidadeSubamostraNumero(subamostra.numero);
+                const totalIndicadores = selectedIndicadores.length;
+                const preenchidos = selectedIndicadores.filter(code => App.actions.getQualidadeIndicadorStatus(subamostra.indicadores?.[code]) === 'preenchido').length;
                 const disableControls = !indicadores.length || availableIndicators.length === 0;
                 const hintText = availableIndicators.length
                     ? 'Selecione um indicador para adicionar.'
                     : 'Todos os indicadores disponíveis já foram adicionados.';
+                const isOpen = subamostra.expanded !== false;
 
                 return `
-                    <div class="qualidade-subamostra-card" data-subamostra-id="${subamostra.id}">
+                    <div class="qualidade-subamostra-card ${isOpen ? 'is-open' : ''}" data-subamostra-id="${subamostra.id}">
                         <div class="qualidade-subamostra-header">
-                            <div class="qualidade-subamostra-title">Subamostra ${numeroLabel}</div>
-                            <span class="qualidade-status ${statusClass}" data-status-subamostra>${status === 'preenchido' ? 'Preenchida' : 'Pendente'}</span>
-                        </div>
-                        <div class="form-row qualidade-subamostra-row">
-                            <div class="form-col">
-                                <label>Indicadores</label>
-                                <div class="qualidade-indicadores-controls">
-                                    <select class="qualidade-indicadores-select" data-subamostra-id="${subamostra.id}" ${disableControls ? 'disabled' : ''}>
-                                        <option value="">Adicionar indicador...</option>
-                                        ${options}
-                                    </select>
-                                    <button class="btn-secondary qualidade-indicador-add" type="button" data-subamostra-id="${subamostra.id}" ${disableControls ? 'disabled' : ''}>
-                                        <i class="fas fa-plus"></i> Adicionar
-                                    </button>
+                            <button class="qualidade-subamostra-toggle" type="button" data-subamostra-id="${subamostra.id}">
+                                <div class="qualidade-subamostra-title">
+                                    Subamostra ${numeroLabel}
+                                    <span class="qualidade-subamostra-meta">${preenchidos}/${totalIndicadores || 0} indicadores</span>
                                 </div>
-                                <div class="qualidade-indicadores-hint">${hintText}</div>
-                            </div>
+                                <span class="qualidade-status ${statusClass}" data-status-subamostra>${status === 'preenchido' ? 'Preenchida' : 'Pendente'}</span>
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <button class="qualidade-subamostra-remove" type="button" data-subamostra-id="${subamostra.id}">
+                                Remover
+                            </button>
                         </div>
-                        <div class="qualidade-indicadores-list">
-                            ${items || '<div class="qualidade-empty-state">Nenhum indicador selecionado.</div>'}
+                        <div class="qualidade-subamostra-body">
+                            <div class="form-row qualidade-subamostra-row">
+                                <div class="form-col">
+                                    <label>Indicadores</label>
+                                    <div class="qualidade-indicadores-controls">
+                                        <select class="qualidade-indicadores-select" data-subamostra-id="${subamostra.id}" ${disableControls ? 'disabled' : ''}>
+                                            <option value="">Adicionar indicador...</option>
+                                            ${options}
+                                        </select>
+                                        <button class="btn-secondary qualidade-indicador-add" type="button" data-subamostra-id="${subamostra.id}" ${disableControls ? 'disabled' : ''}>
+                                            <i class="fas fa-plus"></i> Adicionar
+                                        </button>
+                                    </div>
+                                    <div class="qualidade-indicadores-hint">${hintText}</div>
+                                </div>
+                            </div>
+                            <div class="qualidade-indicadores-list">
+                                ${items || '<div class="qualidade-empty-state">Nenhum indicador selecionado.</div>'}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -2755,9 +2785,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     subBadge.classList.toggle('status-pending', status !== 'preenchido');
                 }
             },
-            updateQualidadeTalhaoOptions(selectEl, farmId, includeAll = false) {
+            updateQualidadeTalhaoOptions(selectEl, farmId, includeAll = false, preserveValue = true) {
                 if (!selectEl) return;
-                const currentValue = selectEl.value;
+                const currentValue = preserveValue ? selectEl.value : '';
                 const firstOption = includeAll ? '<option value="">Todos</option>' : '<option value="">Selecione...</option>';
                 selectEl.innerHTML = firstOption;
 
@@ -2782,10 +2812,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 els.variedade.value = variedade ? variedade.toUpperCase() : '';
                 els.variedade.readOnly = true;
-                if (!variedade) {
-                    els.variedade.placeholder = 'Variedade não cadastrada';
+                els.variedade.placeholder = variedade ? '' : 'Variedade não cadastrada';
+                if (els.variedadeHint) {
+                    els.variedadeHint.hidden = Boolean(variedade) || !els.talhao.value;
+                }
+            },
+            updateQualidadeTipoPrestadorFromFrente() {
+                const els = App.elements.qualidadePlantio;
+                if (!els.frentePlantio || !els.tipoPrestador) return;
+                const frenteId = els.frentePlantio.value;
+                const frente = App.state.frentesDePlantio.find(item => item.id === frenteId);
+                const autoValue = frente?.providerType || '';
+                els.tipoPrestador.dataset.autoValue = autoValue;
+                els.tipoPrestador.dataset.override = 'false';
+                els.tipoPrestador.dataset.manual = 'false';
+                els.tipoPrestador.dataset.overrideUpdatedAt = '';
+                els.tipoPrestador.dataset.overrideUpdatedBy = '';
+                if (autoValue) {
+                    els.tipoPrestador.value = autoValue;
                 } else {
-                    els.variedade.placeholder = '';
+                    els.tipoPrestador.value = '';
                 }
             },
             renderQualidadeContext() {
@@ -3332,13 +3378,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const table = document.createElement('table');
                 table.id = 'frenteDePlantioTable';
                 table.className = 'harvestPlanTable';
-                table.innerHTML = `<thead><tr><th>Nome</th><th>Prestador</th><th>Observação</th><th>Ações</th></tr></thead><tbody></tbody>`;
+                table.innerHTML = `<thead><tr><th>Nome</th><th>Prestador</th><th>Tipo</th><th>Observação</th><th>Ações</th></tr></thead><tbody></tbody>`;
                 const tbody = table.querySelector('tbody');
                 App.state.frentesDePlantio.sort((a,b) => a.name.localeCompare(b.name)).forEach(f => {
                     const row = tbody.insertRow();
                     row.innerHTML = `
                         <td data-label="Nome">${f.name}</td>
                         <td data-label="Prestador">${f.provider}</td>
+                        <td data-label="Tipo">${f.providerType || '-'}</td>
                         <td data-label="Observação">${f.obs || ''}</td>
                         <td data-label="Ações">
                             <div style="display: flex; justify-content: flex-end; gap: 5px;">
@@ -3352,12 +3399,19 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             populateFrenteDePlantioSelect() {
-                const selects = [App.elements.apontamentoPlantio.frente, App.elements.relatorioPlantio.frente];
+                const selects = [
+                    App.elements.apontamentoPlantio.frente,
+                    App.elements.relatorioPlantio.frente,
+                    App.elements.qualidadePlantio.frentePlantio,
+                    App.elements.relatorioQualidade.frentePlantio
+                ];
                 selects.forEach(select => {
                     if (!select) return;
                     const currentValue = select.value;
                     let firstOption = '<option value="">Selecione...</option>';
                     if (select.id === 'plantioRelatorioFrente') {
+                        firstOption = '<option value="">Todas</option>';
+                    } else if (select.id === 'qualidadeReportFrentePlantio') {
                         firstOption = '<option value="">Todas</option>';
                     }
                     select.innerHTML = firstOption;
@@ -3365,6 +3419,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         select.innerHTML += `<option value="${f.id}">${f.name}</option>`;
                     });
                     select.value = currentValue;
+                    if (select.id === 'qualidadeFrentePlantio') {
+                        App.ui.updateQualidadeTipoPrestadorFromFrente();
+                    }
                 });
             },
 
@@ -5235,7 +5292,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (qualidadeEls.fazenda) {
                     qualidadeEls.fazenda.addEventListener('change', (e) => {
-                        App.ui.updateQualidadeTalhaoOptions(qualidadeEls.talhao, e.target.value);
+                        App.ui.updateQualidadeTalhaoOptions(qualidadeEls.talhao, e.target.value, false, false);
                         if (qualidadeEls.talhao) qualidadeEls.talhao.value = '';
                         App.ui.updateQualidadeVariedade();
                         App.ui.renderQualidadeContext();
@@ -5255,6 +5312,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         qualidadeEls.variedade.value = qualidadeEls.variedade.value.toUpperCase();
                     });
                 }
+                if (qualidadeEls.frentePlantio) {
+                    qualidadeEls.frentePlantio.addEventListener('change', () => {
+                        App.ui.updateQualidadeTipoPrestadorFromFrente();
+                    });
+                }
+                if (qualidadeEls.tipoPrestador) {
+                    qualidadeEls.tipoPrestador.addEventListener('change', () => {
+                        App.actions.updateQualidadeTipoPrestadorOverrideState();
+                    });
+                }
                 if (qualidadeEls.btnSalvar) {
                     qualidadeEls.btnSalvar.addEventListener('click', () => App.actions.saveQualidadePlantioMain());
                 }
@@ -5271,10 +5338,56 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         App.actions.addQualidadeSubamostra();
                         App.ui.renderQualidadeSubamostras();
+                        App.ui.setQualidadeTab('qual');
+                        App.ui.renderQualidadeContext();
                     });
                 }
                 if (qualidadeEls.subamostrasList) {
                     qualidadeEls.subamostrasList.addEventListener('click', (event) => {
+                        const subamostraToggle = event.target.closest('.qualidade-subamostra-toggle');
+                        if (subamostraToggle) {
+                            const subamostraId = subamostraToggle.dataset.subamostraId;
+                            const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
+                            if (!subamostra) return;
+                            const isOpen = subamostra.expanded !== false;
+                            if (isOpen) {
+                                subamostra.expanded = false;
+                                if (App.state.qualidadePlantioDraft.activeSubamostraId === subamostraId) {
+                                    App.state.qualidadePlantioDraft.activeSubamostraId = null;
+                                    App.state.qualidadePlantioDraft.activeIndicadorCode = null;
+                                    if (App.state.qualidadePlantioDraft.activeTab !== 'qual') {
+                                        App.ui.setQualidadeTab('qual');
+                                    }
+                                }
+                            } else {
+                                App.state.qualidadePlantioDraft.subamostras.forEach(item => {
+                                    item.expanded = item.id === subamostraId;
+                                });
+                                App.state.qualidadePlantioDraft.activeSubamostraId = subamostraId;
+                                App.state.qualidadePlantioDraft.activeIndicadorCode = null;
+                            }
+                            App.ui.renderQualidadeSubamostras();
+                            App.ui.renderQualidadeContext();
+                            return;
+                        }
+                        const removeSubamostraBtn = event.target.closest('.qualidade-subamostra-remove');
+                        if (removeSubamostraBtn) {
+                            const subamostraId = removeSubamostraBtn.dataset.subamostraId;
+                            const subamostra = App.actions.getQualidadeSubamostraById(subamostraId);
+                            if (!subamostra) return;
+                            App.ui.showConfirmationModal(
+                                `Remover a Subamostra ${subamostra.numero} apagará todos os indicadores lançados. Deseja continuar?`,
+                                () => {
+                                    App.actions.removeQualidadeSubamostra(subamostraId);
+                                    if (!App.state.qualidadePlantioDraft.activeSubamostraId) {
+                                        App.ui.setQualidadeTab('qual');
+                                    }
+                                    App.ui.renderQualidadeSubamostras();
+                                    App.ui.renderQualidadeContext();
+                                }
+                            );
+                            return;
+                        }
                         const addBtn = event.target.closest('.qualidade-indicador-add');
                         if (addBtn) {
                             const subamostraId = addBtn.dataset.subamostraId;
@@ -5293,6 +5406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const addedIndicador = indicadores.find(item => item.code === code);
                             App.state.qualidadePlantioDraft.activeSubamostraId = subamostraId;
                             App.state.qualidadePlantioDraft.activeIndicadorCode = code;
+                            subamostra.expanded = true;
                             App.ui.renderQualidadeSubamostras();
                             if (addedIndicador?.type === 'consumo') {
                                 App.ui.setQualidadeTab('cm');
@@ -5389,6 +5503,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                             App.ui.updateQualidadeStatusIndicators(subamostraId, indicadorCode);
+                            App.actions.touchQualidadeSubamostra(subamostra);
                         }
                     });
                 }
@@ -5412,6 +5527,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         qualidadeConsumoEls.metrosLineares.textContent = pesoTotal > 0 ? metrosLineares.toFixed(2) : '';
                         qualidadeConsumoEls.consumoMuda.textContent = pesoTotal > 0 ? consumoMudaT.toFixed(2) : '';
                         App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                        App.actions.touchQualidadeSubamostra(subamostra);
                     });
                 }
                 if (qualidadeConsumoEls.prestadorTirou) {
@@ -5427,6 +5543,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             prestadorTirouMudaNome: prestador ? prestador.name : '',
                         };
                         App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                        App.actions.touchQualidadeSubamostra(subamostra);
                     });
                 }
                 if (qualidadeConsumoEls.fazendaOrigem) {
@@ -5442,6 +5559,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             fazendaOrigemMudaNome: fazendaOrigem ? fazendaOrigem.name : '',
                         };
                         App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                        App.actions.touchQualidadeSubamostra(subamostra);
                     });
                 }
 
@@ -5463,6 +5581,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         qualidadeBrocaEls.percentualBroca.textContent = qtdGemasTotal > 0 ? percentual.toFixed(2) : '';
                         App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                        App.actions.touchQualidadeSubamostra(subamostra);
                     });
                 }
                 if (qualidadeBrocaEls.qtdGemasTotal) {
@@ -5483,6 +5602,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         qualidadeBrocaEls.percentualBroca.textContent = qtdGemasTotal > 0 ? percentual.toFixed(2) : '';
                         App.ui.updateQualidadeStatusIndicators(subamostra.id, indicador.code);
+                        App.actions.touchQualidadeSubamostra(subamostra);
                     });
                 }
                 
@@ -5503,8 +5623,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (qualidadeReportEls.tipoPlantio) {
                     qualidadeReportEls.tipoPlantio.addEventListener('change', () => App.ui.updateQualidadeReportIndicators());
                 }
-                if (qualidadeReportEls.btnAplicar) {
-                    qualidadeReportEls.btnAplicar.addEventListener('click', () => App.reports.renderQualidadePlantioReport());
+                if (qualidadeReportEls.btnPdf) {
+                    qualidadeReportEls.btnPdf.addEventListener('click', () => App.reports.generateQualidadePlantioPDF());
+                }
+                if (qualidadeReportEls.btnExcel) {
+                    qualidadeReportEls.btnExcel.addEventListener('click', () => App.reports.generateQualidadePlantioExcel());
                 }
 
                 // Listeners para Cigarrinha Amostragem
@@ -7157,6 +7280,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
                 const talhao = farm?.talhoes?.find(t => t.id === els.talhao.value);
                 const variedade = (els.variedade.value || talhao?.variedade || '').toUpperCase();
+                const frente = App.state.frentesDePlantio.find(item => item.id === els.frentePlantio?.value);
 
                 return {
                     tipoPlantio: els.tipoPlantio.value,
@@ -7168,8 +7292,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: els.data.value,
                     tipoInspecao: els.tipoInspecao.value,
                     tipoPrestadorPlantando: els.tipoPrestador.value,
+                    frentePlantioId: frente?.id || '',
+                    frentePlantioNome: frente?.name || '',
                     companyId: App.state.currentUser?.companyId || '',
                     usuario: App.state.currentUser?.username || App.state.currentUser?.email || '',
+                };
+            },
+            buildQualidadeTipoPrestadorOverride() {
+                const els = App.elements.qualidadePlantio;
+                if (!els.tipoPrestador) return null;
+                const isOverride = els.tipoPrestador.dataset.override === 'true';
+                if (!isOverride) return null;
+                return {
+                    isOverride: true,
+                    autoValue: els.tipoPrestador.dataset.autoValue || '',
+                    manualValue: els.tipoPrestador.value || '',
+                    updatedAt: els.tipoPrestador.dataset.overrideUpdatedAt || new Date().toISOString(),
+                    updatedBy: els.tipoPrestador.dataset.overrideUpdatedBy || App.state.currentUser?.username || App.state.currentUser?.email || '',
                 };
             },
             ensureQualidadeDraft() {
@@ -7203,12 +7342,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     numero,
                     selectedIndicadores: [],
                     indicadores: {},
+                    expanded: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                 };
+                draft.subamostras.forEach(item => {
+                    item.expanded = false;
+                });
                 draft.subamostras.push(subamostra);
-                if (!draft.activeSubamostraId) {
-                    draft.activeSubamostraId = subamostra.id;
-                }
+                draft.activeSubamostraId = subamostra.id;
+                draft.activeIndicadorCode = null;
                 return subamostra;
+            },
+            removeQualidadeSubamostra(subamostraId) {
+                const draft = this.ensureQualidadeDraft();
+                const index = draft.subamostras.findIndex(item => item.id === subamostraId);
+                if (index === -1) return null;
+                const removed = draft.subamostras.splice(index, 1)[0];
+                draft.subamostras.forEach((item, idx) => {
+                    item.numero = idx + 1;
+                });
+                if (draft.activeSubamostraId === subamostraId) {
+                    const next = draft.subamostras[draft.subamostras.length - 1] || null;
+                    draft.activeSubamostraId = next?.id || null;
+                    draft.activeIndicadorCode = null;
+                    if (next) {
+                        next.expanded = true;
+                    }
+                }
+                return removed;
+            },
+            touchQualidadeSubamostra(subamostra) {
+                if (!subamostra) return;
+                subamostra.updatedAt = new Date().toISOString();
             },
             updateQualidadeSubamostraIndicadores(subamostra, selectedCodes, indicadores) {
                 const previous = subamostra.selectedIndicadores || [];
@@ -7236,7 +7402,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         delete subamostra.indicadores[code];
                     }
                 });
+                this.touchQualidadeSubamostra(subamostra);
                 return previous;
+            },
+            updateQualidadeTipoPrestadorOverrideState() {
+                const els = App.elements.qualidadePlantio;
+                if (!els.tipoPrestador) return;
+                const autoValue = els.tipoPrestador.dataset.autoValue || '';
+                const currentValue = els.tipoPrestador.value || '';
+                const isOverride = Boolean(autoValue) && currentValue && currentValue !== autoValue;
+                els.tipoPrestador.dataset.override = isOverride ? 'true' : 'false';
+                els.tipoPrestador.dataset.manual = 'true';
+                if (isOverride) {
+                    els.tipoPrestador.dataset.overrideUpdatedAt = new Date().toISOString();
+                    els.tipoPrestador.dataset.overrideUpdatedBy = App.state.currentUser?.username || App.state.currentUser?.email || '';
+                } else {
+                    els.tipoPrestador.dataset.overrideUpdatedAt = '';
+                    els.tipoPrestador.dataset.overrideUpdatedBy = '';
+                }
             },
             hasQualidadeIndicadorValues(indicador) {
                 if (!indicador) return false;
@@ -7528,12 +7711,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: subamostra.id,
                         numero: subamostra.numero,
                         indicadores: indicadoresPayload,
+                        calculos: App.services.CalculationService.calculateQualidadeIndicadores(subamostra, base),
+                        createdAt: subamostra.createdAt || null,
+                        updatedAt: subamostra.updatedAt || null,
                     });
                 }
 
                 const entry = {
                     ...base,
                     subamostras: subamostrasPayload,
+                    tipoPrestadorPlantandoOverride: this.buildQualidadeTipoPrestadorOverride(),
                 };
 
                 App.ui.showConfirmationModal("Tem a certeza que deseja guardar este lançamento?", async () => {
@@ -7542,6 +7729,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         await this.persistQualidadePlantioEntry(entry, "Qualidade de Plantio guardada com sucesso!");
                         App.ui.clearForm(els.form);
                         this.resetQualidadeDraft();
+                        App.ui.updateQualidadeTipoPrestadorFromFrente();
                         App.ui.renderQualidadeSubamostras();
                         App.ui.setQualidadeTab('qual');
                         App.ui.renderQualidadeContext();
@@ -7860,12 +8048,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             async saveFrenteDePlantio() {
-                const { id, name, provider, obs } = App.elements.frenteDePlantio;
+                const { id, name, provider, providerType, obs } = App.elements.frenteDePlantio;
                 const nameValue = name.value.trim();
                 const providerValue = provider.value.trim();
+                const providerTypeValue = providerType.value;
                 const obsValue = obs.value.trim();
-                if (!nameValue || !providerValue) {
-                    App.ui.showAlert("O Nome da Frente e o Prestador Vinculado são obrigatórios.", "error");
+                if (!nameValue || !providerValue || !providerTypeValue) {
+                    App.ui.showAlert("Nome da Frente, Prestador Vinculado e Tipo de Prestador são obrigatórios.", "error");
                     return;
                 }
 
@@ -7873,6 +8062,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = {
                     name: nameValue,
                     provider: providerValue,
+                    providerType: providerTypeValue,
                     obs: obsValue,
                     companyId: App.state.currentUser.companyId
                 };
@@ -7898,6 +8088,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         id.value = '';
                         name.value = '';
                         provider.value = '';
+                        providerType.value = '';
                         obs.value = '';
                     } catch (error) {
                         console.error("Erro ao guardar Frente de Plantio:", error);
@@ -7909,7 +8100,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const entryId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                                 await OfflineDB.add('offline-writes', { id: entryId, collection: 'frentesDePlantio', data: data });
                                 App.ui.showAlert('Guardado offline. Será enviado quando houver conexão.', 'info');
-                                id.value = ''; name.value = ''; provider.value = ''; obs.value = '';
+                                id.value = ''; name.value = ''; provider.value = ''; providerType.value = ''; obs.value = '';
                             } catch (offlineError) {
                                 App.ui.showAlert("Falha crítica ao guardar offline.", "error");
                                 console.error("Erro ao guardar offline:", offlineError);
@@ -7924,12 +8115,13 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             editFrenteDePlantio(frenteId) {
-                const { id, name, provider, obs } = App.elements.frenteDePlantio;
+                const { id, name, provider, providerType, obs } = App.elements.frenteDePlantio;
                 const frente = App.state.frentesDePlantio.find(f => f.id == frenteId);
                 if (frente) {
                     id.value = frente.id;
                     name.value = frente.name;
                     provider.value = frente.provider;
+                    providerType.value = frente.providerType || '';
                     obs.value = frente.obs;
                     name.focus();
                 }
@@ -15532,197 +15724,143 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.setLoading(false);
                     }
                 },
-                _normalizeQualidadeDate(value) {
-                    if (!value) return '';
-                    if (typeof value === 'string') return value;
-                    if (typeof value.toDate === 'function') {
-                        return value.toDate().toISOString().split('T')[0];
+                async _fetchAndDownloadReportByUrl(endpointUrl, filters, filename) {
+                    const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
+                    cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
+                    if (App.state.currentUser && App.state.currentUser.companyId) {
+                        cleanFilters.companyId = App.state.currentUser.companyId;
                     }
-                    const date = new Date(value);
-                    if (isNaN(date.getTime())) return '';
-                    return date.toISOString().split('T')[0];
+
+                    if (!cleanFilters.companyId) {
+                        App.ui.showAlert("Erro de segurança: ID da empresa não especificado. Não é possível gerar o relatório.", "error");
+                        console.error("Aborted report generation due to missing companyId.");
+                        return;
+                    }
+
+                    const params = new URLSearchParams(cleanFilters);
+                    const apiUrl = `${endpointUrl}?${params.toString()}&_cacheBust=${Date.now()}`;
+
+                    App.ui.setLoading(true, "A gerar relatório no servidor...");
+
+                    try {
+                        const token = await auth.currentUser.getIdToken();
+
+                        const response = await fetch(apiUrl, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+
+                        if (!response.ok) {
+                            const text = await response.text();
+                            throw new Error(text || `Erro do servidor: ${response.statusText}`);
+                        }
+
+                        const blob = await response.blob();
+
+                        if (window.Capacitor && Capacitor.isNativePlatform()) {
+                            try {
+                                const reader = new FileReader();
+                                reader.readAsDataURL(blob);
+                                reader.onloadend = async () => {
+                                    const base64data = reader.result;
+                                    const base64Content = base64data.substring(base64data.indexOf(',') + 1);
+
+                                    const { Filesystem } = Capacitor.Plugins;
+                                    const { FileOpener } = Capacitor.Plugins;
+
+                                    try {
+                                        const savedFile = await Filesystem.writeFile({
+                                            path: filename,
+                                            data: base64Content,
+                                            directory: 'CACHE',
+                                            recursive: true
+                                        });
+
+                                        let mimeType = 'application/pdf';
+                                        if (filename.endsWith('.xlsx')) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                                        if (filename.endsWith('.csv')) mimeType = 'text/csv';
+
+                                        if (FileOpener) {
+                                            await FileOpener.open({
+                                                filePath: savedFile.uri,
+                                                contentType: mimeType
+                                            });
+                                        } else {
+                                            App.ui.showAlert(`Relatório salvo no Cache: ${filename}`, 'success');
+                                        }
+
+                                    } catch (fsError) {
+                                        console.error('Erro ao salvar arquivo no dispositivo:', fsError);
+                                        throw new Error(`Erro ao salvar arquivo: ${fsError.message}`);
+                                    }
+                                };
+                            } catch (nativeError) {
+                                throw new Error(`Falha no processamento nativo: ${nativeError.message}`);
+                            }
+
+                        } else {
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.style.display = 'none';
+                            a.href = url;
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            a.remove();
+                            App.ui.showAlert('Relatório gerado com sucesso!');
+                        }
+
+                    } catch (error) {
+                        console.error('Erro ao gerar relatório via API:', error);
+                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
                 },
-                _formatQualidadeNumber(value) {
-                    const number = Number(value);
-                    if (Number.isNaN(number)) return '-';
-                    return number.toFixed(2);
+                resetQualidadePlantioReport() {
+                    const els = App.elements.relatorioQualidade;
+                    if (els.resultado) {
+                        els.resultado.innerHTML = '';
+                    }
                 },
-                _getQualidadeMetric(entry) {
-                    if (!entry) return null;
-                    const indicadorCodigo = entry.indicadorCodigo;
-                    if (indicadorCodigo === '1.3.4' || indicadorCodigo === '2.3.4') {
-                        return entry.qtdGemasTotal;
-                    }
-                    if (indicadorCodigo === '1.3.1' || indicadorCodigo === '2.3.6') {
-                        return entry.consumo?.consumoMudaT ?? entry.valor;
-                    }
-                    if (indicadorCodigo === 'BROCA') {
-                        return entry.broca?.percentualBroca ?? entry.valor;
-                    }
-                    return entry.valor;
+                _getQualidadeReportFilters() {
+                    const els = App.elements.relatorioQualidade;
+                    return {
+                        inicio: els.inicio.value,
+                        fim: els.fim.value,
+                        fazendaId: els.fazenda.value,
+                        talhaoId: els.talhao.value,
+                        tipoPlantio: els.tipoPlantio.value,
+                        indicador: els.indicador.value,
+                        tipoInspecao: els.tipoInspecao.value,
+                        tipoPrestador: els.tipoPrestador.value,
+                        prestadorTirou: els.prestadorTirou.value,
+                        fazendaOrigem: els.fazendaOrigem.value,
+                        frentePlantioId: els.frentePlantio.value,
+                        modelo: els.modelo.value,
+                    };
                 },
-                async renderQualidadePlantioReport() {
+                generateQualidadePlantioPDF() {
                     const els = App.elements.relatorioQualidade;
                     if (!els.inicio.value || !els.fim.value) {
                         App.ui.showAlert("Selecione Data Início e Data Fim.", "warning");
                         return;
                     }
-
-                    const rawData = await App.actions.getQualidadePlantioData();
-                    const data = App.actions.flattenQualidadePlantioEntries(rawData);
-                    const inicio = els.inicio.value;
-                    const fim = els.fim.value;
-
-                    const filtered = data.filter(entry => {
-                        const entryDate = this._normalizeQualidadeDate(entry.data);
-                        if (!entryDate || entryDate < inicio || entryDate > fim) return false;
-                        if (els.fazenda.value && entry.fazendaId !== els.fazenda.value) return false;
-                        if (els.talhao.value && entry.talhaoId !== els.talhao.value) return false;
-                        if (els.tipoPlantio.value && entry.tipoPlantio !== els.tipoPlantio.value) return false;
-                        if (els.indicador.value && entry.indicadorCodigo !== els.indicador.value) return false;
-                        if (els.tipoInspecao.value && entry.tipoInspecao !== els.tipoInspecao.value) return false;
-                        if (els.tipoPrestador.value && entry.tipoPrestadorPlantando !== els.tipoPrestador.value) return false;
-                        if (els.prestadorTirou.value && entry.consumo?.prestadorTirouMudaId !== els.prestadorTirou.value) return false;
-                        if (els.fazendaOrigem.value && entry.consumo?.fazendaOrigemMudaId !== els.fazendaOrigem.value) return false;
-                        return true;
-                    });
-
-                    if (!els.resultado) return;
-
-                    if (filtered.length === 0) {
-                        els.resultado.innerHTML = '<div class="qualidade-report-empty">Nenhum lançamento encontrado com os filtros informados.</div>';
+                    const filters = this._getQualidadeReportFilters();
+                    const endpointUrl = `${App.config.backendUrl}/api/reports/qualidade-plantio/pdf`;
+                    this._fetchAndDownloadReportByUrl(endpointUrl, filters, 'relatorio_qualidade_plantio.pdf');
+                },
+                generateQualidadePlantioExcel() {
+                    const els = App.elements.relatorioQualidade;
+                    if (!els.inicio.value || !els.fim.value) {
+                        App.ui.showAlert("Selecione Data Início e Data Fim.", "warning");
                         return;
                     }
-
-                    if (els.modelo.value === 'detalhado') {
-                        this._renderQualidadeDetalhado(filtered);
-                    } else {
-                        this._renderQualidadeResumo(filtered);
-                    }
-                },
-                _renderQualidadeResumo(entries) {
-                    const els = App.elements.relatorioQualidade;
-                    const grouped = new Map();
-
-                    entries.forEach(entry => {
-                        const key = [
-                            entry.fazendaNome || '',
-                            entry.talhaoNome || '',
-                            entry.variedadeNome || '',
-                            entry.indicadorNome || '',
-                            entry.indicadorCodigo || ''
-                        ].join('|');
-
-                        if (!grouped.has(key)) {
-                            grouped.set(key, {
-                                fazenda: entry.fazendaNome || '-',
-                                talhao: entry.talhaoNome || '-',
-                                variedade: entry.variedadeNome || '-',
-                                indicador: entry.indicadorNome || '-',
-                                indicadorCodigo: entry.indicadorCodigo || '',
-                                count: 0,
-                                values: []
-                            });
-                        }
-                        const group = grouped.get(key);
-                        group.count += 1;
-                        const metric = this._getQualidadeMetric(entry);
-                        if (metric !== null && metric !== undefined) {
-                            group.values.push(Number(metric));
-                        }
-                    });
-
-                    const rows = Array.from(grouped.values()).map(group => {
-                        const values = group.values.filter(v => !Number.isNaN(v));
-                        const avg = values.length ? (values.reduce((sum, v) => sum + v, 0) / values.length) : null;
-                        const min = values.length ? Math.min(...values) : null;
-                        const max = values.length ? Math.max(...values) : null;
-
-                        return `
-                            <tr>
-                                <td>${group.fazenda}</td>
-                                <td>${group.talhao}</td>
-                                <td>${group.variedade}</td>
-                                <td>${group.indicador}</td>
-                                <td>${group.count}</td>
-                                <td>${avg !== null ? this._formatQualidadeNumber(avg) : '-'}</td>
-                                <td>${min !== null ? this._formatQualidadeNumber(min) : '-'}</td>
-                                <td>${max !== null ? this._formatQualidadeNumber(max) : '-'}</td>
-                            </tr>
-                        `;
-                    }).join('');
-
-                    els.resultado.innerHTML = `
-                        <table class="harvestPlanTable">
-                            <thead>
-                                <tr>
-                                    <th>Fazenda</th>
-                                    <th>Talhão</th>
-                                    <th>Variedade</th>
-                                    <th>Indicador</th>
-                                    <th>Qtde.</th>
-                                    <th>Média</th>
-                                    <th>Mínimo</th>
-                                    <th>Máximo</th>
-                                </tr>
-                            </thead>
-                            <tbody>${rows}</tbody>
-                        </table>
-                    `;
-                },
-                _renderQualidadeDetalhado(entries) {
-                    const els = App.elements.relatorioQualidade;
-                    const rows = entries
-                        .sort((a, b) => this._normalizeQualidadeDate(a.data).localeCompare(this._normalizeQualidadeDate(b.data)))
-                        .map(entry => {
-                            const consumo = entry.consumo || {};
-                            const broca = entry.broca || {};
-                            const qtdGemas = entry.qtdGemasTotal ?? broca.qtdGemasTotal;
-                            return `
-                                <tr>
-                                    <td>${App.actions.formatDateForDisplay(this._normalizeQualidadeDate(entry.data))}</td>
-                                    <td>${entry.fazendaNome || '-'}</td>
-                                    <td>${entry.talhaoNome || '-'}</td>
-                                    <td>${entry.variedadeNome || '-'}</td>
-                                    <td>${entry.tipoPlantio || '-'}</td>
-                                    <td>${entry.tipoInspecao || '-'}</td>
-                                    <td>${entry.tipoPrestadorPlantando || '-'}</td>
-                                    <td>${entry.indicadorNome || '-'}</td>
-                                    <td>${this._formatQualidadeNumber(entry.valor)}</td>
-                                    <td>${entry.amostragem ?? '-'}</td>
-                                    <td>${this._formatQualidadeNumber(qtdGemas)}</td>
-                                    <td>${this._formatQualidadeNumber(consumo.consumoMudaT)}</td>
-                                    <td>${this._formatQualidadeNumber(broca.percentualBroca)}</td>
-                                    <td>${consumo.prestadorTirouMudaNome || '-'}</td>
-                                    <td>${consumo.fazendaOrigemMudaNome || '-'}</td>
-                                </tr>
-                            `;
-                        }).join('');
-
-                    els.resultado.innerHTML = `
-                        <table class="harvestPlanTable">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Fazenda</th>
-                                    <th>Talhão</th>
-                                    <th>Variedade</th>
-                                    <th>Tipo Plantio</th>
-                                    <th>Tipo Inspeção</th>
-                                    <th>Prestador</th>
-                                    <th>Indicador</th>
-                                    <th>Valor</th>
-                                    <th>Amostragem</th>
-                                    <th>Qtd. Gemas</th>
-                                    <th>Consumo (t)</th>
-                                    <th>% Broca</th>
-                                    <th>Prestador (Muda)</th>
-                                    <th>Fazenda Origem</th>
-                                </tr>
-                            </thead>
-                            <tbody>${rows}</tbody>
-                        </table>
-                    `;
+                    const filters = this._getQualidadeReportFilters();
+                    const endpointUrl = `${App.config.backendUrl}/api/reports/qualidade-plantio/excel`;
+                    this._fetchAndDownloadReportByUrl(endpointUrl, filters, 'relatorio_qualidade_plantio.xlsx');
                 },
 
                 generateBrocamentoPDF() {
