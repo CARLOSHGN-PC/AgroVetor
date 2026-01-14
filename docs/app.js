@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         async init() {
             if (this.dbPromise) return;
             // Version 8 for Qualidade de Plantio local cache
-            this.dbPromise = openDB('agrovetor-offline-storage', 8, {
+            this.dbPromise = openDB('agrovetor-offline-storage', 9, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -95,6 +95,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         qualidadeStore.createIndex('data', 'data', { unique: false });
                         qualidadeStore.createIndex('indicadorCodigo', 'indicadorCodigo', { unique: false });
                         qualidadeStore.createIndex('tipoPlantio', 'tipoPlantio', { unique: false });
+                    }
+                    if (oldVersion < 9) {
+                        db.createObjectStore('shapefile-geojson');
                     }
                 },
             });
@@ -253,6 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mapboxTrapMarkers: {},
             armadilhas: [],
             geoJsonData: null,
+            shouldFitGeojson: false,
             selectedMapFeature: null, // NOVO: Armazena a feature do talhão selecionado no mapa
             trapNotifications: [],
             unreadNotificationCount: 0,
@@ -5167,7 +5171,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.closedUploadArea) companyConfigEls.closedUploadArea.addEventListener('click', () => companyConfigEls.closedInput.click());
                 if (companyConfigEls.closedInput) companyConfigEls.closedInput.addEventListener('change', (e) => App.actions.importHarvestReport(e.target.files[0], 'closed'));
                 if (companyConfigEls.btnDownloadClosedTemplate) companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
-                if (companyConfigEls.shapefileUploadArea) companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
+                if (companyConfigEls.shapefileUploadArea) {
+                    companyConfigEls.shapefileUploadArea.addEventListener('click', () => {
+                        if (window.Capacitor && Capacitor.isNativePlatform()) {
+                            App.mapModule.pickShapefileNative();
+                        } else {
+                            companyConfigEls.shapefileInput.click();
+                        }
+                    });
+                }
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
 
                 const btnCleanDuplicateTraps = document.getElementById('btnCleanDuplicateTraps');
@@ -11949,6 +11961,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         mapModule: {
+            maxShapefileSizeBytes: 40 * 1024 * 1024,
             initMap() {
                 if (App.state.mapboxMap) return; // Evita reinicialização
                 if (typeof mapboxgl === 'undefined') {
@@ -12032,7 +12045,246 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            _logShapefileStep(step, details = {}) {
+                console.log(`[SHP][${step}]`, details);
+            },
+
+            _base64ToArrayBuffer(base64Data) {
+                const cleaned = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+                const binary = atob(cleaned);
+                const length = binary.length;
+                const bytes = new Uint8Array(length);
+                for (let i = 0; i < length; i += 1) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                return bytes.buffer;
+            },
+
+            _listZipEntries(buffer) {
+                const view = new DataView(buffer);
+                const entries = [];
+                const signatureEnd = 0x06054b50;
+                const signatureCentral = 0x02014b50;
+                let offset = buffer.byteLength - 22;
+                while (offset >= 0) {
+                    if (view.getUint32(offset, true) === signatureEnd) break;
+                    offset -= 1;
+                }
+                if (offset < 0) {
+                    this._logShapefileStep('zip-scan-failed', { reason: 'End of central directory not found.' });
+                    return entries;
+                }
+                const totalEntries = view.getUint16(offset + 10, true);
+                const centralDirOffset = view.getUint32(offset + 16, true);
+                let pointer = centralDirOffset;
+                const decoder = new TextDecoder();
+                for (let i = 0; i < totalEntries; i += 1) {
+                    if (view.getUint32(pointer, true) !== signatureCentral) break;
+                    const nameLength = view.getUint16(pointer + 28, true);
+                    const extraLength = view.getUint16(pointer + 30, true);
+                    const commentLength = view.getUint16(pointer + 32, true);
+                    const nameStart = pointer + 46;
+                    const nameBytes = new Uint8Array(buffer.slice(nameStart, nameStart + nameLength));
+                    const name = decoder.decode(nameBytes);
+                    entries.push(name);
+                    pointer = nameStart + nameLength + extraLength + commentLength;
+                }
+                return entries;
+            },
+
+            _inspectZipEntries(entries) {
+                const lower = entries.map((entry) => entry.toLowerCase());
+                return {
+                    hasShp: lower.some((entry) => entry.endsWith('.shp')),
+                    hasShx: lower.some((entry) => entry.endsWith('.shx')),
+                    hasDbf: lower.some((entry) => entry.endsWith('.dbf')),
+                    hasPrj: lower.some((entry) => entry.endsWith('.prj')),
+                };
+            },
+
+            _ensureGeoJsonProperties(geojson) {
+                if (!geojson || !geojson.features) return;
+                let featureIdCounter = 0;
+                geojson.features.forEach(feature => {
+                    if (!feature.properties) feature.properties = {};
+                    if (feature.id === undefined || feature.id === null) {
+                        feature.id = featureIdCounter;
+                    }
+                    featureIdCounter += 1;
+
+                    const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                    if (feature.properties.AGV_FUNDO === undefined || feature.properties.AGV_FUNDO === null) {
+                        feature.properties.AGV_FUNDO = String(fundo ?? '').trim();
+                    }
+
+                    const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
+                    if (feature.properties.AGV_TALHAO === undefined || feature.properties.AGV_TALHAO === null) {
+                        feature.properties.AGV_TALHAO = String(talhao ?? '').trim();
+                    }
+                });
+            },
+
+            async _processShapefileBuffer(buffer, options = {}) {
+                if (!buffer) throw new Error("Buffer de shapefile vazio.");
+
+                const entries = this._listZipEntries(buffer);
+                if (entries.length > 0) {
+                    const entryStatus = this._inspectZipEntries(entries);
+                    this._logShapefileStep('zip-entries', { entries, ...entryStatus });
+                    if (!entryStatus.hasShp || !entryStatus.hasShx || !entryStatus.hasDbf) {
+                        if (window.Capacitor && Capacitor.isNativePlatform()) {
+                            App.ui.showAlert("Arquivo ZIP sem todos os arquivos .shp/.shx/.dbf. Verifique o pacote.", "warning");
+                        } else {
+                            console.warn("Arquivo ZIP sem todos os arquivos .shp/.shx/.dbf.");
+                        }
+                    }
+                    if (!entryStatus.hasPrj) {
+                        if (window.Capacitor && Capacitor.isNativePlatform()) {
+                            App.ui.showAlert("Arquivo .prj não encontrado. As coordenadas podem não estar em WGS84.", "warning");
+                        } else {
+                            console.warn("Arquivo .prj não encontrado. As coordenadas podem não estar em WGS84.");
+                        }
+                    }
+                }
+
+                this._logShapefileStep('parse-start', { byteLength: buffer.byteLength });
+                let geojson = await shp(buffer);
+                if (geojson && !geojson.__agvReprojected) {
+                    this._reprojectGeoJSON(geojson);
+                    geojson.__agvReprojected = true;
+                }
+                this._ensureGeoJsonProperties(geojson);
+                geojson.__agvProcessed = true;
+
+                await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
+                await OfflineDB.set('shapefile-geojson', geojson, 'shapefile-geojson');
+
+                App.state.geoJsonData = geojson;
+                App.state.shouldFitGeojson = true;
+                if (App.state.mapboxMap) {
+                    this.loadShapesOnMap();
+                }
+
+                this._logShapefileStep('parse-success', { featureCount: geojson?.features?.length ?? 0 });
+            },
+
+            async _readNativeFileToArrayBuffer(file) {
+                const uri = file?.path || file?.uri;
+                if (file?.blob) {
+                    this._logShapefileStep('read-blob', { source: 'filepicker', byteLength: file.blob.size });
+                    return file.blob.arrayBuffer();
+                }
+                if (file?.data) {
+                    this._logShapefileStep('read-base64', { source: 'filepicker' });
+                    return this._base64ToArrayBuffer(file.data);
+                }
+                if (uri) {
+                    try {
+                        this._logShapefileStep('read-fetch', { uri });
+                        const response = await fetch(uri);
+                        if (response.ok) {
+                            return response.arrayBuffer();
+                        }
+                        this._logShapefileStep('read-fetch-failed', { status: response.status });
+                    } catch (error) {
+                        this._logShapefileStep('read-fetch-error', { message: error.message });
+                    }
+
+                    try {
+                        const { Filesystem } = Capacitor.Plugins;
+                        this._logShapefileStep('read-filesystem', { uri });
+                        const result = await Filesystem.readFile({ path: uri });
+                        return this._base64ToArrayBuffer(result.data);
+                    } catch (error) {
+                        this._logShapefileStep('read-filesystem-error', { message: error.message });
+                    }
+                }
+
+                throw new Error("Não foi possível ler o arquivo selecionado no Android.");
+            },
+
+            async pickShapefileNative() {
+                if (!(window.Capacitor && Capacitor.isNativePlatform())) {
+                    return;
+                }
+
+                try {
+                    const { FilePicker } = Capacitor.Plugins || {};
+                    if (!FilePicker) {
+                        App.ui.showAlert("Plugin FilePicker não disponível no Android.", "warning");
+                        return;
+                    }
+
+                    const result = await FilePicker.pickFiles({
+                        types: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream', '.zip'],
+                        multiple: false,
+                        readData: false,
+                    });
+
+                    const file = result.files?.[0];
+                    if (!file) return;
+
+                    this._logShapefileStep('picker-result', {
+                        name: file.name,
+                        size: file.size,
+                        mimeType: file.mimeType,
+                        uri: file.path || file.uri,
+                    });
+
+                    if (file.name && !file.name.toLowerCase().endsWith('.zip')) {
+                        App.ui.showAlert("Por favor, selecione um arquivo .zip", "error");
+                        return;
+                    }
+
+                    if (file.size && file.size > this.maxShapefileSizeBytes) {
+                        App.ui.showAlert("Arquivo muito grande para processar no Android. Sugira simplificar ou reduzir o SHP.", "warning", 9000);
+                        return;
+                    }
+
+                    const buffer = await this._readNativeFileToArrayBuffer(file);
+                    this._logShapefileStep('arraybuffer-ready', {
+                        byteLength: buffer.byteLength,
+                        expectedSize: file.size,
+                    });
+
+                    await this._processShapefileBuffer(buffer, { source: 'native-picker', fileName: file.name });
+                } catch (error) {
+                    console.error("Erro ao importar shapefile no Android:", error);
+                    App.ui.showAlert("Falha ao importar o shapefile no Android. Verifique o arquivo e tente novamente.", "error", 8000);
+                }
+            },
+
             async handleShapefileUpload(e) {
+                if (window.Capacitor && Capacitor.isNativePlatform()) {
+                    const file = e?.target?.files?.[0];
+                    if (file) {
+                        this._logShapefileStep('input-file-result', {
+                            name: file.name,
+                            size: file.size,
+                            mimeType: file.type,
+                        });
+                        if (file.name && !file.name.toLowerCase().endsWith('.zip')) {
+                            App.ui.showAlert("Por favor, selecione um arquivo .zip", "error");
+                            e.target.value = '';
+                            return;
+                        }
+                        if (file.size && file.size > this.maxShapefileSizeBytes) {
+                            App.ui.showAlert("Arquivo muito grande para processar no Android. Sugira simplificar ou reduzir o SHP.", "warning", 9000);
+                            e.target.value = '';
+                            return;
+                        }
+                        const buffer = await file.arrayBuffer();
+                        this._logShapefileStep('input-arraybuffer', {
+                            byteLength: buffer.byteLength,
+                            expectedSize: file.size,
+                        });
+                        await this._processShapefileBuffer(buffer, { source: 'native-input', fileName: file.name });
+                        e.target.value = '';
+                        return;
+                    }
+                    return;
+                }
+
                 const file = e.target.files[0];
                 const input = e.target;
                 if (!file) return;
@@ -12135,38 +12387,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch(urlWithCacheBuster);
                     if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
                     const buffer = await response.arrayBuffer();
-
-                    await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
+                    this._logShapefileStep('download-arraybuffer', { byteLength: buffer.byteLength });
 
                     console.log("Processando e desenhando os talhões no mapa...");
-                    let geojson = await shp(buffer);
-
-                    // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                    this._reprojectGeoJSON(geojson);
-
-
-                    // ETAPA DE NORMALIZAÇÃO:
-                    // O código da aplicação espera propriedades padronizadas (ex: 'AGV_FUNDO').
-                    // No entanto, os shapefiles podem ter nomes de colunas diferentes (ex: 'FUNDO_AGR', 'FUNDO_AGRI').
-                    // O loop abaixo normaliza esses dados, criando as propriedades padronizadas que o resto do código usa.
-                    let featureIdCounter = 0;
-                    geojson.features.forEach(feature => {
-                        feature.id = featureIdCounter++; // Adiciona um ID numérico único para o estado do Mapbox
-
-                        // Busca por vários nomes possíveis para o "fundo agrícola" e normaliza para 'AGV_FUNDO'.
-                        const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
-                        feature.properties.AGV_FUNDO = String(fundo).trim();
-
-                        // Faz o mesmo para o nome do talhão.
-                        const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
-                        feature.properties.AGV_TALHAO = String(talhao).trim();
-                    });
-
-
-                    App.state.geoJsonData = geojson;
-                    if (App.state.mapboxMap) {
-                        this.loadShapesOnMap();
-                    }
+                    await this._processShapefileBuffer(buffer, { source: 'remote-url', url });
                     console.log("Contornos do mapa carregados com sucesso.");
                 } catch(err) {
                     console.error("Erro ao carregar shapefile do Storage:", err);
@@ -12180,6 +12404,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = document.getElementById('map-container');
                 if (mapContainer) mapContainer.classList.add('loading');
                 try {
+                    const cachedGeojson = await OfflineDB.get('shapefile-geojson', 'shapefile-geojson');
+                    if (cachedGeojson) {
+                        App.ui.showAlert("A carregar mapa do cache offline.", "info");
+                        if (!cachedGeojson.__agvReprojected) {
+                            this._reprojectGeoJSON(cachedGeojson);
+                            cachedGeojson.__agvReprojected = true;
+                        }
+                        this._ensureGeoJsonProperties(cachedGeojson);
+                        App.state.geoJsonData = cachedGeojson;
+                        App.state.shouldFitGeojson = true;
+                        if (App.state.mapboxMap) {
+                            this.loadShapesOnMap();
+                        }
+                        return;
+                    }
+
                     let buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
                     if (buffer) {
                         App.ui.showAlert("A carregar mapa do cache offline.", "info");
@@ -12190,35 +12430,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             buffer = await buffer.arrayBuffer();
                         }
 
-                        let geojson;
                         try {
-                            geojson = await shp(buffer);
+                            await this._processShapefileBuffer(buffer, { source: 'offline-cache' });
                         } catch (parseError) {
                             console.error("Erro ao analisar o shapefile (shpjs):", parseError);
                             throw new Error("O arquivo de mapa offline está corrompido ou inválido.");
-                        }
-
-                        // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                        this._reprojectGeoJSON(geojson);
-
-                        // ETAPA DE NORMALIZAÇÃO (CACHE OFFLINE): Garante a consistência dos dados carregados do cache.
-                        let featureIdCounter = 0;
-                        if (geojson && geojson.features) {
-                            geojson.features.forEach(feature => {
-                                feature.id = featureIdCounter++; // Adiciona um ID numérico único
-                                const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
-                                feature.properties.AGV_FUNDO = String(fundo).trim();
-
-                                const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
-                                feature.properties.AGV_TALHAO = String(talhao).trim();
-                            });
-
-                            App.state.geoJsonData = geojson;
-                            if (App.state.mapboxMap) {
-                                this.loadShapesOnMap();
-                            }
-                        } else {
-                            console.warn("GeoJSON inválido ou sem features após carregamento offline.");
                         }
                     }
                 } catch (error) {
@@ -12227,6 +12443,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert("Não foi possível carregar os contornos do mapa offline. Algumas funcionalidades do mapa podem estar indisponíveis.", "warning", 8000);
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
+                }
+            },
+
+            _fitBoundsToGeojson(geojson) {
+                const map = App.state.mapboxMap;
+                if (!map || !geojson || !geojson.features || geojson.features.length === 0) return;
+                try {
+                    const [minX, minY, maxX, maxY] = turf.bbox(geojson);
+                    const bounds = new mapboxgl.LngLatBounds([minX, minY], [maxX, maxY]);
+                    map.fitBounds(bounds, { padding: 40, duration: 800 });
+                } catch (error) {
+                    console.warn("Não foi possível aplicar fitBounds no GeoJSON:", error);
                 }
             },
 
@@ -12329,6 +12557,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             'line-opacity': 0.9
                         }
                     });
+                }
+
+                if (App.state.shouldFitGeojson) {
+                    this._fitBoundsToGeojson(App.state.geoJsonData);
+                    App.state.shouldFitGeojson = false;
                 }
 
                 let hoveredFeatureId = null;
