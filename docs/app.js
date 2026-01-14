@@ -1624,12 +1624,22 @@ document.addEventListener('DOMContentLoaded', () => {
             async getDocument(collectionName, docId, options = {}) {
                 const docRef = doc(db, collectionName, docId);
                 const preferCache = options.preferCache || !App.state.isOnline;
+                const shouldFallbackToCache = (error) => {
+                    const networkErrorCodes = new Set([
+                        'unavailable',
+                        'deadline-exceeded',
+                        'resource-exhausted',
+                        'internal',
+                        'cancelled'
+                    ]);
+                    return !App.state.isOnline || (error && networkErrorCodes.has(error.code));
+                };
 
                 try {
                     const docSnap = preferCache ? await getDocFromCache(docRef) : await getDoc(docRef);
                     return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
                 } catch (error) {
-                    if (!preferCache) {
+                    if (!preferCache && shouldFallbackToCache(error)) {
                         try {
                             const cachedSnap = await getDocFromCache(docRef);
                             return cachedSnap.exists() ? { id: cachedSnap.id, ...cachedSnap.data() } : null;
