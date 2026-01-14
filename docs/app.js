@@ -948,15 +948,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Exibe o status inicial
                     const status = await Network.getStatus();
+                    App.state.isOnline = status.connected;
                     console.log(`Status inicial da rede: ${status.connected ? 'Online' : 'Offline'}`);
+
+                    // Aviso inicial se já começar offline
+                    if (!status.connected) {
+                        App.ui.showToast("Modo Offline. Verifique sua conexão.", "warning");
+                    }
 
                     // Adiciona um 'ouvinte' para quando o status da rede mudar
                     Network.addListener('networkStatusChange', (status) => {
+                        const wasOnline = App.state.isOnline;
+                        App.state.isOnline = status.connected;
                         console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
-                        if (status.connected) {
+
+                        if (status.connected && !wasOnline) {
                             // Se conectar, dispara um evento 'online' personalizado,
                             // que a lógica existente do App já sabe como manipular.
+                            App.ui.showToast("Conexão Restaurada", "success");
                             window.dispatchEvent(new Event('online'));
+                        } else if (!status.connected && wasOnline) {
+                            App.ui.showToast("Sem conexão. Modo Offline Ativado.", "warning");
+                            window.dispatchEvent(new Event('offline'));
                         }
                     });
                 } catch (e) {
@@ -1175,12 +1188,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
-                        const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection();
-                        } else {
-                            App.ui.showLoginScreen();
-                        }
+                        // Com persistência local, o onAuthStateChanged deve restaurar a sessão mesmo offline.
+                        // Se não houver utilizador, mostra o login padrão.
+                        App.ui.showLoginScreen();
                     }
                     App.ui.setLoading(false);
                 });
@@ -1211,72 +1221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
-            async loginOffline(email, password) {
-                if (!email || !password) {
-                    App.ui.showAlert("Por favor, insira e-mail e senha.", "warning");
-                    return;
-                }
-
-                try {
-                    const credentials = await OfflineDB.get('offline-credentials', email.toLowerCase());
-
-                    if (!credentials) {
-                        App.ui.showAlert("Credenciais offline não encontradas para este e-mail. Faça login online primeiro e habilite o acesso offline.", "error");
-                        return;
-                    }
-
-                    const hashedPassword = CryptoJS.PBKDF2(password, credentials.salt, {
-                        keySize: 256 / 32,
-                        iterations: 1000
-                    }).toString();
-
-                    if (hashedPassword === credentials.hashedPassword) {
-                        App.state.currentUser = credentials.userProfile;
-
-                        App.ui.setLoading(true, "A carregar dados offline...");
-                        try {
-                            const companyId = App.state.currentUser.companyId;
-
-                            // Pré-carrega os dados da empresa a partir do cache offline
-                            if (companyId) {
-                                const companyDoc = await App.data.getDocument('companies', companyId);
-                                if (companyDoc) {
-                                     App.state.companies = [companyDoc];
-                                } else {
-                                    console.warn("Documento da empresa não encontrado no cache offline durante o login.");
-                                }
-                            }
-
-                            // Pré-carrega as configurações globais a partir do cache offline
-                            const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                            if (globalConfigsDoc.exists()) {
-                                App.state.globalConfigs = globalConfigsDoc.data();
-                            } else {
-                                console.warn("Configurações globais não encontradas no cache offline durante o login.");
-                            }
-
-                            // Agora, com os dados essenciais pré-carregados, mostra a tela da aplicação
-                            App.ui.showAppScreen();
-                            App.mapModule.loadOfflineShapes();
-                            App.data.listenToAllData(); // Configura os 'listeners' para futuras atualizações quando estiver online
-
-                        } catch (error) {
-                            console.error("Erro ao pré-carregar dados do cache offline:", error);
-                            // Fallback para o comportamento antigo se o pré-carregamento falhar
-                            App.ui.showAppScreen();
-                            App.mapModule.loadOfflineShapes();
-                            App.data.listenToAllData();
-                        } finally {
-                            App.ui.setLoading(false);
-                        }
-                    } else {
-                        App.ui.showAlert("Senha offline incorreta.", "error");
-                    }
-                } catch (error) {
-                    App.ui.showAlert("Ocorreu um erro durante o login offline.", "error");
-                    console.error("Erro no login offline:", error);
-                }
-            },
+            // Login offline deprecated - Firebase Persistence is now used.
             async logout() {
                 if (navigator.onLine) {
                     await signOut(auth);
@@ -1642,6 +1587,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 return this.setDocument('users', uid, data);
             },
 
+            /**
+             * EXEMPLO: Função "CRUD Agnóstico" para Salvar Vistoria.
+             * Esta função funciona tanto online quanto offline.
+             *
+             * Se Online: Os dados são enviados imediatamente para o Firestore.
+             * Se Offline: O Firestore SDK (com enableIndexedDbPersistence ativado)
+             * automaticamente salva os dados no IndexedDB local e os enfileira.
+             * Quando a conexão é restaurada, o SDK sincroniza os dados pendentes
+             * com o servidor em segundo plano, sem intervenção do usuário.
+             *
+             * @param {Object} vistoriaData - Dados da vistoria a serem salvos.
+             */
+            async saveVistoria(vistoriaData) {
+                try {
+                    // Adiciona metadados padrão
+                    const payload = {
+                        ...vistoriaData,
+                        createdAt: serverTimestamp(),
+                        createdBy: App.state.currentUser?.uid || 'anonymous',
+                        companyId: App.state.currentUser?.companyId
+                    };
+
+                    // addDocument usa o método nativo addDoc do Firestore SDK
+                    const docRef = await this.addDocument('vistorias', payload);
+
+                    console.log(`Vistoria salva com ID: ${docRef.id}. Status: ${navigator.onLine ? 'Online (Sincronizado)' : 'Offline (Enfileirado)'}`);
+
+                    // Retorna o ID (mesmo offline, o SDK gera um ID temporário ou final)
+                    return docRef.id;
+                } catch (error) {
+                    console.error("Erro ao salvar vistoria:", error);
+                    throw error;
+                }
+            },
+
             // OTIMIZAÇÃO: Carrega apenas dados recentes de clima para cache offline
             listenToRecentClima(companyId, isSuperAdmin = false) {
                 const sixMonthsAgo = new Date();
@@ -1734,10 +1714,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loadingProgressText.textContent = progressText;
             },
             showLoginScreen() {
-                App.elements.loginForm.style.display = 'block';
-                App.elements.offlineUserSelection.style.display = 'none';
-                App.elements.loginScreen.style.display = 'flex';
-                App.elements.appScreen.style.display = 'none';
+                // Ensure App.elements.loginForm is visible
+                if (App.elements.loginForm) {
+                    App.elements.loginForm.style.display = 'block';
+                }
+
+                // App.elements.offlineUserSelection deprecated
+                if (App.elements.offlineUserSelection) {
+                    App.elements.offlineUserSelection.style.display = 'none';
+                }
+
+                if (App.elements.loginScreen) {
+                    App.elements.loginScreen.style.display = 'flex';
+                }
+
+                if (App.elements.appScreen) {
+                    App.elements.appScreen.style.display = 'none';
+                }
                 
                 if (App.elements.userMenu && App.elements.userMenu.container) {
                     App.elements.userMenu.container.style.display = 'none';
@@ -1750,19 +1743,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginPass.value = '';
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
-                App.ui.setLoading(false);
-            },
-            showOfflineUserSelection() { // Removed profiles argument
-                App.elements.loginForm.style.display = 'none';
-                App.elements.offlineUserSelection.style.display = 'block';
-                // No longer need to populate a select list
-                const offlineEmailInput = document.getElementById('offlineEmail');
-                if(offlineEmailInput) {
-                    offlineEmailInput.value = ''; // Clear previous entries
-                    offlineEmailInput.focus();
-                }
-                App.elements.loginScreen.style.display = 'flex';
-                App.elements.appScreen.style.display = 'none';
                 App.ui.setLoading(false);
             },
             showAppScreen() {
@@ -1923,6 +1903,21 @@ document.addEventListener('DOMContentLoaded', () => {
             showAlert(message, type = 'success', duration = 3000) {
                 const title = type.charAt(0).toUpperCase() + type.slice(1);
                 this.showSystemNotification(title, message, type);
+            },
+
+            showToast(message, type = 'info') {
+                const alertContainer = document.getElementById('alertContainer');
+                if (!alertContainer) return;
+
+                alertContainer.textContent = message;
+                alertContainer.className = ''; // Reset classes
+                alertContainer.classList.add(type);
+                alertContainer.classList.add('show');
+
+                // Auto-hide after 3 seconds
+                setTimeout(() => {
+                    alertContainer.classList.remove('show');
+                }, 3000);
             },
 
             showSystemNotification(title, message, type = 'info', options = {}) {
