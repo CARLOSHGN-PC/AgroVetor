@@ -165,6 +165,34 @@
           padding: 0 10px; /* Adiciona um pequeno espaçamento para não colar nos botões */
       }
       header h1 i { margin-right: 10px; }
+      .network-status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--color-border);
+        color: var(--color-text-light);
+        background: var(--color-bg);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+      .network-status-indicator .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .network-status-indicator.is-online {
+        color: var(--color-success);
+        border-color: var(--color-success);
+      }
+      .network-status-indicator.is-offline {
+        color: var(--color-danger);
+        border-color: var(--color-danger);
+      }
 
       .menu-toggle { background: rgba(255, 255, 255, 0.1); border-radius: var(--border-radius); border: none; cursor: pointer; width: 48px; height: 48px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; z-index: 1100; transition: var(--transition); }
       .menu-toggle:hover { background: rgba(255, 255, 255, 0.2); }
@@ -2075,6 +2103,10 @@
             </div>
             
             <div class="header-actions-container">
+                <div id="networkStatusIndicator" class="network-status-indicator is-online" aria-live="polite">
+                    <span class="dot"></span>
+                    <span class="network-status-text">Online</span>
+                </div>
                 <div id="notification-bell-container" class="notification-bell" style="display: none;">
                     <button id="notification-bell-toggle" aria-label="Notificações">
                         <i class="fas fa-bell"></i>
