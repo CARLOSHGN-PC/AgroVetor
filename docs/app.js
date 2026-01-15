@@ -12053,10 +12053,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
                     const buffer = await response.arrayBuffer();
 
-                    await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
-
                     console.log("Processando e desenhando os talhões no mapa...");
+                    // Valida o shapefile antes de salvar no cache
                     let geojson = await shp(buffer);
+
+                    // Se o parsing foi bem sucedido, salva no cache
+                    await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
 
                     // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
                     this._reprojectGeoJSON(geojson);
@@ -12140,6 +12142,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (error) {
                     console.error("Erro ao carregar ou processar o mapa offline:", error);
+
+                    // Limpa o cache corrompido para permitir nova tentativa de download
+                    try {
+                        console.log("Tentando limpar cache de mapa corrompido...");
+                        await OfflineDB.delete('shapefile-cache', 'shapefile-zip');
+                        console.log("Cache de mapa limpo.");
+                    } catch (e) {
+                        console.warn("Falha ao limpar cache de mapa:", e);
+                    }
+
                     // Usa uma notificação menos alarmante do que "Erro Crítico"
                     App.ui.showAlert("Não foi possível carregar os contornos do mapa offline. Algumas funcionalidades do mapa podem estar indisponíveis.", "warning", 8000);
                 } finally {
