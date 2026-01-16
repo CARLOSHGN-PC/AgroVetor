@@ -85,12 +85,7 @@ class SyncQueue {
      * Envia uma única operação para o backend.
      */
     async _syncOperation(op) {
-        const token = await this.authProvider();
-        if (!token) throw new Error("Usuário não autenticado.");
-
         const url = `${this.backendUrl}/api/sync`;
-
-        // Estrutura do payload unificado para o backend
         const body = {
             type: op.type,
             collection: op.collection,
@@ -99,17 +94,25 @@ class SyncQueue {
             clientTimestamp: op.createdAt
         };
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(body)
-        });
+        const attemptSync = async (forceRefresh = false) => {
+            const token = await this.authProvider(forceRefresh);
+            if (!token) throw new Error("Usuário não autenticado.");
+            return fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(body)
+            });
+        };
+
+        let response = await attemptSync(false);
+        if ((response.status === 401 || response.status === 403) && typeof this.authProvider === 'function') {
+            response = await attemptSync(true);
+        }
 
         if (!response.ok) {
-            // Tenta ler a mensagem de erro
             const errorText = await response.text();
             throw new Error(`Server Error ${response.status}: ${errorText}`);
         }

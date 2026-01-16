@@ -230,9 +230,9 @@ document.addEventListener('DOMContentLoaded', () => {
             isAuthenticated: false,
             authMode: null, // 'online' | 'offline'
             isOnline: navigator.onLine,
-            requiresReauth: false,
+            syncStatus: 'idle', // 'idle' | 'syncing' | 'error' | 'done'
+            requiresReauthForSync: false,
             reauthDeferred: false,
-            isSyncing: false,
             isCheckingConnection: false,
             connectionCheckInterval: null,
             currentUser: null,
@@ -1275,16 +1275,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return false;
             },
-            _setAuthState({ isAuthenticated, authMode, requiresReauth = App.state.requiresReauth }) {
+            _setAuthState({ isAuthenticated, authMode, requiresReauthForSync = App.state.requiresReauthForSync }) {
                 App.state.isAuthenticated = isAuthenticated;
                 App.state.authMode = authMode;
-                App.state.requiresReauth = requiresReauth;
+                App.state.requiresReauthForSync = requiresReauthForSync;
                 App.ui.updateConnectivityStatus();
             },
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        this._setAuthState({ isAuthenticated: true, authMode: 'online', requiresReauth: false });
+                        this._setAuthState({ isAuthenticated: true, authMode: 'online', requiresReauthForSync: false });
                         App.ui.setLoading(true, "A carregar dados do utilizador...");
                         const userDoc = await App.data.getUserData(user.uid);
 
@@ -1351,7 +1351,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
 
                                 if (App.state.isOnline) {
-                                    await this.tryResumeOnlineSession();
+                                    await this.resumeOnlineSessionAndSync();
                                 }
 
                                 App.actions.checkSequence();
@@ -1445,7 +1445,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         App.state.currentUser = userProfile;
-                        this._setAuthState({ isAuthenticated: true, authMode: 'offline', requiresReauth: false });
+                        this._setAuthState({ isAuthenticated: true, authMode: 'offline', requiresReauthForSync: false });
                         App.state.reauthDeferred = false;
 
                         App.ui.setLoading(true, "A carregar dados offline...");
@@ -1522,12 +1522,15 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             async onConnectivityChanged(isOnline) {
                 App.state.isOnline = isOnline;
+                if (!isOnline) {
+                    App.state.syncStatus = 'idle';
+                }
                 App.ui.updateConnectivityStatus();
                 if (isOnline) {
-                    await this.tryResumeOnlineSession();
+                    await this.resumeOnlineSessionAndSync();
                 }
             },
-            async tryResumeOnlineSession(options = {}) {
+            async resumeOnlineSessionAndSync(options = {}) {
                 if (!App.state.isAuthenticated || !App.state.isOnline) {
                     return;
                 }
@@ -1551,8 +1554,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             _markReauthRequired() {
-                App.state.requiresReauth = true;
+                App.state.requiresReauthForSync = true;
                 App.state.authMode = App.state.authMode || 'offline';
+                App.state.syncStatus = 'error';
                 App.ui.updateConnectivityStatus();
                 if (App.state.isOnline && !App.state.reauthDeferred) {
                     App.ui.showReauthBanner();
@@ -1560,7 +1564,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             async _afterOnlineSessionReady() {
                 App.state.authMode = 'online';
-                App.state.requiresReauth = false;
+                App.state.requiresReauthForSync = false;
                 App.state.reauthDeferred = false;
                 App.ui.hideReauthBanner();
                 App.ui.updateConnectivityStatus();
@@ -1579,7 +1583,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.renderMenu();
                 App.data.listenToAllData();
-                App.actions.syncOfflineWrites();
+                await App.actions.startSync();
             },
             async confirmReauth(password) {
                 if (!password) {
@@ -1615,8 +1619,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.state.isAuthenticated = false;
                 App.state.authMode = null;
-                App.state.requiresReauth = false;
+                App.state.requiresReauthForSync = false;
                 App.state.reauthDeferred = false;
+                App.state.syncStatus = 'idle';
                 App.ui.hideReauthBanner();
                 App.ui.updateConnectivityStatus();
                 // Limpa todos os listeners e processos em segundo plano
@@ -2281,10 +2286,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 let status = 'offline';
                 let label = 'Offline';
 
-                if (App.state.isSyncing) {
+                if (App.state.syncStatus === 'syncing') {
                     status = 'syncing';
                     label = 'Sincronizando';
-                } else if (App.state.requiresReauth) {
+                } else if (App.state.isOnline && App.state.requiresReauthForSync) {
                     status = 'reauth';
                     label = 'Reautenticar para sincronizar';
                 } else if (App.state.isOnline) {
@@ -2295,9 +2300,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 badge.dataset.status = status;
                 textEl.textContent = label;
 
-                if (App.state.requiresReauth && !App.state.reauthDeferred) {
+                if (App.state.isOnline && App.state.requiresReauthForSync && !App.state.reauthDeferred) {
                     this.showReauthBanner();
-                } else if (!App.state.requiresReauth) {
+                } else if (!App.state.requiresReauthForSync || !App.state.isOnline) {
                     this.hideReauthBanner();
                 }
             },
@@ -7675,7 +7680,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log("Periodic connection check stopped.");
                     }
                     // Now, proceed with the actual synchronization logic
-                    await App.auth.tryResumeOnlineSession();
+                    await App.auth.resumeOnlineSessionAndSync();
 
                 } catch (error) {
                     console.warn("Active connection check failed. Still effectively offline.");
@@ -10674,23 +10679,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showSystemNotification("Sincronização", "Offline. Não é possível sincronizar agora.", "warning");
                     return;
                 }
-                await App.auth.tryResumeOnlineSession({ isManual });
+                await App.auth.resumeOnlineSessionAndSync({ isManual });
             },
 
-            async syncOfflineWrites() {
-                if (!App.state.isOnline || App.state.authMode !== 'online' || App.state.requiresReauth) {
+            isAuthError(error) {
+                const code = error?.code || '';
+                const message = error?.message || '';
+                return (
+                    code === 'permission-denied' ||
+                    code === 'unauthenticated' ||
+                    code.startsWith('auth/') ||
+                    message.includes('permission-denied') ||
+                    message.includes('401')
+                );
+            },
+
+            async startSync(options = {}) {
+                if (!App.state.isOnline || App.state.authMode !== 'online' || App.state.requiresReauthForSync) {
                     console.log("Sincronização ignorada: sessão online não disponível.");
                     return;
                 }
-                if (App.state.isSyncing) {
+                if (App.state.syncStatus === 'syncing') {
                     console.log("A sincronização já está em andamento.");
                     return;
                 }
 
-                App.state.isSyncing = true;
+                App.state.syncStatus = 'syncing';
                 App.ui.updateConnectivityStatus();
                 this.syncGpsLocations(); // Sync GPS data
+                await this.syncOfflineWrites(options);
+            },
+
+            async syncOfflineWrites(options = {}) {
+                if (!App.state.isOnline || App.state.authMode !== 'online' || App.state.requiresReauthForSync) {
+                    console.log("Sincronização ignorada: sessão online não disponível.");
+                    App.state.syncStatus = 'idle';
+                    App.ui.updateConnectivityStatus();
+                    return;
+                }
                 console.log("Iniciando a verificação de dados offline...");
+                let hadAuthError = false;
+                let hadFailures = false;
+                let tokenRefreshAttempted = false;
 
                 const logEntry = {
                     userId: App.state.currentUser.uid,
@@ -10705,7 +10735,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const db = await OfflineDB.dbPromise;
                     if (!db) {
-                        App.state.isSyncing = false;
+                        App.state.syncStatus = 'idle';
                         App.ui.updateConnectivityStatus();
                         return;
                     }
@@ -10716,7 +10746,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (writesToSync.length === 0) {
                         console.log("Nenhum registo pendente para sincronizar.");
-                        App.state.isSyncing = false;
+                        App.state.syncStatus = 'done';
                         App.ui.updateConnectivityStatus();
                         return;
                     }
@@ -10758,12 +10788,32 @@ document.addEventListener('DOMContentLoaded', () => {
                                 dataToSync = { ...dataToSync, dataColeta: Timestamp.fromDate(new Date(write.data.dataColeta)) };
                             }
 
-                            if (write.type === 'delete' && write.docId) {
-                                await App.data.deleteDocument(write.collection, write.docId);
-                            } else if (write.type === 'update' && write.docId) {
-                                await App.data.updateDocument(write.collection, write.docId, dataToSync);
-                            } else {
-                                await App.data.setDocument(write.collection, write.id, dataToSync);
+                            const syncWrite = async () => {
+                                if (write.type === 'delete' && write.docId) {
+                                    await App.data.deleteDocument(write.collection, write.docId);
+                                } else if (write.type === 'update' && write.docId) {
+                                    await App.data.updateDocument(write.collection, write.docId, dataToSync);
+                                } else {
+                                    await App.data.setDocument(write.collection, write.id, dataToSync);
+                                }
+                            };
+
+                            try {
+                                await syncWrite();
+                            } catch (error) {
+                                if (this.isAuthError(error) && !tokenRefreshAttempted && auth.currentUser) {
+                                    tokenRefreshAttempted = true;
+                                    try {
+                                        await auth.currentUser.getIdToken(true);
+                                        await syncWrite();
+                                    } catch (refreshError) {
+                                        hadAuthError = this.isAuthError(refreshError);
+                                        throw refreshError;
+                                    }
+                                } else {
+                                    hadAuthError = this.isAuthError(error);
+                                    throw error;
+                                }
                             }
 
                             logEntry.items.push({
@@ -10810,6 +10860,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                                 unrecoverableKeys.push(key); // Adiciona à lista de descarte
                                 discardedWrites++;
+                            } else if (hadAuthError) {
+                                console.error(`Falha de autenticação durante a sincronização:`, { write, error });
+                                logEntry.items.push({
+                                    status: 'failure',
+                                    collection: write?.collection || 'unknown',
+                                    data: write?.data || write,
+                                    error: 'Reautenticação necessária para sincronizar.'
+                                });
+                                failedWrites++;
+                                hadFailures = true;
+                                App.auth._markReauthRequired();
+                                break;
                             } else {
                                 console.error(`Falha ao sincronizar o item (será tentado novamente):`, { write, error });
                                 logEntry.items.push({
@@ -10819,6 +10881,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     error: error.message || 'Erro desconhecido'
                                 });
                                 failedWrites++; // Erro recuperável
+                                hadFailures = true;
 
                                 const retryCount = (write.retryCount || 0) + 1;
                                 const backoffDelay = Math.pow(2, retryCount) * 1000;
@@ -10879,10 +10942,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                 } catch (error) {
+                    hadFailures = true;
                     console.error("Ocorreu um erro crítico durante a sincronização:", error);
                     App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo. Verifique a consola.", "critical_error");
                 } finally {
-                    App.state.isSyncing = false;
+                    if (App.state.requiresReauthForSync) {
+                        App.state.syncStatus = 'error';
+                    } else if (hadFailures) {
+                        App.state.syncStatus = 'error';
+                    } else if (App.state.syncStatus === 'syncing') {
+                        App.state.syncStatus = 'done';
+                        setTimeout(() => {
+                            if (App.state.syncStatus === 'done') {
+                                App.state.syncStatus = 'idle';
+                                App.ui.updateConnectivityStatus();
+                            }
+                        }, 3000);
+                    }
                     console.log("Processo de sincronização finalizado.");
                     App.ui.updateConnectivityStatus();
                 }
@@ -11604,9 +11680,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Sincroniza a cada 1 hora
                 const umaHora = 60 * 60 * 1000;
                 App.state.syncInterval = setInterval(() => {
-                    if (App.state.isOnline && App.state.authMode === 'online' && !App.state.requiresReauth) {
+                    if (App.state.isOnline && App.state.authMode === 'online' && !App.state.requiresReauthForSync) {
                         console.log("Sincronização automática em primeiro plano iniciada...");
-                        App.actions.syncOfflineWrites();
+                        App.actions.startSync();
                     } else {
                         console.log("Sincronização automática ignorada (offline).");
                     }
