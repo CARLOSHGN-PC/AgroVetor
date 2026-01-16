@@ -7,39 +7,27 @@ class SyncService {
     constructor() {
         this.queue = null;
         this.initialized = false;
-        this.sessionManager = null;
     }
 
-    init(backendUrl, authProvider, sessionManager = null) {
+    init(backendUrl, authProvider) {
         if (this.initialized) return;
 
-        this.sessionManager = sessionManager;
-        this.queue = SyncQueueFactory(backendUrl, authProvider, {
-            onAuthError: () => {
-                if (this.sessionManager) {
-                    this.sessionManager.setNeedsOnlineReauth({ source: 'sync-queue' });
-                }
-            }
-        });
+        this.queue = SyncQueueFactory(backendUrl, authProvider);
 
         // Listeners de Rede
         window.addEventListener('online', () => {
             console.log("[SyncService] Online detectado. Iniciando sincronização...");
-            this.trySync();
+            this.queue.processQueue();
         });
 
         // Sincronização Periódica (Backup)
         setInterval(() => {
-            this.trySync();
+            if (navigator.onLine) {
+                this.queue.processQueue();
+            }
         }, 60 * 1000); // A cada 1 minuto
 
         this.initialized = true;
-    }
-
-    trySync() {
-        if (!navigator.onLine) return;
-        if (this.sessionManager && this.sessionManager.needsReauth()) return;
-        this.queue.processQueue();
     }
 
     /**
@@ -62,7 +50,7 @@ class SyncService {
         // Tenta sincronizar imediatamente se estiver online
         if (navigator.onLine) {
             // Não aguardamos o processQueue terminar para não bloquear a UI
-            this.trySync();
+            this.queue.processQueue();
         }
 
         return uuid; // Retorna o ID gerado para uso na UI
@@ -70,7 +58,7 @@ class SyncService {
 
     async delete(collection, id) {
         await offlineManager.enqueueOperation('DELETE', collection, {}, id);
-        if (navigator.onLine) this.trySync();
+        if (navigator.onLine) this.queue.processQueue();
     }
 }
 
