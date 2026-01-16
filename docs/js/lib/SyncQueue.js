@@ -6,12 +6,11 @@ import { offlineManager } from './OfflineManager.js';
  * Gerencia a fila de sincronização: processamento, retry e dependências.
  */
 class SyncQueue {
-    constructor(backendUrl, authProvider, options = {}) {
+    constructor(backendUrl, authProvider) {
         this.backendUrl = backendUrl;
         this.authProvider = authProvider; // Função que retorna o token atual
         this.isSyncing = false;
         this.maxRetries = 5;
-        this.onAuthError = options.onAuthError || null;
     }
 
     /**
@@ -48,16 +47,6 @@ class SyncQueue {
                     await offlineManager.markAsSynced(op.uuid);
                 } catch (error) {
                     console.error(`Erro ao sincronizar operação ${op.id} (${op.collection}):`, error);
-
-                    if (error.code === 'AUTH_REQUIRED') {
-                        if (this.onAuthError) {
-                            this.onAuthError(error);
-                        }
-                        await offlineManager.updateOperation(op.id, {
-                            error: error.message || 'Reautenticação necessária'
-                        });
-                        break;
-                    }
 
                     // Incrementa Retry e Salva o Erro com Backoff
                     const retryCount = (op.retryCount || 0) + 1;
@@ -97,11 +86,7 @@ class SyncQueue {
      */
     async _syncOperation(op) {
         const token = await this.authProvider();
-        if (!token) {
-            const error = new Error("Usuário não autenticado.");
-            error.code = 'AUTH_REQUIRED';
-            throw error;
-        }
+        if (!token) throw new Error("Usuário não autenticado.");
 
         const url = `${this.backendUrl}/api/sync`;
 
@@ -126,11 +111,7 @@ class SyncQueue {
         if (!response.ok) {
             // Tenta ler a mensagem de erro
             const errorText = await response.text();
-            const error = new Error(`Server Error ${response.status}: ${errorText}`);
-            if (response.status === 401 || response.status === 403) {
-                error.code = 'AUTH_REQUIRED';
-            }
-            throw error;
+            throw new Error(`Server Error ${response.status}: ${errorText}`);
         }
 
         return await response.json();

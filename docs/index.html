@@ -485,9 +485,6 @@
       #userMenuUsername { font-weight: 600; color: var(--color-primary-dark); font-size: 16px; word-break: break-all; }
       .user-menu-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; font-size: 14px; color: var(--color-text-light); cursor: pointer; transition: background-color 0.2s ease; border-radius: var(--border-radius); background-color: transparent; }
       .user-menu-item.is-action:hover { background-color: var(--color-bg); }
-      .user-menu-status { font-size: 12px; color: var(--color-text-light); gap: 8px; cursor: default; }
-      .user-menu-status i { font-size: 12px; }
-      .user-menu-status span { flex: 1; }
       #logoutBtn { color: var(--color-danger); font-weight: 500; }
       #logoutBtn:hover { background-color: color-mix(in srgb, var(--color-danger) 10%, transparent); }
       #user-menu-dropdown hr { border: none; border-top: 1px solid var(--color-border); margin: 8px -8px; }
@@ -499,12 +496,6 @@
       .theme-button#theme-green { background-color: #2e7d32; }
       .theme-button#theme-blue { background-color: #1976d2; }
       .theme-button#theme-dark { background-color: #2c3e50; }
-
-      .offline-data-status { margin-top: 10px; font-size: 13px; color: var(--color-text-light); }
-      .offline-data-status strong { color: var(--color-text); }
-      #offlineDataProgress { width: 100%; height: 8px; border-radius: 999px; overflow: hidden; accent-color: var(--color-primary); }
-      #offlineDataProgress::-webkit-progress-bar { background-color: var(--color-border); border-radius: 999px; }
-      #offlineDataProgress::-webkit-progress-value { background-color: var(--color-primary); border-radius: 999px; }
 
       .dashboard-grid {
           display: grid;
@@ -2113,14 +2104,6 @@
                             <p id="userMenuUsername"></p>
                         </div>
                         <div id="currentDateTime" class="user-menu-item"></div>
-                        <div id="sessionStatus" class="user-menu-item user-menu-status">
-                            <i class="fas fa-circle"></i>
-                            <span id="sessionStatusText">Sessão local</span>
-                        </div>
-                        <div id="syncStatus" class="user-menu-item user-menu-status">
-                            <i class="fas fa-sync-alt"></i>
-                            <span id="syncStatusText">Sincronização: aguardando</span>
-                        </div>
                         <hr>
                         <div class="theme-selector-container">
                             <p>Tema</p>
@@ -3857,16 +3840,9 @@
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-warning); margin-top: 30px;">
-                    <h3><i class="fas fa-cloud-download-alt"></i> Dados Offline</h3>
-                    <p>Baixe ou atualize os dados essenciais para operar offline. Isso não bloqueia o acesso: com uma sessão local válida, o login offline funciona automaticamente.</p>
-                    <button id="btnEnableOfflineLogin" class="save" style="max-width: 300px; background: var(--color-warning);">
-                        <i class="fas fa-cloud-download-alt"></i> Baixar/Atualizar dados para uso offline
-                    </button>
-                    <div class="offline-data-status" id="offlineDataStatus">
-                        <strong>Status:</strong> Nenhum download em andamento.
-                    </div>
-                    <progress id="offlineDataProgress" value="0" max="100" aria-label="Progresso de dados offline"></progress>
-                    <div class="offline-data-status" id="offlineDataCount">0 itens armazenados.</div>
+                    <h3><i class="fas fa-key"></i> Acesso Offline</h3>
+                    <p>Habilite o acesso offline para poder entrar na aplicação e registar dados mesmo sem internet. Terá de re-autenticar online para atualizar a sua password offline.</p>
+                    <button id="btnEnableOfflineLogin" class="save" style="max-width: 300px; background: var(--color-warning);"><i class="fas fa-wifi"></i> Habilitar/Atualizar Login Offline</button>
                 </div>
 
                 <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid var(--color-border); text-align: right;">
@@ -4559,6 +4535,26 @@
                 </div>
                 <div class="modal-footer">
                     <button id="configHistoryModalCancelBtn" class="btn-secondary">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="enableOfflineLoginModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 450px;">
+                <div class="modal-header">
+                    <h3>Habilitar Acesso Offline</h3>
+                    <button id="enableOfflineLoginModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Para habilitar ou atualizar o seu acesso offline, por favor, confirme a sua senha atual. As suas credenciais serão guardadas de forma segura neste dispositivo.</p>
+                    <div class="form-col">
+                        <label for="enableOfflinePassword">Senha Atual:</label>
+                        <input type="password" id="enableOfflinePassword" placeholder="Digite a sua senha">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="enableOfflineLoginModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="btnConfirmEnableOffline" class="save">Confirmar e Habilitar</button>
                 </div>
             </div>
         </div>
