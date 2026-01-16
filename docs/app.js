@@ -230,10 +230,16 @@ document.addEventListener('DOMContentLoaded', () => {
             isSyncing: false,
             isCheckingConnection: false,
             connectionCheckInterval: null,
+            networkStatus: 'BOOTING',
+            networkStatusReason: null,
+            networkStatusUpdatedAt: null,
+            networkBootstrapTimer: null,
+            networkOnlineDebounceTimer: null,
             currentUser: null,
             users: [],
             companies: [],
             globalConfigs: {}, // NOVO: Para armazenar configurações globais como feature flags
+            globalConfigsLoaded: false,
             companyConfig: {},
             registros: [],
             perdas: [],
@@ -900,6 +906,9 @@ document.addEventListener('DOMContentLoaded', () => {
         isFeatureGloballyActive(featureKey) {
             // A funcionalidade está ativa se a flag correspondente for explicitamente `true`.
             // Se a flag não existir ou for `false`, a funcionalidade está desativada.
+            if (!App.state.globalConfigsLoaded) {
+                return true;
+            }
             return App.state.globalConfigs[featureKey] === true;
         },
 
@@ -928,6 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
+            this.actions.bootstrapNetworkStatus();
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
@@ -953,11 +963,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Adiciona um 'ouvinte' para quando o status da rede mudar
                     Network.addListener('networkStatusChange', (status) => {
                         console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
-                        if (status.connected) {
-                            // Se conectar, dispara um evento 'online' personalizado,
-                            // que a lógica existente do App já sabe como manipular.
-                            window.dispatchEvent(new Event('online'));
-                        }
+                        const eventName = status.connected ? 'online' : 'offline';
+                        window.dispatchEvent(new Event(eventName));
                     });
                 } catch (e) {
                     console.error("Erro ao configurar o monitoramento de rede do Capacitor.", e);
@@ -1137,14 +1144,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
                                 if (globalConfigsDoc.exists()) {
                                     App.state.globalConfigs = globalConfigsDoc.data();
+                                    App.state.globalConfigsLoaded = true;
+                                    console.log("[Config] Configurações globais carregadas no login.");
                                 } else {
                                     console.warn("Documento de configurações globais 'main' não encontrado.");
                                     App.state.globalConfigs = {};
+                                    App.state.globalConfigsLoaded = false;
                                 }
 
                                 // 2. Pré-popular os dados da empresa (se já foram carregados)
                                 if (companyDoc) {
                                     App.state.companies = [companyDoc];
+                                    console.log("[Config] Empresa carregada no login.", { companyId: userDoc.companyId });
                                 }
 
                                 // 3. Agora é seguro mostrar a tela principal
@@ -1158,8 +1169,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     App.ui.showTab(lastTab || 'dashboard');
                                 }
 
-                                if (navigator.onLine) {
-                                    App.actions.syncOfflineWrites();
+                                if (App.state.networkStatus === 'ONLINE') {
+                                    App.actions.scheduleOnlineSync();
                                 }
 
                                 App.actions.checkSequence();
@@ -1486,15 +1497,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const unsubscribeGlobalConfigs = onSnapshot(globalConfigsRef, (doc) => {
                     if (doc.exists()) {
                         App.state.globalConfigs = doc.data();
+                        App.state.globalConfigsLoaded = true;
+                        console.log("[Config] Configurações globais atualizadas via listener.");
                     } else {
                         console.warn("Documento de configurações globais 'main' não encontrado. Recursos podem estar desativados por padrão.");
                         App.state.globalConfigs = {}; // Garante que é um objeto vazio
+                        App.state.globalConfigsLoaded = false;
                     }
                     // Re-renderiza o menu sempre que as flags globais mudam
                     App.ui.renderMenu();
                 }, (error) => {
                     console.error("Erro ao ouvir as configurações globais: ", error);
                     App.state.globalConfigs = {}; // Reseta em caso de erro
+                    App.state.globalConfigsLoaded = false;
                     App.ui.renderMenu(); // Re-renderiza o menu com flags desativadas
                 });
                 App.state.unsubscribeListeners.push(unsubscribeGlobalConfigs);
@@ -1570,6 +1585,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (doc.exists()) {
                             // Coloca a empresa do utilizador no estado, para que o menu possa ser renderizado corretamente
                             App.state.companies = [{ id: doc.id, ...doc.data() }];
+                            console.log("[Config] Documento de empresa carregado.", { companyId: doc.id });
                         } else if (navigator.onLine) {
                             // Se estiver online e a empresa não for encontrada, desloga o utilizador por segurança.
                             console.error(`Empresa com ID ${companyId} não encontrada. A deslogar o utilizador.`);
@@ -1590,6 +1606,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const configData = doc.data();
                             App.state.companyConfig = configData; // Carrega todas as configurações da empresa
                             App.state.companyLogo = configData.logoBase64 || null;
+                            console.log("[Config] Configuração da empresa carregada.", { companyId: companyId });
 
                             // Atualiza a UI com o valor carregado
                             const cigarrinhaMethodSelect = document.getElementById('cigarrinhaCalcMethod');
@@ -1947,6 +1964,11 @@ document.addEventListener('DOMContentLoaded', () => {
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
             renderMenu() {
                 const { menu } = App.elements; const { menuConfig } = App.config; const { currentUser } = App.state;
+                console.log("[Menu] Renderização solicitada.", {
+                    networkStatus: App.state.networkStatus,
+                    companyLoaded: App.state.companies.length > 0,
+                    globalConfigsLoaded: App.state.globalConfigsLoaded
+                });
                 menu.innerHTML = '';
                 const menuContent = document.createElement('div');
                 menuContent.className = 'menu-content';
@@ -1964,11 +1986,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (!isSuperAdmin) {
                         const userCompany = companies.find(c => c.id === currentUser.companyId);
+                        const hasCompanyModules = Boolean(userCompany && Array.isArray(userCompany.subscribedModules));
                         const subscribedModules = new Set(userCompany?.subscribedModules || []);
 
                         const isVisible = item.submenu ?
-                            item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission) && subscribedModules.has(sub.permission)) :
-                            (App.isFeatureGloballyActive(item.permission) && subscribedModules.has(item.permission));
+                            (hasCompanyModules
+                                ? item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission) && subscribedModules.has(sub.permission))
+                                : item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission))) :
+                            (hasCompanyModules
+                                ? (App.isFeatureGloballyActive(item.permission) && subscribedModules.has(item.permission))
+                                : App.isFeatureGloballyActive(item.permission));
 
                         if (!isVisible) return null;
                     }
@@ -2022,6 +2049,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const { currentUser, companies } = App.state;
                 const userCompany = currentUser.role !== 'super-admin' ? companies.find(c => c.id === currentUser.companyId) : null;
+                const hasCompanyModules = Boolean(userCompany && Array.isArray(userCompany.subscribedModules));
                 const subscribedModules = new Set(userCompany?.subscribedModules || []);
 
                 parentItem.submenu.forEach(subItem => {
@@ -2031,7 +2059,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!hasPermission) return;
 
                     const isGloballyActive = App.isFeatureGloballyActive(subItem.permission);
-                    const isSubscribed = isSuperAdmin || subscribedModules.has(subItem.permission);
+                    const isSubscribed = isSuperAdmin || !hasCompanyModules || subscribedModules.has(subItem.permission);
 
                     if (!isSuperAdmin && (!isGloballyActive || !isSubscribed)) {
                         return; // Não renderiza para utilizadores normais se não estiver globalmente ativo OU não estiver subscrito
@@ -7226,6 +7254,66 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            setNetworkStatus(status, reason = '') {
+                const previousStatus = App.state.networkStatus;
+                if (previousStatus === status) {
+                    if (reason) {
+                        console.log(`[Network] status mantido em ${status}. Motivo: ${reason}`);
+                    }
+                    return;
+                }
+
+                App.state.networkStatus = status;
+                App.state.networkStatusReason = reason;
+                App.state.networkStatusUpdatedAt = new Date().toISOString();
+
+                console.log(`[Network] status alterado: ${previousStatus} -> ${status}. Motivo: ${reason || 'n/d'}`);
+
+                if (status === 'ONLINE') {
+                    App.ui.showSystemNotification("Conexão", "Online confirmado.", "success");
+                    this.scheduleOnlineSync();
+                } else if (status === 'OFFLINE') {
+                    App.ui.showSystemNotification("Conexão", "Sem internet. A operar em modo offline.", "warning");
+                    if (App.state.networkOnlineDebounceTimer) {
+                        clearTimeout(App.state.networkOnlineDebounceTimer);
+                        App.state.networkOnlineDebounceTimer = null;
+                    }
+                } else if (status === 'DEGRADED') {
+                    App.ui.showSystemNotification("Conexão", "Rede instável. A verificar acesso real à internet...", "info");
+                }
+            },
+
+            bootstrapNetworkStatus() {
+                if (App.state.networkBootstrapTimer) {
+                    clearTimeout(App.state.networkBootstrapTimer);
+                }
+
+                this.setNetworkStatus('BOOTING', 'boot inicial');
+
+                App.state.networkBootstrapTimer = setTimeout(() => {
+                    if (navigator.onLine) {
+                        this.setNetworkStatus('DEGRADED', 'navigator.onLine durante boot');
+                        this.checkActiveConnection();
+                    } else {
+                        this.setNetworkStatus('OFFLINE', 'navigator.onLine falso durante boot');
+                    }
+                }, 0);
+            },
+
+            scheduleOnlineSync() {
+                if (App.state.networkOnlineDebounceTimer) {
+                    clearTimeout(App.state.networkOnlineDebounceTimer);
+                }
+
+                App.state.networkOnlineDebounceTimer = setTimeout(() => {
+                    App.state.networkOnlineDebounceTimer = null;
+                    if (App.state.networkStatus === 'ONLINE') {
+                        console.log("[Sync] Conexão estável confirmada. A iniciar sincronização automática...");
+                        this.syncOfflineWrites();
+                    }
+                }, 4000);
+            },
+
             async checkActiveConnection() {
                 if (App.state.isCheckingConnection || !navigator.onLine) return;
                 App.state.isCheckingConnection = true;
@@ -7239,6 +7327,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     console.log("Active connection confirmed.");
+                    this.setNetworkStatus('ONLINE', 'verificação ativa bem-sucedida');
                     // Stop the periodic check once connection is confirmed
                     if (App.state.connectionCheckInterval) {
                         clearInterval(App.state.connectionCheckInterval);
@@ -7250,6 +7339,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } catch (error) {
                     console.warn("Active connection check failed. Still effectively offline.");
+                    if (navigator.onLine) {
+                        this.setNetworkStatus('DEGRADED', 'falha na verificação ativa');
+                    }
                 } finally {
                     App.state.isCheckingConnection = false;
                 }
@@ -10258,23 +10350,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
                     if (globalConfigsDoc.exists()) {
                         App.state.globalConfigs = globalConfigsDoc.data();
+                        App.state.globalConfigsLoaded = true;
+                        console.log("[Config] Configurações globais carregadas durante refresh de token.");
                     }
 
                     if (App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
                         const companyDoc = await App.data.getDocument('companies', App.state.currentUser.companyId);
                         if (companyDoc) {
                             App.state.companies = [companyDoc];
+                            console.log("[Config] Configuração da empresa carregada durante refresh de token.", {
+                                companyId: App.state.currentUser.companyId
+                            });
                         }
                     }
 
-                    // Agora é seguro re-renderizar o menu
-                    App.ui.renderMenu();
-
-                    // Reinicia os 'ouvintes' de dados para usar o novo token
-                    App.data.listenToAllData();
-
-                    // Após a atualização bem-sucedida do token, iniciar a sincronização.
-                    this.syncOfflineWrites();
+                    // Após a atualização bem-sucedida do token, iniciar a sincronização somente se for manual.
+                    if (isManual) {
+                        this.syncOfflineWrites();
+                    }
                 } catch (error) {
                     console.error("Falha ao forçar a atualização do token:", error);
                     App.ui.showSystemNotification("Erro de Autenticação", "Falha na autenticação. Não foi possível sincronizar.", "error");
@@ -10288,6 +10381,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.state.isSyncing = true;
+                console.log("[Sync] Iniciando sincronização offline.", {
+                    networkStatus: App.state.networkStatus,
+                    online: navigator.onLine
+                });
                 this.syncGpsLocations(); // Sync GPS data
                 console.log("Iniciando a verificação de dados offline...");
 
@@ -11200,7 +11297,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Sincroniza a cada 1 hora
                 const umaHora = 60 * 60 * 1000;
                 App.state.syncInterval = setInterval(() => {
-                    if (navigator.onLine) {
+                    if (App.state.networkStatus === 'ONLINE') {
                         console.log("Sincronização automática em primeiro plano iniciada...");
                         App.actions.syncOfflineWrites();
                     } else {
@@ -16584,7 +16681,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.addEventListener('offline', () => {
-        App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        App.actions.setNetworkStatus('OFFLINE', 'evento offline do navegador');
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
             App.state.connectionCheckInterval = null;
@@ -16594,7 +16691,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('online', () => {
         console.log("Browser reports 'online'. Starting active connection checks.");
-        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
+        App.actions.setNetworkStatus('DEGRADED', 'evento online do navegador');
         // Clear any previous interval just in case
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
