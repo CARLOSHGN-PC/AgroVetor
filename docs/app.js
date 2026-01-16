@@ -227,6 +227,11 @@ document.addEventListener('DOMContentLoaded', () => {
         state: {
             isImpersonating: false,
             originalUser: null,
+            isAuthenticated: false,
+            authMode: null, // 'online' | 'offline'
+            isOnline: navigator.onLine,
+            requiresReauth: false,
+            reauthDeferred: false,
             isSyncing: false,
             isCheckingConnection: false,
             connectionCheckInterval: null,
@@ -354,6 +359,11 @@ document.addEventListener('DOMContentLoaded', () => {
             offlineUserList: document.getElementById('offlineUserList'),
             headerTitle: document.querySelector('header h1'),
             headerLogo: document.getElementById('headerLogo'),
+            connectionStatusBadge: document.getElementById('connectionStatusBadge'),
+            connectionStatusText: document.getElementById('connectionStatusText'),
+            reauthBanner: document.getElementById('reauthBanner'),
+            reauthNowBtn: document.getElementById('reauthNowBtn'),
+            reauthLaterBtn: document.getElementById('reauthLaterBtn'),
             currentDateTime: document.getElementById('currentDateTime'),
             logoutBtn: document.getElementById('logoutBtn'),
             btnToggleMenu: document.getElementById('btnToggleMenu'),
@@ -397,6 +407,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentPassword: document.getElementById('currentPassword'),
                 newPassword: document.getElementById('newPassword'),
                 confirmNewPassword: document.getElementById('confirmNewPassword'),
+            },
+            reauthModal: {
+                overlay: document.getElementById('reauthModal'),
+                closeBtn: document.getElementById('reauthModalCloseBtn'),
+                cancelBtn: document.getElementById('reauthModalCancelBtn'),
+                confirmBtn: document.getElementById('reauthModalConfirmBtn'),
+                passwordInput: document.getElementById('reauthPasswordInput'),
             },
             adminPasswordConfirmModal: {
                 overlay: document.getElementById('adminPasswordConfirmModal'),
@@ -929,6 +946,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
+            this.auth.onConnectivityChanged(navigator.onLine);
             this.pwa.registerServiceWorker();
         },
 
@@ -949,15 +967,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Exibe o status inicial
                     const status = await Network.getStatus();
                     console.log(`Status inicial da rede: ${status.connected ? 'Online' : 'Offline'}`);
+                    App.auth.onConnectivityChanged(status.connected);
 
                     // Adiciona um 'ouvinte' para quando o status da rede mudar
                     Network.addListener('networkStatusChange', (status) => {
                         console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
-                        if (status.connected) {
-                            // Se conectar, dispara um evento 'online' personalizado,
-                            // que a lógica existente do App já sabe como manipular.
-                            window.dispatchEvent(new Event('online'));
-                        }
+                        const eventName = status.connected ? 'online' : 'offline';
+                        window.dispatchEvent(new Event(eventName));
                     });
                 } catch (e) {
                     console.error("Erro ao configurar o monitoramento de rede do Capacitor.", e);
@@ -1098,9 +1114,177 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         auth: {
+            pendingOfflinePassword: null,
+            defaultKdfParams: {
+                iterations: 120000,
+                hash: 'SHA-256',
+                saltBytes: 16
+            },
+            encryptionVersion: 'aes-gcm-v1',
+            hashVersion: 'pbkdf2-sha256-v1',
+            _textEncoder: new TextEncoder(),
+            _textDecoder: new TextDecoder(),
+            _bufferToBase64(buffer) {
+                const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : new Uint8Array(buffer.buffer || buffer);
+                let binary = '';
+                bytes.forEach((b) => { binary += String.fromCharCode(b); });
+                return btoa(binary);
+            },
+            _base64ToBuffer(base64) {
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                return bytes.buffer;
+            },
+            _randomBytes(length) {
+                return crypto.getRandomValues(new Uint8Array(length));
+            },
+            async _deriveBits(password, salt, iterations) {
+                const keyMaterial = await crypto.subtle.importKey(
+                    'raw',
+                    this._textEncoder.encode(password),
+                    { name: 'PBKDF2' },
+                    false,
+                    ['deriveBits']
+                );
+                return crypto.subtle.deriveBits(
+                    {
+                        name: 'PBKDF2',
+                        salt,
+                        iterations,
+                        hash: 'SHA-256'
+                    },
+                    keyMaterial,
+                    256
+                );
+            },
+            async _deriveKey(password, salt, iterations) {
+                const keyMaterial = await crypto.subtle.importKey(
+                    'raw',
+                    this._textEncoder.encode(password),
+                    { name: 'PBKDF2' },
+                    false,
+                    ['deriveKey']
+                );
+                return crypto.subtle.deriveKey(
+                    {
+                        name: 'PBKDF2',
+                        salt,
+                        iterations,
+                        hash: 'SHA-256'
+                    },
+                    keyMaterial,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    ['encrypt', 'decrypt']
+                );
+            },
+            async _encryptProfile(profile, password, kdfParams) {
+                const iv = this._randomBytes(12);
+                const salt = this._randomBytes(this.defaultKdfParams.saltBytes);
+                const key = await this._deriveKey(password, salt, kdfParams.iterations);
+                const encoded = this._textEncoder.encode(JSON.stringify(profile));
+                const cipherBuffer = await crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv },
+                    key,
+                    encoded
+                );
+                return {
+                    iv: this._bufferToBase64(iv),
+                    salt: this._bufferToBase64(salt),
+                    cipherText: this._bufferToBase64(cipherBuffer),
+                    version: this.encryptionVersion
+                };
+            },
+            async _decryptProfile(encryptedProfile, password, iterations) {
+                const iv = new Uint8Array(this._base64ToBuffer(encryptedProfile.iv));
+                const salt = new Uint8Array(this._base64ToBuffer(encryptedProfile.salt));
+                const cipherBuffer = this._base64ToBuffer(encryptedProfile.cipherText);
+                const key = await this._deriveKey(password, salt, iterations);
+                const plainBuffer = await crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv },
+                    key,
+                    cipherBuffer
+                );
+                return JSON.parse(this._textDecoder.decode(plainBuffer));
+            },
+            async _hashPassword(password, salt, iterations) {
+                const bits = await this._deriveBits(password, salt, iterations);
+                return this._bufferToBase64(bits);
+            },
+            _normalizeEmail(email) {
+                return email.trim().toLowerCase();
+            },
+            async _getSecureStoragePlugin() {
+                if (!window.Capacitor || !Capacitor.isNativePlatform?.()) {
+                    return null;
+                }
+                if (Capacitor.isPluginAvailable?.('SecureStoragePlugin')) {
+                    return Capacitor.Plugins.SecureStoragePlugin;
+                }
+                if (Capacitor.isPluginAvailable?.('SecureStorage')) {
+                    return Capacitor.Plugins.SecureStorage;
+                }
+                return null;
+            },
+            async _getStoredOfflineCredential(email) {
+                const normalizedEmail = this._normalizeEmail(email);
+                const secureStorage = await this._getSecureStoragePlugin();
+                if (secureStorage) {
+                    try {
+                        const stored = await secureStorage.get({ key: `offline-cred:${normalizedEmail}` });
+                        if (stored?.value) {
+                            return JSON.parse(stored.value);
+                        }
+                    } catch (error) {
+                        console.warn("Falha ao ler credencial offline no Secure Storage:", error);
+                    }
+                }
+                return OfflineDB.get('offline-credentials', normalizedEmail);
+            },
+            async _storeOfflineCredential(record) {
+                const normalizedEmail = this._normalizeEmail(record.email);
+                const secureStorage = await this._getSecureStoragePlugin();
+                if (secureStorage) {
+                    try {
+                        await secureStorage.set({
+                            key: `offline-cred:${normalizedEmail}`,
+                            value: JSON.stringify(record)
+                        });
+                    } catch (error) {
+                        console.warn("Falha ao guardar credencial offline no Secure Storage:", error);
+                    }
+                }
+                await OfflineDB.set('offline-credentials', record);
+            },
+            async _verifyPassword(password, credential) {
+                if (credential?.hashVersion === this.hashVersion && credential?.passwordHash) {
+                    const salt = new Uint8Array(this._base64ToBuffer(credential.kdfParams.salt));
+                    const iterations = credential.kdfParams.iterations;
+                    const hash = await this._hashPassword(password, salt, iterations);
+                    return hash === credential.passwordHash;
+                }
+                if (credential?.hashedPassword && credential?.salt) {
+                    const hashedPassword = CryptoJS.PBKDF2(password, credential.salt, {
+                        keySize: 256 / 32,
+                        iterations: 1000
+                    }).toString();
+                    return hashedPassword === credential.hashedPassword;
+                }
+                return false;
+            },
+            _setAuthState({ isAuthenticated, authMode, requiresReauth = App.state.requiresReauth }) {
+                App.state.isAuthenticated = isAuthenticated;
+                App.state.authMode = authMode;
+                App.state.requiresReauth = requiresReauth;
+                App.ui.updateConnectivityStatus();
+            },
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
+                        this._setAuthState({ isAuthenticated: true, authMode: 'online', requiresReauth: false });
                         App.ui.setLoading(true, "A carregar dados do utilizador...");
                         const userDoc = await App.data.getUserData(user.uid);
 
@@ -1152,14 +1336,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                 App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
                                 App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
 
+                                if (this.pendingOfflinePassword) {
+                                    try {
+                                        await this.updateOfflineCredential(user.uid, this.pendingOfflinePassword);
+                                    } finally {
+                                        this.pendingOfflinePassword = null;
+                                    }
+                                }
+
                                 const draftRestored = await App.actions.checkForDraft();
                                 if (!draftRestored) {
                                     const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
                                     App.ui.showTab(lastTab || 'dashboard');
                                 }
 
-                                if (navigator.onLine) {
-                                    App.actions.syncOfflineWrites();
+                                if (App.state.isOnline) {
+                                    await this.tryResumeOnlineSession();
                                 }
 
                                 App.actions.checkSequence();
@@ -1175,6 +1367,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
+                        if (App.state.isAuthenticated) {
+                            App.state.authMode = 'offline';
+                            if (App.state.isOnline) {
+                                this._markReauthRequired();
+                            }
+                            App.ui.showAppScreen();
+                            App.ui.setLoading(false);
+                            return;
+                        }
                         const localProfiles = App.actions.getLocalUserProfiles();
                         if (localProfiles.length > 0 && !navigator.onLine) {
                             App.ui.showOfflineUserSelection();
@@ -1193,11 +1394,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showLoginMessage("Preencha e-mail e senha.");
                     return;
                 }
+                await this.loginOnline(email, password);
+            },
+            async loginOnline(email, password) {
                 App.ui.setLoading(true, "A autenticar...");
                 try {
-                    // Define a persistência da sessão para 'session', que limpa ao fechar o browser/app.
                     await setPersistence(auth, browserSessionPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
+                    this.pendingOfflinePassword = password;
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showLoginMessage("E-mail ou senha inválidos.");
@@ -1207,7 +1411,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
                     }
                     console.error("Erro de login:", error.code, error.message);
-                    // Apenas para o loading em caso de erro. Em caso de sucesso, a checkSession cuidará disso.
                     App.ui.setLoading(false);
                 }
             },
@@ -1218,20 +1421,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
-                    const credentials = await OfflineDB.get('offline-credentials', email.toLowerCase());
+                    const normalizedEmail = this._normalizeEmail(email);
+                    const credentials = await this._getStoredOfflineCredential(normalizedEmail);
 
                     if (!credentials) {
-                        App.ui.showAlert("Credenciais offline não encontradas para este e-mail. Faça login online primeiro e habilite o acesso offline.", "error");
+                        App.ui.showAlert("Credenciais offline não encontradas para este e-mail. Faça login online primeiro.", "error");
                         return;
                     }
 
-                    const hashedPassword = CryptoJS.PBKDF2(password, credentials.salt, {
-                        keySize: 256 / 32,
-                        iterations: 1000
-                    }).toString();
+                    const isValid = await this._verifyPassword(password, credentials);
+                    if (isValid) {
+                        let userProfile = null;
+                        if (credentials.encryptedProfile) {
+                            userProfile = await this._decryptProfile(credentials.encryptedProfile, password, credentials.kdfParams.iterations);
+                        } else if (credentials.userProfile) {
+                            userProfile = credentials.userProfile;
+                            await this.updateOfflineCredential(credentials.userId || userProfile.uid, password, userProfile);
+                        }
 
-                    if (hashedPassword === credentials.hashedPassword) {
-                        App.state.currentUser = credentials.userProfile;
+                        if (!userProfile) {
+                            App.ui.showAlert("Credencial offline inválida. Conecte-se à internet e faça login novamente.", "error");
+                            return;
+                        }
+
+                        App.state.currentUser = userProfile;
+                        this._setAuthState({ isAuthenticated: true, authMode: 'offline', requiresReauth: false });
+                        App.state.reauthDeferred = false;
 
                         App.ui.setLoading(true, "A carregar dados offline...");
                         try {
@@ -1270,17 +1485,140 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.setLoading(false);
                         }
                     } else {
-                        App.ui.showAlert("Senha offline incorreta.", "error");
+                        App.ui.showAlert("Sua senha mudou. Conecte-se à internet e faça login uma vez para atualizar o acesso offline.", "error");
                     }
                 } catch (error) {
                     App.ui.showAlert("Ocorreu um erro durante o login offline.", "error");
                     console.error("Erro no login offline:", error);
                 }
             },
+            async updateOfflineCredential(userId, password, userProfile = App.state.currentUser) {
+                if (!userProfile || !password) return;
+                const kdfParams = {
+                    iterations: this.defaultKdfParams.iterations,
+                    salt: this._bufferToBase64(this._randomBytes(this.defaultKdfParams.saltBytes))
+                };
+                const saltBuffer = new Uint8Array(this._base64ToBuffer(kdfParams.salt));
+                const passwordHash = await this._hashPassword(password, saltBuffer, kdfParams.iterations);
+                const encryptedProfile = await this._encryptProfile({
+                    uid: userProfile.uid,
+                    email: userProfile.email,
+                    username: userProfile.username,
+                    role: userProfile.role,
+                    permissions: userProfile.permissions,
+                    companyId: userProfile.companyId,
+                }, password, kdfParams);
+                const record = {
+                    email: this._normalizeEmail(userProfile.email),
+                    userId: userId || userProfile.uid,
+                    hashVersion: this.hashVersion,
+                    kdfParams,
+                    passwordHash,
+                    encryptedProfile,
+                    updatedAt: new Date().toISOString()
+                };
+                await this._storeOfflineCredential(record);
+                App.actions.saveUserProfileLocally(userProfile);
+            },
+            async onConnectivityChanged(isOnline) {
+                App.state.isOnline = isOnline;
+                App.ui.updateConnectivityStatus();
+                if (isOnline) {
+                    await this.tryResumeOnlineSession();
+                }
+            },
+            async tryResumeOnlineSession(options = {}) {
+                if (!App.state.isAuthenticated || !App.state.isOnline) {
+                    return;
+                }
+                if (!navigator.onLine) {
+                    return;
+                }
+                if (auth.currentUser) {
+                    try {
+                        const message = options.isManual ? "A iniciar sincronização manual..." : "Conexão reestabelecida. A iniciar sincronização automática...";
+                        if (options.isManual) {
+                            App.ui.showSystemNotification("Sincronização", message, "info");
+                        }
+                        await auth.currentUser.getIdToken(true);
+                        await this._afterOnlineSessionReady();
+                    } catch (error) {
+                        console.error("Falha ao atualizar token:", error);
+                        this._markReauthRequired();
+                    }
+                } else {
+                    this._markReauthRequired();
+                }
+            },
+            _markReauthRequired() {
+                App.state.requiresReauth = true;
+                App.state.authMode = App.state.authMode || 'offline';
+                App.ui.updateConnectivityStatus();
+                if (App.state.isOnline && !App.state.reauthDeferred) {
+                    App.ui.showReauthBanner();
+                }
+            },
+            async _afterOnlineSessionReady() {
+                App.state.authMode = 'online';
+                App.state.requiresReauth = false;
+                App.state.reauthDeferred = false;
+                App.ui.hideReauthBanner();
+                App.ui.updateConnectivityStatus();
+
+                const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                if (globalConfigsDoc.exists()) {
+                    App.state.globalConfigs = globalConfigsDoc.data();
+                }
+
+                if (App.state.currentUser?.companyId && App.state.currentUser.role !== 'super-admin') {
+                    const companyDoc = await App.data.getDocument('companies', App.state.currentUser.companyId);
+                    if (companyDoc) {
+                        App.state.companies = [companyDoc];
+                    }
+                }
+
+                App.ui.renderMenu();
+                App.data.listenToAllData();
+                App.actions.syncOfflineWrites();
+            },
+            async confirmReauth(password) {
+                if (!password) {
+                    App.ui.showAlert("Por favor, insira a sua senha para reautenticar.", "warning");
+                    return;
+                }
+                App.ui.setLoading(true, "A reautenticar...");
+                try {
+                    if (auth.currentUser) {
+                        const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
+                        await reauthenticateWithCredential(auth.currentUser, credential);
+                        await this.updateOfflineCredential(App.state.currentUser.uid, password);
+                        await this._afterOnlineSessionReady();
+                    } else if (App.state.currentUser?.email) {
+                        await signInWithEmailAndPassword(auth, App.state.currentUser.email, password);
+                        this.pendingOfflinePassword = password;
+                    }
+                    App.ui.closeReauthModal();
+                } catch (error) {
+                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                        App.ui.showAlert("A senha está incorreta.", "error");
+                    } else {
+                        App.ui.showAlert("Não foi possível reautenticar. Tente novamente.", "error");
+                    }
+                    console.error("Erro ao reautenticar:", error);
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
             async logout() {
                 if (navigator.onLine) {
                     await signOut(auth);
                 }
+                App.state.isAuthenticated = false;
+                App.state.authMode = null;
+                App.state.requiresReauth = false;
+                App.state.reauthDeferred = false;
+                App.ui.hideReauthBanner();
+                App.ui.updateConnectivityStatus();
                 // Limpa todos os listeners e processos em segundo plano
                 App.data.cleanupListeners();
                 App.actions.stopGpsTracking();
@@ -1751,6 +2089,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
                 App.ui.setLoading(false);
+                App.ui.updateConnectivityStatus();
             },
             showOfflineUserSelection() { // Removed profiles argument
                 App.elements.loginForm.style.display = 'none';
@@ -1764,6 +2103,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginScreen.style.display = 'flex';
                 App.elements.appScreen.style.display = 'none';
                 App.ui.setLoading(false);
+                App.ui.updateConnectivityStatus();
             },
             showAppScreen() {
                 const { currentUser } = App.state;
@@ -1773,6 +2113,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.userMenu.container.style.display = 'block';
                 App.elements.notificationBell.container.style.display = 'block';
                 App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
+                App.ui.updateConnectivityStatus();
                 
                 // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
                 App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AgroVetor`;
@@ -1924,6 +2265,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 const title = type.charAt(0).toUpperCase() + type.slice(1);
                 this.showSystemNotification(title, message, type);
             },
+            updateConnectivityStatus() {
+                const badge = App.elements.connectionStatusBadge;
+                const textEl = App.elements.connectionStatusText;
+                if (!badge || !textEl) return;
+
+                if (!App.state.isAuthenticated) {
+                    badge.style.display = 'none';
+                    this.hideReauthBanner();
+                    return;
+                }
+
+                badge.style.display = 'flex';
+
+                let status = 'offline';
+                let label = 'Offline';
+
+                if (App.state.isSyncing) {
+                    status = 'syncing';
+                    label = 'Sincronizando';
+                } else if (App.state.requiresReauth) {
+                    status = 'reauth';
+                    label = 'Reautenticar para sincronizar';
+                } else if (App.state.isOnline) {
+                    status = 'online';
+                    label = 'Online';
+                }
+
+                badge.dataset.status = status;
+                textEl.textContent = label;
+
+                if (App.state.requiresReauth && !App.state.reauthDeferred) {
+                    this.showReauthBanner();
+                } else if (!App.state.requiresReauth) {
+                    this.hideReauthBanner();
+                }
+            },
+            showReauthBanner() {
+                if (App.elements.reauthBanner) {
+                    App.elements.reauthBanner.classList.add('show');
+                }
+            },
+            hideReauthBanner() {
+                if (App.elements.reauthBanner) {
+                    App.elements.reauthBanner.classList.remove('show');
+                }
+            },
+            showReauthModal() {
+                if (App.elements.reauthModal?.overlay) {
+                    App.elements.reauthModal.overlay.classList.add('show');
+                    App.elements.reauthModal.passwordInput?.focus();
+                }
+            },
+            closeReauthModal() {
+                if (App.elements.reauthModal?.overlay) {
+                    App.elements.reauthModal.overlay.classList.remove('show');
+                }
+            },
 
             showSystemNotification(title, message, type = 'info', options = {}) {
                 const { list, count, noNotifications } = App.elements.notificationBell;
@@ -1947,6 +2345,10 @@ document.addEventListener('DOMContentLoaded', () => {
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
             renderMenu() {
                 const { menu } = App.elements; const { menuConfig } = App.config; const { currentUser } = App.state;
+                if (!App.state.isAuthenticated || !currentUser) {
+                    menu.innerHTML = '';
+                    return;
+                }
                 menu.innerHTML = '';
                 const menuContent = document.createElement('div');
                 menuContent.className = 'menu-content';
@@ -4939,6 +5341,33 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (e.target === offlineModal) App.ui.closeEnableOfflineLoginModal();
                     });
                 }
+
+                if (App.elements.reauthNowBtn) {
+                    App.elements.reauthNowBtn.addEventListener('click', () => App.ui.showReauthModal());
+                }
+                if (App.elements.reauthLaterBtn) {
+                    App.elements.reauthLaterBtn.addEventListener('click', () => {
+                        App.state.reauthDeferred = true;
+                        App.ui.hideReauthBanner();
+                        App.ui.updateConnectivityStatus();
+                    });
+                }
+
+                const reauthModal = App.elements.reauthModal;
+                if (reauthModal?.confirmBtn) {
+                    reauthModal.confirmBtn.addEventListener('click', async () => {
+                        const password = reauthModal.passwordInput.value;
+                        await App.auth.confirmReauth(password);
+                        reauthModal.passwordInput.value = '';
+                    });
+                }
+                if (reauthModal?.closeBtn) reauthModal.closeBtn.addEventListener('click', () => App.ui.closeReauthModal());
+                if (reauthModal?.cancelBtn) reauthModal.cancelBtn.addEventListener('click', () => App.ui.closeReauthModal());
+                if (reauthModal?.overlay) {
+                    reauthModal.overlay.addEventListener('click', (e) => {
+                        if (e.target === reauthModal.overlay) App.ui.closeReauthModal();
+                    });
+                }
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
                     document.body.classList.toggle('mobile-menu-open');
@@ -7246,7 +7675,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log("Periodic connection check stopped.");
                     }
                     // Now, proceed with the actual synchronization logic
-                    this.forceTokenRefresh(false);
+                    await App.auth.tryResumeOnlineSession();
 
                 } catch (error) {
                     console.warn("Active connection check failed. Still effectively offline.");
@@ -7898,6 +8327,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     await reauthenticateWithCredential(user, credential);
                     await updatePassword(user, newPassword);
+                    await App.auth.updateOfflineCredential(user.uid, newPassword);
                     
                     App.ui.showAlert("Senha alterada com sucesso!", "success");
                     els.overlay.classList.remove('show');
@@ -10240,54 +10670,25 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async forceTokenRefresh(isManual = false) {
-                if (!navigator.onLine || !auth.currentUser) {
-                    if (isManual) {
-                        App.ui.showSystemNotification("Sincronização", "Offline ou sem utilizador. Não é possível sincronizar.", "warning");
-                    }
-                    console.log("Offline ou sem utilizador, não é possível atualizar o token.");
+                if (isManual && !App.state.isOnline) {
+                    App.ui.showSystemNotification("Sincronização", "Offline. Não é possível sincronizar agora.", "warning");
                     return;
                 }
-                try {
-                    const message = isManual ? "A iniciar sincronização manual..." : "Conexão reestabelecida. A iniciar sincronização automática...";
-                    App.ui.showSystemNotification("Sincronização", message, "info");
-                    console.log("A forçar a atualização do token de autenticação...");
-                    await auth.currentUser.getIdToken(true);
-                    console.log("Token de autenticação atualizado com sucesso.");
-
-                    // FIX: Pré-carrega os dados críticos antes de reanexar os listeners para evitar a condição de corrida do menu
-                    const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                    if (globalConfigsDoc.exists()) {
-                        App.state.globalConfigs = globalConfigsDoc.data();
-                    }
-
-                    if (App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
-                        const companyDoc = await App.data.getDocument('companies', App.state.currentUser.companyId);
-                        if (companyDoc) {
-                            App.state.companies = [companyDoc];
-                        }
-                    }
-
-                    // Agora é seguro re-renderizar o menu
-                    App.ui.renderMenu();
-
-                    // Reinicia os 'ouvintes' de dados para usar o novo token
-                    App.data.listenToAllData();
-
-                    // Após a atualização bem-sucedida do token, iniciar a sincronização.
-                    this.syncOfflineWrites();
-                } catch (error) {
-                    console.error("Falha ao forçar a atualização do token:", error);
-                    App.ui.showSystemNotification("Erro de Autenticação", "Falha na autenticação. Não foi possível sincronizar.", "error");
-                }
+                await App.auth.tryResumeOnlineSession({ isManual });
             },
 
             async syncOfflineWrites() {
+                if (!App.state.isOnline || App.state.authMode !== 'online' || App.state.requiresReauth) {
+                    console.log("Sincronização ignorada: sessão online não disponível.");
+                    return;
+                }
                 if (App.state.isSyncing) {
                     console.log("A sincronização já está em andamento.");
                     return;
                 }
 
                 App.state.isSyncing = true;
+                App.ui.updateConnectivityStatus();
                 this.syncGpsLocations(); // Sync GPS data
                 console.log("Iniciando a verificação de dados offline...");
 
@@ -10305,6 +10706,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const db = await OfflineDB.dbPromise;
                     if (!db) {
                         App.state.isSyncing = false;
+                        App.ui.updateConnectivityStatus();
                         return;
                     }
 
@@ -10315,6 +10717,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (writesToSync.length === 0) {
                         console.log("Nenhum registo pendente para sincronizar.");
                         App.state.isSyncing = false;
+                        App.ui.updateConnectivityStatus();
                         return;
                     }
 
@@ -10481,6 +10884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     App.state.isSyncing = false;
                     console.log("Processo de sincronização finalizado.");
+                    App.ui.updateConnectivityStatus();
                 }
             },
 
@@ -11200,7 +11604,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Sincroniza a cada 1 hora
                 const umaHora = 60 * 60 * 1000;
                 App.state.syncInterval = setInterval(() => {
-                    if (navigator.onLine) {
+                    if (App.state.isOnline && App.state.authMode === 'online' && !App.state.requiresReauth) {
                         console.log("Sincronização automática em primeiro plano iniciada...");
                         App.actions.syncOfflineWrites();
                     } else {
@@ -11241,33 +11645,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const credential = EmailAuthProvider.credential(user.email, password);
                     await reauthenticateWithCredential(user, credential);
 
-                    // 2. Gerar "salt" e "hash" da senha
-                    const salt = CryptoJS.lib.WordArray.random(128 / 8).toString();
-                    const hashedPassword = CryptoJS.PBKDF2(password, salt, {
-                        keySize: 256 / 32,
-                        iterations: 1000
-                    }).toString();
-
-                    // 3. Preparar os dados para guardar
-                    const userProfileToSave = {
-                        uid: currentUser.uid,
-                        email: currentUser.email,
-                        username: currentUser.username,
-                        role: currentUser.role,
-                        permissions: currentUser.permissions,
-                        companyId: currentUser.companyId,
-                    };
-                    const credentialsToStore = {
-                        email: currentUser.email.toLowerCase(),
-                        hashedPassword: hashedPassword,
-                        salt: salt,
-                        userProfile: userProfileToSave
-                    };
-
-                    // 4. Guardar no IndexedDB
-                    await OfflineDB.set('offline-credentials', credentialsToStore);
-
-                    App.ui.showAlert("Login offline habilitado/atualizado com sucesso!", "success");
+                    await App.auth.updateOfflineCredential(currentUser.uid, password);
+                    App.ui.showAlert("Acesso offline atualizado com sucesso!", "success");
                     App.ui.closeEnableOfflineLoginModal();
 
                 } catch (error) {
@@ -16585,6 +16964,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('offline', () => {
         App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        App.auth.onConnectivityChanged(false);
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
             App.state.connectionCheckInterval = null;
@@ -16595,6 +16975,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('online', () => {
         console.log("Browser reports 'online'. Starting active connection checks.");
         App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
+        App.auth.onConnectivityChanged(true);
         // Clear any previous interval just in case
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);

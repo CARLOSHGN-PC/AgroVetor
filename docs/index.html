@@ -165,6 +165,62 @@
           padding: 0 10px; /* Adiciona um pequeno espaçamento para não colar nos botões */
       }
       header h1 i { margin-right: 10px; }
+      .connection-status-badge {
+          display: none;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 600;
+          background: rgba(255, 255, 255, 0.2);
+          color: var(--color-white);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          backdrop-filter: blur(6px);
+      }
+      .connection-status-badge i {
+          font-size: 8px;
+      }
+      .connection-status-badge[data-status="online"] {
+          background: rgba(46, 204, 113, 0.25);
+          border-color: rgba(46, 204, 113, 0.4);
+      }
+      .connection-status-badge[data-status="offline"] {
+          background: rgba(231, 76, 60, 0.25);
+          border-color: rgba(231, 76, 60, 0.4);
+      }
+      .connection-status-badge[data-status="syncing"] {
+          background: rgba(241, 196, 15, 0.25);
+          border-color: rgba(241, 196, 15, 0.4);
+      }
+      .connection-status-badge[data-status="reauth"] {
+          background: rgba(52, 152, 219, 0.25);
+          border-color: rgba(52, 152, 219, 0.4);
+      }
+      .reauth-banner {
+          display: none;
+          position: sticky;
+          top: calc(70px + env(safe-area-inset-top));
+          z-index: 990;
+          background: var(--color-bg);
+          border-bottom: 1px solid var(--color-border);
+          padding: 10px 16px;
+          gap: 12px;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+      }
+      .reauth-banner.show {
+          display: flex;
+      }
+      .reauth-banner .reauth-actions {
+          display: flex;
+          gap: 8px;
+      }
+      .reauth-banner .reauth-actions button {
+          padding: 8px 14px;
+          border-radius: 8px;
+      }
 
       .menu-toggle { background: rgba(255, 255, 255, 0.1); border-radius: var(--border-radius); border: none; cursor: pointer; width: 48px; height: 48px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; z-index: 1100; transition: var(--transition); }
       .menu-toggle:hover { background: rgba(255, 255, 255, 0.2); }
@@ -2075,6 +2131,10 @@
             </div>
             
             <div class="header-actions-container">
+                <div id="connectionStatusBadge" class="connection-status-badge" role="status" aria-live="polite">
+                    <i class="fas fa-circle"></i>
+                    <span id="connectionStatusText">Offline</span>
+                </div>
                 <div id="notification-bell-container" class="notification-bell" style="display: none;">
                     <button id="notification-bell-toggle" aria-label="Notificações">
                         <i class="fas fa-bell"></i>
@@ -2130,6 +2190,14 @@
                 </div>
             </div>
         </header>
+
+        <div id="reauthBanner" class="reauth-banner" role="status" aria-live="polite">
+            <span>Preciso confirmar sua sessão para sincronizar.</span>
+            <div class="reauth-actions">
+                <button id="reauthNowBtn" class="save">Agora</button>
+                <button id="reauthLaterBtn" class="btn-secondary">Depois</button>
+            </div>
+        </div>
 
         <nav class="menu" id="menu" aria-label="Menu Principal" tabindex="-1"></nav>
         
@@ -4399,6 +4467,26 @@
             </div>
         </div>
 
+        <div id="reauthModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 450px;">
+                <div class="modal-header">
+                    <h2>Reautenticar para Sincronizar</h2>
+                    <button id="reauthModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Confirme sua senha para retomar a sincronização automática.</p>
+                    <div class="input-group">
+                        <label for="reauthPasswordInput">Senha:</label>
+                        <input type="password" id="reauthPasswordInput" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="reauthModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="reauthModalConfirmBtn" class="save">Reautenticar</button>
+                </div>
+            </div>
+        </div>
+
         <div id="adminPasswordConfirmModal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
@@ -4542,11 +4630,11 @@
         <div id="enableOfflineLoginModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 450px;">
                 <div class="modal-header">
-                    <h3>Habilitar Acesso Offline</h3>
+                    <h3>Atualizar Acesso Offline</h3>
                     <button id="enableOfflineLoginModalCloseBtn" class="modal-close-btn">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p>Para habilitar ou atualizar o seu acesso offline, por favor, confirme a sua senha atual. As suas credenciais serão guardadas de forma segura neste dispositivo.</p>
+                    <p>Para atualizar o seu acesso offline, confirme a sua senha atual. As suas credenciais serão guardadas de forma segura neste dispositivo.</p>
                     <div class="form-col">
                         <label for="enableOfflinePassword">Senha Atual:</label>
                         <input type="password" id="enableOfflinePassword" placeholder="Digite a sua senha">
@@ -4554,7 +4642,7 @@
                 </div>
                 <div class="modal-footer">
                     <button id="enableOfflineLoginModalCancelBtn" class="btn-secondary">Cancelar</button>
-                    <button id="btnConfirmEnableOffline" class="save">Confirmar e Habilitar</button>
+                    <button id="btnConfirmEnableOffline" class="save">Confirmar e Atualizar</button>
                 </div>
             </div>
         </div>
