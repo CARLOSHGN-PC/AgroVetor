@@ -7,6 +7,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
 import CalculationService from './js/lib/CalculationService.js';
+import { SessionManager, SessionStatus } from './js/services/SessionManager.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -131,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
         services: {
             CalculationService,
         },
+        session: null,
         config: {
             appName: "Inspeção e Planejamento de Cana com IA",
             themeKey: 'canaAppTheme',
@@ -230,6 +232,9 @@ document.addEventListener('DOMContentLoaded', () => {
             isSyncing: false,
             isCheckingConnection: false,
             connectionCheckInterval: null,
+            sessionStatus: SessionStatus.SIGNED_OUT,
+            syncStatus: 'idle',
+            pendingOfflinePassword: null,
             currentUser: null,
             users: [],
             companies: [],
@@ -352,6 +357,9 @@ document.addEventListener('DOMContentLoaded', () => {
             loginForm: document.getElementById('loginForm'),
             offlineUserSelection: document.getElementById('offlineUserSelection'),
             offlineUserList: document.getElementById('offlineUserList'),
+            offlineDataStatus: document.getElementById('offlineDataStatus'),
+            offlineDataProgress: document.getElementById('offlineDataProgress'),
+            offlineDataCount: document.getElementById('offlineDataCount'),
             headerTitle: document.querySelector('header h1'),
             headerLogo: document.getElementById('headerLogo'),
             currentDateTime: document.getElementById('currentDateTime'),
@@ -375,6 +383,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 toggle: document.getElementById('user-menu-toggle'),
                 dropdown: document.getElementById('user-menu-dropdown'),
                 username: document.getElementById('userMenuUsername'),
+                sessionStatusText: document.getElementById('sessionStatusText'),
+                syncStatusText: document.getElementById('syncStatusText'),
                 changePasswordBtn: document.getElementById('changePasswordBtn'),
                 manualSyncBtn: document.getElementById('manualSyncBtn'),
                 themeButtons: document.querySelectorAll('.theme-button')
@@ -928,6 +938,13 @@ document.addEventListener('DOMContentLoaded', () => {
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
+            this.session = new SessionManager({
+                onStatusChange: (status, metadata) => {
+                    App.state.sessionStatus = status;
+                    App.ui.updateSessionStatus(status, metadata);
+                }
+            });
+            this.ui.updateSyncStatus('idle');
             this.auth.checkSession();
             this.pwa.registerServiceWorker();
         },
@@ -957,6 +974,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             // Se conectar, dispara um evento 'online' personalizado,
                             // que a lógica existente do App já sabe como manipular.
                             window.dispatchEvent(new Event('online'));
+                        } else {
+                            window.dispatchEvent(new Event('offline'));
                         }
                     });
                 } catch (e) {
@@ -1098,6 +1117,51 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         auth: {
+            setLastSessionEmail(email) {
+                if (email) {
+                    localStorage.setItem('agrovetor_lastSessionEmail', email.toLowerCase());
+                }
+            },
+            getLastSessionEmail() {
+                return localStorage.getItem('agrovetor_lastSessionEmail');
+            },
+            clearLastSessionEmail() {
+                localStorage.removeItem('agrovetor_lastSessionEmail');
+            },
+            async restoreLocalSession() {
+                const lastEmail = this.getLastSessionEmail();
+                if (!lastEmail) return false;
+                const credentials = await OfflineDB.get('offline-credentials', lastEmail);
+                if (!credentials?.userProfile) return false;
+
+                App.state.currentUser = credentials.userProfile;
+                App.session.setAuthenticatedLocal(App.state.currentUser, { source: 'local-session-restore' });
+                App.session.setNeedsOnlineReauth({ source: 'local-session-restore' });
+                App.ui.updateSyncStatus('reauth');
+
+                App.ui.setLoading(true, "A carregar dados offline...");
+                try {
+                    const companyId = App.state.currentUser.companyId;
+                    if (companyId) {
+                        const companyDoc = await App.data.getDocument('companies', companyId);
+                        if (companyDoc) {
+                            App.state.companies = [companyDoc];
+                        }
+                    }
+                    const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                    if (globalConfigsDoc.exists()) {
+                        App.state.globalConfigs = globalConfigsDoc.data();
+                    }
+                } catch (error) {
+                    console.error("Erro ao restaurar sessão local:", error);
+                } finally {
+                    App.ui.showAppScreen();
+                    App.mapModule.loadOfflineShapes();
+                    App.data.listenToAllData();
+                    App.ui.setLoading(false);
+                }
+                return true;
+            },
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
@@ -1122,6 +1186,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             App.state.currentUser = { ...user, ...userDoc };
+                            App.session.setAuthenticatedLocal(App.state.currentUser, { source: 'firebase' });
+                            App.auth.setLastSessionEmail(App.state.currentUser.email);
 
                             // Validação CRÍTICA para o modelo multi-empresa
                             if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
@@ -1149,6 +1215,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                 // 3. Agora é seguro mostrar a tela principal
                                 App.actions.saveUserProfileLocally(App.state.currentUser);
+                                if (App.state.pendingOfflinePassword) {
+                                    try {
+                                        await App.actions.cacheOfflineCredentials(App.state.pendingOfflinePassword, App.state.currentUser);
+                                    } catch (error) {
+                                        console.error("Erro ao atualizar credenciais offline:", error);
+                                    } finally {
+                                        App.state.pendingOfflinePassword = null;
+                                    }
+                                }
                                 App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
                                 App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
 
@@ -1160,6 +1235,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                 if (navigator.onLine) {
                                     App.actions.syncOfflineWrites();
+                                } else {
+                                    App.ui.updateSyncStatus('idle');
                                 }
 
                                 App.actions.checkSequence();
@@ -1175,6 +1252,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
+                        if (App.state.currentUser) {
+                            App.session.setNeedsOnlineReauth({ source: 'firebase-signed-out' });
+                            App.ui.showAppScreen();
+                            App.ui.updateSyncStatus('reauth');
+                            return;
+                        }
+
+                        const restored = await App.auth.restoreLocalSession();
+                        if (restored) {
+                            return;
+                        }
+
+                        App.session.setSignedOut({ source: 'firebase-signed-out' });
                         const localProfiles = App.actions.getLocalUserProfiles();
                         if (localProfiles.length > 0 && !navigator.onLine) {
                             App.ui.showOfflineUserSelection();
@@ -1194,6 +1284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 App.ui.setLoading(true, "A autenticar...");
+                App.state.pendingOfflinePassword = password;
                 try {
                     // Define a persistência da sessão para 'session', que limpa ao fechar o browser/app.
                     await setPersistence(auth, browserSessionPersistence);
@@ -1207,6 +1298,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
                     }
                     console.error("Erro de login:", error.code, error.message);
+                    App.state.pendingOfflinePassword = null;
                     // Apenas para o loading em caso de erro. Em caso de sucesso, a checkSession cuidará disso.
                     App.ui.setLoading(false);
                 }
@@ -1221,7 +1313,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const credentials = await OfflineDB.get('offline-credentials', email.toLowerCase());
 
                     if (!credentials) {
-                        App.ui.showAlert("Credenciais offline não encontradas para este e-mail. Faça login online primeiro e habilite o acesso offline.", "error");
+                        App.ui.showAlert("Credenciais offline não encontradas para este e-mail. Faça login online primeiro para gerar o acesso offline.", "error");
                         return;
                     }
 
@@ -1232,6 +1324,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (hashedPassword === credentials.hashedPassword) {
                         App.state.currentUser = credentials.userProfile;
+                        App.session.setAuthenticatedLocal(App.state.currentUser, { source: 'offline-login' });
+                        App.auth.setLastSessionEmail(App.state.currentUser.email);
+                        App.ui.updateSyncStatus('idle');
 
                         App.ui.setLoading(true, "A carregar dados offline...");
                         try {
@@ -1281,6 +1376,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (navigator.onLine) {
                     await signOut(auth);
                 }
+                App.session.setSignedOut({ source: 'logout' });
+                App.auth.clearLastSessionEmail();
                 // Limpa todos os listeners e processos em segundo plano
                 App.data.cleanupListeners();
                 App.actions.stopGpsTracking();
@@ -1316,12 +1413,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.plantio = [];
                 App.state.clima = [];
                 App.state.apontamentoPlantioFormIsDirty = false;
+                App.state.syncStatus = 'idle';
+                App.state.pendingOfflinePassword = null;
 
                 // Limpa timers de inatividade e armazenamento local
                 clearTimeout(App.state.inactivityTimer);
                 clearTimeout(App.state.inactivityWarningTimer);
                 localStorage.removeItem('agrovetor_lastActiveTab');
                 sessionStorage.removeItem('notifiedTrapIds');
+
+                App.ui.updateSyncStatus('idle');
 
                 // Reavalia a sessão para mostrar a tela de login correta (online/offline)
                 this.checkSession();
@@ -1773,6 +1874,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.userMenu.container.style.display = 'block';
                 App.elements.notificationBell.container.style.display = 'block';
                 App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
+                App.ui.updateSessionStatus(App.state.sessionStatus);
+                App.ui.updateSyncStatus(App.state.syncStatus);
                 
                 // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
                 App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AgroVetor`;
@@ -1943,6 +2046,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.updateNotificationBell();
                 App.actions.saveNotification(newNotification); // Salva a notificação completa
+            },
+            updateSessionStatus(status) {
+                if (!App.elements.userMenu.sessionStatusText) return;
+                let label = 'Sessão local';
+                if (status === SessionStatus.SIGNED_OUT) {
+                    label = 'Sessão encerrada';
+                } else if (status === SessionStatus.NEEDS_ONLINE_REAUTH) {
+                    label = 'Reautenticação online necessária para sincronizar';
+                } else if (status === SessionStatus.AUTHENTICATED_LOCAL) {
+                    label = navigator.onLine ? 'Sessão local ativa' : 'Sessão local (offline)';
+                }
+                App.elements.userMenu.sessionStatusText.textContent = label;
+            },
+            updateSyncStatus(status, details = '') {
+                App.state.syncStatus = status;
+                if (!App.elements.userMenu.syncStatusText) return;
+                const statusMap = {
+                    idle: 'Sincronização: aguardando',
+                    syncing: 'Sincronizando...',
+                    done: 'Sincronização concluída',
+                    reauth: 'Sincronização aguardando reautenticação',
+                    error: 'Sincronização com falhas'
+                };
+                const baseLabel = statusMap[status] || statusMap.idle;
+                App.elements.userMenu.syncStatusText.textContent = details ? `${baseLabel} ${details}` : baseLabel;
             },
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
             renderMenu() {
@@ -4335,25 +4463,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.adminPasswordConfirmModal.passwordInput.value = '';
             },
 
-            showEnableOfflineLoginModal() {
-                const modal = document.getElementById('enableOfflineLoginModal');
-                if (modal) {
-                    modal.classList.add('show');
-                    const passwordInput = document.getElementById('enableOfflinePassword');
-                    if (passwordInput) {
-                        passwordInput.value = '';
-                        passwordInput.focus();
-                    }
-                }
-            },
-
-            closeEnableOfflineLoginModal() {
-                const modal = document.getElementById('enableOfflineLoginModal');
-                if (modal) {
-                    modal.classList.remove('show');
-                }
-            },
-
             showImpersonationBanner(companyName) {
                 this.hideImpersonationBanner(); // Limpa qualquer banner anterior
 
@@ -4918,26 +5027,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                // Event Listeners for enabling offline login
+                // Event Listeners for offline data download/update
                 const btnEnableOffline = document.getElementById('btnEnableOfflineLogin');
                 if (btnEnableOffline) {
-                    btnEnableOffline.addEventListener('click', () => App.ui.showEnableOfflineLoginModal());
-                }
-
-                const btnConfirmEnableOffline = document.getElementById('btnConfirmEnableOffline');
-                if (btnConfirmEnableOffline) {
-                    btnConfirmEnableOffline.addEventListener('click', () => App.actions.enableOfflineLogin());
-                }
-
-                const offlineModal = document.getElementById('enableOfflineLoginModal');
-                if(offlineModal) {
-                    const closeBtn = offlineModal.querySelector('.modal-close-btn');
-                    const cancelBtn = offlineModal.querySelector('.btn-cancel');
-                    if(closeBtn) closeBtn.addEventListener('click', () => App.ui.closeEnableOfflineLoginModal());
-                    if(cancelBtn) cancelBtn.addEventListener('click', () => App.ui.closeEnableOfflineLoginModal());
-                    offlineModal.addEventListener('click', e => {
-                        if (e.target === offlineModal) App.ui.closeEnableOfflineLoginModal();
-                    });
+                    btnEnableOffline.addEventListener('click', () => App.actions.downloadOfflineData());
                 }
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
@@ -7246,6 +7339,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log("Periodic connection check stopped.");
                     }
                     // Now, proceed with the actual synchronization logic
+                    if (!App.state.currentUser) {
+                        return;
+                    }
+                    if (App.session && App.session.needsReauth()) {
+                        App.ui.updateSyncStatus('reauth');
+                        return;
+                    }
                     this.forceTokenRefresh(false);
 
                 } catch (error) {
@@ -7253,6 +7353,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     App.state.isCheckingConnection = false;
                 }
+            },
+            isAuthError(error) {
+                if (!error) return false;
+                const authCodes = new Set([
+                    'auth/user-token-expired',
+                    'auth/invalid-user-token',
+                    'auth/invalid-credential',
+                    'auth/user-disabled',
+                    'auth/user-not-found',
+                    'permission-denied',
+                    'unauthenticated',
+                ]);
+                if (authCodes.has(error.code)) return true;
+                const message = (error.message || '').toLowerCase();
+                return message.includes('permission') || message.includes('unauthenticated') || message.includes('token');
+            },
+            markReauthRequired(context = '') {
+                if (App.session) {
+                    if (App.state.currentUser && !App.session.userProfile) {
+                        App.session.setAuthenticatedLocal(App.state.currentUser, { source: context });
+                    }
+                    App.session.setNeedsOnlineReauth({ source: context });
+                }
+                App.ui.updateSyncStatus('reauth');
+                App.ui.showSystemNotification("Sincronização", "Reautenticação online necessária para sincronizar.", "warning");
             },
 
             filterDashboardData(data, startDate, endDate) {
@@ -7873,6 +7998,165 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 localStorage.setItem('localUserProfiles', JSON.stringify(profiles));
             },
+            async cacheOfflineCredentials(password, userProfile = App.state.currentUser) {
+                if (!password || !userProfile?.email) return;
+                const salt = CryptoJS.lib.WordArray.random(128 / 8).toString();
+                const hashedPassword = CryptoJS.PBKDF2(password, salt, {
+                    keySize: 256 / 32,
+                    iterations: 1000
+                }).toString();
+
+                const userProfileToSave = {
+                    uid: userProfile.uid,
+                    email: userProfile.email,
+                    username: userProfile.username,
+                    role: userProfile.role,
+                    permissions: userProfile.permissions,
+                    companyId: userProfile.companyId,
+                };
+
+                const credentialsToStore = {
+                    email: userProfile.email.toLowerCase(),
+                    hashedPassword,
+                    salt,
+                    userProfile: userProfileToSave,
+                    updatedAt: new Date().toISOString()
+                };
+
+                await OfflineDB.set('offline-credentials', credentialsToStore);
+            },
+            async downloadOfflineData() {
+                if (!App.state.currentUser) {
+                    App.ui.showAlert("Faça login para baixar dados offline.", "warning");
+                    return;
+                }
+                if (!navigator.onLine) {
+                    App.ui.showAlert("É preciso estar online para baixar dados offline.", "warning");
+                    return;
+                }
+
+                const user = App.state.currentUser;
+                if (user.role === 'super-admin') {
+                    App.ui.showAlert("O download offline em lote não está disponível para Super Admin.", "info");
+                    return;
+                }
+
+                const statusEl = App.elements.offlineDataStatus;
+                const progressEl = App.elements.offlineDataProgress;
+                const countEl = App.elements.offlineDataCount;
+                const updateStatus = (text) => {
+                    if (statusEl) statusEl.innerHTML = `<strong>Status:</strong> ${text}`;
+                };
+                const updateProgress = (value) => {
+                    if (progressEl) progressEl.value = value;
+                };
+                const updateCount = (count) => {
+                    if (countEl) countEl.textContent = `${count} itens armazenados.`;
+                };
+
+                const companyId = user.companyId;
+                const tasks = [
+                    {
+                        label: 'Configurações globais',
+                        action: async () => {
+                            const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                            if (globalConfigsDoc.exists()) {
+                                App.state.globalConfigs = globalConfigsDoc.data();
+                            }
+                            return 1;
+                        }
+                    },
+                    {
+                        label: 'Empresa',
+                        action: async () => {
+                            if (!companyId) return 0;
+                            const companyDoc = await App.data.getDocument('companies', companyId);
+                            if (companyDoc) {
+                                App.state.companies = [companyDoc];
+                            }
+                            return companyDoc ? 1 : 0;
+                        }
+                    },
+                    {
+                        label: 'Configurações da empresa',
+                        action: async () => {
+                            const configDoc = await App.data.getDocument('config', companyId);
+                            if (configDoc) {
+                                App.state.companyConfig = configDoc;
+                            }
+                            return configDoc ? 1 : 0;
+                        }
+                    },
+                ];
+
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'qualidadePlantio', 'frota'];
+
+                companyScopedCollections.forEach((collectionName) => {
+                    tasks.push({
+                        label: `Coleção ${collectionName}`,
+                        action: async () => {
+                            const q = query(collection(db, collectionName), where("companyId", "==", companyId));
+                            const snapshot = await getDocs(q);
+                            const data = [];
+                            snapshot.forEach((docSnap) => data.push({ id: docSnap.id, ...docSnap.data() }));
+                            App.state[collectionName] = data;
+                            return data.length;
+                        }
+                    });
+                });
+
+                tasks.push({
+                    label: 'Clima recente',
+                    action: async () => {
+                        const sixMonthsAgo = new Date();
+                        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+                        const dateStr = sixMonthsAgo.toISOString().split('T')[0];
+                        const q = query(collection(db, 'clima'), where("companyId", "==", companyId), where("data", ">=", dateStr));
+                        const snapshot = await getDocs(q);
+                        const data = [];
+                        snapshot.forEach((docSnap) => data.push({ id: docSnap.id, ...docSnap.data() }));
+                        App.state.clima = data;
+                        return data.length;
+                    }
+                });
+
+                tasks.push({
+                    label: 'Controle de frota (ativo)',
+                    action: async () => {
+                        const qActive = query(
+                            collection(db, 'controleFrota'),
+                            where("companyId", "==", companyId),
+                            where("status", "==", "EM_DESLOCAMENTO")
+                        );
+                        const snapshot = await getDocs(qActive);
+                        const data = [];
+                        snapshot.forEach((docSnap) => data.push({ id: docSnap.id, ...docSnap.data() }));
+                        App.state.activeTrips = data;
+                        return data.length;
+                    }
+                });
+
+                let totalCount = 0;
+                updateStatus("Preparando download...");
+                updateProgress(0);
+
+                for (let i = 0; i < tasks.length; i++) {
+                    const task = tasks[i];
+                    updateStatus(`Baixando ${task.label}... (${i + 1}/${tasks.length})`);
+                    try {
+                        const count = await task.action();
+                        totalCount += count;
+                        updateCount(totalCount);
+                    } catch (error) {
+                        console.error(`Erro ao baixar ${task.label}:`, error);
+                    } finally {
+                        updateProgress(Math.round(((i + 1) / tasks.length) * 100));
+                    }
+                }
+
+                updateStatus("Download concluído.");
+                App.ui.showAlert("Dados offline atualizados com sucesso!", "success");
+            },
             getLocalUserProfiles() {
                 return JSON.parse(localStorage.getItem('localUserProfiles') || '[]');
             },
@@ -7898,6 +8182,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     await reauthenticateWithCredential(user, credential);
                     await updatePassword(user, newPassword);
+
+                    try {
+                        await App.actions.cacheOfflineCredentials(newPassword, App.state.currentUser);
+                    } catch (error) {
+                        console.error("Erro ao atualizar credenciais offline após troca de senha:", error);
+                    }
                     
                     App.ui.showAlert("Senha alterada com sucesso!", "success");
                     els.overlay.classList.remove('show');
@@ -10241,6 +10531,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async forceTokenRefresh(isManual = false) {
                 if (!navigator.onLine || !auth.currentUser) {
+                    if (App.state.currentUser) {
+                        App.actions.markReauthRequired('token-missing');
+                    }
                     if (isManual) {
                         App.ui.showSystemNotification("Sincronização", "Offline ou sem utilizador. Não é possível sincronizar.", "warning");
                     }
@@ -10253,6 +10546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("A forçar a atualização do token de autenticação...");
                     await auth.currentUser.getIdToken(true);
                     console.log("Token de autenticação atualizado com sucesso.");
+                    App.session.setAuthenticatedLocal(App.state.currentUser, { source: 'token-refresh' });
 
                     // FIX: Pré-carrega os dados críticos antes de reanexar os listeners para evitar a condição de corrida do menu
                     const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
@@ -10274,10 +10568,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.data.listenToAllData();
 
                     // Após a atualização bem-sucedida do token, iniciar a sincronização.
+                    App.ui.updateSyncStatus('syncing');
                     this.syncOfflineWrites();
                 } catch (error) {
                     console.error("Falha ao forçar a atualização do token:", error);
-                    App.ui.showSystemNotification("Erro de Autenticação", "Falha na autenticação. Não foi possível sincronizar.", "error");
+                    if (App.actions.isAuthError(error)) {
+                        App.actions.markReauthRequired('token-refresh-failed');
+                    } else {
+                        App.ui.updateSyncStatus('error');
+                        App.ui.showSystemNotification("Erro de Autenticação", "Falha na autenticação. Não foi possível sincronizar.", "error");
+                    }
                 }
             },
 
@@ -10286,8 +10586,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("A sincronização já está em andamento.");
                     return;
                 }
+                if (App.session && App.session.needsReauth()) {
+                    App.ui.updateSyncStatus('reauth');
+                    return;
+                }
+                if (!navigator.onLine || !auth.currentUser) {
+                    if (App.state.currentUser) {
+                        App.actions.markReauthRequired('sync-missing-auth');
+                    }
+                    return;
+                }
 
                 App.state.isSyncing = true;
+                App.ui.updateSyncStatus('syncing');
                 this.syncGpsLocations(); // Sync GPS data
                 console.log("Iniciando a verificação de dados offline...");
 
@@ -10327,6 +10638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let discardedWrites = 0; // Erros irrecuperáveis (dados malformados)
 
                     // Etapa 2: Iterar sobre os dados em memória e tentar sincronizar
+                    let haltForAuth = false;
                     for (let i = 0; i < writesToSync.length; i++) {
                         const write = writesToSync[i];
                         const key = keysToSync[i];
@@ -10397,6 +10709,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                         } catch (error) {
+                            if (App.actions.isAuthError(error)) {
+                                App.actions.markReauthRequired('sync-offline-writes');
+                                haltForAuth = true;
+                                break;
+                            }
                             if (error.message === 'Item de sincronização offline malformado ou inválido.') {
                                 console.error('Item malformado encontrado e descartado:', { write, error });
                                 logEntry.items.push({
@@ -10441,6 +10758,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
+                    if (haltForAuth) {
+                        App.state.isSyncing = false;
+                        return;
+                    }
+
                     // Etapa 3: Apagar todos os registos sincronizados com sucesso E os irrecuperáveis
                     const keysToDelete = [...successfulKeys, ...unrecoverableKeys];
                     if (keysToDelete.length > 0) {
@@ -10473,6 +10795,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const logDocRef = await App.data.addDocument('sync_history_store', permanentLogEntry);
 
                         App.ui.showSystemNotification(`Sincronização: ${logEntry.status}`, logEntry.details, logEntry.status, { logId: logDocRef.id });
+                        App.ui.updateSyncStatus(logEntry.status === 'success' ? 'done' : 'error');
                     }
 
                 } catch (error) {
@@ -10480,6 +10803,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showSystemNotification("Erro de Sincronização", "Ocorreu um erro crítico durante o processo. Verifique a consola.", "critical_error");
                 } finally {
                     App.state.isSyncing = false;
+                    if (App.session && App.session.needsReauth()) {
+                        App.ui.updateSyncStatus('reauth');
+                    } else if (App.state.syncStatus !== 'error') {
+                        App.ui.updateSyncStatus('done');
+                    }
                     console.log("Processo de sincronização finalizado.");
                 }
             },
@@ -10508,6 +10836,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     await tx.store.clear();
                     await tx.done;
                     console.log(`${locationsToSync.length} localizações GPS offline foram sincronizadas e limpas.`);
+                } else if (response.status === 401 || response.status === 403) {
+                    App.actions.markReauthRequired('sync-gps');
                 } else {
                     // Log the error for better debugging
                     const errorText = await response.text();
@@ -11201,6 +11531,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const umaHora = 60 * 60 * 1000;
                 App.state.syncInterval = setInterval(() => {
                     if (navigator.onLine) {
+                        if (App.session && App.session.needsReauth()) {
+                            App.ui.updateSyncStatus('reauth');
+                            return;
+                        }
                         console.log("Sincronização automática em primeiro plano iniciada...");
                         App.actions.syncOfflineWrites();
                     } else {
@@ -11215,71 +11549,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearInterval(App.state.syncInterval);
                     App.state.syncInterval = null;
                     console.log("Sincronização automática em primeiro plano parada.");
-                }
-            },
-
-            async enableOfflineLogin() {
-                const passwordInput = document.getElementById('enableOfflinePassword');
-                const password = passwordInput.value;
-                const currentUser = App.state.currentUser;
-
-                if (!password) {
-                    App.ui.showAlert("Por favor, insira a sua senha atual para confirmar.", "error");
-                    return;
-                }
-
-                if (!navigator.onLine) {
-                    App.ui.showAlert("É preciso estar online para habilitar o login offline pela primeira vez.", "warning");
-                    return;
-                }
-
-                App.ui.setLoading(true, "A verificar senha e a guardar credenciais...");
-
-                try {
-                    // 1. Re-autenticar para verificar a senha
-                    const user = auth.currentUser;
-                    const credential = EmailAuthProvider.credential(user.email, password);
-                    await reauthenticateWithCredential(user, credential);
-
-                    // 2. Gerar "salt" e "hash" da senha
-                    const salt = CryptoJS.lib.WordArray.random(128 / 8).toString();
-                    const hashedPassword = CryptoJS.PBKDF2(password, salt, {
-                        keySize: 256 / 32,
-                        iterations: 1000
-                    }).toString();
-
-                    // 3. Preparar os dados para guardar
-                    const userProfileToSave = {
-                        uid: currentUser.uid,
-                        email: currentUser.email,
-                        username: currentUser.username,
-                        role: currentUser.role,
-                        permissions: currentUser.permissions,
-                        companyId: currentUser.companyId,
-                    };
-                    const credentialsToStore = {
-                        email: currentUser.email.toLowerCase(),
-                        hashedPassword: hashedPassword,
-                        salt: salt,
-                        userProfile: userProfileToSave
-                    };
-
-                    // 4. Guardar no IndexedDB
-                    await OfflineDB.set('offline-credentials', credentialsToStore);
-
-                    App.ui.showAlert("Login offline habilitado/atualizado com sucesso!", "success");
-                    App.ui.closeEnableOfflineLoginModal();
-
-                } catch (error) {
-                    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
-                        App.ui.showAlert("A senha está incorreta.", "error");
-                    } else {
-                        App.ui.showAlert("Ocorreu um erro ao habilitar o login offline.", "error");
-                        console.error("Erro ao habilitar login offline:", error);
-                    }
-                } finally {
-                    App.ui.setLoading(false);
-                    passwordInput.value = '';
                 }
             },
 
@@ -16585,6 +16854,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('offline', () => {
         App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        App.ui.updateSessionStatus(App.state.sessionStatus);
+        App.ui.updateSyncStatus('idle');
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
             App.state.connectionCheckInterval = null;
@@ -16595,6 +16866,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('online', () => {
         console.log("Browser reports 'online'. Starting active connection checks.");
         App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
+        App.ui.updateSessionStatus(App.state.sessionStatus);
         // Clear any previous interval just in case
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
