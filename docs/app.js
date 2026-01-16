@@ -228,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isImpersonating: false,
             originalUser: null,
             isAuthenticated: false,
+            isLoggingOut: false,
             authMode: null, // 'online' | 'offline'
             isOnline: navigator.onLine,
             requiresReauth: false,
@@ -1284,6 +1285,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
+                        App.state.isLoggingOut = false;
                         this._setAuthState({ isAuthenticated: true, authMode: 'online', requiresReauth: false });
                         App.ui.setLoading(true, "A carregar dados do utilizador...");
                         const userDoc = await App.data.getUserData(user.uid);
@@ -1367,12 +1369,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
                         }
                     } else {
-                        if (App.state.isAuthenticated) {
+                        if (App.state.isAuthenticated && !App.state.isLoggingOut) {
                             App.state.authMode = 'offline';
                             if (App.state.isOnline) {
                                 this._markReauthRequired();
                             }
                             App.ui.showAppScreen();
+                            App.ui.setLoading(false);
+                            return;
+                        }
+                        if (App.state.isLoggingOut) {
+                            App.ui.showLoginScreen();
                             App.ui.setLoading(false);
                             return;
                         }
@@ -1610,15 +1617,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             async logout() {
-                if (navigator.onLine) {
-                    await signOut(auth);
-                }
+                App.state.isLoggingOut = true;
                 App.state.isAuthenticated = false;
                 App.state.authMode = null;
                 App.state.requiresReauth = false;
                 App.state.reauthDeferred = false;
                 App.ui.hideReauthBanner();
                 App.ui.updateConnectivityStatus();
+                try {
+                    if (navigator.onLine) {
+                        await signOut(auth);
+                    }
+                } finally {
+                    App.state.isLoggingOut = false;
+                }
                 // Limpa todos os listeners e processos em segundo plano
                 App.data.cleanupListeners();
                 App.actions.stopGpsTracking();
