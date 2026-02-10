@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v14'; // Incremented version for update
+const CACHE_NAME = 'agrovetor-cache-v15'; // Incremented version for update
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the IndexedDB tile cache
@@ -89,7 +89,7 @@ self.addEventListener('activate', event => {
 importScripts('https://cdn.jsdelivr.net/npm/idb@7.1.1/build/iife/index-min.js');
 
 const DB_NAME = 'agrovetor-offline-storage';
-const DB_VERSION = 6;
+const DB_VERSION = 9;
 const OFFLINE_WRITES_STORE = 'offline-writes';
 
 // Função para lidar com a sincronização em segundo plano
@@ -200,9 +200,10 @@ async function getTileFromIndexedDB(request) {
         const db = await getDb();
         const tileBlob = await db.get(TILE_STORE_NAME, request.url);
         if (tileBlob) {
+            const contentType = request.url.endsWith('.pbf') ? 'application/x-protobuf' : (request.url.includes('sprite') && request.url.endsWith('.json') ? 'application/json' : 'image/png');
             return new Response(tileBlob, {
                 headers: {
-                    'Content-Type': 'image/png'
+                    'Content-Type': contentType
                 }
             });
         }
@@ -249,7 +250,7 @@ self.addEventListener('fetch', event => {
   }
 
   // Strategy for Mapbox tiles: IndexedDB first, then Network, while saving to IndexedDB in background
-  if (url.hostname.includes('api.mapbox.com') && (url.pathname.includes('mapbox.satellite') || url.pathname.includes('mapbox.mapbox-streets-v8'))) {
+  if (url.hostname.includes('api.mapbox.com') && (url.pathname.includes('mapbox.satellite') || url.pathname.includes('mapbox.mapbox-streets-v8') || url.pathname.includes('/styles/v1/') || url.pathname.includes('/fonts/v1/'))) {
     event.respondWith(
         (async () => {
             const cachedResponse = await getTileFromIndexedDB(event.request);
@@ -259,6 +260,9 @@ self.addEventListener('fetch', event => {
 
             try {
                 const networkResponse = await fetch(event.request);
+                if (networkResponse && (networkResponse.status === 401 || networkResponse.status === 403)) {
+                    console.error('[SW][Mapbox] Token/auth failure for', event.request.url, networkResponse.status);
+                }
                 if (networkResponse && networkResponse.ok) {
                     // Clone the response to save it to IndexedDB while also returning it
                     const responseToCache = networkResponse.clone();
